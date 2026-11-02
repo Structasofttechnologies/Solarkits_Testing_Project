@@ -627,19 +627,20 @@ exports.reserve_inventory = async (req, res) => {
 exports.request_procurement = async (req, res) => {
   try {
     const { sku, requested_qty, notes, items = [], kit_capacity, model_name, num_kits = 1 } = req.body;
-    const order = await DeliveryOrder.findById(req.params.id);
-    if (!order) {
-      return res.status(404).json({ status: 'error', message: 'Delivery order not found.' });
+    let order = null;
+    if (req.params.id && req.params.id !== 'buffer-stock' && mongoose.Types.ObjectId.isValid(req.params.id)) {
+      order = await DeliveryOrder.findById(req.params.id);
     }
 
     // Resolve or find a valid warehouse ID
-    let warehouse_id = order.warehouse_id;
+    let warehouse_id = order ? order.warehouse_id : null;
     if (!warehouse_id) {
       const wh = await CompanyWarehouse.findOne({ deleted_at: null }).lean();
       warehouse_id = wh ? wh._id : new mongoose.Types.ObjectId();
     }
 
-    const requestNumber = `REQ-BOS-${order.order_number || Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+    const descName = model_name || (kit_capacity ? `${kit_capacity} BOS Kit` : (items[0]?.name || sku || 'BOS Kit Components'));
+    const requestNumber = `REQ-BOS-${order?.order_number || 'BUFFER'}-${Date.now().toString().slice(-4)}-${Math.floor(100 + Math.random() * 900)}`;
 
     // Build items for PoRequest
     let poItems = [];
@@ -658,8 +659,8 @@ exports.request_procurement = async (req, res) => {
         };
       });
     } else {
-      const item = (order.items || []).find(it => it.sku === sku);
-      const qty = parseInt(requested_qty) || (item ? item.pending_qty : 1);
+      const item = order ? (order.items || []).find(it => it.sku === sku) : null;
+      const qty = parseInt(requested_qty) || (item ? item.pending_qty : Number(num_kits) || 1);
       poItems = [{
         sku_id: new mongoose.Types.ObjectId(),
         sku_code: sku || 'BOS-RAW-MAT-PKG',
@@ -678,43 +679,44 @@ exports.request_procurement = async (req, res) => {
 
     await newPoRequest.save();
 
-    const descName = model_name || (kit_capacity ? `${kit_capacity} BOS Kit` : (items[0]?.name || sku || 'BOS Kit Components'));
-    order.procurement_requested = true;
-    order.procurement_request_number = requestNumber;
-    order.procurement_details = {
-      requested_at: new Date(),
-      request_number: requestNumber,
-      po_request_id: newPoRequest._id,
-      items_count: poItems.length,
-      kit_capacity: kit_capacity || order.system_capacity,
-      model_name: descName,
-      num_kits: Number(num_kits) || 1,
-      notes: notes || ''
-    };
+    if (order) {
+      order.procurement_requested = true;
+      order.procurement_request_number = requestNumber;
+      order.procurement_details = {
+        requested_at: new Date(),
+        request_number: requestNumber,
+        po_request_id: newPoRequest._id,
+        items_count: poItems.length,
+        kit_capacity: kit_capacity || order.system_capacity,
+        model_name: descName,
+        num_kits: Number(num_kits) || 1,
+        notes: notes || ''
+      };
 
-    order.audit_trail.push({
-      action: 'Procurement / Booking Requisition Sent to Account Manager',
-      performed_by_name: req.user?.name || 'Delivery Manager',
-      timestamp: new Date(),
-      notes: `Requisition ${requestNumber} with ${poItems.length} BOM components for ${descName} sent to Account Manager login for supplier booking. ${notes || ''}`.trim()
-    });
+      order.audit_trail.push({
+        action: 'Procurement / Booking Requisition Sent to Account Manager',
+        performed_by_name: req.user?.name || 'Delivery Manager',
+        timestamp: new Date(),
+        notes: `Requisition ${requestNumber} with ${poItems.length} BOM components for ${descName} sent to Account Manager login for supplier booking. ${notes || ''}`.trim()
+      });
+
+      await order.save();
+    }
 
     sendAdminNotification({
-      title: `⚡ Material Requisition: Order #${order.order_number}`,
+      title: order ? `⚡ Material Requisition: Order #${order.order_number}` : `⚡ Buffer Stock Material Requisition: ${descName}`,
       message: `Warehouse Manager requested procurement of materials (${descName} - ${poItems.length} components) under ${requestNumber}.`,
       category: 'inventory',
       priority: 'urgent',
       action_url: '/account-panel/procurement',
-      metadata: { order_id: order._id, order_number: order.order_number, delivery_order_id: order.delivery_order_id, request_number: requestNumber, event: 'procurement_requested' }
+      metadata: { order_id: order?._id, order_number: order?.order_number, delivery_order_id: order?.delivery_order_id, request_number: requestNumber, event: 'procurement_requested' }
     }).catch(err => console.warn('[Procurement Notification Error]:', err.message));
-
-    await order.save();
 
     return res.status(200).json({
       status: 'success',
       message: `Booking & procurement requisition "${requestNumber}" for ${descName} (${poItems.length} materials) forwarded to Account Manager successfully.`,
       request_number: requestNumber,
-      data: order
+      data: order || newPoRequest
     });
   } catch (error) {
     console.error('Error in request_procurement:', error);

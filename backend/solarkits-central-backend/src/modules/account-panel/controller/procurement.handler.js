@@ -107,8 +107,19 @@ exports.get_batch_ready_orders = async (req, res) => {
           PurchaseIndent.find({ order_group_id: g.group_id }).lean()
         ]);
 
+        let currentStatus = g.status;
+        if (piCount >= 3 && (currentStatus === 'Sent to Procurement' || currentStatus === 'Batch Ready' || currentStatus === 'Procurement In Progress')) {
+          currentStatus = 'Transferred to Delivery';
+          ProcurementGroup.updateOne(
+            { group_id: g.group_id },
+            { $set: { status: 'Transferred to Delivery', batch_status: 'Transferred to Delivery', procurement_readiness_status: 'Awaiting Warehouse Inward' } }
+          ).catch(() => {});
+        }
+
         return {
           ...g,
+          status: currentStatus,
+          batch_status: currentStatus === 'Transferred to Delivery' ? 'Transferred to Delivery' : g.batch_status,
           pi_count: piCount,
           active_reservations_count: reservationCount,
           purchase_indents: pis,
@@ -1112,6 +1123,32 @@ exports.create_purchase_indent = async (req, res) => {
     });
 
     await newPI.save();
+
+    if (order_group_id) {
+      const totalBatchPis = await PurchaseIndent.countDocuments({ order_group_id });
+      if (totalBatchPis >= 3) {
+        await ProcurementGroup.updateOne(
+          { group_id: order_group_id },
+          {
+            $set: {
+              status: 'Transferred to Delivery',
+              batch_status: 'Transferred to Delivery',
+              procurement_readiness_status: 'Awaiting Warehouse Inward'
+            }
+          }
+        ).catch(() => {});
+      } else {
+        await ProcurementGroup.updateOne(
+          { group_id: order_group_id },
+          {
+            $set: {
+              status: 'Procurement In Progress',
+              batch_status: 'Procurement In Progress'
+            }
+          }
+        ).catch(() => {});
+      }
+    }
 
     // Link PI to customer order in epc_orders / fpo_orders
     const isEpc = customer_order_number.toUpperCase().includes('EPC');
