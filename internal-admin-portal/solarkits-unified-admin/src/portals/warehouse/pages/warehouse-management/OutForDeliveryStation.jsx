@@ -1443,16 +1443,25 @@ export default function OutForDeliveryStation({ onNavigateToTracking }) {
                           </button>
                         </div>
                       ) : (
-                        <label className="block p-2 border-2 border-dashed border-border hover:border-primary rounded-lg text-center cursor-pointer transition-colors bg-surface">
-                          <HiOutlinePhotograph className="mx-auto text-xl text-text-muted mb-1" />
-                          <span className="text-[10px] font-bold text-primary block">Upload Vehicle Rear Photo</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handleUploadFile(activeOrder._id, 'vehicle_rear_photo', e.target.files[0])}
-                          />
-                        </label>
+                        <div className="space-y-1.5">
+                          <label className="block p-2 border-2 border-dashed border-border hover:border-primary rounded-lg text-center cursor-pointer transition-colors bg-surface">
+                            <HiOutlinePhotograph className="mx-auto text-xl text-text-muted mb-1" />
+                            <span className="text-[10px] font-bold text-primary block">Upload Vehicle Rear Photo</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleUploadFile(activeOrder._id, 'vehicle_rear_photo', e.target.files[0])}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleInputChange(activeOrder._id, 'vehicle_rear_photo', 'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=800&auto=format&fit=crop&q=60')}
+                            className="w-full py-1 px-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25 text-[10px] font-bold cursor-pointer transition-all flex items-center justify-center gap-1"
+                          >
+                            <span>⚡ Quick Attach Sample Loaded Photo</span>
+                          </button>
+                        </div>
                       )}
                     </div>
 
@@ -1479,16 +1488,28 @@ export default function OutForDeliveryStation({ onNavigateToTracking }) {
                           </button>
                         </div>
                       ) : (
-                        <label className="block p-2 border-2 border-dashed border-border hover:border-primary rounded-lg text-center cursor-pointer transition-colors bg-surface">
-                          <HiOutlineUpload className="mx-auto text-xl text-text-muted mb-1" />
-                          <span className="text-[10px] font-bold text-primary block">Upload Docket Scanned Copy</span>
-                          <input
-                            type="file"
-                            accept=".pdf,image/*"
-                            className="hidden"
-                            onChange={(e) => handleUploadFile(activeOrder._id, 'docket_doc', e.target.files[0])}
-                          />
-                        </label>
+                        <div className="space-y-1.5">
+                          <label className="block p-2 border-2 border-dashed border-border hover:border-primary rounded-lg text-center cursor-pointer transition-colors bg-surface">
+                            <HiOutlineUpload className="mx-auto text-xl text-text-muted mb-1" />
+                            <span className="text-[10px] font-bold text-primary block">Upload Docket Scanned Copy</span>
+                            <input
+                              type="file"
+                              accept=".pdf,image/*"
+                              className="hidden"
+                              onChange={(e) => handleUploadFile(activeOrder._id, 'docket_doc', e.target.files[0])}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleInputChange(activeOrder._id, 'docket_doc', 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf');
+                              if (!activeForm.docket_number) handleInputChange(activeOrder._id, 'docket_number', `DC-${activeOrder.order_number}`);
+                            }}
+                            className="w-full py-1 px-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25 text-[10px] font-bold cursor-pointer transition-all flex items-center justify-center gap-1"
+                          >
+                            <span>⚡ Quick Attach Sample Challan</span>
+                          </button>
+                        </div>
                       )}
                     </div>
 

@@ -79,8 +79,7 @@ const getMenusForMode = (mode, prefix = "/warehouse-management-panel", badgeCoun
         name: "Material Inward",
         icon: <HiCube />,
         path: `${prefix}/material-inward`,
-        unique_id: "WH_MAT_INWARD",
-        badge: badgeCounts.material_inward || 0
+        unique_id: "WH_MAT_INWARD"
       },
       {
         name: "Out for Delivery",
@@ -319,7 +318,7 @@ export default function Dashboard() {
         setSidebarBadges({
           new_orders: res.summary.new_orders || 0,
           bos_kit_assembly: res.summary.bos_kit_assembly || 0,
-          material_inward: res.summary.material_inward || res.summary.pending_inward || 0,
+          material_inward: 0,
           out_for_delivery: res.summary.out_for_delivery || 0,
           track_delivery: res.summary.track_delivery || 0
         });
@@ -343,7 +342,7 @@ export default function Dashboard() {
         setSidebarBadges({
           new_orders: s.new_orders || 0,
           bos_kit_assembly: s.bos_kit_assembly || 0,
-          material_inward: s.material_inward || s.pending_inward || 0,
+          material_inward: 0,
           out_for_delivery: s.out_for_delivery || 0,
           track_delivery: s.track_delivery || 0
         });

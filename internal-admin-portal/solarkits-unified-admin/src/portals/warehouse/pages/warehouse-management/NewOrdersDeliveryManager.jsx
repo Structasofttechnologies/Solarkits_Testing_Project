@@ -365,6 +365,157 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
   // Send for Delivery State & Handler
   const [sendingOrderId, setSendingOrderId] = useState(null);
 
+  // Helper to check if an item is specifically the pre-assembled finished BOS Kit package
+  const isBosKitItem = (it) => {
+    if (!it) return false;
+    const sku = (it.sku || '').toUpperCase();
+    const name = (it.product_name || '').toLowerCase();
+    const cat = (it.category || '').toLowerCase();
+
+    // Strict exclusion: rails, clamps, hardware, fasteners, bolts, cables
+    if (sku.includes('RAIL') || sku.includes('CLAMP') || sku.includes('FASTENER') || sku.includes('BOLT') ||
+        cat.includes('structure') || cat.includes('fastener') || name.includes('rail') || name.includes('clamp') || name.includes('bolt') || name.includes('fastener')) {
+      return false;
+    }
+
+    return cat.includes('bos kit') || 
+           sku.startsWith('BOS-KIT-') || 
+           name.startsWith('bos kit') || 
+           it.is_synthesized_bos_kit || 
+           it.is_bos_kit;
+  };
+
+  // Centralized helper to extract true kit count & capacity for any delivery order dynamically
+  const getOrderKitMetrics = (ord) => {
+    if (!ord) return { totalKits: 1, capacity: '3 kW', modelName: 'Solarkits DCR Combokit' };
+
+    // 1. Extract from EPC array (dynamic order data from Account Manager / Solar Shop)
+    let epcKits = 0;
+    let cap = ord.system_capacity || '';
+    let model = ord.solarkit_model || '';
+
+    if (ord.epcs && ord.epcs.length > 0) {
+      epcKits = ord.epcs.reduce((acc, epc) => {
+        const match = (epc.boskit_qty || '').match(/(\d+)/) ||
+                      (epc.inverter_qty || '').match(/(\d+)/);
+        return acc + (match ? parseInt(match[1], 10) : 0);
+      }, 0);
+      if (!cap) {
+        cap = ord.epcs.find(e => e.system_capacity)?.system_capacity || '';
+      }
+      if (!model) {
+        model = ord.epcs.find(e => e.solarkit_model)?.solarkit_model || '';
+      }
+    }
+
+    // 2. Scan items for inverters (1 inverter = 1 kit) and panels (e.g. 9 panels/kit)
+    const items = ord.items || [];
+    let inverterCount = 0;
+    let panelKits = 0;
+    let fallbackHardwareKits = 0;
+
+    for (const it of items) {
+      const name = (it.product_name || it.name || '').toLowerCase();
+      const sku = (it.sku || '').toUpperCase();
+      const cat = (it.category || '').toLowerCase();
+
+      // Inverter: 1 inverter = 1 kit
+      if (cat === 'inverter' || name.includes('inverter') || sku.includes('HAV-') || sku.includes('INV-')) {
+        if ((it.ordered_qty || 0) > inverterCount) inverterCount = it.ordered_qty;
+        const capMatch = (it.product_name || '').match(/(\d+)\s*k[wv]/i) || sku.match(/(\d+)KW/i);
+        if (capMatch && !cap) cap = `${capMatch[1]} kW`;
+      }
+
+      // Panels: 9 panels = 1 kit (e.g. 225 panels = 25 kits, 630 panels = 70 kits)
+      if (cat.includes('panel') || name.includes('module') || name.includes('panel')) {
+        const pQty = it.ordered_qty || 0;
+        if (pQty > 0) {
+          const fromPanels = Math.round(pQty / 9);
+          if (fromPanels > panelKits) panelKits = fromPanels;
+        }
+      }
+
+      // Strict hardware check: NEVER match cables (e.g. "Lightning Arrestor Cable" is a cable, NOT an arrestor!)
+      const isCableOrClamp = name.includes('cable') || sku.includes('CAB-') || sku.includes('CLA-') || sku.includes('UVR-') || sku.includes('PVC-') || sku.includes('SCR-');
+      if (!isCableOrClamp) {
+        if (sku.includes('ACDB') || name.includes('acdb')) {
+          if ((it.ordered_qty || 0) > fallbackHardwareKits) fallbackHardwareKits = it.ordered_qty;
+        }
+        if (sku.startsWith('LIG-') || (name.includes('lightning arrestor') && !name.includes('cable'))) {
+          if ((it.ordered_qty || 0) > fallbackHardwareKits) fallbackHardwareKits = it.ordered_qty;
+        }
+      }
+    }
+
+    // 3. Resolve true totalKits dynamically (Ground Truth: num_kits / total_kits / BOS kit item / epc.boskit_qty)
+    const rawBos = (ord.items || []).find(it => isBosKitItem(it));
+    let epcBosKits = 0;
+    if (ord.epcs && ord.epcs.length > 0) {
+      epcBosKits = ord.epcs.reduce((acc, epc) => {
+        const match = (epc.boskit_qty || '').match(/(\d+)/);
+        return acc + (match ? parseInt(match[1], 10) : 0);
+      }, 0);
+    }
+
+    let kits = Number(ord.num_kits) || 
+               Number(ord.total_kits) || 
+               (rawBos ? rawBos.ordered_qty : 0) ||
+               epcBosKits ||
+               epcKits || 
+               inverterCount || 
+               panelKits || 
+               fallbackHardwareKits || 
+               1;
+
+    if (!kits) kits = 1;
+    if (!cap) cap = '3 kW';
+    if (!model) model = `${cap} Solarkits DCR Combokit`;
+
+    return { totalKits: kits, capacity: cap, modelName: model };
+  };
+
+  // Centralized helper that returns all items for an order, including the synthesized BOS kit package item with its accurate ordered, received, and pending quantities
+  const getOrderItemsWithKit = (ord) => {
+    if (!ord) return [];
+    const items = (ord.items || []).map(it => ({ ...it }));
+    const existingBosIndex = items.findIndex(it => isBosKitItem(it));
+    const { totalKits, capacity } = getOrderKitMetrics(ord);
+
+    const actualReceivedKits = existingBosIndex >= 0
+      ? (items[existingBosIndex].received_qty || 0)
+      : (ord.inward_status === 'fully_inwarded' ? totalKits : 0);
+    const pendingKits = Math.max(0, totalKits - actualReceivedKits);
+
+    const cleanCap = (capacity || '3 kW').replace(/\s+/g, '');
+    const bosSku = `BOS-KIT-${cleanCap.toUpperCase()}-STD`;
+    const bosProductName = `BOS Kit (${capacity || '3 kW'} Pre-assembled Electrical Package - ACDB/DCDB/Cables)`;
+
+    if (existingBosIndex >= 0) {
+      if (items[existingBosIndex].ordered_qty !== totalKits) {
+        items[existingBosIndex].ordered_qty = totalKits;
+        items[existingBosIndex].pending_qty = Math.max(0, totalKits - (items[existingBosIndex].received_qty || 0));
+      }
+      if (!items[existingBosIndex].product_name?.includes(capacity)) {
+        items[existingBosIndex].product_name = bosProductName;
+      }
+    } else if (ord.kit_preparation_status && ord.kit_preparation_status !== 'not_required') {
+      items.push({
+        sku: bosSku,
+        product_name: bosProductName,
+        category: 'BOS Kit',
+        ordered_qty: totalKits,
+        received_qty: actualReceivedKits,
+        pending_qty: pendingKits,
+        damaged_qty: 0,
+        missing_qty: 0,
+        rack_location: ord.kit_assembly_details?.storage_location || 'BAY-BOS-STOCK',
+        is_synthesized_bos_kit: true
+      });
+    }
+
+    return items;
+  };
+
   const handleOpenDetailsModal = (order) => {
     setSelectedOrderForDetails(order);
     setOrderDetailsModalOpen(true);
@@ -766,7 +917,8 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
   };
 
   const handleSendForDelivery = async (order) => {
-    const totalPendingItems = (order.items || []).reduce((acc, it) => acc + (it.pending_qty || 0), 0);
+    const allItems = getOrderItemsWithKit(order);
+    const totalPendingItems = allItems.reduce((acc, it) => acc + (it.pending_qty || 0), 0);
     if (totalPendingItems > 0) {
       dispatch(setAlert({
         message: `Send for Delivery locked! ${totalPendingItems} units must be inwarded first.`,
@@ -776,7 +928,6 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
     }
 
     const isKitReady = order.kit_preparation_status === 'kit_ready' ||
-                       order.kit_assembly_details?.assembly_status === 'completed' ||
                        order.kit_preparation_status === 'not_required';
     if (!isKitReady) {
       dispatch(setAlert({
@@ -988,11 +1139,10 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
     const activeOrders = orders.filter(ord => !isOrderSentForDelivery(ord));
 
     activeOrders.forEach(ord => {
-      const items = ord.items || [];
+      const items = getOrderItemsWithKit(ord);
       const totalPending = items.reduce((acc, it) => acc + (it.pending_qty || 0), 0);
       const isKitReady = ord.kit_preparation_status === 'kit_ready' ||
-                         ord.kit_preparation_status === 'not_required' ||
-                         ord.kit_assembly_details?.assembly_status === 'completed';
+                         ord.kit_preparation_status === 'not_required';
       const isComplete = totalPending === 0 && isKitReady;
 
       // Payment Done: checks first-half payment is completed / verified
@@ -1019,11 +1169,10 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
     const activeOrders = orders.filter(ord => !isOrderSentForDelivery(ord));
     if (selectedQueueTab === 'all') return activeOrders;
     return activeOrders.filter(ord => {
-      const items = ord.items || [];
+      const items = getOrderItemsWithKit(ord);
       const totalPending = items.reduce((acc, it) => acc + (it.pending_qty || 0), 0);
       const isKitReady = ord.kit_preparation_status === 'kit_ready' ||
-                         ord.kit_preparation_status === 'not_required' ||
-                         ord.kit_assembly_details?.assembly_status === 'completed';
+                         ord.kit_preparation_status === 'not_required';
       const isComplete = totalPending === 0 && isKitReady;
       const isPaymentDone = (ord.epcs || []).length === 0 || (ord.epcs || []).every(epc => epc.payment_first_half?.status === 'done');
 
@@ -1034,148 +1183,10 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
     });
   }, [orders, selectedQueueTab]);
 
-  // Centralized helper to extract true kit count & capacity for any delivery order dynamically
-  const getOrderKitMetrics = (ord) => {
-    if (!ord) return { totalKits: 1, capacity: '3 kW', modelName: 'Solarkits DCR Combokit' };
-
-    // 1. Extract from EPC array (dynamic order data from Account Manager / Solar Shop)
-    let epcKits = 0;
-    let cap = ord.system_capacity || '';
-    let model = ord.solarkit_model || '';
-
-    if (ord.epcs && ord.epcs.length > 0) {
-      epcKits = ord.epcs.reduce((acc, epc) => {
-        const match = (epc.boskit_qty || '').match(/(\d+)/) ||
-                      (epc.inverter_qty || '').match(/(\d+)/);
-        return acc + (match ? parseInt(match[1], 10) : 0);
-      }, 0);
-      if (!cap) {
-        cap = ord.epcs.find(e => e.system_capacity)?.system_capacity || '';
-      }
-      if (!model) {
-        model = ord.epcs.find(e => e.solarkit_model)?.solarkit_model || '';
-      }
-    }
-
-    // 2. Scan items for inverters (1 inverter = 1 kit) and panels (e.g. 9 panels/kit)
-    const items = ord.items || [];
-    let inverterCount = 0;
-    let panelKits = 0;
-    let fallbackHardwareKits = 0;
-
-    for (const it of items) {
-      const name = (it.product_name || it.name || '').toLowerCase();
-      const sku = (it.sku || '').toUpperCase();
-      const cat = (it.category || '').toLowerCase();
-
-      // Inverter: 1 inverter = 1 kit
-      if (cat === 'inverter' || name.includes('inverter') || sku.includes('HAV-') || sku.includes('INV-')) {
-        if ((it.ordered_qty || 0) > inverterCount) inverterCount = it.ordered_qty;
-        const capMatch = (it.product_name || '').match(/(\d+)\s*k[wv]/i) || sku.match(/(\d+)KW/i);
-        if (capMatch && !cap) cap = `${capMatch[1]} kW`;
-      }
-
-      // Panels: 9 panels = 1 kit (e.g. 225 panels = 25 kits, 630 panels = 70 kits)
-      if (cat.includes('panel') || name.includes('module') || name.includes('panel')) {
-        const pQty = it.ordered_qty || 0;
-        if (pQty > 0) {
-          const fromPanels = Math.round(pQty / 9);
-          if (fromPanels > panelKits) panelKits = fromPanels;
-        }
-      }
-
-      // Strict hardware check: NEVER match cables (e.g. "Lightning Arrestor Cable" is a cable, NOT an arrestor!)
-      const isCableOrClamp = name.includes('cable') || sku.includes('CAB-') || sku.includes('CLA-') || sku.includes('UVR-') || sku.includes('PVC-') || sku.includes('SCR-');
-      if (!isCableOrClamp) {
-        if (sku.includes('ACDB') || name.includes('acdb')) {
-          if ((it.ordered_qty || 0) > fallbackHardwareKits) fallbackHardwareKits = it.ordered_qty;
-        }
-        if (sku.startsWith('LIG-') || (name.includes('lightning arrestor') && !name.includes('cable'))) {
-          if ((it.ordered_qty || 0) > fallbackHardwareKits) fallbackHardwareKits = it.ordered_qty;
-        }
-      }
-    }
-
-    // 3. Resolve true totalKits dynamically
-    // Highest priority: EPC kit count, Inverter count, or explicit order count
-    let kits = epcKits || 
-               inverterCount || 
-               Number(ord.total_kits) || 
-               Number(ord.num_kits) || 
-               panelKits || 
-               fallbackHardwareKits || 
-               1;
-
-    if (!kits) kits = 1;
-    if (!cap) cap = '3 kW';
-    if (!model) model = `${cap} Solarkits DCR Combokit`;
-
-    return { totalKits: kits, capacity: cap, modelName: model };
-  };
-
-  // Helper to check if an item is specifically the pre-assembled finished BOS Kit package
-  const isBosKitItem = (it) => {
-    if (!it) return false;
-    const sku = (it.sku || '').toUpperCase();
-    const name = (it.product_name || '').toLowerCase();
-    const cat = (it.category || '').toLowerCase();
-
-    // Strict exclusion: rails, clamps, hardware, fasteners, bolts, cables
-    if (sku.includes('RAIL') || sku.includes('CLAMP') || sku.includes('FASTENER') || sku.includes('BOLT') ||
-        cat.includes('structure') || cat.includes('fastener') || name.includes('rail') || name.includes('clamp') || name.includes('bolt') || name.includes('fastener')) {
-      return false;
-    }
-
-    return cat.includes('bos kit') || 
-           sku.startsWith('BOS-KIT-') || 
-           name.startsWith('bos kit') || 
-           it.is_synthesized_bos_kit || 
-           it.is_bos_kit;
-  };
-
   // Computes the comprehensive list of items for the Inward Verification modal
   const modalInwardItems = useMemo(() => {
     if (!selectedOrderForInward) return [];
-    const ord = selectedOrderForInward;
-    const { totalKits, capacity } = getOrderKitMetrics(ord);
-
-    const items = (ord.items || []).map(it => ({ ...it }));
-    const existingBosIndex = items.findIndex(it => isBosKitItem(it));
-
-    const actualReceivedKits = existingBosIndex >= 0
-      ? (items[existingBosIndex].received_qty || 0)
-      : (ord.inward_status === 'fully_inwarded' ? totalKits : 0);
-    const pendingKits = Math.max(0, totalKits - actualReceivedKits);
-    const receivedKits = actualReceivedKits;
-
-    const cleanCap = (capacity || '3 kW').replace(/\s+/g, '');
-    const bosSku = `BOS-KIT-${cleanCap.toUpperCase()}-STD`;
-    const bosProductName = `BOS Kit (${capacity || '3 kW'} Pre-assembled Electrical Package - ACDB/DCDB/Cables)`;
-
-    if (existingBosIndex >= 0) {
-      if (items[existingBosIndex].ordered_qty !== totalKits) {
-        items[existingBosIndex].ordered_qty = totalKits;
-        items[existingBosIndex].pending_qty = Math.max(0, totalKits - (items[existingBosIndex].received_qty || 0));
-      }
-      if (!items[existingBosIndex].product_name?.includes(capacity)) {
-        items[existingBosIndex].product_name = bosProductName;
-      }
-    } else if (ord.kit_preparation_status !== 'not_required') {
-      items.push({
-        sku: bosSku,
-        product_name: bosProductName,
-        category: 'BOS Kit',
-        ordered_qty: totalKits,
-        received_qty: receivedKits,
-        pending_qty: pendingKits,
-        damaged_qty: 0,
-        missing_qty: 0,
-        rack_location: ord.kit_assembly_details?.storage_location || 'BAY-BOS-STOCK',
-        is_synthesized_bos_kit: true
-      });
-    }
-
-    return items;
+    return getOrderItemsWithKit(selectedOrderForInward);
   }, [selectedOrderForInward]);
 
   // Open Material Inward Modal
@@ -1216,9 +1227,12 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
     items.forEach(it => {
       const isBos = isBosKitItem(it);
       // For panels & inverters: default to pending_qty for inwarding.
-      // For BOS Kits: default to 0 so we only allocate what actually exists in buffer stock or assemble on-demand!
+      // For BOS Kits: if kit_ready, prefill pending_qty so warehouse manager can inward immediately; else 0
+      const defaultQty = isBos
+        ? (order.kit_preparation_status === 'kit_ready' ? it.pending_qty : 0)
+        : it.pending_qty;
       initialInputs[it.sku] = {
-        qty: isBos ? 0 : it.pending_qty,
+        qty: defaultQty,
         damaged_qty: 0,
         missing_qty: 0,
         rack_location: it.rack_location || (isBos ? 'BAY-BOS-STOCK' : '')
@@ -1842,9 +1856,10 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
             const isReadyForDispatch = ord.delivery_status === 'ready_for_dispatch';
             const isInTransit = ord.delivery_status === 'in_transit';
 
-            const totalOrderedItems = (ord.items || []).reduce((acc, it) => acc + (it.ordered_qty || 0), 0);
-            const totalReceivedItems = (ord.items || []).reduce((acc, it) => acc + (it.received_qty || 0), 0);
-            const totalPendingItems = (ord.items || []).reduce((acc, it) => acc + (it.pending_qty || 0), 0);
+            const allItems = getOrderItemsWithKit(ord);
+            const totalOrderedItems = allItems.reduce((acc, it) => acc + (it.ordered_qty || 0), 0);
+            const totalReceivedItems = allItems.reduce((acc, it) => acc + (it.received_qty || 0), 0);
+            const totalPendingItems = allItems.reduce((acc, it) => acc + (it.pending_qty || 0), 0);
             const inwardPercent = totalOrderedItems > 0 ? Math.round((totalReceivedItems / totalOrderedItems) * 100) : 0;
 
             return (
@@ -2032,16 +2047,26 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                       className={`h-9 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 flex items-center gap-2 shadow-sm cursor-pointer ${
                         totalPendingItems === 0 || isReadyForDispatch
                           ? 'bg-surface-hover hover:bg-surface border border-border text-text-secondary hover:text-text-primary'
+                          : ord.kit_preparation_status === 'kit_ready' && totalPendingItems > 0
+                          ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-md shadow-purple-500/25 ring-2 ring-purple-500/40 animate-pulse'
                           : 'gradient-primary text-white hover:opacity-95 active:scale-95'
                       }`}
                       title={
                         totalPendingItems === 0 || isReadyForDispatch
                           ? 'All items inwarded. Click to view or adjust inward records'
+                          : ord.kit_preparation_status === 'kit_ready' && totalPendingItems > 0
+                          ? 'BOS Kits assembly finished! Click to inward assembled kits.'
                           : 'Record material physical inward & scan serials'
                       }
                     >
                       <HiOutlineClipboardCheck className={`text-base ${totalPendingItems === 0 || isReadyForDispatch ? 'text-emerald-400' : 'text-white'}`} />
-                      <span>{totalPendingItems === 0 || isReadyForDispatch ? 'View / Adjust Inward' : 'Inward Material'}</span>
+                      <span>
+                        {totalPendingItems === 0 || isReadyForDispatch
+                          ? 'View / Adjust Inward'
+                          : ord.kit_preparation_status === 'kit_ready' && totalPendingItems > 0
+                          ? `Inward Assembled BOS Kits (${totalPendingItems})`
+                          : 'Inward Material'}
+                      </span>
                     </button>
 
                     {/* Requisition Button: When items or BOS kits are pending */}
@@ -2063,7 +2088,6 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                       if (!isAllInwarded) return null;
 
                       const isKitReady = ord.kit_preparation_status === 'kit_ready' ||
-                                         ord.kit_assembly_details?.assembly_status === 'completed' ||
                                          ord.kit_preparation_status === 'not_required';
 
                       return (
@@ -2891,7 +2915,7 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                 </div>
               </div>
               <div className="text-3xl font-black text-emerald-400 mt-2">
-                {orders.filter(o => o.kit_preparation_status === 'kit_ready' || o.kit_assembly_details?.assembly_status === 'completed').length}
+                {orders.filter(o => o.kit_preparation_status === 'kit_ready').length}
               </div>
               <div className="text-[11px] text-text-muted mt-1">Assembled & staged for New Orders inward</div>
             </div>
@@ -2900,7 +2924,7 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
           {/* BOS Kit Filter Tabs */}
           {(() => {
             const isOrderKitFullyDone = (o) => {
-              return o.kit_preparation_status === 'kit_ready' || o.kit_assembly_details?.assembly_status === 'completed';
+              return o.kit_preparation_status === 'kit_ready';
             };
 
             const allPendingCount = orders.filter(o => o.kit_preparation_status && o.kit_preparation_status !== 'not_required' && !isOrderKitFullyDone(o)).length;
@@ -2936,7 +2960,7 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
           {/* BOS Kit Cards */}
           {(() => {
             const isOrderKitFullyDone = (o) => {
-              return o.kit_preparation_status === 'kit_ready' || o.kit_assembly_details?.assembly_status === 'completed';
+              return o.kit_preparation_status === 'kit_ready';
             };
 
             const kitOrders = orders
@@ -2946,6 +2970,16 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                 if (boskitStageFilter === 'all') return true;
                 return o.kit_preparation_status === boskitStageFilter;
               });
+
+            if (loading) {
+              return (
+                <div className="card p-10 text-center space-y-3 bg-surface border border-purple-500/20 rounded-2xl shadow-xs animate-pulse">
+                  <FaSpinner className="animate-spin text-3xl text-purple-400 mx-auto" />
+                  <div className="text-sm font-bold text-text-primary">Loading Workstation Assembly Queue...</div>
+                  <div className="text-xs text-text-secondary">Fetching active orders and BOS kit preparation status</div>
+                </div>
+              );
+            }
 
             if (kitOrders.length === 0) {
               return (
@@ -2998,11 +3032,11 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                   let currentStage = 1;
                   if (isKitDone || ord.kit_preparation_status === 'kit_ready') {
                     currentStage = 5;
-                  } else if (assemblyDetails.packed_and_labeled && (assemblyDetails.qc_verified || assemblyDetails.qc_status === 'passed') && (assemblyDetails.assembled_at || assemblyDetails.assembly_status === 'completed')) {
+                  } else if (assemblyDetails.packed_and_labeled && (assemblyDetails.qc_verified || assemblyDetails.qc_status === 'passed')) {
                     currentStage = 5;
-                  } else if ((assemblyDetails.qc_verified || assemblyDetails.qc_status === 'passed') && (assemblyDetails.assembled_at || assemblyDetails.assembly_status === 'completed')) {
+                  } else if (assemblyDetails.qc_verified || assemblyDetails.qc_status === 'passed') {
                     currentStage = 4;
-                  } else if (assemblyDetails.assembled_at || assemblyDetails.assembly_status === 'completed') {
+                  } else if (assemblyDetails.assembled_at || assemblyDetails.wiring_completed) {
                     currentStage = 3;
                   } else if (kitStatus === 'in_assembly' || assemblyDetails.picked_at) {
                     currentStage = 2;
@@ -3944,7 +3978,7 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                     <button
                       type="button"
                       onClick={() => {
-                        const isKitAssembledForThisOrder = selectedOrderForInward?.kit_preparation_status === 'kit_ready' || selectedOrderForInward?.kit_assembly_details?.assembly_status === 'completed';
+                        const isKitAssembledForThisOrder = selectedOrderForInward?.kit_preparation_status === 'kit_ready';
                         const updated = { ...inwardInputs };
                         modalInwardItems.forEach(it => {
                           const isBos = isBosKitItem(it);
@@ -4187,7 +4221,11 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                                                 type="button"
                                                 onClick={() => {
                                                   setInwardModalOpen(false);
-                                                  if (onNavigateToBosKit) {
+                                                  if (!standaloneBoskit) {
+                                                    setMainSectionTab('boskit_station');
+                                                    setSelectedOrderForAssembly(selectedOrderForInward);
+                                                    setExpandedCards(prev => ({ ...prev, [selectedOrderForInward._id]: true }));
+                                                  } else if (onNavigateToBosKit) {
                                                     onNavigateToBosKit(selectedOrderForInward);
                                                   } else {
                                                     navigate(`${prefix}/bos-kit-assembly?orderId=${selectedOrderForInward._id}`);
@@ -5675,7 +5713,7 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                     Inward Material
                   </button>
                   {ord.kit_preparation_status && ord.kit_preparation_status !== 'not_required' && (
-                    (ord.kit_preparation_status === 'kit_ready' || ord.kit_assembly_details?.assembly_status === 'completed') ? (
+                    (ord.kit_preparation_status === 'kit_ready') ? (
                       <span className="px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-1.5 shadow-sm">
                         <FaCheck className="text-xs" />
                         <span>✓ BOS Kit Allocated ({ord.kit_assembly_details?.allocated_from_batch_code || ord.kit_assembly_details?.kit_serial_barcode || 'In Stock'})</span>
