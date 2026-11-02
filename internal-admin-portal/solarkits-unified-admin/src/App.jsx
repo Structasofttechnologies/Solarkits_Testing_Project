@@ -1,5 +1,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import TestingModeBanner from "./components/TestingModeBanner.jsx";
+
 
 function FullPageLoader() {
   return (
@@ -31,9 +33,11 @@ const WarehousePortalApp = lazy(() => import("./portals/warehouse/App.jsx"));
 const DeveloperPortalApp = lazy(() => import("./portals/developer/App.jsx"));
 const BoskitAdminPortalApp = lazy(() => import("./portals/boskit/App.jsx"));
 
+
 export default function App() {
   return (
     <BrowserRouter>
+      <TestingModeBanner />
       <Suspense fallback={<FullPageLoader />}>
         <Routes>
           {/* BOSKIT B2B Admin Platform */}

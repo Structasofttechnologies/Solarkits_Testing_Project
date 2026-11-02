@@ -24,6 +24,7 @@ import {
   Award,
   FileText,
   CalendarCheck,
+  BarChart3,
 } from 'lucide-react';
 
 export default function BdeLayout() {
@@ -68,6 +69,7 @@ export default function BdeLayout() {
     { name: 'EPC Quotes', path: '/epc-quotes', icon: FileText },
     { name: 'Quote Follow-ups', path: '/epc-quote-followups', icon: CalendarCheck },
     { name: 'Purchase Orders (PO)', path: '/purchase-orders', icon: ShoppingCart },
+    { name: 'EPC Analytics', path: '/epc-analytics', icon: BarChart3 },
     { name: 'Franchisee Goals', path: '/franchisees', icon: Store },
     { name: 'Order History & Kits', path: '/order-history', icon: Package },
     { name: 'Leaderboard Ranking', path: '/ranking', icon: Award },

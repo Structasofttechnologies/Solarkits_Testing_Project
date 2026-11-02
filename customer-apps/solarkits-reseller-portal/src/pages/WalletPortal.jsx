@@ -38,9 +38,8 @@ function KpiCard({ icon: Icon, iconBg, iconColor, label, value, sub, badge, onCl
   return (
     <div
       onClick={onClick}
-      className={`bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between transition-all ${
-        onClick ? "cursor-pointer hover:border-blue-400 hover:shadow-md" : "hover:shadow-md"
-      }`}
+      className={`bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between transition-all ${onClick ? "cursor-pointer hover:border-blue-400 hover:shadow-md" : "hover:shadow-md"
+        }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div
@@ -149,7 +148,7 @@ export default function WalletPortal() {
           if (kitIds.length > 0 && !activeRateKitId) setActiveRateKitId(kitIds[0]);
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingRates(false));
   }, [activeRateKitId]);
 
@@ -259,8 +258,8 @@ export default function WalletPortal() {
   const filteredLedger = filterType === "all"
     ? ledger
     : filterType === "commission_credit"
-    ? ledger.filter((l) => l.transaction_type === "commission_credit" || l.transaction_type === "po_commission_credit")
-    : ledger.filter((l) => l.transaction_type === filterType);
+      ? ledger.filter((l) => l.transaction_type === "commission_credit" || l.transaction_type === "po_commission_credit")
+      : ledger.filter((l) => l.transaction_type === filterType);
 
   // Filtered Payout settlements
   const filteredPayouts = payouts.filter((p) => {
@@ -794,8 +793,8 @@ export default function WalletPortal() {
                             {l.transaction_type === "po_commission_credit"
                               ? "FPO Commission Credit"
                               : l.transaction_type === "commission_credit"
-                              ? "Commission Credit"
-                              : (l.transaction_type || "").replace(/_/g, " ")}
+                                ? "Commission Credit"
+                                : (l.transaction_type || "").replace(/_/g, " ")}
                           </span>
                         </td>
                         <td className="px-4 py-3.5 text-slate-700 max-w-sm truncate" title={l.narration}>
@@ -917,7 +916,7 @@ export default function WalletPortal() {
                 <p className="text-xs text-emerald-700 font-semibold mt-0.5">
                   Commission rates are set individually for your franchise by the admin. Rates differ for
                   <span className="font-black"> PO Orders</span> (bulk franchise purchase) and
-                  <span className="font-black"> Loose Orders</span> (individual EPC/customer orders). 
+                  <span className="font-black"> Loose Orders</span> (individual EPC/customer orders).
                   Rates are locked at the time of order placement.
                 </p>
               </div>
@@ -959,11 +958,10 @@ export default function WalletPortal() {
                       <button
                         key={g.kitId}
                         onClick={() => setActiveRateKitId(g.kitId)}
-                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all cursor-pointer flex items-center gap-2 ${
-                          activeRateKitId === g.kitId
+                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all cursor-pointer flex items-center gap-2 ${activeRateKitId === g.kitId
                             ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
                             : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                        }`}
+                          }`}
                       >
                         <FiBox size={12} />
                         {g.kitName}
@@ -1061,9 +1059,9 @@ export default function WalletPortal() {
                                           <div className={`text-xl font-black tabular-nums ${betterIs === "po" ? "text-blue-700" : "text-slate-700"}`}>
                                             ₹{poRs.toLocaleString("en-IN")}
                                           </div>
-                                          <div className="text-xs text-slate-500 font-semibold mt-0.5">per kit</div>
+                                          <div className="text-xs text-slate-500 font-semibold mt-0.5">total for {qty} kits</div>
                                           <div className="text-xs font-extrabold text-blue-600 mt-1">
-                                            Total: ₹{(poRs * qty).toLocaleString("en-IN")} for {qty} kits
+                                            Effective: ₹{(poRs / qty).toLocaleString("en-IN", { maximumFractionDigits: 1 })}/kit
                                           </div>
                                         </div>
                                       ) : (
@@ -1078,9 +1076,9 @@ export default function WalletPortal() {
                                           <div className={`text-xl font-black tabular-nums ${betterIs === "loose" ? "text-emerald-700" : "text-slate-700"}`}>
                                             ₹{looseRs.toLocaleString("en-IN")}
                                           </div>
-                                          <div className="text-xs text-slate-500 font-semibold mt-0.5">per kit</div>
+                                          <div className="text-xs text-slate-500 font-semibold mt-0.5">total for {qty} kits</div>
                                           <div className="text-xs font-extrabold text-emerald-600 mt-1">
-                                            Total: ₹{(looseRs * qty).toLocaleString("en-IN")} for {qty} kits
+                                            Effective: ₹{(looseRs / qty).toLocaleString("en-IN", { maximumFractionDigits: 1 })}/kit
                                           </div>
                                         </div>
                                       ) : (
@@ -1116,10 +1114,10 @@ export default function WalletPortal() {
                           </p>
                           <p className="text-xs text-slate-600 font-semibold leading-relaxed">
                             When an order is placed for <strong>N kits</strong> of <strong>{currentKitGroup.kitName}</strong>,
-                            your franchise commission = <strong>Commission per kit × Number of kits</strong>.
+                            your franchise receives the configured tier commission based on the order quantity threshold.
                             {quantities.length > 0 && byQty[quantities[0]]?.po ? (
                               <span className="block mt-1 text-slate-700">
-                                Live Rate: For a {quantities[0]}-kit order at ₹{(byQty[quantities[0]].po / 100).toLocaleString("en-IN")}/kit, your gross commission is ₹{((byQty[quantities[0]].po / 100) * quantities[0]).toLocaleString("en-IN")}.
+                                Live Rate: For a {quantities[0]}-kit PO order, your gross commission is ₹{(byQty[quantities[0]].po / 100).toLocaleString("en-IN")} (≈ ₹{((byQty[quantities[0]].po / 100) / quantities[0]).toLocaleString("en-IN", { maximumFractionDigits: 1 })}/kit).
                               </span>
                             ) : null}
                           </p>

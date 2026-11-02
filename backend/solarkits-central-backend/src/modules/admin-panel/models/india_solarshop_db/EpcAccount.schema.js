@@ -42,6 +42,15 @@ const schema = new mongoose.Schema({
   primary_reseller_id:      { type: mongoose.Schema.Types.ObjectId, ref: 'resellers', default: null },
   onboarding_gstin_log_id:  { type: mongoose.Schema.Types.ObjectId, ref: 'gst_verification_logs', default: null },
 
+  // --- Phase EPC Analytics & Customer Behavior ---
+  behavior_status:          { type: String, default: 'active' },
+  customer_tier:            { type: String, default: 'Standard EPC' },
+  recovery_discount_pct:    { type: Number, default: 0 },
+  recovery_followup_status: { type: String, default: 'none' },
+  credit_limit_inr:         { type: Number, default: 0 },
+  behavior_notes:           { type: String, default: '' },
+  last_activity_at:         { type: Date, default: null },
+
   deleted_at: { type: Date, default: null }
 }, { 
   collection: 'epc_accounts', 
