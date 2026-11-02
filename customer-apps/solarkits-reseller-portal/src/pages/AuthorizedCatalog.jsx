@@ -7,19 +7,19 @@ import {
 import { FaTruck, FaShoppingBag } from "react-icons/fa";
 
 const SCOPE_ICONS = {
-  all:         FiGrid,
-  category:    FiLayers,
+  all: FiGrid,
+  category: FiLayers,
   subcategory: FiLayers,
-  product:     FiPackage,
-  kit:         FiBox,
+  product: FiPackage,
+  kit: FiBox,
 };
 
 const SCOPE_COLORS = {
-  all:         { bg: "#e0e7ff", text: "#4338ca" },
-  category:    { bg: "#dbeafe", text: "#1d4ed8" },
+  all: { bg: "#e0e7ff", text: "#4338ca" },
+  category: { bg: "#dbeafe", text: "#1d4ed8" },
   subcategory: { bg: "#ede9fe", text: "#7c3aed" },
-  product:     { bg: "#dcfce7", text: "#15803d" },
-  kit:         { bg: "#fef3c7", text: "#d97706" },
+  product: { bg: "#dcfce7", text: "#15803d" },
+  kit: { bg: "#fef3c7", text: "#d97706" },
 };
 
 // ─── Commission Badge ─────────────────────────────────────────────────────────
@@ -27,15 +27,16 @@ function CommBadge({ amount, type, qty }) {
   if (amount == null) return <span className="text-slate-400 text-xs font-bold">—</span>;
   const rs = amount / 100;
   const ispo = type === "po";
+  const perKit = qty && qty > 0 ? Math.round((rs / qty) * 10) / 10 : null;
   return (
     <div className="space-y-0.5">
       <div className={`text-sm font-black tabular-nums ${ispo ? "text-blue-700" : "text-emerald-700"}`}>
         ₹{rs.toLocaleString("en-IN")}
-        <span className="text-[10px] font-semibold text-slate-500 ml-0.5">/kit</span>
+        <span className="text-[10px] font-semibold text-slate-500 ml-1">total</span>
       </div>
-      {qty && (
+      {perKit != null && (
         <div className={`text-[10px] font-bold ${ispo ? "text-blue-500" : "text-emerald-500"}`}>
-          {qty} kits = ₹{(rs * qty).toLocaleString("en-IN")}
+          {qty} kits • ₹{perKit.toLocaleString("en-IN")}/kit
         </div>
       )}
     </div>
@@ -57,7 +58,7 @@ export default function AuthorizedCatalog() {
     setLoading(true);
     api.get("/india/v1/reseller/authorized-products")
       .then((res) => { if (res.data?.status === "success") setRules(res.data.data); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   };
 
@@ -67,7 +68,7 @@ export default function AuthorizedCatalog() {
       .then((res) => {
         if (res.data?.status === "success") setCommissionRates(res.data.data || []);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingRates(false));
   };
 
@@ -102,11 +103,11 @@ export default function AuthorizedCatalog() {
 
   // Derive the display name from the rule/item
   const getDisplayName = (r) => {
-    if (r.scope_type === "kit")         return r.kit_name || r.name || r.kit?.kit_name || r.kit?.name || "Combo Kit";
-    if (r.scope_type === "product")     return r.name || r.product?.name || "Product";
+    if (r.scope_type === "kit") return r.kit_name || r.name || r.kit?.kit_name || r.kit?.name || "Combo Kit";
+    if (r.scope_type === "product") return r.name || r.product?.name || "Product";
     if (r.scope_type === "subcategory") return r.subcategory?.name || "Subcategory";
-    if (r.scope_type === "category")    return r.category?.name || "Category";
-    if (r.scope_type === "all")         return "All Catalog Items";
+    if (r.scope_type === "category") return r.category?.name || "Category";
+    if (r.scope_type === "all") return "All Catalog Items";
     return r.name || "Unknown";
   };
 
@@ -120,8 +121,8 @@ export default function AuthorizedCatalog() {
     : rules.filter((r) => r.scope_type === filter);
 
   const counts = {
-    all:     rules.length,
-    kit:     rules.filter((r) => r.scope_type === "kit").length,
+    all: rules.length,
+    kit: rules.filter((r) => r.scope_type === "kit").length,
     product: rules.filter((r) => r.scope_type === "product").length,
   };
 
@@ -160,11 +161,10 @@ export default function AuthorizedCatalog() {
           <button
             key={key}
             onClick={() => setFilter(key)}
-            className={`px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider border transition-all ${
-              filter === key
+            className={`px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider border transition-all ${filter === key
                 ? "bg-blue-600 text-white border-blue-600 shadow-md"
                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-            }`}
+              }`}
           >
             {label}
           </button>
@@ -176,7 +176,7 @@ export default function AuthorizedCatalog() {
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3">
           <FiTag className="text-amber-600 shrink-0 mt-0.5" size={16} />
           <p className="text-xs font-semibold text-amber-800">
-            <strong>Commission rates shown below</strong> are your individual franchise rates — 
+            <strong>Commission rates shown below</strong> are your individual franchise rates —
             select a quantity tier to see PO and Loose order commissions for each kit.
           </p>
         </div>
@@ -233,7 +233,7 @@ export default function AuthorizedCatalog() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredRules.map((r, idx) => {
-                  const ScopeIcon  = SCOPE_ICONS[r.scope_type] || FiPackage;
+                  const ScopeIcon = SCOPE_ICONS[r.scope_type] || FiPackage;
                   const scopeColor = SCOPE_COLORS[r.scope_type] || SCOPE_COLORS.product;
                   const displayName = getDisplayName(r);
                   const isAuthorized = r.is_authorized !== false;
@@ -325,20 +325,19 @@ export default function AuthorizedCatalog() {
 
                       {/* Rule Source */}
                       <td className="px-6 py-4 text-center">
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-extrabold ${
-                          r.source === "admin_override"
+                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-extrabold ${r.source === "admin_override"
                             ? "bg-amber-100 text-amber-800 border border-amber-200"
                             : r.source === "admin_assigned"
-                            ? "bg-blue-100 text-blue-800 border border-blue-200"
-                            : "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                        }`}>
+                              ? "bg-blue-100 text-blue-800 border border-blue-200"
+                              : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          }`}>
                           {r.source === "admin_override"
                             ? "Admin Override"
                             : r.source === "admin_assigned"
-                            ? "Admin Assigned"
-                            : r.source === "plan_default" || !r.source
-                            ? "Plan Default"
-                            : r.source.replace(/_/g, " ")}
+                              ? "Admin Assigned"
+                              : r.source === "plan_default" || !r.source
+                                ? "Plan Default"
+                                : r.source.replace(/_/g, " ")}
                         </span>
                       </td>
                     </tr>

@@ -8,7 +8,7 @@ import {
   FiLayers, FiBox, FiTag, FiDollarSign, FiTruck,
   FiShoppingCart, FiSettings, FiUser, FiEdit2,
   FiX, FiCheckCircle, FiPlus, FiArrowRight,
-  FiSliders, FiCheckSquare, FiAward,
+  FiSliders, FiCheckSquare, FiAward, FiTrash2,
 } from "react-icons/fi";
 import { FaRupeeSign, FaTruck, FaShoppingBag, FaChevronDown } from "react-icons/fa";
 import { setAlert } from "@/features/alert.slice";
@@ -40,17 +40,15 @@ function FranchiseCard({ reseller, selected, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
-        selected
+      className={`w-full text-left p-3.5 rounded-xl border-2 transition-all cursor-pointer ${selected
           ? "border-primary bg-primary/5 shadow-sm ring-2 ring-primary/20"
           : "border-border hover:border-primary/40 hover:bg-surface-hover/50"
-      }`}
+        }`}
     >
       <div className="flex items-start gap-3">
         <div
-          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-xs font-black transition-colors ${
-            selected ? "bg-primary text-white shadow-sm" : "bg-surface-hover text-text-muted"
-          }`}
+          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-xs font-black transition-colors ${selected ? "bg-primary text-white shadow-sm" : "bg-surface-hover text-text-muted"
+            }`}
         >
           {(reseller.business_name || reseller.name || "F")[0].toUpperCase()}
         </div>
@@ -68,11 +66,10 @@ function FranchiseCard({ reseller, selected, onClick }) {
               </span>
             )}
             <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                isActive
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isActive
                   ? "bg-success/10 text-success border-success/20"
                   : "bg-warning/10 text-warning border-warning/20"
-              }`}
+                }`}
             >
               {reseller.activation_status || "pending"}
             </span>
@@ -92,25 +89,38 @@ function FranchiseCard({ reseller, selected, onClick }) {
 }
 
 // ─── Commission Input Cell ────────────────────────────────────────────────────
-function CommCell({ value, onChange, disabled }) {
+function CommCell({ value, onChange, disabled, qty, orderType = "loose" }) {
+  const numVal = value !== "" && value != null && !isNaN(Number(value)) ? Number(value) : null;
+  const effectivePerKit = numVal != null && numVal > 0 && qty > 0 ? (numVal / qty) : null;
+
   return (
-    <div className="relative flex items-center min-w-[120px] max-w-[150px]">
-      <span className="absolute left-2.5 text-text-muted text-xs font-semibold pointer-events-none">₹</span>
-      <input
-        type="number"
-        min="0"
-        step="0.01"
-        disabled={disabled}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="0.00"
-        className={`w-full pl-6 pr-2.5 py-2 text-xs font-bold rounded-xl border transition-all text-right
-          ${
-            disabled
+    <div className="flex flex-col items-center gap-1 min-w-[130px] max-w-[170px]">
+      <div className="relative flex items-center w-full">
+        <span className="absolute left-2.5 text-text-muted text-xs font-semibold pointer-events-none">₹</span>
+        <input
+          type="number"
+          min="0"
+          step="1"
+          disabled={disabled}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="0"
+          className={`w-full pl-6 pr-2.5 py-2 text-xs font-black rounded-xl border transition-all text-right
+            ${disabled
               ? "bg-surface-hover/40 text-text-muted border-border/30 cursor-not-allowed"
               : "bg-surface border-border hover:border-primary/50 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none text-text-primary shadow-xs"
-          }`}
-      />
+            }`}
+        />
+      </div>
+      {effectivePerKit != null ? (
+        <span className="text-[10px] font-bold text-text-muted whitespace-nowrap">
+          ≈ ₹{effectivePerKit.toLocaleString("en-IN", { maximumFractionDigits: 1 })} / kit
+        </span>
+      ) : (
+        <span className="text-[10px] font-medium text-text-muted/60 whitespace-nowrap">
+          Total for {qty} kits
+        </span>
+      )}
     </div>
   );
 }
@@ -170,10 +180,13 @@ export default function FranchiseeCommissionSettings() {
   const [savingRules, setSavingRules] = useState(false);
   const [savedKeys, setSavedKeys] = useState(new Set());
 
-  // ── Active product tab for commission table ───────────────────────────────
+  // ── Active product tab and order-type view tab ────────────────────────────
   const [activeKitId, setActiveKitId] = useState(null);
-  const [customTiers, setCustomTiers] = useState({}); // { [kitId]: [qty1, qty2] }
-  const [newTierInput, setNewTierInput] = useState("");
+  const [activeOrderTypeTab, setActiveOrderTypeTab] = useState("loose"); // 'loose' | 'po' | 'both'
+  const [customPoTiers, setCustomPoTiers] = useState({}); // { [kitId]: [qty1, qty2] }
+  const [customLooseTiers, setCustomLooseTiers] = useState({}); // { [kitId]: [qty1, qty2] }
+  const [newPoTierInput, setNewPoTierInput] = useState("");
+  const [newLooseTierInput, setNewLooseTierInput] = useState("");
 
   // ─── Step 1: Load Hierarchy Options for 5 Quick Filters ───────────────────
   useEffect(() => {
@@ -201,7 +214,7 @@ export default function FranchiseeCommissionSettings() {
               setHierarchy(res.data.data);
             }
           })
-          .catch(() => {});
+          .catch(() => { });
       })
       .finally(() => setLoadingHierarchy(false));
   }, [token]);
@@ -218,7 +231,7 @@ export default function FranchiseeCommissionSettings() {
         const data = res.data?.states || res.data?.data || [];
         setStates(data);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingStates(false));
   }, [token]);
 
@@ -238,7 +251,7 @@ export default function FranchiseeCommissionSettings() {
         const data = res.data?.districts || res.data?.data || [];
         setDistricts(data);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingDistricts(false));
   }, [selectedState]);
 
@@ -263,7 +276,7 @@ export default function FranchiseeCommissionSettings() {
           return data[0] || null;
         });
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingFranchises(false));
   }, [token, selectedState, selectedDistrict]);
 
@@ -778,7 +791,12 @@ export default function FranchiseeCommissionSettings() {
           "Standard Rooftop",
         base_price: kit.base_price_cached,
         selling_price: kit.selling_price_cached,
-        order_quantities: kit.order_quantities || [],
+        order_quantities: Array.isArray(kit.order_quantities)
+          ? kit.order_quantities.map(Number).filter((n) => n > 0).sort((a, b) => a - b)
+          : [],
+        loose_order_quantities: Array.isArray(kit.loose_order_quantities)
+          ? kit.loose_order_quantities.map(Number).filter((n) => n > 0).sort((a, b) => a - b)
+          : [],
         image: kit.kit_image,
       };
     });
@@ -801,30 +819,86 @@ export default function FranchiseeCommissionSettings() {
     [filteredComboKits, activeKitId]
   );
 
-  // Active Kit quantity tiers (use configured tiers or default tiers + custom additions)
-  const activeKitTiers = useMemo(() => {
+  // Helper to extract saved tier quantities for a given kit and type from commissionMap
+  const getSavedTiersForKit = useCallback((kitId, type) => {
+    if (!kitId) return [];
+    const prefix = `${kitId}_`;
+    const suffix = `_${type}`;
+    const qtys = [];
+    Object.keys(commissionMap).forEach((key) => {
+      if (key.startsWith(prefix) && key.endsWith(suffix) && commissionMap[key] !== "") {
+        const parts = key.split("_");
+        if (parts.length >= 3) {
+          const q = parseInt(parts[1], 10);
+          if (!isNaN(q) && q > 0) qtys.push(q);
+        }
+      }
+    });
+    return qtys;
+  }, [commissionMap]);
+
+  // Active Kit PO Tiers (Admin preset + custom added + existing saved)
+  const activeKitPoTiers = useMemo(() => {
     if (!activeKit) return [];
     const kid = getCleanId(activeKit);
-    let tiers = Array.isArray(activeKit.order_quantities) && activeKit.order_quantities.length > 0
-      ? [...activeKit.order_quantities]
-      : [10, 25, 50, 100]; // Default tiers if not configured on kit
+    const presets = Array.isArray(activeKit.order_quantities)
+      ? activeKit.order_quantities.map(Number).filter((n) => n > 0)
+      : [];
+    const custom = customPoTiers[kid] || [];
+    const saved = getSavedTiersForKit(kid, "po");
+    const merged = Array.from(new Set([...presets, ...custom, ...saved]));
+    return merged.sort((a, b) => a - b);
+  }, [activeKit, customPoTiers, getSavedTiersForKit]);
 
-    // Merge any custom added tiers for this kit
-    if (customTiers[kid]) {
-      tiers = [...new Set([...tiers, ...customTiers[kid]])];
-    }
-    return tiers.sort((a, b) => a - b);
-  }, [activeKit, customTiers]);
+  // Active Kit Loose Tiers (Admin preset + custom added + existing saved)
+  const activeKitLooseTiers = useMemo(() => {
+    if (!activeKit) return [];
+    const kid = getCleanId(activeKit);
+    const presets = Array.isArray(activeKit.loose_order_quantities)
+      ? activeKit.loose_order_quantities.map(Number).filter((n) => n > 0)
+      : [];
+    const custom = customLooseTiers[kid] || [];
+    const saved = getSavedTiersForKit(kid, "loose");
+    const merged = Array.from(new Set([...presets, ...custom, ...saved]));
+    return merged.sort((a, b) => a - b);
+  }, [activeKit, customLooseTiers, getSavedTiersForKit]);
 
-  const handleAddCustomTier = () => {
-    const val = parseInt(newTierInput, 10);
+  const handleAddCustomPoTier = () => {
+    const val = parseInt(newPoTierInput, 10);
     if (!val || val <= 0 || !activeKit) return;
     const kid = getCleanId(activeKit);
-    setCustomTiers((prev) => ({
+    setCustomPoTiers((prev) => ({
       ...prev,
-      [kid]: [...(prev[kid] || []), val],
+      [kid]: Array.from(new Set([...(prev[kid] || []), val])),
     }));
-    setNewTierInput("");
+    setNewPoTierInput("");
+  };
+
+  const handleAddCustomLooseTier = () => {
+    const val = parseInt(newLooseTierInput, 10);
+    if (!val || val <= 0 || !activeKit) return;
+    const kid = getCleanId(activeKit);
+    setCustomLooseTiers((prev) => ({
+      ...prev,
+      [kid]: Array.from(new Set([...(prev[kid] || []), val])),
+    }));
+    setNewLooseTierInput("");
+  };
+
+  const handleRemoveCustomTier = (type, qty) => {
+    if (!activeKit) return;
+    const kid = getCleanId(activeKit);
+    if (type === "po") {
+      setCustomPoTiers((prev) => ({
+        ...prev,
+        [kid]: (prev[kid] || []).filter((q) => q !== qty),
+      }));
+    } else {
+      setCustomLooseTiers((prev) => ({
+        ...prev,
+        [kid]: (prev[kid] || []).filter((q) => q !== qty),
+      }));
+    }
   };
 
   // ─── Commission map helpers ─────────────────────────────────────────────
@@ -838,21 +912,6 @@ export default function FranchiseeCommissionSettings() {
   const getComm = (kitId, qty, type) =>
     commissionMap[getCommKey(kitId, qty, type)] ?? "";
 
-  // Helper to copy PO commissions to Loose commissions for active kit
-  const handleCopyPoToLoose = () => {
-    if (!activeKit) return;
-    const kid = getCleanId(activeKit);
-    const updates = {};
-    activeKitTiers.forEach((qty) => {
-      const poVal = getComm(kid, qty, "po");
-      if (poVal !== "") {
-        updates[getCommKey(kid, qty, "loose")] = poVal;
-      }
-    });
-    setCommissionMap((prev) => ({ ...prev, ...updates }));
-    dispatch(setAlert({ type: "info", message: "Copied PO rates to Loose rates for this kit" }));
-  };
-
   // ─── Save commission rules ──────────────────────────────────────────────
   const handleSave = async () => {
     if (!selectedFranchise) return;
@@ -861,26 +920,47 @@ export default function FranchiseeCommissionSettings() {
     const rules = [];
     allKits.forEach((kit) => {
       const kitId = getCleanId(kit);
-      const kidTiers = Array.isArray(kit.order_quantities) && kit.order_quantities.length > 0
-        ? kit.order_quantities
-        : [10, 25, 50, 100];
-      const allTierList = customTiers[kitId]
-        ? [...new Set([...kidTiers, ...customTiers[kitId]])]
-        : kidTiers;
 
-      allTierList.forEach((qty) => {
-        ["po", "loose"].forEach((type) => {
-          const val = getComm(kitId, qty, type);
-          if (val !== "" && val !== null && !isNaN(Number(val))) {
-            rules.push({
-              reseller_id: rid,
-              combo_kit_id: kitId,
-              order_quantity: qty,
-              order_type: type,
-              commission_amount_paise: paiseToCurrency(val),
-            });
-          }
-        });
+      // 1. PO Tiers for this kit
+      const poPresets = Array.isArray(kit.order_quantities)
+        ? kit.order_quantities.map(Number).filter((n) => n > 0)
+        : [];
+      const poCustom = customPoTiers[kitId] || [];
+      const poSaved = getSavedTiersForKit(kitId, "po");
+      const allPoTiers = Array.from(new Set([...poPresets, ...poCustom, ...poSaved]));
+
+      allPoTiers.forEach((qty) => {
+        const val = getComm(kitId, qty, "po");
+        if (val !== "" && val !== null && !isNaN(Number(val))) {
+          rules.push({
+            reseller_id: rid,
+            combo_kit_id: kitId,
+            order_quantity: qty,
+            order_type: "po",
+            commission_amount_paise: paiseToCurrency(val),
+          });
+        }
+      });
+
+      // 2. Loose Tiers for this kit
+      const loosePresets = Array.isArray(kit.loose_order_quantities)
+        ? kit.loose_order_quantities.map(Number).filter((n) => n > 0)
+        : [];
+      const looseCustom = customLooseTiers[kitId] || [];
+      const looseSaved = getSavedTiersForKit(kitId, "loose");
+      const allLooseTiers = Array.from(new Set([...loosePresets, ...looseCustom, ...looseSaved]));
+
+      allLooseTiers.forEach((qty) => {
+        const val = getComm(kitId, qty, "loose");
+        if (val !== "" && val !== null && !isNaN(Number(val))) {
+          rules.push({
+            reseller_id: rid,
+            combo_kit_id: kitId,
+            order_quantity: qty,
+            order_type: "loose",
+            commission_amount_paise: paiseToCurrency(val),
+          });
+        }
       });
     });
 
@@ -1400,9 +1480,8 @@ export default function FranchiseeCommissionSettings() {
                           return (
                             <tr
                               key={item._id}
-                              className={`transition-colors hover:bg-surface-hover/40 ${
-                                isCurrentActive ? "bg-primary/5" : ""
-                              }`}
+                              className={`transition-colors hover:bg-surface-hover/40 ${isCurrentActive ? "bg-primary/5" : ""
+                                }`}
                             >
                               <td className="px-4 py-3.5">
                                 <div className="flex items-center gap-3">
@@ -1421,10 +1500,13 @@ export default function FranchiseeCommissionSettings() {
                                     <div className="font-bold text-text-primary text-xs leading-snug">
                                       {item.name}
                                     </div>
-                                    <div className="text-[10px] text-text-muted font-medium mt-0.5">
-                                      {item.order_quantities.length > 0
-                                        ? `${item.order_quantities.length} quantity tier(s) configured`
-                                        : "Default tiers available"}
+                                    <div className="text-[10px] text-text-muted font-medium mt-1 flex items-center gap-1.5 flex-wrap">
+                                      <span className="bg-amber-500/10 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">
+                                        PO: {item.order_quantities.length > 0 ? `${item.order_quantities.length} tiers (${item.order_quantities.join(", ")} kits)` : "None"}
+                                      </span>
+                                      <span className="bg-sky-500/10 text-sky-700 dark:text-sky-400 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">
+                                        Loose: {item.loose_order_quantities.length > 0 ? `${item.loose_order_quantities.length} tiers (${item.loose_order_quantities.join(", ")} kits)` : "None"}
+                                      </span>
                                     </div>
                                   </div>
                                 </div>
@@ -1467,11 +1549,10 @@ export default function FranchiseeCommissionSettings() {
                               <td className="px-4 py-3.5 text-center">
                                 <button
                                   onClick={() => setActiveKitId(item._id)}
-                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all ${
-                                    isCurrentActive
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all ${isCurrentActive
                                       ? "bg-primary text-white shadow-xs"
                                       : "border border-border text-text-secondary hover:border-primary hover:text-primary hover:bg-primary/5"
-                                  }`}
+                                    }`}
                                 >
                                   {isCurrentActive ? "Active Kit" : "Set Commission"}
                                 </button>
@@ -1494,24 +1575,15 @@ export default function FranchiseeCommissionSettings() {
                     </div>
                     <div>
                       <h2 className="text-xs font-black text-text-primary uppercase tracking-[0.16em]">
-                        Commission Per Kit Quantity Tier
+                        Franchise Commission by Order Quantity Tier
                       </h2>
                       <p className="text-[10px] text-text-muted font-medium">
-                        Set commission amounts per unit for each quantity tier — PO (Bulk) and Loose (Individual)
+                        Set total flat commission amount (₹) per order quantity tier — PO (Bulk) and Loose (Individual)
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2.5">
-                    {activeKit && (
-                      <button
-                        onClick={handleCopyPoToLoose}
-                        className="px-3 py-1.5 rounded-xl border border-border text-text-secondary hover:text-text-primary hover:border-primary/40 text-xs font-bold transition-colors cursor-pointer"
-                        title="Copy all PO commission amounts into Loose commission inputs"
-                      >
-                        Copy PO → Loose
-                      </button>
-                    )}
                     <Button
                       onClick={handleSave}
                       loading={savingRules}
@@ -1553,17 +1625,15 @@ export default function FranchiseeCommissionSettings() {
                             <button
                               key={kitId}
                               onClick={() => setActiveKitId(kitId)}
-                              className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 ${
-                                isActive
+                              className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 ${isActive
                                   ? "bg-primary text-white border-primary shadow-sm"
                                   : "bg-surface text-text-secondary border-border hover:border-primary/40 hover:text-primary hover:bg-primary/5"
-                              }`}
+                                }`}
                             >
                               <span>{kit.name || kit.kit_name || "Kit"}</span>
                               <span
-                                className={`text-[10px] font-black px-1.5 py-0.2 rounded-md ${
-                                  isActive ? "bg-white/20 text-white" : "bg-surface-hover text-text-muted"
-                                }`}
+                                className={`text-[10px] font-black px-1.5 py-0.2 rounded-md ${isActive ? "bg-white/20 text-white" : "bg-surface-hover text-text-muted"
+                                  }`}
                               >
                                 {kit.capacity}kW
                               </span>
@@ -1573,9 +1643,9 @@ export default function FranchiseeCommissionSettings() {
                       </div>
                     </div>
 
-                    {/* Active Kit Commission Configuration Table */}
+                    {/* Active Kit Commission Configuration */}
                     {activeKit && (
-                      <div className="rounded-2xl border-2 border-border/70 overflow-hidden shadow-xs">
+                      <div className="rounded-2xl border-2 border-border/70 overflow-hidden shadow-xs space-y-0">
                         {/* Kit info banner */}
                         <div className="px-5 py-3.5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 border-b border-border/70 flex items-center justify-between flex-wrap gap-3">
                           <div className="flex items-center gap-3">
@@ -1603,199 +1673,470 @@ export default function FranchiseeCommissionSettings() {
                             </div>
                           </div>
 
-                          {/* Quick inline tier adder */}
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold text-text-muted uppercase">Add Tier:</span>
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="number"
-                                min="1"
-                                placeholder="Qty (e.g. 15)"
-                                value={newTierInput}
-                                onChange={(e) => setNewTierInput(e.target.value)}
-                                className="w-24 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-border bg-surface text-text-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                              <button
-                                onClick={handleAddCustomTier}
-                                className="px-2.5 py-1.5 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary-hover transition-colors cursor-pointer flex items-center gap-1"
-                              >
-                                <FiPlus size={12} /> Add
-                              </button>
+                          <div className="text-right">
+                            <span className="text-[10px] font-bold text-text-muted">
+                              Configured in Admin:
+                            </span>
+                            <div className="text-xs font-black text-text-primary mt-0.5 flex items-center gap-2">
+                              <span className="text-sky-700 dark:text-sky-400">
+                                {activeKitLooseTiers.length} Loose Tiers
+                              </span>
+                              <span>•</span>
+                              <span className="text-amber-700 dark:text-amber-400">
+                                {activeKitPoTiers.length} PO Tiers
+                              </span>
                             </div>
                           </div>
                         </div>
 
-                        {/* Commission Rates Table */}
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b border-border bg-bg/70">
-                                <th className="text-left text-text-muted font-black px-5 py-3.5 uppercase tracking-wider w-64">
-                                  Order Quantity Tier
-                                </th>
-                                <th className="text-center text-text-muted font-black px-5 py-3.5 uppercase tracking-wider">
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    <FaTruck className="text-info" size={13} />
-                                    PO Order Commission (₹ / kit)
-                                  </div>
-                                  <div className="text-[10px] font-normal text-text-muted mt-0.5 normal-case tracking-normal">
-                                    Bulk franchise purchase & inventory replenishment
-                                  </div>
-                                </th>
-                                <th className="text-center text-text-muted font-black px-5 py-3.5 uppercase tracking-wider">
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    <FaShoppingBag className="text-success" size={13} />
-                                    Loose Order Commission (₹ / kit)
-                                  </div>
-                                  <div className="text-[10px] font-normal text-text-muted mt-0.5 normal-case tracking-normal">
-                                    Individual EPC / customer single-order fulfillment
-                                  </div>
-                                </th>
-                                <th className="text-right text-text-muted font-black px-5 py-3.5 uppercase tracking-wider w-44 hidden md:table-cell">
-                                  Tier Earnings Preview
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border/50">
-                              {activeKitTiers.map((qty) => {
-                                const kitId = getCleanId(activeKit);
-                                const poKey = getCommKey(kitId, qty, "po");
-                                const looseKey = getCommKey(kitId, qty, "loose");
-                                const poVal = getComm(kitId, qty, "po");
-                                const looseVal = getComm(kitId, qty, "loose");
-                                const poSaved = savedKeys.has(poKey);
-                                const looseSaved = savedKeys.has(looseKey);
+                        {/* Order Type Switcher Tabs */}
+                        <div className="flex items-center gap-2 border-b border-border px-5 py-3 bg-surface flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => setActiveOrderTypeTab("loose")}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeOrderTypeTab === "loose"
+                                ? "bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-600/20"
+                                : "bg-surface-hover/50 text-text-secondary border border-border hover:bg-emerald-500/10 hover:text-emerald-700"
+                              }`}
+                          >
+                            <FaShoppingBag size={12} />
+                            <span>Loose Orders (Individual / Retail)</span>
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-black ${activeOrderTypeTab === "loose"
+                                  ? "bg-white/20 text-white"
+                                  : "bg-emerald-500/15 text-emerald-700"
+                                }`}
+                            >
+                              {activeKitLooseTiers.length}
+                            </span>
+                          </button>
 
-                                const poTotal = Number(poVal || 0) * qty;
-                                const looseTotal = Number(looseVal || 0) * qty;
+                          <button
+                            type="button"
+                            onClick={() => setActiveOrderTypeTab("po")}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeOrderTypeTab === "po"
+                                ? "bg-amber-600 text-white shadow-sm ring-2 ring-amber-600/20"
+                                : "bg-surface-hover/50 text-text-secondary border border-border hover:bg-amber-500/10 hover:text-amber-700"
+                              }`}
+                          >
+                            <FaTruck size={12} />
+                            <span>PO Bulk Orders</span>
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-black ${activeOrderTypeTab === "po"
+                                  ? "bg-white/20 text-white"
+                                  : "bg-amber-500/15 text-amber-700"
+                                }`}
+                            >
+                              {activeKitPoTiers.length}
+                            </span>
+                          </button>
 
-                                return (
-                                  <tr key={qty} className="hover:bg-surface-hover/30 transition-colors">
-                                    {/* Quantity Tier Badge */}
-                                    <td className="px-5 py-4">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-col items-center justify-center shrink-0">
-                                          <span className="text-base font-black text-amber-600 dark:text-amber-400 leading-none">
-                                            {qty}
-                                          </span>
-                                          <span className="text-[9px] font-black text-amber-600/70 dark:text-amber-400/70 uppercase tracking-wider mt-0.5">
-                                            Kits
-                                          </span>
-                                        </div>
-                                        <div>
-                                          <div className="font-bold text-text-primary text-xs">
-                                            {qty} Units Batch
-                                          </div>
-                                          <div className="text-[10px] text-text-muted font-medium mt-0.5">
-                                            Minimum tier threshold
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </td>
-
-                                    {/* PO Commission */}
-                                    <td className="px-5 py-4">
-                                      <div className="flex flex-col items-center gap-1.5">
-                                        <CommCell
-                                          value={poVal}
-                                          onChange={(v) => setComm(kitId, qty, "po", v)}
-                                        />
-                                        <div className="flex items-center gap-2">
-                                          {poSaved && poVal && (
-                                            <span className="text-[10px] font-bold text-success flex items-center gap-1">
-                                              <FiCheck size={10} /> Saved
-                                            </span>
-                                          )}
-                                          <span className="text-[10px] text-text-muted">₹ / kit</span>
-                                        </div>
-                                      </div>
-                                    </td>
-
-                                    {/* Loose Commission */}
-                                    <td className="px-5 py-4">
-                                      <div className="flex flex-col items-center gap-1.5">
-                                        <CommCell
-                                          value={looseVal}
-                                          onChange={(v) => setComm(kitId, qty, "loose", v)}
-                                        />
-                                        <div className="flex items-center gap-2">
-                                          {looseSaved && looseVal && (
-                                            <span className="text-[10px] font-bold text-success flex items-center gap-1">
-                                              <FiCheck size={10} /> Saved
-                                            </span>
-                                          )}
-                                          <span className="text-[10px] text-text-muted">₹ / kit</span>
-                                        </div>
-                                      </div>
-                                    </td>
-
-                                    {/* Earnings Preview */}
-                                    <td className="px-5 py-4 text-right hidden md:table-cell">
-                                      {poVal || looseVal ? (
-                                        <div className="space-y-1">
-                                          {poVal && (
-                                            <div className="text-[11px] font-bold text-info">
-                                              PO: ₹{poTotal.toLocaleString("en-IN")}
-                                            </div>
-                                          )}
-                                          {looseVal && (
-                                            <div className="text-[11px] font-bold text-success">
-                                              Loose: ₹{looseTotal.toLocaleString("en-IN")}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <span className="text-text-muted text-xs font-medium">—</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                          <button
+                            type="button"
+                            onClick={() => setActiveOrderTypeTab("both")}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeOrderTypeTab === "both"
+                                ? "bg-primary text-white shadow-sm ring-2 ring-primary/20"
+                                : "bg-surface-hover/50 text-text-secondary border border-border hover:bg-primary/10 hover:text-primary"
+                              }`}
+                          >
+                            <FiLayers size={12} />
+                            <span>View Both Orders</span>
+                          </button>
                         </div>
 
-                        {/* Summary Preview Cards */}
-                        {activeKitTiers.some(
-                          (qty) =>
-                            getComm(getCleanId(activeKit), qty, "po") ||
-                            getComm(getCleanId(activeKit), qty, "loose")
-                        ) && (
-                          <div className="px-5 py-3.5 bg-success/5 border-t border-success/20">
-                            <div className="text-[10px] font-black text-success uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                              <FiCheckCircle size={12} />
-                              Active Rates Summary Preview — {activeKit.name || activeKit.kit_name}
-                            </div>
-                            <div className="flex flex-wrap gap-2.5">
-                              {activeKitTiers.map((qty) => {
-                                const kid = getCleanId(activeKit);
-                                const po = getComm(kid, qty, "po");
-                                const loose = getComm(kid, qty, "loose");
-                                if (!po && !loose) return null;
-                                return (
-                                  <div
-                                    key={qty}
-                                    className="bg-surface rounded-xl border border-success/30 px-3 py-2 shadow-xs"
+                        {/* ── LOOSE ORDER TIERS TABLE ── */}
+                        {(activeOrderTypeTab === "loose" || activeOrderTypeTab === "both") && (
+                          <div className="border-b border-border/80">
+                            {/* Section sub-header */}
+                            <div className="px-5 py-3 bg-emerald-50/50 dark:bg-emerald-950/20 border-b border-emerald-500/20 flex items-center justify-between flex-wrap gap-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
+                                  <FaShoppingBag size={12} />
+                                </div>
+                                <div>
+                                  <h3 className="text-xs font-black text-emerald-900 dark:text-emerald-200 uppercase tracking-wider">
+                                    Loose Order Commission Tiers (Individual / Retail Fulfillment)
+                                  </h3>
+                                  <p className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80">
+                                    Configured from Admin "Trial Kits / MOQ" (<code>loose_order_quantities</code>). Enter total commission amount (₹) for that tier.
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Quick inline adder for Loose tiers */}
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-bold text-text-muted uppercase">Add Loose Tier:</span>
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    placeholder="Qty (e.g. 20)"
+                                    value={newLooseTierInput}
+                                    onChange={(e) => setNewLooseTierInput(e.target.value)}
+                                    className="w-24 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-border bg-surface text-text-primary focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                  />
+                                  <button
+                                    onClick={handleAddCustomLooseTier}
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors cursor-pointer flex items-center gap-1"
                                   >
-                                    <div className="text-[10px] font-black text-text-muted uppercase mb-1">
-                                      {qty} Kits Order
-                                    </div>
-                                    {po && (
-                                      <div className="text-xs font-bold text-info flex items-center gap-1">
-                                        <FaTruck size={10} /> PO: ₹{Number(po).toLocaleString("en-IN")}/kit
-                                      </div>
-                                    )}
-                                    {loose && (
-                                      <div className="text-xs font-bold text-success flex items-center gap-1 mt-0.5">
-                                        <FaShoppingBag size={10} /> Loose: ₹{Number(loose).toLocaleString("en-IN")}/kit
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                                    <FiPlus size={12} /> Add
+                                  </button>
+                                </div>
+                              </div>
                             </div>
+
+                            {activeKitLooseTiers.length === 0 ? (
+                              <div className="py-8 text-center text-xs text-text-muted font-medium">
+                                No loose order tiers configured for this kit. Use "Add Loose Tier" above to add one.
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="border-b border-border bg-bg/50">
+                                      <th className="text-left text-text-muted font-black px-5 py-3 uppercase tracking-wider w-64">
+                                        Loose Order Quantity Tier
+                                      </th>
+                                      <th className="text-center text-text-muted font-black px-5 py-3 uppercase tracking-wider">
+                                        Total Loose Commission (₹)
+                                      </th>
+                                      <th className="text-center text-text-muted font-black px-5 py-3 uppercase tracking-wider">
+                                        Effective Rate (₹ / Kit)
+                                      </th>
+                                      <th className="text-center text-text-muted font-black px-5 py-3 uppercase tracking-wider">
+                                        Status
+                                      </th>
+                                      <th className="text-right text-text-muted font-black px-5 py-3 uppercase tracking-wider w-20">
+                                        Action
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-border/50">
+                                    {activeKitLooseTiers.map((qty) => {
+                                      const kitId = getCleanId(activeKit);
+                                      const looseKey = getCommKey(kitId, qty, "loose");
+                                      const looseVal = getComm(kitId, qty, "loose");
+                                      const looseSaved = savedKeys.has(looseKey);
+                                      const isPreset = Array.isArray(activeKit.loose_order_quantities) && activeKit.loose_order_quantities.includes(qty);
+                                      const numVal = looseVal !== "" && looseVal != null && !isNaN(Number(looseVal)) ? Number(looseVal) : null;
+                                      const effectivePerKit = numVal != null && numVal > 0 ? numVal / qty : null;
+
+                                      return (
+                                        <tr key={qty} className="hover:bg-emerald-500/5 transition-colors">
+                                          <td className="px-5 py-3.5">
+                                            <div className="flex items-center gap-3">
+                                              <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col items-center justify-center shrink-0">
+                                                <span className="text-sm font-black text-emerald-700 dark:text-emerald-400 leading-none">
+                                                  {qty}
+                                                </span>
+                                                <span className="text-[8px] font-black text-emerald-700/70 uppercase tracking-wider mt-0.5">
+                                                  Kits
+                                                </span>
+                                              </div>
+                                              <div>
+                                                <div className="font-bold text-text-primary text-xs">
+                                                  {qty} Kits Order
+                                                </div>
+                                                <div className="text-[10px] mt-0.5">
+                                                  {isPreset ? (
+                                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                                      Admin Configured MOQ
+                                                    </span>
+                                                  ) : (
+                                                    <span className="text-text-muted font-medium">
+                                                      Custom Added Tier
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </td>
+
+                                          <td className="px-5 py-3.5 text-center">
+                                            <CommCell
+                                              value={looseVal}
+                                              onChange={(v) => setComm(kitId, qty, "loose", v)}
+                                              qty={qty}
+                                              orderType="loose"
+                                            />
+                                          </td>
+
+                                          <td className="px-5 py-3.5 text-center">
+                                            {effectivePerKit != null ? (
+                                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20 tabular-nums">
+                                                ₹{effectivePerKit.toLocaleString("en-IN", { maximumFractionDigits: 1 })} / kit
+                                              </span>
+                                            ) : (
+                                              <span className="text-text-muted text-xs font-medium">—</span>
+                                            )}
+                                          </td>
+
+                                          <td className="px-5 py-3.5 text-center">
+                                            {looseSaved && looseVal ? (
+                                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20">
+                                                <FiCheck size={11} /> Saved
+                                              </span>
+                                            ) : looseVal ? (
+                                              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                                Unsaved
+                                              </span>
+                                            ) : (
+                                              <span className="text-text-muted text-xs">—</span>
+                                            )}
+                                          </td>
+
+                                          <td className="px-5 py-3.5 text-right">
+                                            {!isPreset ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRemoveCustomTier("loose", qty)}
+                                                className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+                                                title={`Remove custom ${qty} kits tier`}
+                                              >
+                                                <FiTrash2 size={13} />
+                                              </button>
+                                            ) : (
+                                              <span className="text-[10px] text-text-muted opacity-50">—</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
                           </div>
                         )}
+
+                        {/* ── PO ORDER TIERS TABLE ── */}
+                        {(activeOrderTypeTab === "po" || activeOrderTypeTab === "both") && (
+                          <div>
+                            {/* Section sub-header */}
+                            <div className="px-5 py-3 bg-amber-50/50 dark:bg-amber-950/20 border-b border-amber-500/20 flex items-center justify-between flex-wrap gap-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center">
+                                  <FaTruck size={12} />
+                                </div>
+                                <div>
+                                  <h3 className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-wider">
+                                    PO Order Commission Tiers (Bulk Franchise Purchase)
+                                  </h3>
+                                  <p className="text-[10px] text-amber-700/80 dark:text-amber-300/80">
+                                    Configured from Admin "Trial Kits / MOQ" (<code>order_quantities</code>). Enter total commission amount (₹) for that tier.
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Quick inline adder for PO tiers */}
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-bold text-text-muted uppercase">Add PO Tier:</span>
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    placeholder="Qty (e.g. 200)"
+                                    value={newPoTierInput}
+                                    onChange={(e) => setNewPoTierInput(e.target.value)}
+                                    className="w-24 px-2.5 py-1.5 text-xs font-bold rounded-lg border border-border bg-surface text-text-primary focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                  />
+                                  <button
+                                    onClick={handleAddCustomPoTier}
+                                    className="px-2.5 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-colors cursor-pointer flex items-center gap-1"
+                                  >
+                                    <FiPlus size={12} /> Add
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {activeKitPoTiers.length === 0 ? (
+                              <div className="py-8 text-center text-xs text-text-muted font-medium">
+                                No PO bulk order tiers configured for this kit. Use "Add PO Tier" above to add one.
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="border-b border-border bg-bg/50">
+                                      <th className="text-left text-text-muted font-black px-5 py-3 uppercase tracking-wider w-64">
+                                        PO Order Quantity Tier
+                                      </th>
+                                      <th className="text-center text-text-muted font-black px-5 py-3 uppercase tracking-wider">
+                                        Total PO Commission (₹)
+                                      </th>
+                                      <th className="text-center text-text-muted font-black px-5 py-3 uppercase tracking-wider">
+                                        Effective Rate (₹ / Kit)
+                                      </th>
+                                      <th className="text-center text-text-muted font-black px-5 py-3 uppercase tracking-wider">
+                                        Status
+                                      </th>
+                                      <th className="text-right text-text-muted font-black px-5 py-3 uppercase tracking-wider w-20">
+                                        Action
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-border/50">
+                                    {activeKitPoTiers.map((qty) => {
+                                      const kitId = getCleanId(activeKit);
+                                      const poKey = getCommKey(kitId, qty, "po");
+                                      const poVal = getComm(kitId, qty, "po");
+                                      const poSaved = savedKeys.has(poKey);
+                                      const isPreset = Array.isArray(activeKit.order_quantities) && activeKit.order_quantities.includes(qty);
+                                      const numVal = poVal !== "" && poVal != null && !isNaN(Number(poVal)) ? Number(poVal) : null;
+                                      const effectivePerKit = numVal != null && numVal > 0 ? numVal / qty : null;
+
+                                      return (
+                                        <tr key={qty} className="hover:bg-amber-500/5 transition-colors">
+                                          <td className="px-5 py-3.5">
+                                            <div className="flex items-center gap-3">
+                                              <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-col items-center justify-center shrink-0">
+                                                <span className="text-sm font-black text-amber-700 dark:text-amber-400 leading-none">
+                                                  {qty}
+                                                </span>
+                                                <span className="text-[8px] font-black text-amber-700/70 uppercase tracking-wider mt-0.5">
+                                                  Kits
+                                                </span>
+                                              </div>
+                                              <div>
+                                                <div className="font-bold text-text-primary text-xs">
+                                                  {qty} Units Batch
+                                                </div>
+                                                <div className="text-[10px] mt-0.5">
+                                                  {isPreset ? (
+                                                    <span className="text-amber-600 dark:text-amber-400 font-bold">
+                                                      Admin Configured PO Qty
+                                                    </span>
+                                                  ) : (
+                                                    <span className="text-text-muted font-medium">
+                                                      Custom Added Tier
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </td>
+
+                                          <td className="px-5 py-3.5 text-center">
+                                            <CommCell
+                                              value={poVal}
+                                              onChange={(v) => setComm(kitId, qty, "po", v)}
+                                              qty={qty}
+                                              orderType="po"
+                                            />
+                                          </td>
+
+                                          <td className="px-5 py-3.5 text-center">
+                                            {effectivePerKit != null ? (
+                                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-black bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20 tabular-nums">
+                                                ₹{effectivePerKit.toLocaleString("en-IN", { maximumFractionDigits: 1 })} / kit
+                                              </span>
+                                            ) : (
+                                              <span className="text-text-muted text-xs font-medium">—</span>
+                                            )}
+                                          </td>
+
+                                          <td className="px-5 py-3.5 text-center">
+                                            {poSaved && poVal ? (
+                                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20">
+                                                <FiCheck size={11} /> Saved
+                                              </span>
+                                            ) : poVal ? (
+                                              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                                Unsaved
+                                              </span>
+                                            ) : (
+                                              <span className="text-text-muted text-xs">—</span>
+                                            )}
+                                          </td>
+
+                                          <td className="px-5 py-3.5 text-right">
+                                            {!isPreset ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRemoveCustomTier("po", qty)}
+                                                className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+                                                title={`Remove custom ${qty} kits tier`}
+                                              >
+                                                <FiTrash2 size={13} />
+                                              </button>
+                                            ) : (
+                                              <span className="text-[10px] text-text-muted opacity-50">—</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Summary Preview Cards */}
+                        {(activeKitLooseTiers.some((qty) => getComm(getCleanId(activeKit), qty, "loose")) ||
+                          activeKitPoTiers.some((qty) => getComm(getCleanId(activeKit), qty, "po"))) && (
+                            <div className="px-5 py-3.5 bg-success/5 border-t border-success/20">
+                              <div className="text-[10px] font-black text-success uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                                <FiCheckCircle size={12} />
+                                Active Rates Summary Preview — {activeKit.name || activeKit.kit_name}
+                              </div>
+                              <div className="flex flex-wrap gap-2.5">
+                                {/* Loose summary cards */}
+                                {activeKitLooseTiers.map((qty) => {
+                                  const kid = getCleanId(activeKit);
+                                  const loose = getComm(kid, qty, "loose");
+                                  if (!loose) return null;
+                                  const num = Number(loose);
+                                  const perKit = Math.round((num / qty) * 10) / 10;
+                                  return (
+                                    <div
+                                      key={`loose_${qty}`}
+                                      className="bg-surface rounded-xl border border-emerald-500/30 px-3 py-2 shadow-xs"
+                                    >
+                                      <div className="text-[10px] font-black text-emerald-700 uppercase mb-0.5 flex items-center gap-1">
+                                        <FaShoppingBag size={10} /> {qty} Kits Loose Order
+                                      </div>
+                                      <div className="text-xs font-black text-text-primary">
+                                        ₹{num.toLocaleString("en-IN")}{" "}
+                                        <span className="text-[10px] text-text-muted font-normal">total</span>
+                                      </div>
+                                      <div className="text-[10px] font-bold text-emerald-600 mt-0.5">
+                                        Effective: ₹{perKit.toLocaleString("en-IN")}/kit
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+
+                                {/* PO summary cards */}
+                                {activeKitPoTiers.map((qty) => {
+                                  const kid = getCleanId(activeKit);
+                                  const po = getComm(kid, qty, "po");
+                                  if (!po) return null;
+                                  const num = Number(po);
+                                  const perKit = Math.round((num / qty) * 10) / 10;
+                                  return (
+                                    <div
+                                      key={`po_${qty}`}
+                                      className="bg-surface rounded-xl border border-amber-500/30 px-3 py-2 shadow-xs"
+                                    >
+                                      <div className="text-[10px] font-black text-amber-700 uppercase mb-0.5 flex items-center gap-1">
+                                        <FaTruck size={10} /> {qty} Kits PO Order
+                                      </div>
+                                      <div className="text-xs font-black text-text-primary">
+                                        ₹{num.toLocaleString("en-IN")}{" "}
+                                        <span className="text-[10px] text-text-muted font-normal">total</span>
+                                      </div>
+                                      <div className="text-[10px] font-bold text-amber-600 mt-0.5">
+                                        Effective: ₹{perKit.toLocaleString("en-IN")}/kit
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                       </div>
                     )}
                   </div>

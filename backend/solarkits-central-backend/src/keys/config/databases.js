@@ -67,7 +67,13 @@ if (!MONGODB_URI) {
     socketTimeoutMS: 45000,
   })
     .then(() => {
-      console.log('✅ Connected to Single Unified MongoDB Database');
+      const dbName = mongoose.connection.name || 'default';
+      console.log(`✅ Connected to Single Unified MongoDB Database: [${dbName}]`);
+      if (dbName.toLowerCase().includes('staging') || dbName.toLowerCase().includes('test') || process.env.NODE_ENV === 'staging') {
+        console.log(`🟡 [ENVIRONMENT: STAGING/TEST] Database '${dbName}' active. Writes are isolated from live production.`);
+      } else if (dbName.toLowerCase().includes('prod') || process.env.NODE_ENV === 'production') {
+        console.log(`🟢 [ENVIRONMENT: PRODUCTION] Live database '${dbName}' active.`);
+      }
       // Automatically clean up legacy non-sparse sku_id_1_warehouse_id_1 index if present
       mongoose.connection.collection('pc_product_sku_prices').indexes().then(indexes => {
         const legacyIdx = indexes.find(i => i.name === 'sku_id_1_warehouse_id_1' && !i.partialFilterExpression);
@@ -76,7 +82,7 @@ if (!MONGODB_URI) {
             .then(() => console.log('✅ Dropped legacy non-sparse sku_id_1_warehouse_id_1 index from pc_product_sku_prices'))
             .catch(e => console.warn('Could not drop legacy index:', e.message));
         }
-      }).catch(() => {});
+      }).catch(() => { });
     })
     .catch((error) => console.error('❌ MongoDB Connection Error:', error));
 }
