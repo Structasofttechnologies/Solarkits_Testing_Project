@@ -62,57 +62,63 @@ router.post('/leads/start-signup/:id', verify_bde_auth, handler.start_franchisee
 router.get('/pipeline', verify_bde_auth, handler.get_bde_pipeline);
 
 // ── 1 & 2. EPC Leads Management ───────────────────────────────────────────────
-router.post('/epc-leads/create',            verify_bde_auth, handler.create_epc_lead);
-router.get('/epc-leads/list',               verify_bde_auth, handler.list_epc_leads);
-router.get('/epc-leads/detail/:id',         verify_bde_auth, handler.get_epc_lead_detail);
-router.put('/epc-leads/update/:id',         verify_bde_auth, handler.update_epc_lead);
-router.post('/epc-leads/follow-up/:id',     verify_bde_auth, handler.schedule_epc_follow_up);
-router.put('/epc-leads/status/:id',         verify_bde_auth, handler.update_epc_lead_status);
+router.post('/epc-leads/create', verify_bde_auth, handler.create_epc_lead);
+router.get('/epc-leads/list', verify_bde_auth, handler.list_epc_leads);
+router.get('/epc-leads/detail/:id', verify_bde_auth, handler.get_epc_lead_detail);
+router.put('/epc-leads/update/:id', verify_bde_auth, handler.update_epc_lead);
+router.post('/epc-leads/follow-up/:id', verify_bde_auth, handler.schedule_epc_follow_up);
+router.put('/epc-leads/status/:id', verify_bde_auth, handler.update_epc_lead_status);
 
 // ── 3 & 4. GST-Based EPC Onboarding & Franchisee Assignment ───────────────────
-router.post('/epc/verify-gst',              verify_bde_auth, handler.verify_epc_gstin);
-router.post('/epc/onboard-with-gst',        verify_bde_auth, handler.onboard_epc_with_gst);
-router.get('/epc/eligible-franchisees',     verify_bde_auth, handler.get_eligible_franchisees_for_epc);
-router.post('/epc/assign-franchisee',       verify_bde_auth, handler.assign_epc_to_franchisee);
+router.post('/epc/verify-gst', verify_bde_auth, handler.verify_epc_gstin);
+router.post('/epc/onboard-with-gst', verify_bde_auth, handler.onboard_epc_with_gst);
+router.get('/epc/eligible-franchisees', verify_bde_auth, handler.get_eligible_franchisees_for_epc);
+router.post('/epc/assign-franchisee', verify_bde_auth, handler.assign_epc_to_franchisee);
 
 // Legacy EPC endpoints (backward-compatible)
-router.get('/epc/stats',                    verify_bde_auth, handler.get_bde_epc_stats);
-router.get('/epc/list',                     verify_bde_auth, handler.get_bde_epc_list);
-router.post('/epc/onboard',                 verify_bde_auth, handler.onboard_epc);
-router.get('/epc/franchise-partners',       verify_bde_auth, handler.get_bde_franchise_partners);
-router.post('/epc/assign-partner',          verify_bde_auth, handler.assign_franchise_partner);
+router.get('/epc/stats', verify_bde_auth, handler.get_bde_epc_stats);
+router.get('/epc/list', verify_bde_auth, handler.get_bde_epc_list);
+router.post('/epc/onboard', verify_bde_auth, handler.onboard_epc);
+router.get('/epc/franchise-partners', verify_bde_auth, handler.get_bde_franchise_partners);
+router.post('/epc/assign-partner', verify_bde_auth, handler.assign_franchise_partner);
 
 // ── 5 & 6. Franchisee Network, Goal vs Achievement & Performance ──────────────
-router.get('/franchisees',                  verify_bde_auth, handler.get_my_franchisees);
-router.get('/franchisees/performance',      verify_bde_auth, handler.get_franchisee_performance);
+router.get('/franchisees', verify_bde_auth, handler.get_my_franchisees);
+router.get('/franchisees/performance', verify_bde_auth, handler.get_franchisee_performance);
 
 // ── 7. Franchisee Order History ───────────────────────────────────────────────
-router.get('/franchisees/:id/orders',       verify_bde_auth, handler.get_franchisee_order_history);
-router.get('/orders/all',                   verify_bde_auth, handler.get_territory_order_history);
+router.get('/franchisees/:id/orders', verify_bde_auth, handler.get_franchisee_order_history);
+router.get('/orders/all', verify_bde_auth, handler.get_territory_order_history);
 
 // ── 8. Kit Sales Performance Analytics ────────────────────────────────────────
-router.get('/analytics/kit-sales',          verify_bde_auth, handler.get_kit_sales_analytics);
+router.get('/analytics/kit-sales', verify_bde_auth, handler.get_kit_sales_analytics);
 
 // ── 11. Performance Ranking ───────────────────────────────────────────────────
-router.get('/ranking/franchisees',          verify_bde_auth, handler.get_franchisee_ranking);
+router.get('/ranking/franchisees', verify_bde_auth, handler.get_franchisee_ranking);
 
 // ── 12. EPC Quotation & Follow-up Module ─────────────────────────────────────
 router.use('/quotes', require('./bde.quotes.route'));
 
 // ── 13. Franchisee Purchase Order & EPC Allocation Module ────────────────────
-router.get('/po/onboarded-epcs',                         verify_bde_auth, handler.get_bde_onboarded_epcs);
-router.get('/po/combokits',                             verify_bde_auth, handler.get_bde_company_combokits);
-router.get('/po/franchisees',                            verify_bde_auth, handler.get_bde_po_franchisees);
+router.get('/po/onboarded-epcs', verify_bde_auth, handler.get_bde_onboarded_epcs);
+router.get('/po/combokits', verify_bde_auth, handler.get_bde_company_combokits);
+router.get('/po/franchisees', verify_bde_auth, handler.get_bde_po_franchisees);
 router.get('/po/franchisee/:franchiseeId/plan-settings', verify_bde_auth, handler.get_franchisee_po_plan_settings);
-router.get('/po/franchisee/:franchiseeId/epc-buyers',    verify_bde_auth, handler.get_franchisee_epc_buyers);
-router.get('/po/orders',                                 verify_bde_auth, handler.list_bde_po_orders);
-router.post('/po/create',                                verify_bde_auth, handler.create_bde_po_order);
-router.put('/po/:id/allocate',                           verify_bde_auth, handler.allocate_bde_po_products);
-router.post('/po/:id/pay-token',                         verify_bde_auth, handler.pay_bde_po_token);
-router.post('/po/:id/validate',                          verify_bde_auth, handler.validate_bde_po);
-router.post('/po/:id/reorder',                           verify_bde_auth, handler.reorder_bde_po);
-router.get('/po/detail/:id',                             verify_bde_auth, handler.get_bde_po_detail);
-router.get('/shop-hierarchy',                            verify_bde_auth, require('../../controller/v1.handlers/shop.handler').get_shop_hierarchy);
+router.get('/po/franchisee/:franchiseeId/epc-buyers', verify_bde_auth, handler.get_franchisee_epc_buyers);
+router.get('/po/orders', verify_bde_auth, handler.list_bde_po_orders);
+router.post('/po/create', verify_bde_auth, handler.create_bde_po_order);
+router.put('/po/:id/allocate', verify_bde_auth, handler.allocate_bde_po_products);
+router.post('/po/:id/pay-token', verify_bde_auth, handler.pay_bde_po_token);
+router.post('/po/:id/validate', verify_bde_auth, handler.validate_bde_po);
+router.post('/po/:id/reorder', verify_bde_auth, handler.reorder_bde_po);
+router.get('/po/detail/:id', verify_bde_auth, handler.get_bde_po_detail);
+router.get('/shop-hierarchy', verify_bde_auth, require('../../controller/v1.handlers/shop.handler').get_shop_hierarchy);
+
+// ── 14. EPC Customer Store Behavior Analytics & Profile Behavior ──────────────
+const epcAnalyticsController = require('../../../admin-panel/controller/epc.analytics.controller');
+router.get('/epc-analytics/behavior', verify_bde_auth, epcAnalyticsController.get_epc_behavior_analytics);
+router.get('/epc-analytics/epc-profile/:id', verify_bde_auth, epcAnalyticsController.get_epc_profile_detail);
+router.put('/epc-analytics/epc-profile/:id/behavior', verify_bde_auth, epcAnalyticsController.update_epc_profile_behavior);
 
 module.exports = router;
 

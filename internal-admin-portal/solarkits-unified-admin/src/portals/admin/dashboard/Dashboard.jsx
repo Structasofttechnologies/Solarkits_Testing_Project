@@ -9,7 +9,7 @@ import Loader from "../components/Loader";
 import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
-import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck } from "react-icons/fa";
+import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaChartLine } from "react-icons/fa";
 import {
   MdAccountTree,
   MdEngineering,
@@ -46,6 +46,7 @@ const StoreSetupManagement = lazy(() => import("../pages/dashboard/store-setup/S
 const ConfigurationDashboard = lazy(() => import("../pages/dashboard/configuration-dashboard/ConfigurationDashboard"));
 const OperationsDashboard = lazy(() => import("../pages/dashboard/operations-dashboard/OperationsDashboard"));
 const StoreDashboard = lazy(() => import("../pages/dashboard/store-dashboard/StoreDashboard"));
+const EpcAnalyticsDashboard = lazy(() => import("../pages/dashboard/epc-analytics/EpcAnalyticsDashboard"));
 const NotFound = lazy(() => import("../pages/NotFound"));
 
 /* ===================== MENU CONFIG ===================== */
@@ -57,6 +58,7 @@ const menus = [
     { name: "Configuration Dashboard", icon: <MdTune />, path: "/admin-panel/configuration-dashboard", unique_id: "00000000" },
     { name: "Operations Dashboard", icon: <MdEngineering />, path: "/admin-panel/operations-dashboard", unique_id: "00000000" },
     { name: "Store Dashboard", icon: <FaStore />, path: "/admin-panel/store-dashboard", unique_id: "00000000" },
+    { name: "EPC Analytics", icon: <FaChartLine />, path: "/admin-panel/epc-analytics", unique_id: "00000000" },
   ],
   [
     {
@@ -403,6 +405,7 @@ export default function Dashboard() {
     if (path.includes('/configuration-dashboard')) return 'Configuration Dashboard';
     if (path.includes('/operations-dashboard')) return 'Admin Operations Dashboard';
     if (path.includes('/store-dashboard')) return 'Store & Market Analytics Dashboard';
+    if (path.includes('/epc-analytics')) return 'EPC Analytics';
     if (path.includes('/bde-management')) return 'BDE Management';
     if (path.includes('/operations')) return 'Operations Management';
     if (path.includes('/settings')) return 'System Settings';
@@ -475,6 +478,16 @@ export default function Dashboard() {
                       <PermissionGuard requiredUniqueId="00000000">
                         <Suspense fallback={<Loader text="Loading Operations Dashboard..." />}>
                           <OperationsDashboard />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/epc-analytics"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading EPC Analytics Dashboard..." />}>
+                          <EpcAnalyticsDashboard />
                         </Suspense>
                       </PermissionGuard>
                     }

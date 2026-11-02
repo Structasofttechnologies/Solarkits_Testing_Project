@@ -179,6 +179,7 @@ adminRouter.use('/order-approvals', require('./modules/admin-panel/routes/order.
 adminRouter.use('/epc-types', require('./modules/admin-panel/routes/epc.types.route'));
 adminRouter.use('/operations-dashboard', require('./modules/admin-panel/routes/operations.dashboard.route'));
 adminRouter.use('/store-dashboard', require('./modules/admin-panel/routes/store.dashboard.route'));
+adminRouter.use('/epc-analytics', require('./modules/admin-panel/routes/epc.analytics.route'));
 
 app.use('/admin-api', adminRouter);
 app.use('/api', adminRouter);
