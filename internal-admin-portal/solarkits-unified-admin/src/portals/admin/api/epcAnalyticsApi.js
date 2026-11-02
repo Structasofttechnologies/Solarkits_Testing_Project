@@ -38,8 +38,9 @@ export const epcAnalyticsApi = {
   /**
    * Fetch Single EPC Behavioral Profile and Telemetry Detail
    */
-  getEpcProfileDetail: async (id) => {
-    const res = await axios.get(`${ADMIN_API}/epc-analytics/epc-profile/${id}`, headers());
+  getEpcProfileDetail: async (id, params = {}) => {
+    const q = buildQuery(params);
+    const res = await axios.get(`${ADMIN_API}/epc-analytics/epc-profile/${id}?${q}`, headers());
     return res.data?.data;
   },
 

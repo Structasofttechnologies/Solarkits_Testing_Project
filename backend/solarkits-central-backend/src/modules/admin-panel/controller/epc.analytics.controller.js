@@ -7,6 +7,7 @@ const {
   WarehouseComboKit,
   BDEProfile,
 } = require('../models/india_solarshop_db');
+const UserRefreshToken = require('../../solarshop-india/models/india_solarshop_db/user_refresh_tokens.schema');
 
 /**
  * Builds Date filter based on query parameter
@@ -80,6 +81,8 @@ exports.get_epc_behavior_analytics = async (req, res) => {
       allEpcsRaw,
       allCartsRaw,
       allBdes,
+      allTokensRaw,
+      allDownloadsRaw,
     ] = await Promise.all([
       EpcOrder.find(buildDateFilter(dateRange, 'createdAt'))
         .populate('reseller_id', 'company_name store_name state_id district_id state_name district_name')
@@ -94,6 +97,11 @@ exports.get_epc_behavior_analytics = async (req, res) => {
         .lean(),
       cartCol.find({}).toArray(),
       BDEProfile ? BDEProfile.find({ is_active: true }).select('name email employee_code').lean() : Promise.resolve([]),
+      UserRefreshToken ? UserRefreshToken.find(buildDateFilter(dateRange, 'created_at')).lean() : Promise.resolve([]),
+      mongoose.connection.collection('epc_quote_activities').find({
+        action: { $in: ['PDF_DOWNLOADED', 'QUOTE_PDF_DOWNLOADED'] },
+        ...buildDateFilter(dateRange, 'created_at'),
+      }).toArray(),
     ]);
 
     // ── Apply Optional State Filter ──
@@ -115,6 +123,23 @@ exports.get_epc_behavior_analytics = async (req, res) => {
     const registeredEpcsCount = allEpcs.length;
     const resellersCount = allResellers.length;
     const loggedInUsers = registeredEpcsCount + resellersCount;
+
+    // Build real user visits map from user_refresh_tokens
+    const epcVisitsMap = {};
+    allTokensRaw.forEach((t) => {
+      if (t.user_id) {
+        const uid = t.user_id.toString();
+        epcVisitsMap[uid] = (epcVisitsMap[uid] || 0) + 1;
+      }
+    });
+
+    const distinctIps = new Set(allTokensRaw.map((t) => t.ip_address).filter(Boolean));
+    const distinctUsers = new Set(allTokensRaw.map((t) => t.user_id?.toString()).filter(Boolean));
+
+    // Real Visit Sessions & Telemetry
+    const totalStoreVisits = allTokensRaw.length;
+    const uniqueVisitors = Math.max(distinctIps.size, distinctUsers.size, registeredEpcsCount);
+    const datasheetDownloads = allDownloadsRaw.length;
 
     // Parse all cart items from real carts collection
     let totalCartItemsCreated = 0;
@@ -163,15 +188,10 @@ exports.get_epc_behavior_analytics = async (req, res) => {
       });
     });
 
-    const addToCartEvents = totalCartItemsCreated || allCartsRaw.length || 5;
+    const addToCartEvents = totalCartItemsCreated || allCartsRaw.length || 0;
     const abandonedCarts = Math.max(0, addToCartEvents - ordersPlaced);
     const checkoutInitiated = Math.max(ordersPlaced, Math.round(addToCartEvents * 0.6));
-
-    // Real Kit Views & Datasheet Downloads from real interactions
-    const kitCardViews = (addToCartEvents * 3) + (quotesCount * 4) + (ordersPlaced * 2);
-    const datasheetDownloads = quotesCount + Math.round(addToCartEvents * 0.4);
-    const uniqueVisitors = Math.max(registeredEpcsCount, allCartsRaw.length);
-    const totalStoreVisits = uniqueVisitors + kitCardViews + ordersPlaced + quotesCount;
+    const kitCardViews = (totalCartItemsCreated * 3) + (ordersPlaced * 2);
 
     // ── 3. Real Repeat Orders Calculation ─────────────────────────────────────
     const epcOrdersMap = {};
@@ -503,8 +523,12 @@ exports.get_epc_behavior_analytics = async (req, res) => {
       const epcAbandonRatio = cartsCreated > 0 ? ((cartsAbandoned / cartsCreated) * 100).toFixed(0) : '0';
 
       const epcQuotes = allQuotes.filter((q) => q.epc_id?._id?.toString() === eid || q.epc_id?.toString() === eid);
-      const datasheetDownloads = epcQuotes.length;
-      const storeVisits = (ordersCount * 3) + (epcQuotes.length * 2) + (cartItemsCount * 2) + 1;
+      const epcDownloads = allDownloadsRaw.filter(
+        (a) => a.performed_by?.toString() === eid || (a.quote_id && epcQuotes.some((q) => q._id?.toString() === a.quote_id?.toString()))
+      );
+      const datasheetDownloads = epcDownloads.length;
+      // Real Store Visits from user_refresh_tokens
+      const storeVisits = epcVisitsMap[eid] || 0;
 
       return {
         id: eid,
@@ -566,13 +590,15 @@ exports.get_epc_behavior_analytics = async (req, res) => {
 exports.get_epc_profile_detail = async (req, res) => {
   try {
     const { id } = req.params;
+    const { dateRange = 'last_30_days' } = req.query;
+
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ status: 'error', message: 'Invalid EPC Account ID' });
     }
 
     const cartCol = getCartCollection();
 
-    const [epc, epcOrders, epcQuotes, epcCart] = await Promise.all([
+    const [epc, epcOrders, epcQuotes, epcCart, epcTokensPeriod, epcTokensAllTime, epcDownloads] = await Promise.all([
       EpcAccount.findById(id)
         .populate('onboarded_by_bde_id', 'name email mobile_number employee_code')
         .populate('primary_reseller_id', 'company_name store_name state_name district_name')
@@ -580,6 +606,17 @@ exports.get_epc_profile_detail = async (req, res) => {
       EpcOrder.find({ epc_id: id }).sort({ createdAt: -1 }).lean(),
       EpcQuote.find({ epc_id: id }).sort({ createdAt: -1 }).lean(),
       cartCol.findOne({ account_id: new mongoose.Types.ObjectId(id) }),
+      UserRefreshToken ? UserRefreshToken.find({
+        user_id: id,
+        ...buildDateFilter(dateRange, 'created_at'),
+      }).lean() : Promise.resolve([]),
+      UserRefreshToken ? UserRefreshToken.find({ user_id: id }).lean() : Promise.resolve([]),
+      mongoose.connection.collection('epc_quote_activities').find({
+        $or: [
+          { performed_by: new mongoose.Types.ObjectId(id) },
+        ],
+        action: { $in: ['PDF_DOWNLOADED', 'QUOTE_PDF_DOWNLOADED'] },
+      }).toArray(),
     ]);
 
     if (!epc) {
@@ -593,6 +630,11 @@ exports.get_epc_profile_detail = async (req, res) => {
     const cartsCreated = Math.max(epcOrders.length, cartItems.length);
     const abandonedCarts = Math.max(0, cartsCreated - epcOrders.length);
     const abandonmentRatio = cartsCreated > 0 ? ((abandonedCarts / cartsCreated) * 100).toFixed(1) : '0.0';
+
+    // Real visit and download metrics
+    const storeVisits = epcTokensPeriod.length;
+    const allTimeStoreVisits = epcTokensAllTime.length;
+    const datasheetDownloads = epcDownloads.length;
 
     // Build real abandonment history from real cart items
     const abandonmentHistory = cartItems.map((item, idx) => ({
@@ -631,10 +673,11 @@ exports.get_epc_profile_detail = async (req, res) => {
           lastActivityAt: epc.last_activity_at || epc.updated_at || epc.created_at,
         },
         telemetry: {
-          storeVisits: (epcOrders.length * 4) + (epcQuotes.length * 3) + (cartItems.length * 2) + 2,
-          uniqueSessions: Math.max(1, epcOrders.length + epcQuotes.length),
+          storeVisits,
+          allTimeStoreVisits,
+          uniqueSessions: new Set(epcTokensAllTime.map((t) => t.ip_address).filter(Boolean)).size || (allTimeStoreVisits > 0 ? 1 : 0),
           kitCardViews: (cartItems.length * 3) + (epcOrders.length * 2),
-          datasheetDownloads: epcQuotes.length,
+          datasheetDownloads,
           cartsCreated,
           abandonedCarts,
           cartAbandonmentRatio: `${abandonmentRatio}%`,

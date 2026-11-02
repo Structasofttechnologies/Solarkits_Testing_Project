@@ -109,7 +109,7 @@ export default function EpcDirectorySection({
               </span>
             </div>
             <p className="text-xs text-text-muted mt-0.5">
-              Click &quot;Manage Profile&quot; on any EPC to inspect telemetry and update behavioral settings
+              Click &quot;Profile&quot; on any EPC to inspect store engagement, visits and cart abandonment logs
             </p>
           </div>
         </div>
@@ -119,44 +119,40 @@ export default function EpcDirectorySection({
           <button
             type="button"
             onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
-              statusFilter === 'all'
+            className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${statusFilter === 'all'
                 ? 'bg-primary text-white shadow-xs'
                 : 'text-text-muted hover:bg-surface-subtle'
-            }`}
+              }`}
           >
             All EPCs ({epcs.length})
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('at_risk')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
-              statusFilter === 'at_risk'
+            className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${statusFilter === 'at_risk'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'text-rose-600 hover:bg-rose-50'
-            }`}
+              }`}
           >
             At Risk
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('loyal_repeat')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
-              statusFilter === 'loyal_repeat'
+            className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${statusFilter === 'loyal_repeat'
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'text-emerald-600 hover:bg-emerald-50'
-            }`}
+              }`}
           >
             Loyal Repeat
           </button>
           <button
             type="button"
             onClick={() => setStatusFilter('dormant')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
-              statusFilter === 'dormant'
+            className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${statusFilter === 'dormant'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-amber-600 hover:bg-amber-50'
-            }`}
+              }`}
           >
             Dormant
           </button>
@@ -237,9 +233,8 @@ export default function EpcDirectorySection({
                   <td className="py-3 px-3 text-right font-medium text-text">{e.cartsCreated}</td>
                   <td className="py-3 px-3 text-right">
                     <span
-                      className={`font-black ${
-                        parseInt(e.abandonmentRatio) > 40 ? 'text-rose-600' : 'text-text'
-                      }`}
+                      className={`font-black ${parseInt(e.abandonmentRatio) > 40 ? 'text-rose-600' : 'text-text'
+                        }`}
                     >
                       {e.abandonmentRatio}
                     </span>
@@ -262,8 +257,8 @@ export default function EpcDirectorySection({
                       onClick={() => onSelectEpc(e.id)}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-white font-bold hover:bg-primary-hover transition-colors shadow-2xs cursor-pointer text-[11px]"
                     >
-                      <FiEdit size={11} />
-                      <span>Manage</span>
+                      <FiEye size={12} />
+                      <span>Profile</span>
                     </button>
                   </td>
                 </tr>

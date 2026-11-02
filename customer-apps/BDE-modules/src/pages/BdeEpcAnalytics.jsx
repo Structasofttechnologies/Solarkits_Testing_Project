@@ -65,19 +65,6 @@ export default function BdeEpcAnalytics() {
   const [selectedEpcId, setSelectedEpcId] = useState(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [profileData, setProfileData] = useState(null);
-  const [savingBehavior, setSavingBehavior] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
-  // Profile Form state
-  const [form, setForm] = useState({
-    behavior_status: 'active',
-    customer_tier: 'Standard EPC',
-    assigned_bde_id: '',
-    recovery_discount_pct: 0,
-    recovery_followup_status: 'none',
-    credit_limit_inr: 0,
-    behavior_notes: '',
-  });
 
   const setFilter = (k, v) => setFilters((prev) => ({ ...prev, [k]: v }));
   const resetFilters = () =>
@@ -127,59 +114,16 @@ export default function BdeEpcAnalytics() {
     setSelectedEpcId(id);
     setDrawerOpen(true);
     setDrawerLoading(true);
-    setSaveSuccess(false);
 
     try {
-      const res = await api.get(`/epc-analytics/epc-profile/${id}`);
+      const res = await api.get(`/epc-analytics/epc-profile/${id}?dateRange=${filters.dateRange || 'last_30_days'}`);
       if (res.data?.data) {
         setProfileData(res.data.data);
-        const p = res.data.data.profile || {};
-        setForm({
-          behavior_status: p.behaviorStatus || 'active',
-          customer_tier: p.customerTier || 'Standard EPC',
-          assigned_bde_id: p.assignedBde?.id || '',
-          recovery_discount_pct: p.recoveryDiscountPct || 0,
-          recovery_followup_status: p.recoveryFollowupStatus || 'none',
-          credit_limit_inr: p.creditLimitInr || 0,
-          behavior_notes: p.behaviorNotes || '',
-        });
       }
     } catch (err) {
       console.error('Failed to load EPC profile:', err);
     } finally {
       setDrawerLoading(false);
-    }
-  };
-
-  const handleSaveBehavior = async (e) => {
-    e.preventDefault();
-    if (!selectedEpcId) return;
-    setSavingBehavior(true);
-    setSaveSuccess(false);
-
-    try {
-      await api.put(`/epc-analytics/epc-profile/${selectedEpcId}/behavior`, form);
-      setSaveSuccess(true);
-      // Update local directory
-      setEpcDirectory((prev) =>
-        prev.map((item) =>
-          item.id === selectedEpcId
-            ? {
-              ...item,
-              behaviorStatus: form.behavior_status,
-              customerTier: form.customer_tier,
-              recoveryDiscountPct: form.recovery_discount_pct,
-              recoveryFollowupStatus: form.recovery_followup_status,
-              behaviorNotes: form.behavior_notes,
-            }
-            : item
-        )
-      );
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error('Save error:', err);
-    } finally {
-      setSavingBehavior(false);
     }
   };
 
@@ -826,9 +770,10 @@ export default function BdeEpcAnalytics() {
                     <td className="py-3 px-3 text-right">
                       <button
                         onClick={() => handleOpenDrawer(e.id)}
-                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-[11px] shadow-2xs transition cursor-pointer"
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-[11px] shadow-2xs transition cursor-pointer"
                       >
-                        Manage
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Profile</span>
                       </button>
                     </td>
                   </tr>
@@ -865,18 +810,16 @@ export default function BdeEpcAnalytics() {
                 <div className="py-12 text-center text-slate-400">Loading EPC behavioral data...</div>
               ) : (
                 <>
-                  {saveSuccess && (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>EPC behavior updated successfully in real-time!</span>
-                    </div>
-                  )}
-
                   {/* Telemetry Strip */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                     <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">Store Visits</span>
                       <span className="text-base font-black text-slate-800">{profileData?.telemetry?.storeVisits ?? 0}</span>
+                      {profileData?.telemetry?.allTimeStoreVisits !== undefined && profileData?.telemetry?.allTimeStoreVisits !== profileData?.telemetry?.storeVisits && (
+                        <span className="text-[9px] text-slate-400 block mt-0.5">
+                          {profileData?.telemetry?.allTimeStoreVisits} all-time
+                        </span>
+                      )}
                     </div>
                     <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">Downloads</span>
@@ -908,99 +851,64 @@ export default function BdeEpcAnalytics() {
                     ))}
                   </div>
 
-                  {/* Behavior Editor Form */}
-                  <form onSubmit={handleSaveBehavior} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                  {/* Customer Overview (Read-Only) */}
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                      <span className="text-xs font-bold text-slate-800 uppercase">Change EPC Behavior Settings</span>
-                      <span className="text-[10px] text-blue-600 font-bold">BDE Control</span>
+                      <span className="text-xs font-bold text-slate-800 uppercase">Customer Profile Overview</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold">
+                        {profileData?.profile?.customerTier || 'Standard EPC'}
+                      </span>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Behavior Status</label>
-                        <select
-                          value={form.behavior_status}
-                          onChange={(e) => setForm({ ...form, behavior_status: e.target.value })}
-                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-800 font-medium"
-                        >
-                          <option value="active">Active / Healthy</option>
-                          <option value="at_risk">High Cart Abandonment Risk</option>
-                          <option value="loyal_repeat">Loyal Repeat Buyer</option>
-                          <option value="dormant">Dormant / Needs Outreach</option>
-                          <option value="suspended">Suspended / Inactive</option>
-                        </select>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Contact Person / Phone</span>
+                        <span className="font-semibold text-slate-800">
+                          {profileData?.profile?.contactPerson} ({profileData?.profile?.whatsapp || 'N/A'})
+                        </span>
                       </div>
-
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Customer Tier</label>
-                        <select
-                          value={form.customer_tier}
-                          onChange={(e) => setForm({ ...form, customer_tier: e.target.value })}
-                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-800 font-medium"
-                        >
-                          <option value="Standard EPC">Standard EPC</option>
-                          <option value="Silver Partner">Silver Partner</option>
-                          <option value="Gold Partner">Gold Partner</option>
-                          <option value="Platinum Partner">Platinum Partner (VIP)</option>
-                        </select>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Email</span>
+                        <span className="font-semibold text-slate-800 truncate block">
+                          {profileData?.profile?.email || 'N/A'}
+                        </span>
                       </div>
-
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
-                          Recovery Incentive Discount (%)
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="20"
-                          value={form.recovery_discount_pct}
-                          onChange={(e) => setForm({ ...form, recovery_discount_pct: Number(e.target.value) })}
-                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-800 font-medium"
-                          placeholder="e.g. 5"
-                        />
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Territory</span>
+                        <span className="font-semibold text-slate-800">
+                          {profileData?.profile?.district}, {profileData?.profile?.state}
+                        </span>
                       </div>
-
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
-                          Follow-up Outreach Status
-                        </label>
-                        <select
-                          value={form.recovery_followup_status}
-                          onChange={(e) => setForm({ ...form, recovery_followup_status: e.target.value })}
-                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-800 font-medium"
-                        >
-                          <option value="none">None / Pending</option>
-                          <option value="call_scheduled">Follow-up Call Scheduled</option>
-                          <option value="offer_sent">Discount Offer Sent via WhatsApp</option>
-                          <option value="re_engaged">Successfully Re-engaged</option>
-                        </select>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Assigned BDE</span>
+                        <span className="font-semibold text-slate-800">
+                          {profileData?.profile?.assignedBde?.name || 'Central BDE Pool'}
+                        </span>
                       </div>
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
-                        Behavior Notes & Interaction Log
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={form.behavior_notes}
-                        onChange={(e) => setForm({ ...form, behavior_notes: e.target.value })}
-                        className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-800 text-xs"
-                        placeholder="Log customer objection, cart recovery attempt, price quote discount notes..."
-                      />
+                  {/* Recent Orders Log */}
+                  {(profileData?.recentOrders || []).length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                        Recent Confirmed Orders ({(profileData?.recentOrders || []).length})
+                      </span>
+                      {(profileData?.recentOrders || []).map((ord) => (
+                        <div key={ord.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-slate-800">{ord.orderNumber}</div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">{ord.orderType} • {ord.date}</div>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-bold text-emerald-600 block">{ord.amountFormatted}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">
+                              {ord.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-
-                    <div className="flex justify-end pt-2">
-                      <button
-                        type="submit"
-                        disabled={savingBehavior}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition cursor-pointer text-xs disabled:opacity-50"
-                      >
-                        <Save className="w-3.5 h-3.5" />
-                        <span>{savingBehavior ? 'Saving...' : 'Save Profile Changes'}</span>
-                      </button>
-                    </div>
-                  </form>
+                  )}
                 </>
               )}
             </div>

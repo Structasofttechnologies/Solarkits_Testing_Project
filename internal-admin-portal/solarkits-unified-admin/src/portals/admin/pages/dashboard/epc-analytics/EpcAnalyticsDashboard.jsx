@@ -311,6 +311,7 @@ export default function EpcAnalyticsDashboard() {
         isOpen={drawerOpen}
         onClose={handleCloseEpcProfile}
         epcId={selectedEpcId}
+        dateRange={filters.dateRange}
         bdeList={bdeList}
         onProfileUpdated={handleProfileUpdated}
       />
