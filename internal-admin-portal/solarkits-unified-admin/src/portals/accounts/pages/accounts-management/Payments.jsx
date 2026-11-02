@@ -1470,8 +1470,8 @@ export default function Payments() {
   const [piPaymentMilestone, setPiPaymentMilestone] = useState(null);
   const [piSubFilter, setPiSubFilter] = useState("all");
 
-  const fetchProcurementPIs = async () => {
-    setLoadingProcurementPIs(true);
+  const fetchProcurementPIs = async (opts = {}) => {
+    if (!opts.silent) setLoadingProcurementPIs(true);
     try {
       const res = await getPurchaseIndents();
       if (res?.status === "success" && Array.isArray(res.data)) {
@@ -1480,7 +1480,7 @@ export default function Payments() {
     } catch (err) {
       console.error("Failed to load procurement PIs:", err);
     } finally {
-      setLoadingProcurementPIs(false);
+      if (!opts.silent) setLoadingProcurementPIs(false);
     }
   };
 
@@ -2182,8 +2182,8 @@ export default function Payments() {
     }
   };
 
-  const fetchOrders = async () => {
-    setLoadingOrders(true);
+  const fetchOrders = async (opts = {}) => {
+    if (!opts.silent) setLoadingOrders(true);
     try {
       const res = await getPurchaseOrders(activeClusterId || "", activeStateId || "", activeCountryId || "");
       if (res && res.status === "success") {
@@ -2192,7 +2192,7 @@ export default function Payments() {
     } catch (err) {
       console.error("Failed to fetch purchase orders:", err);
     } finally {
-      setLoadingOrders(false);
+      if (!opts.silent) setLoadingOrders(false);
     }
   };
 
@@ -5035,7 +5035,7 @@ export default function Payments() {
             </div>
           )}
 
-          {loadingProcurementPIs ? (
+          {loadingProcurementPIs && procurementPIs.length === 0 ? (
             <div className="p-12 text-center bg-white border border-gray-200 rounded-2xl">
               <FaSpinner className="animate-spin text-primary mx-auto text-2xl mb-2" />
               <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Loading Purchase Indents...</p>
@@ -6344,8 +6344,8 @@ export default function Payments() {
         purchaseIndent={selectedPiForPayment}
         targetMilestone={piPaymentMilestone}
         onPaymentUpdated={() => {
-          fetchProcurementPIs();
-          fetchOrders();
+          fetchProcurementPIs({ silent: true });
+          fetchOrders({ silent: true });
           window.dispatchEvent(new CustomEvent("accounts:badge-refresh"));
         }}
       />

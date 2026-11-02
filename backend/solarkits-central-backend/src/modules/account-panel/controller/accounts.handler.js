@@ -4824,17 +4824,7 @@ const get_sidebar_badge_counts = async (req, res) => {
       }),
       PurchaseIndent.countDocuments({
         'payment.payment_status': {
-          $in: [
-            'Payment Initiated',
-            'Awaiting Admin Approval',
-            'Advance Requested',
-            'Balance Requested',
-            'Approved',
-            'Payment Processing',
-            'Advance Paid',
-            'Balance Due',
-            'Partially Paid',
-          ],
+          $nin: ['Paid', 'Rejected', 'Payment Failed', 'Rejected / Returned'],
         },
       }),
       PurchaseOrder.countDocuments({

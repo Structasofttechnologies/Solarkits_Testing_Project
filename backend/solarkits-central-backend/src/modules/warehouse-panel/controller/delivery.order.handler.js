@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { DeliveryOrder, PoRequest, CompanyWarehouse } = require('../models/company_warehouse_db');
+const PurchaseIndent = require('../../account-panel/models/company_warehouse_db/PurchaseIndent.schema');
 const { sendAdminNotification } = require('../../admin-panel/services/admin.notification.service');
 
 /**
@@ -126,6 +127,24 @@ exports.get_delivery_orders = async (req, res) => {
       }
     }
 
+    // Pre-fetch all PurchaseIndents for rawOrders to cross-reference Accounts payment clearance
+    const orderNumbers = rawOrders.map(o => o.order_number).filter(Boolean);
+    const allOrderPis = await PurchaseIndent.find({
+      $or: [
+        { customer_order_number: { $in: orderNumbers } },
+        { order_number: { $in: orderNumbers } }
+      ]
+    }).lean().catch(() => []);
+
+    const pisByOrder = {};
+    for (const p of allOrderPis) {
+      const oNum = p.customer_order_number || p.order_number;
+      if (oNum) {
+        if (!pisByOrder[oNum]) pisByOrder[oNum] = [];
+        pisByOrder[oNum].push(p);
+      }
+    }
+
     // Enrich orders with dynamic available inventory (minus all committed stock across active orders) and Overdue SLA calculations
     const orders = rawOrders.map(ord => {
       const ordObj = ord.toObject();
@@ -147,14 +166,27 @@ exports.get_delivery_orders = async (req, res) => {
       const inv = (ordObj.items || []).find(i => i.category === 'inverter' || (i.product_name && i.product_name.toLowerCase().includes('inverter')));
       const acdb = (ordObj.items || []).find(i => i.sku?.includes('ACDB') || (i.product_name && i.product_name.toLowerCase().includes('acdb')));
       const lig = (ordObj.items || []).find(i => i.sku?.includes('LIG-') || (i.product_name && i.product_name.toLowerCase().includes('lightning arrestor')));
-      const itemKits = inv?.ordered_qty || acdb?.ordered_qty || lig?.ordered_qty || 0;
+      const rawBos = (ordObj.items || []).find(it =>
+        (it.sku || '').startsWith('BOS-KIT-') ||
+        (it.category || '').toLowerCase() === 'bos kit' ||
+        (it.product_name || '').toLowerCase().includes('bos kit')
+      );
 
-      let totalKits = Math.max(
-        epcKits,
-        itemKits,
-        Number(ordObj.num_kits) || 0,
-        Number(ordObj.total_kits) || 0
-      ) || 1;
+      let epcBosKits = 0;
+      if (ordObj.epcs && ordObj.epcs.length > 0) {
+        epcBosKits = ordObj.epcs.reduce((acc, epc) => {
+          const match = (epc.boskit_qty || '').match(/(\d+)/);
+          return acc + (match ? parseInt(match[1], 10) : 0);
+        }, 0);
+      }
+
+      let totalKits = Number(ordObj.num_kits) ||
+                      Number(ordObj.total_kits) ||
+                      (rawBos ? rawBos.ordered_qty : 0) ||
+                      epcBosKits ||
+                      epcKits ||
+                      itemKits ||
+                      1;
 
       let detectedCap = ordObj.system_capacity || '';
       if (!detectedCap && ordObj.epcs && ordObj.epcs.length > 0) {
@@ -217,14 +249,32 @@ exports.get_delivery_orders = async (req, res) => {
         });
       }
 
+      // Check if all PIs for this order are 100% settled in Accounts
+      const orderPis = pisByOrder[ordObj.order_number] || [];
+      const isOrderFullySettledInAccounts = orderPis.length > 0 && orderPis.every(p =>
+        p.payment?.payment_status === 'Paid' ||
+        (p.payment?.balance_payment?.utr_number && p.payment?.advance_payment?.utr_number) ||
+        (p.payment?.total_paid_amount >= p.total_pi_value) ||
+        (p.payment?.balance_due <= 0 && p.payment?.total_paid_amount > 0)
+      );
+
       const epcsList = (ordObj.epcs && ordObj.epcs.length > 0)
-        ? ordObj.epcs.map(epc => ({
-            ...epc,
-            boskit_qty: epc.boskit_qty && epc.boskit_qty !== '1 Kits' ? epc.boskit_qty : `${totalKits} Kits`,
-            inverter_qty: epc.inverter_qty || `${totalKits} Inverters`,
-            system_capacity: epc.system_capacity || detectedCap,
-            solarkit_model: epc.solarkit_model || detectedModel
-          }))
+        ? ordObj.epcs.map(epc => {
+            const isSecondDone = isOrderFullySettledInAccounts || epc.payment_second_half?.status === 'done';
+            return {
+              ...epc,
+              boskit_qty: epc.boskit_qty && epc.boskit_qty !== '1 Kits' ? epc.boskit_qty : `${totalKits} Kits`,
+              inverter_qty: epc.inverter_qty || `${totalKits} Inverters`,
+              system_capacity: epc.system_capacity || detectedCap,
+              solarkit_model: epc.solarkit_model || detectedModel,
+              payment_second_half: {
+                ...epc.payment_second_half,
+                status: isSecondDone ? 'done' : (epc.payment_second_half?.status || 'pending'),
+                paid_at: isSecondDone ? (epc.payment_second_half?.paid_at || new Date()) : null,
+                verified_by: isSecondDone ? (epc.payment_second_half?.verified_by || 'Accounts (Balance UTR Recorded)') : ''
+              }
+            };
+          })
         : [{
             epc_id: 'EPC-01',
             epc_name: ordObj.customer_name || 'Primary EPC',
@@ -238,16 +288,30 @@ exports.get_delivery_orders = async (req, res) => {
             inverter_qty: `${totalKits} Inverters`,
             payment_first_half: { status: 'done', percentage: 50, amount: 150000, paid_at: new Date(Date.now() - 48*3600*1000) },
             payment_second_half: {
-              status: ['in_transit', 'delivered'].includes(ordObj.delivery_status) ? 'done' : 'pending',
+              status: (isOrderFullySettledInAccounts || ['in_transit', 'delivered'].includes(ordObj.delivery_status)) ? 'done' : 'pending',
               percentage: 50,
               amount: 150000,
-              paid_at: ['in_transit', 'delivered'].includes(ordObj.delivery_status) ? new Date() : null
+              paid_at: (isOrderFullySettledInAccounts || ['in_transit', 'delivered'].includes(ordObj.delivery_status)) ? new Date() : null,
+              verified_by: isOrderFullySettledInAccounts ? 'Accounts (Balance UTR Recorded)' : ''
             },
             items: ordObj.items || [],
             is_removed_by_account: false,
             dispatch_status: ordObj.delivery_status,
             tracking_consignment_id: `TRK-${ordObj.order_number}-EPC1`
           }];
+
+      if (isOrderFullySettledInAccounts && ordObj.epcs?.some(e => e.payment_second_half?.status !== 'done')) {
+        DeliveryOrder.updateOne(
+          { _id: ordObj._id },
+          {
+            $set: {
+              'epcs.$[].payment_second_half.status': 'done',
+              'epcs.$[].payment_second_half.paid_at': new Date(),
+              'epcs.$[].payment_second_half.verified_by': 'Accounts (Balance UTR Recorded)'
+            }
+          }
+        ).catch(() => {});
+      }
 
       // If 100% components are fulfilled (either inwarded or allocated from warehouse stock)
       let effectiveKitStatus = ordObj.kit_preparation_status;
@@ -360,14 +424,27 @@ exports.get_delivery_order_by_id = async (req, res) => {
     const inv = (ordObj.items || []).find(i => i.category === 'inverter' || (i.product_name && i.product_name.toLowerCase().includes('inverter')));
     const acdb = (ordObj.items || []).find(i => i.sku?.includes('ACDB') || (i.product_name && i.product_name.toLowerCase().includes('acdb')));
     const lig = (ordObj.items || []).find(i => i.sku?.includes('LIG-') || (i.product_name && i.product_name.toLowerCase().includes('lightning arrestor')));
-    const itemKits = inv?.ordered_qty || acdb?.ordered_qty || lig?.ordered_qty || 0;
+    const rawBos = (ordObj.items || []).find(it =>
+      (it.sku || '').startsWith('BOS-KIT-') ||
+      (it.category || '').toLowerCase() === 'bos kit' ||
+      (it.product_name || '').toLowerCase().includes('bos kit')
+    );
 
-    let totalKits = Math.max(
-      epcKits,
-      itemKits,
-      Number(ordObj.num_kits) || 0,
-      Number(ordObj.total_kits) || 0
-    ) || 1;
+    let epcBosKits = 0;
+    if (ordObj.epcs && ordObj.epcs.length > 0) {
+      epcBosKits = ordObj.epcs.reduce((acc, epc) => {
+        const match = (epc.boskit_qty || '').match(/(\d+)/);
+        return acc + (match ? parseInt(match[1], 10) : 0);
+      }, 0);
+    }
+
+    let totalKits = Number(ordObj.num_kits) ||
+                    Number(ordObj.total_kits) ||
+                    (rawBos ? rawBos.ordered_qty : 0) ||
+                    epcBosKits ||
+                    epcKits ||
+                    itemKits ||
+                    1;
 
     let detectedCap = ordObj.system_capacity || '';
     if (!detectedCap && ordObj.epcs && ordObj.epcs.length > 0) {
@@ -380,15 +457,52 @@ exports.get_delivery_order_by_id = async (req, res) => {
 
     const detectedModel = ordObj.solarkit_model || (ordObj.epcs?.find(e => e.solarkit_model)?.solarkit_model) || `${detectedCap} Solarkits DCR Combokit`;
 
+    // Check if all PIs for this order are 100% settled in Accounts
+    const orderPis = await PurchaseIndent.find({
+      $or: [
+        { customer_order_number: ordObj.order_number },
+        { order_number: ordObj.order_number }
+      ]
+    }).lean().catch(() => []);
+
+    const isOrderFullySettledInAccounts = orderPis.length > 0 && orderPis.every(p =>
+      p.payment?.payment_status === 'Paid' ||
+      (p.payment?.balance_payment?.utr_number && p.payment?.advance_payment?.utr_number) ||
+      (p.payment?.total_paid_amount >= p.total_pi_value) ||
+      (p.payment?.balance_due <= 0 && p.payment?.total_paid_amount > 0)
+    );
+
     const epcsList = (ordObj.epcs && ordObj.epcs.length > 0)
-      ? ordObj.epcs.map(epc => ({
-          ...epc,
-          boskit_qty: epc.boskit_qty && epc.boskit_qty !== '1 Kits' ? epc.boskit_qty : `${totalKits} Kits`,
-          inverter_qty: epc.inverter_qty || `${totalKits} Inverters`,
-          system_capacity: epc.system_capacity || detectedCap,
-          solarkit_model: epc.solarkit_model || detectedModel
-        }))
+      ? ordObj.epcs.map(epc => {
+          const isSecondDone = isOrderFullySettledInAccounts || epc.payment_second_half?.status === 'done';
+          return {
+            ...epc,
+            boskit_qty: epc.boskit_qty && epc.boskit_qty !== '1 Kits' ? epc.boskit_qty : `${totalKits} Kits`,
+            inverter_qty: epc.inverter_qty || `${totalKits} Inverters`,
+            system_capacity: epc.system_capacity || detectedCap,
+            solarkit_model: epc.solarkit_model || detectedModel,
+            payment_second_half: {
+              ...epc.payment_second_half,
+              status: isSecondDone ? 'done' : (epc.payment_second_half?.status || 'pending'),
+              paid_at: isSecondDone ? (epc.payment_second_half?.paid_at || new Date()) : null,
+              verified_by: isSecondDone ? (epc.payment_second_half?.verified_by || 'Accounts (Balance UTR Recorded)') : ''
+            }
+          };
+        })
       : ordObj.epcs;
+
+    if (isOrderFullySettledInAccounts && ordObj.epcs?.some(e => e.payment_second_half?.status !== 'done')) {
+      DeliveryOrder.updateOne(
+        { _id: ordObj._id },
+        {
+          $set: {
+            'epcs.$[].payment_second_half.status': 'done',
+            'epcs.$[].payment_second_half.paid_at': new Date(),
+            'epcs.$[].payment_second_half.verified_by': 'Accounts (Balance UTR Recorded)'
+          }
+        }
+      ).catch(() => {});
+    }
 
     let itemsList = (ordObj.items || []).map(it => ({ ...it }));
     const hasBos = itemsList.some(it => 
@@ -513,19 +627,20 @@ exports.reserve_inventory = async (req, res) => {
 exports.request_procurement = async (req, res) => {
   try {
     const { sku, requested_qty, notes, items = [], kit_capacity, model_name, num_kits = 1 } = req.body;
-    const order = await DeliveryOrder.findById(req.params.id);
-    if (!order) {
-      return res.status(404).json({ status: 'error', message: 'Delivery order not found.' });
+    let order = null;
+    if (req.params.id && req.params.id !== 'buffer-stock' && mongoose.Types.ObjectId.isValid(req.params.id)) {
+      order = await DeliveryOrder.findById(req.params.id);
     }
 
     // Resolve or find a valid warehouse ID
-    let warehouse_id = order.warehouse_id;
+    let warehouse_id = order ? order.warehouse_id : null;
     if (!warehouse_id) {
       const wh = await CompanyWarehouse.findOne({ deleted_at: null }).lean();
       warehouse_id = wh ? wh._id : new mongoose.Types.ObjectId();
     }
 
-    const requestNumber = `REQ-BOS-${order.order_number || Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+    const descName = model_name || (kit_capacity ? `${kit_capacity} BOS Kit` : (items[0]?.name || sku || 'BOS Kit Components'));
+    const requestNumber = `REQ-BOS-${order?.order_number || 'BUFFER'}-${Date.now().toString().slice(-4)}-${Math.floor(100 + Math.random() * 900)}`;
 
     // Build items for PoRequest
     let poItems = [];
@@ -544,8 +659,8 @@ exports.request_procurement = async (req, res) => {
         };
       });
     } else {
-      const item = (order.items || []).find(it => it.sku === sku);
-      const qty = parseInt(requested_qty) || (item ? item.pending_qty : 1);
+      const item = order ? (order.items || []).find(it => it.sku === sku) : null;
+      const qty = parseInt(requested_qty) || (item ? item.pending_qty : Number(num_kits) || 1);
       poItems = [{
         sku_id: new mongoose.Types.ObjectId(),
         sku_code: sku || 'BOS-RAW-MAT-PKG',
@@ -564,43 +679,44 @@ exports.request_procurement = async (req, res) => {
 
     await newPoRequest.save();
 
-    const descName = model_name || (kit_capacity ? `${kit_capacity} BOS Kit` : (items[0]?.name || sku || 'BOS Kit Components'));
-    order.procurement_requested = true;
-    order.procurement_request_number = requestNumber;
-    order.procurement_details = {
-      requested_at: new Date(),
-      request_number: requestNumber,
-      po_request_id: newPoRequest._id,
-      items_count: poItems.length,
-      kit_capacity: kit_capacity || order.system_capacity,
-      model_name: descName,
-      num_kits: Number(num_kits) || 1,
-      notes: notes || ''
-    };
+    if (order) {
+      order.procurement_requested = true;
+      order.procurement_request_number = requestNumber;
+      order.procurement_details = {
+        requested_at: new Date(),
+        request_number: requestNumber,
+        po_request_id: newPoRequest._id,
+        items_count: poItems.length,
+        kit_capacity: kit_capacity || order.system_capacity,
+        model_name: descName,
+        num_kits: Number(num_kits) || 1,
+        notes: notes || ''
+      };
 
-    order.audit_trail.push({
-      action: 'Procurement / Booking Requisition Sent to Account Manager',
-      performed_by_name: req.user?.name || 'Delivery Manager',
-      timestamp: new Date(),
-      notes: `Requisition ${requestNumber} with ${poItems.length} BOM components for ${descName} sent to Account Manager login for supplier booking. ${notes || ''}`.trim()
-    });
+      order.audit_trail.push({
+        action: 'Procurement / Booking Requisition Sent to Account Manager',
+        performed_by_name: req.user?.name || 'Delivery Manager',
+        timestamp: new Date(),
+        notes: `Requisition ${requestNumber} with ${poItems.length} BOM components for ${descName} sent to Account Manager login for supplier booking. ${notes || ''}`.trim()
+      });
+
+      await order.save();
+    }
 
     sendAdminNotification({
-      title: `⚡ Material Requisition: Order #${order.order_number}`,
+      title: order ? `⚡ Material Requisition: Order #${order.order_number}` : `⚡ Buffer Stock Material Requisition: ${descName}`,
       message: `Warehouse Manager requested procurement of materials (${descName} - ${poItems.length} components) under ${requestNumber}.`,
       category: 'inventory',
       priority: 'urgent',
       action_url: '/account-panel/procurement',
-      metadata: { order_id: order._id, order_number: order.order_number, delivery_order_id: order.delivery_order_id, request_number: requestNumber, event: 'procurement_requested' }
+      metadata: { order_id: order?._id, order_number: order?.order_number, delivery_order_id: order?.delivery_order_id, request_number: requestNumber, event: 'procurement_requested' }
     }).catch(err => console.warn('[Procurement Notification Error]:', err.message));
-
-    await order.save();
 
     return res.status(200).json({
       status: 'success',
       message: `Booking & procurement requisition "${requestNumber}" for ${descName} (${poItems.length} materials) forwarded to Account Manager successfully.`,
       request_number: requestNumber,
-      data: order
+      data: order || newPoRequest
     });
   } catch (error) {
     console.error('Error in request_procurement:', error);
@@ -1003,7 +1119,34 @@ exports.initiate_dispatch = async (req, res) => {
 
     // Check 0: All active EPCs must have completed 2nd half payment
     const activeEpcs = (order.epcs || []).filter(e => !e.is_removed_by_account);
-    const unpaidEpcs = activeEpcs.filter(e => e.payment_second_half?.status !== 'done');
+    let unpaidEpcs = activeEpcs.filter(e => e.payment_second_half?.status !== 'done');
+    if (unpaidEpcs.length > 0) {
+      // Check if Accounts has settled all PIs for this order
+      const orderPis = await PurchaseIndent.find({
+        $or: [
+          { customer_order_number: order.order_number },
+          { order_number: order.order_number }
+        ]
+      }).lean().catch(() => []);
+
+      const isOrderFullySettledInAccounts = orderPis.length > 0 && orderPis.every(p =>
+        p.payment?.payment_status === 'Paid' ||
+        (p.payment?.balance_payment?.utr_number && p.payment?.advance_payment?.utr_number) ||
+        (p.payment?.total_paid_amount >= p.total_pi_value) ||
+        (p.payment?.balance_due <= 0 && p.payment?.total_paid_amount > 0)
+      );
+
+      if (isOrderFullySettledInAccounts) {
+        order.epcs.forEach(epc => {
+          if (!epc.payment_second_half) epc.payment_second_half = {};
+          epc.payment_second_half.status = 'done';
+          epc.payment_second_half.paid_at = epc.payment_second_half.paid_at || new Date();
+          epc.payment_second_half.verified_by = 'Accounts (Balance UTR Recorded)';
+        });
+        await order.save();
+        unpaidEpcs = [];
+      }
+    }
     if (unpaidEpcs.length > 0) {
       const names = unpaidEpcs.map(e => e.epc_name).join(', ');
       return res.status(400).json({
@@ -1483,7 +1626,33 @@ exports.dispatch_for_delivery = async (req, res) => {
     }
 
     // STRICT CHECK: Every active EPC must have 2nd half payment done!
-    const unpaidEpcs = activeEpcs.filter(e => e.payment_second_half?.status !== 'done');
+    let unpaidEpcs = activeEpcs.filter(e => e.payment_second_half?.status !== 'done');
+    if (unpaidEpcs.length > 0) {
+      const orderPis = await PurchaseIndent.find({
+        $or: [
+          { customer_order_number: order.order_number },
+          { order_number: order.order_number }
+        ]
+      }).lean().catch(() => []);
+
+      const isOrderFullySettledInAccounts = orderPis.length > 0 && orderPis.every(p =>
+        p.payment?.payment_status === 'Paid' ||
+        (p.payment?.balance_payment?.utr_number && p.payment?.advance_payment?.utr_number) ||
+        (p.payment?.total_paid_amount >= p.total_pi_value) ||
+        (p.payment?.balance_due <= 0 && p.payment?.total_paid_amount > 0)
+      );
+
+      if (isOrderFullySettledInAccounts) {
+        order.epcs.forEach(epc => {
+          if (!epc.payment_second_half) epc.payment_second_half = {};
+          epc.payment_second_half.status = 'done';
+          epc.payment_second_half.paid_at = epc.payment_second_half.paid_at || new Date();
+          epc.payment_second_half.verified_by = 'Accounts (Balance UTR Recorded)';
+        });
+        await order.save();
+        unpaidEpcs = [];
+      }
+    }
     if (unpaidEpcs.length > 0) {
       const names = unpaidEpcs.map(e => e.epc_name).join(', ');
       return res.status(400).json({

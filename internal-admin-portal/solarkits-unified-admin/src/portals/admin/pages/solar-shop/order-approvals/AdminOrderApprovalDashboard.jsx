@@ -198,8 +198,8 @@ export default function AdminOrderApprovalDashboard() {
 
   // 2. Fetch Queue Records
   const fetchQueue = useCallback(
-    async (page = 1) => {
-      setLoading(true);
+    async (page = 1, silent = false) => {
+      if (!silent) setLoading(true);
       try {
         const params = {
           stage: activeTab,
@@ -286,8 +286,12 @@ export default function AdminOrderApprovalDashboard() {
         if (inspectionItem?._id === item._id) {
           setInspectionItem(null);
         }
+        // Optimistic local state update: remove actioned item immediately so UI does not reload or flash
+        setRecords((prev) => prev.filter((r) => r._id !== item._id));
+        setPagination((prev) => ({ ...prev, total: Math.max(0, (prev.total || 1) - 1) }));
+
         fetchSummary();
-        fetchQueue(pagination.page);
+        fetchQueue(pagination.page, true);
         window.dispatchEvent(new Event('sidebar-counts-refresh'));
         window.dispatchEvent(new Event('pipeline-status-refresh'));
       }
@@ -745,7 +749,7 @@ export default function AdminOrderApprovalDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border text-xs">
-                {loading ? (
+                {loading && records.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="py-16 text-center text-text-secondary">
                       <Loader text="Loading live approval queue..." />

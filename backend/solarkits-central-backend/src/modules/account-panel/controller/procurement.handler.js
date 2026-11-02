@@ -107,8 +107,19 @@ exports.get_batch_ready_orders = async (req, res) => {
           PurchaseIndent.find({ order_group_id: g.group_id }).lean()
         ]);
 
+        let currentStatus = g.status;
+        if (piCount >= 3 && (currentStatus === 'Sent to Procurement' || currentStatus === 'Batch Ready' || currentStatus === 'Procurement In Progress')) {
+          currentStatus = 'Transferred to Delivery';
+          ProcurementGroup.updateOne(
+            { group_id: g.group_id },
+            { $set: { status: 'Transferred to Delivery', batch_status: 'Transferred to Delivery', procurement_readiness_status: 'Awaiting Warehouse Inward' } }
+          ).catch(() => {});
+        }
+
         return {
           ...g,
+          status: currentStatus,
+          batch_status: currentStatus === 'Transferred to Delivery' ? 'Transferred to Delivery' : g.batch_status,
           pi_count: piCount,
           active_reservations_count: reservationCount,
           purchase_indents: pis,
@@ -1113,6 +1124,32 @@ exports.create_purchase_indent = async (req, res) => {
 
     await newPI.save();
 
+    if (order_group_id) {
+      const totalBatchPis = await PurchaseIndent.countDocuments({ order_group_id });
+      if (totalBatchPis >= 3) {
+        await ProcurementGroup.updateOne(
+          { group_id: order_group_id },
+          {
+            $set: {
+              status: 'Transferred to Delivery',
+              batch_status: 'Transferred to Delivery',
+              procurement_readiness_status: 'Awaiting Warehouse Inward'
+            }
+          }
+        ).catch(() => {});
+      } else {
+        await ProcurementGroup.updateOne(
+          { group_id: order_group_id },
+          {
+            $set: {
+              status: 'Procurement In Progress',
+              batch_status: 'Procurement In Progress'
+            }
+          }
+        ).catch(() => {});
+      }
+    }
+
     // Link PI to customer order in epc_orders / fpo_orders
     const isEpc = customer_order_number.toUpperCase().includes('EPC');
     const Model = isEpc ? EpcOrder : FpoOrder;
@@ -1611,6 +1648,30 @@ async function syncDeliveryOrderFromPi(pi, reqUser = null) {
                         epcOrderDoc?.kit_name ||
                         `${detectedCapacity} Solarkits DCR Combokit`;
 
+  // Query all PIs for this order to see if the entire procurement balance is settled
+  const allOrderPis = await PurchaseIndent.find({
+    $or: [
+      { customer_order_number: orderNumberToMatch },
+      { order_number: orderNumberToMatch }
+    ]
+  }).lean().catch(() => []);
+
+  const isCurrentPiSettled = pi.payment?.payment_status === 'Paid' ||
+    (pi.payment?.balance_payment?.utr_number && pi.payment?.advance_payment?.utr_number) ||
+    (pi.payment?.total_paid_amount >= pi.total_pi_value) ||
+    (pi.payment?.balance_due <= 0 && pi.payment?.total_paid_amount > 0);
+
+  const allPisSettled = allOrderPis.length > 0
+    ? allOrderPis.every(p =>
+        (p._id.toString() === pi._id?.toString() ? isCurrentPiSettled : (
+          p.payment?.payment_status === 'Paid' ||
+          (p.payment?.balance_payment?.utr_number && p.payment?.advance_payment?.utr_number) ||
+          (p.payment?.total_paid_amount >= p.total_pi_value) ||
+          (p.payment?.balance_due <= 0 && p.payment?.total_paid_amount > 0)
+        ))
+      )
+    : isCurrentPiSettled;
+
   if (!deliveryOrder) {
     // Generate unique DO-YYYY-XXXX
     const year = new Date().getFullYear();
@@ -1682,11 +1743,11 @@ async function syncDeliveryOrderFromPi(pi, reqUser = null) {
           verified_by: 'Accounts (Advance UTR Recorded)'
         },
         payment_second_half: {
-          status: 'pending',
+          status: allPisSettled ? 'done' : 'pending',
           percentage: pi.payment?.balance_percentage || 70,
           amount: pi.payment?.balance_amount || 0,
-          paid_at: null,
-          verified_by: ''
+          paid_at: allPisSettled ? (pi.payment?.balance_payment?.payment_date || new Date()) : null,
+          verified_by: allPisSettled ? 'Accounts (Balance UTR Recorded)' : ''
         },
         items: newItemsForDO.map(it => ({
           sku: it.sku,
@@ -1756,6 +1817,14 @@ async function syncDeliveryOrderFromPi(pi, reqUser = null) {
         deliveryOrder.epcs[0].system_capacity = deliveryOrder.system_capacity;
         deliveryOrder.epcs[0].solarkit_model = deliveryOrder.solarkit_model;
       }
+      if (allPisSettled) {
+        deliveryOrder.epcs.forEach(epc => {
+          if (!epc.payment_second_half) epc.payment_second_half = {};
+          epc.payment_second_half.status = 'done';
+          epc.payment_second_half.paid_at = epc.payment_second_half.paid_at || pi.payment?.balance_payment?.payment_date || new Date();
+          epc.payment_second_half.verified_by = 'Accounts (Balance UTR Recorded)';
+        });
+      }
     }
 
     if (group?.vehicle_details?.vehicle_name) {
@@ -1770,10 +1839,14 @@ async function syncDeliveryOrderFromPi(pi, reqUser = null) {
     }
 
     deliveryOrder.audit_trail.push({
-      action: `Advance Payment Recorded for PI #${pi.pi_number} (${pi.supplier_name})`,
+      action: allPisSettled
+        ? `Balance Payment (100% Settled) Recorded for PI #${pi.pi_number} (${pi.supplier_name})`
+        : `Advance Payment Recorded for PI #${pi.pi_number} (${pi.supplier_name})`,
       performed_by_name: performerName,
       timestamp: new Date(),
-      notes: `Updated Warehouse Delivery Order items with PI #${pi.pi_number}`
+      notes: allPisSettled
+        ? `All Purchase Indents fully settled in Accounts. 2nd half payment cleared for Warehouse dispatch.`
+        : `Updated Warehouse Delivery Order items with PI #${pi.pi_number}`
     });
 
     await deliveryOrder.save();
@@ -2012,9 +2085,9 @@ exports.record_bank_payment = async (req, res) => {
 
     await pi.save();
 
-    // Auto-transfer / sync order to Warehouse New Orders upon 30% Advance (or Full) payment
+    // Auto-transfer / sync order to Warehouse New Orders upon 30% Advance (or Full / Balance) payment
     try {
-      if (targetMilestone === 'advance' || targetMilestone === 'full' || ['Advance Paid', 'Paid'].includes(pi.payment?.payment_status)) {
+      if (targetMilestone === 'advance' || targetMilestone === 'full' || targetMilestone === 'balance' || ['Advance Paid', 'Paid'].includes(pi.payment?.payment_status)) {
         await syncDeliveryOrderFromPi(pi, req.user);
       }
     } catch (syncErr) {
