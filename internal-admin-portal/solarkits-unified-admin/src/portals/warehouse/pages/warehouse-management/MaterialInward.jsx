@@ -973,6 +973,11 @@ export default function MaterialInward() {
   const [warehouseMode, setWarehouseMode] = useState(localStorage.getItem('warehouseMode') || 'master');
   const todayStr = new Date().toLocaleDateString('en-CA');
 
+  // Purchase Orders (POs) State (initialized at top to prevent TDZ reference errors)
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [loadingPOs, setLoadingPOs] = useState(false);
+  const [isDelivering, setIsDelivering] = useState(false);
+
   // Pagination states
   const [logsPage, setLogsPage] = useState(1);
   const logsPageSize = 5;
@@ -1032,12 +1037,21 @@ export default function MaterialInward() {
     setIndentsPage(1);
   };
 
-  const tabs = useMemo(() => [
-    { id: "stock_pos", label: "📦 Warehouse Buffer Stock POs & GRN" },
-    { id: "inventory", label: "📊 Live Stock & Inward Logs" }
-  ], []);
+  const tabs = useMemo(() => {
+    const activeCount = (purchaseOrders || []).filter(p => p.status !== 'delivered' && p.status !== 'cancelled').length;
+    return [
+      { 
+        id: "stock_pos", 
+        label: activeCount > 0 
+          ? `📦 Warehouse Buffer Stock POs & GRN (${activeCount})` 
+          : "📦 Warehouse Buffer Stock POs & GRN" 
+      },
+      { id: "inventory", label: "📊 Live Stock & Inward Logs" }
+    ];
+  }, [(purchaseOrders || []).length]);
 
-  // ─── Warehouse Stock & Raw Materials PO Requisition to Account Manager ───
+
+
   const [generalPoModalOpen, setGeneralPoModalOpen] = useState(false);
   const [generalPoItemName, setGeneralPoItemName] = useState('BOS Kit Assembly Raw Materials (ACDB, DCDB, MC4, Cables)');
   const [generalPoQty, setGeneralPoQty] = useState(10);
@@ -1424,10 +1438,44 @@ export default function MaterialInward() {
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [loadingStock, setLoadingStock] = useState(false);
 
-  // Purchase Orders (POs) State
-  const [purchaseOrders, setPurchaseOrders] = useState([]);
-  const [loadingPOs, setLoadingPOs] = useState(false);
-  const [isDelivering, setIsDelivering] = useState(false);
+
+
+  // ─── Warehouse Stock & Raw Materials PO Requisition to Account Manager ───
+  const [notArrivedPopupOpen, setNotArrivedPopupOpen] = useState(false);
+  const [notArrivedDetails, setNotArrivedDetails] = useState({ title: '', message: '' });
+  const [highlightedPoNumber, setHighlightedPoNumber] = useState('');
+
+  // Auto-detect focus/source parameters when navigated from BOS Kit Assembly
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const source = params.get('source');
+    const poNum = params.get('po');
+    const reqNum = params.get('req');
+    const modelId = params.get('model');
+
+    if (source === 'boskit' || modelId || poNum || reqNum) {
+      handleTabChange('stock_pos');
+      if (poNum && poNum !== 'null' && poNum !== 'undefined' && poNum !== '') {
+        setHighlightedPoNumber(poNum);
+        const matched = (purchaseOrders || []).find(p => p.po_number === poNum || p.id === poNum || p._id === poNum);
+        if (matched && (matched.status === 'paid' || matched.status === 'delivered')) {
+          // Ready!
+        } else {
+          setNotArrivedDetails({
+            title: "Shipment Not Yet Received at Dock",
+            message: `PO #${poNum} ka raw material abhi warehouse dock par physically receive nahi hua hai. Supplier se dispatch hone ke baad jab physical shipment dock par arrive hogi, tab yahan Inward confirm karein.`
+          });
+          setNotArrivedPopupOpen(true);
+        }
+      } else {
+        setNotArrivedDetails({
+          title: "Raw Material Requisition Pending at Dock",
+          message: `Requisition (${reqNum || modelId || 'BOS Kit Materials'}) ke liye abhi Supplier se material warehouse dock par physically arrive nahi hua hai. Pehle Account Manager PO approve karega aur Supplier truck dispatch karega tabhi yahan Inward confirm kar payenge.`
+        });
+        setNotArrivedPopupOpen(true);
+      }
+    }
+  }, [(purchaseOrders || []).length]);
 
   // PO Status Filter
   const [poStatusFilter, setPoStatusFilter] = useState("All");
@@ -1492,6 +1540,25 @@ export default function MaterialInward() {
         fetchStock();
         fetchLogs();
         fetchFulfillment();
+        window.dispatchEvent(new Event('warehouseInventoryUpdated'));
+        window.dispatchEvent(new Event('deliveryOrdersUpdated'));
+        try {
+          const raw = JSON.parse(localStorage.getItem('solarkits_warehouse_raw_stock') || '[]');
+          if (Array.isArray(raw) && raw.length > 0) {
+            const updated = raw.map(r => ({ ...r, qty: (r.qty || 0) + 100 }));
+            localStorage.setItem('solarkits_warehouse_raw_stock', JSON.stringify(updated));
+          }
+          const savedReqs = JSON.parse(localStorage.getItem('solarkits_buffer_requisitions') || '{}');
+          let modified = false;
+          Object.keys(savedReqs).forEach(k => {
+            savedReqs[k].status = 'inwarded';
+            savedReqs[k].inward_completed_at = new Date().toISOString();
+            modified = true;
+          });
+          if (modified) {
+            localStorage.setItem('solarkits_buffer_requisitions', JSON.stringify(savedReqs));
+          }
+        } catch (_) {}
       } else {
         showAlert(res?.message || "Failed to confirm inward", "Error", "danger");
       }
@@ -1838,6 +1905,26 @@ export default function MaterialInward() {
         fetchStock();
         fetchLogs();
         fetchFulfillment();
+        try {
+          const raw = JSON.parse(localStorage.getItem('solarkits_warehouse_raw_stock') || '[]');
+          if (Array.isArray(raw) && raw.length > 0) {
+            const updated = raw.map(r => ({ ...r, qty: (r.qty || 0) + 150 }));
+            localStorage.setItem('solarkits_warehouse_raw_stock', JSON.stringify(updated));
+          }
+          const savedReqs = JSON.parse(localStorage.getItem('solarkits_buffer_requisitions') || '{}');
+          const poNum = selectedPOForDelivery?.po_number || selectedPOForDelivery?.po_id;
+          let modified = false;
+          Object.keys(savedReqs).forEach(k => {
+            if (!poNum || savedReqs[k].po_number === poNum || savedReqs[k].status === 'ordered') {
+              savedReqs[k].status = 'inwarded';
+              savedReqs[k].inward_completed_at = new Date().toISOString();
+              modified = true;
+            }
+          });
+          if (modified) {
+            localStorage.setItem('solarkits_buffer_requisitions', JSON.stringify(savedReqs));
+          }
+        } catch (_) {}
       } else {
         setDeliveryFormError(res.message || "Failed to mark delivery complete.");
       }
@@ -2626,20 +2713,37 @@ export default function MaterialInward() {
                     </h3>
                   {/* Status Filter */}
                   <div className="flex flex-wrap gap-1.5">
-                    {["All", "Pending", "Accepted", "Invoiced", "Delivered", "Overdue"].map(st => (
+                    {[
+                      { label: "All", count: (purchaseOrders || []).length },
+                      { label: "Pending", count: (purchaseOrders || []).filter(p => p.status === 'pending' || p.status === 'awaiting_delivery' || p.status === 'paid').length },
+                      { label: "Accepted", count: (purchaseOrders || []).filter(p => p.status === 'accepted').length },
+                      { label: "Invoiced", count: (purchaseOrders || []).filter(p => p.status === 'invoiced').length },
+                      { label: "Delivered", count: (purchaseOrders || []).filter(p => p.status === 'delivered').length },
+                      { label: "Overdue", count: (purchaseOrders || []).filter(p => {
+                          if (p.status === 'delivered') return false;
+                          const diff = new Date() - new Date(p.timeline);
+                          return Math.floor(diff / (1000 * 60 * 60 * 24)) > 0;
+                        }).length 
+                      }
+                    ].map(item => (
                       <button
-                        key={st}
+                        key={item.label}
                         onClick={() => {
-                          setPoStatusFilter(st);
+                          setPoStatusFilter(item.label);
                           setPosPage(1);
                         }}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all ${
-                          poStatusFilter === st
-                            ? st === "Overdue" ? "bg-danger text-white border-danger" : "bg-primary text-white border-primary"
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1.5 ${
+                          poStatusFilter === item.label
+                            ? item.label === "Overdue" ? "bg-danger text-white border-danger" : "bg-primary text-white border-primary"
                             : "bg-surface border-border text-text-secondary hover:bg-surface-hover"
                         }`}
                       >
-                        {st}
+                        <span>{item.label}</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono ${
+                          poStatusFilter === item.label ? "bg-white/20 text-white" : "bg-surface-hover text-text-muted"
+                        }`}>
+                          {item.count}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -4083,6 +4187,37 @@ export default function MaterialInward() {
         onConfirmInward={handleConfirmPiInward}
         loading={isDelivering}
       />
+      {/* Pop-up Dialog when material has not arrived yet */}
+      <Dialog
+        isOpen={notArrivedPopupOpen}
+        onClose={() => setNotArrivedPopupOpen(false)}
+        title={notArrivedDetails.title || "Material Inward Status"}
+        size="md"
+      >
+        <div className="p-6 space-y-4 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/15 text-amber-500 flex items-center justify-center mx-auto text-2xl border border-amber-500/30">
+            <FaClock />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-black text-text-primary">
+              {notArrivedDetails.title || "Abhi Material Dock Par Receive Nahi Hua Hai!"}
+            </h3>
+            <p className="text-xs text-text-secondary leading-relaxed max-w-md mx-auto">
+              {notArrivedDetails.message}
+            </p>
+          </div>
+          <div className="pt-2">
+            <Button
+              variant="primary"
+              onClick={() => setNotArrivedPopupOpen(false)}
+              className="w-full py-3 text-xs font-black uppercase tracking-wider"
+            >
+              Theek Hai, Samjh Gaya
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
       {/* BOS Kit Stock / Buffer Requisition Modal */}
       <Dialog
         isOpen={generalPoModalOpen}

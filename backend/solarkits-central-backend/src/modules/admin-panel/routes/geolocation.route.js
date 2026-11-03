@@ -19,6 +19,8 @@ router.get("/states", check_auth, geolocation_handler.get_states);
 router.get("/states/:country_id", check_auth, geolocation_handler.get_states);
 router.get("/districts", check_auth, geolocation_handler.get_districts);
 router.get("/districts/:state_id", check_auth, geolocation_handler.get_districts);
+router.post("/bulk-upload-locations", check_auth, geolocation_handler.bulk_upload_locations);
+router.get("/district-pincodes/:district_id", check_auth, geolocation_handler.get_district_pincodes);
 
 const fpoGeoPermissions = [
     { unique_code: 'FPO_COMM', permissions: ['view'] },

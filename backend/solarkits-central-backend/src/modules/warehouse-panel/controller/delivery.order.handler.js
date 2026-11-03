@@ -705,10 +705,10 @@ exports.request_procurement = async (req, res) => {
 
     sendAdminNotification({
       title: order ? `⚡ Material Requisition: Order #${order.order_number}` : `⚡ Buffer Stock Material Requisition: ${descName}`,
-      message: `Warehouse Manager requested procurement of materials (${descName} - ${poItems.length} components) under ${requestNumber}.`,
+      message: `Warehouse team ne ${descName} (${poItems.length} BOM components) ke liye requisition ${requestNumber} bheji hai. Accounts panel me PO issue karein.`,
       category: 'inventory',
       priority: 'urgent',
-      action_url: '/account-panel/procurement',
+      action_url: '/account-panel/purchase-orders?tab=requests',
       metadata: { order_id: order?._id, order_number: order?.order_number, delivery_order_id: order?.delivery_order_id, request_number: requestNumber, event: 'procurement_requested' }
     }).catch(err => console.warn('[Procurement Notification Error]:', err.message));
 

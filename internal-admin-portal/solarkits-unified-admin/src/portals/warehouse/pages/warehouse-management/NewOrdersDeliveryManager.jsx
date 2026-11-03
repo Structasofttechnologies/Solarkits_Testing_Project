@@ -9,7 +9,7 @@ import {
 } from 'react-icons/hi';
 import {
   FaBoxes, FaTruck, FaMapMarkerAlt, FaCalendarAlt,
-  FaCheckCircle, FaSpinner, FaExchangeAlt, FaHistory,
+  FaCheckCircle, FaSpinner, FaClock, FaExchangeAlt, FaHistory,
   FaPhoneAlt, FaEnvelope, FaShieldAlt, FaExternalLinkAlt,
   FaLayerGroup, FaArrowRight, FaArrowLeft, FaLock, FaWarehouse,
   FaBuilding, FaTools, FaBarcode, FaExclamationTriangle,
@@ -316,6 +316,44 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
 
   // Dedicated Kit Model Detail Workspace (1 kW / 2 kW / 3 kW)
   const [selectedBufferModelId, setSelectedBufferModelId] = useState(null);
+  const [focusedOrderId, setFocusedOrderId] = useState(null);
+
+  // Directly navigate & focus onto a specific order's assembly workstation
+  const handleOpenOrderAssembly = (ord) => {
+    if (!ord) return;
+    setOrderDetailsModalOpen(false);
+    setInwardModalOpen(false);
+    setMainSectionTab('boskit_station');
+    setBoskitWorkstationMode('order_specific');
+    setSelectedOrderForAssembly(ord);
+    setFocusedOrderId(ord._id);
+    setTimeout(() => {
+      const el = document.getElementById(`boskit-order-${ord._id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 250);
+  };
+  const [manualStepToggle, setManualStepToggle] = useState({});
+  const [step1RequisitionQty, setStep1RequisitionQty] = useState(5);
+
+  // Auto-sync requisitions & raw stock when returning from other tabs/portals
+  useEffect(() => {
+    const syncLocalStorage = () => {
+      try {
+        const savedReqs = localStorage.getItem('solarkits_buffer_requisitions');
+        if (savedReqs) setBufferRequisitions(JSON.parse(savedReqs));
+        const savedStock = localStorage.getItem('solarkits_warehouse_raw_stock');
+        if (savedStock) setWarehouseRawStock(JSON.parse(savedStock));
+      } catch (_) {}
+    };
+    window.addEventListener('storage', syncLocalStorage);
+    window.addEventListener('focus', syncLocalStorage);
+    return () => {
+      window.removeEventListener('storage', syncLocalStorage);
+      window.removeEventListener('focus', syncLocalStorage);
+    };
+  }, []);
   const [bufferRequisitions, setBufferRequisitions] = useState(() => {
     try {
       const saved = localStorage.getItem('solarkits_buffer_requisitions');
@@ -750,6 +788,74 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
     }
   };
 
+  // Start Assembly directly for a given model and quantity
+  const handleStartAssemblyForModel = (model, qty = 1) => {
+    if (!model) return;
+    const num = parseInt(qty) || 1;
+    setSelectedStockModelId(model.id);
+    setStockAssembleQty(num);
+    setStockAssemblyRack(model.storage_location || 'Bay 1 / Pallet A-01');
+
+    const { hasShortage, items } = checkRawMaterialStock(model, num);
+    if (hasShortage) {
+      const shortList = items.filter(i => i.isShort).map(i => i.name).slice(0, 3).join(', ');
+      dispatch(setAlert({
+        message: `Assembly Locked! Raw materials not inwarded: ${shortList}. Pehle 'Material Inward' tab me jakar material inward karein!`,
+        type: 'warning'
+      }));
+      return;
+    }
+
+    try {
+      setSubmittingStockAssembly(true);
+      const newBatches = [];
+      const yr = new Date().getFullYear();
+      const randCode = Date.now().toString().slice(-4);
+      for (let i = 0; i < num; i++) {
+        newBatches.push(`WH-BOS-${model.id.toUpperCase()}-${yr}-${randCode}${i + 1}`);
+      }
+
+      const newJob = {
+        job_id: `BUFF-JOB-${model.id.toUpperCase()}-${randCode}`,
+        model_id: model.id,
+        model_name: model.name,
+        category: model.category,
+        capacity: model.capacity,
+        qty: num,
+        target_rack: model.storage_location || 'Bay 1 / Pallet A-01',
+        technician: stockAssemblyOperator || 'Warehouse Assembly Lead',
+        bom_components: model.bom_components || [],
+        current_stage: 1,
+        started_at: new Date().toISOString(),
+        batches: newBatches
+      };
+
+      setActiveBufferJob(newJob);
+      try {
+        localStorage.setItem('solarkits_active_buffer_job', JSON.stringify(newJob));
+      } catch (_) {}
+
+      dispatch(setAlert({
+        message: `🚀 Buffer Assembly Job started for ${num} Kit(s)! Proceed with Stage 1: Raw Material Picking.`,
+        type: 'info'
+      }));
+    } finally {
+      setSubmittingStockAssembly(false);
+    }
+  };
+
+  // Reset Buffer Workflow for a model so user can requisition a fresh batch
+  const handleResetModelBufferWorkflow = (modelId) => {
+    const updated = { ...bufferRequisitions };
+    delete updated[modelId];
+    setBufferRequisitions(updated);
+    try {
+      localStorage.setItem('solarkits_buffer_requisitions', JSON.stringify(updated));
+    } catch (_) {}
+    setManualStepToggle({ 1: true });
+    dispatch(setAlert({ message: 'Reset buffer workflow. You can now send a new material requisition.', type: 'info' }));
+  };
+
   // Advance Buffer Assembly Stage (1 -> 2 -> 3 -> 4 -> 5)
   const handleAdvanceBufferStage = (targetStage) => {
     if (!activeBufferJob) return;
@@ -836,13 +942,33 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
       localStorage.setItem('solarkits_stock_assembly_history', JSON.stringify(updatedHistory));
     } catch (_) {}
 
+    // Clear completed buffer requisition for this model
+    try {
+      const savedReqs = JSON.parse(localStorage.getItem('solarkits_buffer_requisitions') || '{}');
+      if (savedReqs[model.id]) {
+        delete savedReqs[model.id];
+        localStorage.setItem('solarkits_buffer_requisitions', JSON.stringify(savedReqs));
+      }
+    } catch (_) {}
+    setBufferRequisitions(prev => {
+      const copy = { ...prev };
+      delete copy[model.id];
+      return copy;
+    });
+
+    // Close stepper & return directly to Model Cards overview with updated kit counts
+    setSelectedModelForStockRequisition(null);
+    setSelectedBufferModelId(null);
+    setManualStepToggle({});
     setActiveBufferJob(null);
     try {
       localStorage.removeItem('solarkits_active_buffer_job');
     } catch (_) {}
 
+    window.dispatchEvent(new Event('warehouseInventoryUpdated'));
+
     dispatch(setAlert({
-      message: `🎉 Successfully completed assembly of ${qty} kit(s) into Warehouse Ready Stock! Stored at ${target_rack}.`,
+      message: `🎉 Successfully completed assembly of ${qty} kit(s)! Added to Warehouse Ready Stock with ${batches.length} new batch codes (Stored at ${target_rack}).`,
       type: 'success'
     }));
   };
@@ -2487,12 +2613,43 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
           ) : (
             /* ─────────────────────────────────────────────────────────────
                 VIEW B: DEDICATED MODEL WORKSPACE (When a kit model is selected)
+                Sequential Progressive Stepper: Step 1 -> Step 2 -> Step 3
                 ───────────────────────────────────────────────────────────── */
             (() => {
               const activeModel = preassembledStock.find(m => m.id === selectedBufferModelId) || preassembledStock[0];
-              const { hasShortage, items } = checkRawMaterialStock(activeModel, stockAssembleQty || 1);
-              const shortItems = items.filter(i => i.isShort);
               const modelReq = bufferRequisitions[activeModel.id];
+              const isPoPlaced = modelReq?.status === 'ordered' || Boolean(modelReq?.po_number);
+              const targetBuildQty = modelReq?.qty || step1RequisitionQty || stockAssembleQty || 5;
+              const { hasShortage, items } = checkRawMaterialStock(activeModel, targetBuildQty);
+              const shortItems = items.filter(i => i.isShort);
+
+              const isRequisitionInwarded = modelReq?.status === 'inwarded' || Boolean(modelReq?.inward_completed_at);
+
+              // ── Natural Workflow Active Step Determination ──
+              // Step 1: Material Requisition (Active if no requisition sent)
+              // Step 2: Material Inward (Active if requisition sent, but NOT inwarded at dock yet OR shortage)
+              // Step 3: 5-Stage Kit Assembly (Active ONLY when materials are inwarded at dock and verified)
+              let naturalActiveStep = 1;
+              if (modelReq) {
+                if (!isRequisitionInwarded) {
+                  naturalActiveStep = 2; // Strict gate: Locked until dock inward is complete!
+                } else if (hasShortage) {
+                  naturalActiveStep = 2; // Stock verification shortage!
+                } else {
+                  naturalActiveStep = 3; // Materials physically inwarded and verified!
+                }
+              }
+              if (activeBufferJob && activeBufferJob.model_id === activeModel.id) {
+                naturalActiveStep = 3;
+              }
+
+              // Progressive Stepper Visibility Rules:
+              // - Completed steps (step < naturalActiveStep) are collapsed by default ("jo hogya hai vo band kar do")
+              // - Active step (step === naturalActiveStep) is expanded
+              // - Future steps (step > naturalActiveStep) are HIDDEN ("baki aage wale mat show karo theek hai jab pichla hojaye tab use baad")
+              const isStep1Expanded = manualStepToggle[1] !== undefined ? manualStepToggle[1] : (naturalActiveStep === 1);
+              const isStep2Expanded = manualStepToggle[2] !== undefined ? manualStepToggle[2] : (naturalActiveStep === 2);
+              const isStep3Expanded = manualStepToggle[3] !== undefined ? manualStepToggle[3] : (naturalActiveStep === 3);
 
               return (
                 <div className="space-y-6">
@@ -2501,7 +2658,10 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => setSelectedBufferModelId(null)}
+                        onClick={() => {
+                          setSelectedBufferModelId(null);
+                          setManualStepToggle({});
+                        }}
                         className="px-3.5 py-2 rounded-xl text-xs font-bold bg-surface-hover hover:bg-surface border border-border text-text-primary flex items-center gap-1.5 cursor-pointer transition-all shrink-0"
                       >
                         <FaArrowRight className="rotate-180 text-xs" />
@@ -2523,7 +2683,7 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
 
                     <div className="flex items-center gap-3 shrink-0">
                       <div className="text-right">
-                        <div className="text-xs text-text-muted font-bold">Warehouse Storage Location</div>
+                        <div className="text-xs text-text-muted font-bold">Storage Location</div>
                         <div className="text-xs font-mono font-bold text-text-primary">{activeModel.storage_location}</div>
                       </div>
                       <div className="px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-right">
@@ -2533,549 +2693,744 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                     </div>
                   </div>
 
-                  {/* ── Guided 3-Step Workstation Pipeline ── */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                    {/* STEP 1: Request Raw Materials from Accounts Manager */}
-                    <div className="card p-5 rounded-2xl border border-border bg-surface flex flex-col justify-between space-y-4 shadow-xs">
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-black flex items-center justify-center text-xs">
-                            1
-                          </span>
-                          <h4 className="text-xs font-black uppercase tracking-wider text-text-primary">
-                            Step 1: Order Materials from Accounts
-                          </h4>
-                        </div>
-                        <p className="text-[11px] text-text-secondary leading-relaxed">
-                          Kit banane se pehle required raw materials (rails, clamps, cables, DCDB, MC4) ka order <strong>Account Manager</strong> se approve & book karwayein.
-                        </p>
+                  {/* ── Progressive 3-Step Journey Timeline Bar ── */}
+                  <div className="p-3 rounded-2xl bg-surface-hover/70 border border-border flex flex-col md:flex-row items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-text-muted px-2">
+                        Kit Build Pipeline:
+                      </span>
+                    </div>
 
-                        <div className="p-3 rounded-xl bg-surface-hover/60 border border-border text-xs space-y-2">
-                          <span className="text-[10px] uppercase font-bold text-text-muted block">Requisition Status:</span>
-                          {modelReq ? (
-                            <div className="space-y-1">
-                              <div className="font-bold text-purple-300 font-mono text-[11px]">
-                                🏷️ #{modelReq.req_number}
-                              </div>
-                              <div className="text-[10px] text-text-secondary">
-                                Requisitioned for <strong>{modelReq.qty} Kits</strong> on {new Date(modelReq.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                              </div>
-                              <span className="inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                Sourcing In Progress by Accounts
+                    <div className="flex items-center gap-2 flex-wrap w-full md:w-auto justify-start md:justify-end">
+                      {/* Step 1 Pill */}
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
+                        naturalActiveStep > 1
+                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                          : naturalActiveStep === 1
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-xs'
+                          : 'bg-surface text-text-muted border border-border'
+                      }`}>
+                        <span>{naturalActiveStep > 1 ? '✓' : '1.'}</span>
+                        <span>Request Materials</span>
+                      </div>
+
+                      <span className="text-text-muted text-[10px]">➔</span>
+
+                      {/* Step 2 Pill */}
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
+                        naturalActiveStep > 2
+                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                          : naturalActiveStep === 2
+                          ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-xs'
+                          : 'bg-surface text-text-muted/60 border border-border/60 opacity-60'
+                      }`}>
+                        <span>{naturalActiveStep > 2 ? '✓' : '2.'}</span>
+                        <span>Material Inward</span>
+                      </div>
+
+                      <span className="text-text-muted text-[10px]">➔</span>
+
+                      {/* Step 3 Pill (Disabled/Locked with no hover when inward is pending) */}
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
+                        naturalActiveStep === 3
+                          ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/25'
+                          : 'bg-surface text-text-muted/40 border border-border/40 opacity-40 cursor-not-allowed select-none pointer-events-none'
+                      }`}>
+                        <span>{activeModel.ready_stock > 0 && naturalActiveStep === 3 ? '🚀' : naturalActiveStep < 3 ? '🔒' : '3.'}</span>
+                        <span>5-Stage Assembly {naturalActiveStep < 3 ? '(Locked)' : ''}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ─────────────────────────────────────────────────────────
+                      STEP 1: RAW MATERIAL REQUISITION FROM ACCOUNTS MANAGER
+                      ───────────────────────────────────────────────────────── */}
+                  {naturalActiveStep > 1 && !isStep1Expanded ? (
+                    /* Step 1 Collapsed Bar ("jo hogya hai vo band kar do") */
+                    <div className="card p-4 rounded-2xl border border-emerald-500/40 bg-surface/90 hover:bg-surface-hover/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 font-black flex items-center justify-center text-sm border border-emerald-500/30 shrink-0">
+                          ✓
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-text-primary">
+                              Step 1 Completed: Raw Material Requisition Sent to Accounts Manager
+                            </h4>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono">
+                              #{modelReq?.req_number}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-text-muted mt-0.5">
+                            Requisitioned for <strong className="text-text-primary">{modelReq?.qty} Kits</strong> ({activeModel.bom_components?.length || 21} BOM SKUs) • Ordered on {modelReq?.date ? new Date(modelReq.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Today'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setManualStepToggle(prev => ({ ...prev, [1]: true }))}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-hover hover:bg-surface border border-border text-text-secondary hover:text-text-primary transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <span>View Requisition Details</span>
+                          <HiOutlineChevronDown />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenBufferRequisition(activeModel, 5)}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all cursor-pointer"
+                          title="Re-order or order additional kits from Account Manager"
+                        >
+                          + New Requisition
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Step 1 Expanded UI */
+                    <div className="card p-6 rounded-2xl border-2 border-amber-500/40 bg-surface shadow-md space-y-5 transition-all">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-black flex items-center justify-center text-xs">
+                              1
+                            </span>
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-md border border-amber-500/30">
+                              Step 1 of 3: Material Requisition
+                            </span>
+                            {naturalActiveStep > 1 && (
+                              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
+                                ✓ Requisition Active
                               </span>
-                            </div>
-                          ) : (
-                            <div className="text-text-muted italic text-[11px]">
-                              No active requisition recorded. Click below to request materials.
+                            )}
+                          </div>
+                          <h3 className="text-sm font-black text-text-primary uppercase tracking-wider">
+                            Order BOM Raw Materials from Account Manager
+                          </h3>
+                          <p className="text-xs text-text-secondary leading-relaxed max-w-3xl">
+                            Warehouse me kit assembly se pehle zaroori 21 components (Mounting rails, clamps, DC cables, AC cables, DCDB box, earthing rods, MC4 connectors) ka purchase order <strong>Account Manager</strong> ko bhejein.
+                          </p>
+                        </div>
+
+                        {naturalActiveStep > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setManualStepToggle(prev => ({ ...prev, [1]: false }))}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-hover hover:bg-surface border border-border text-text-secondary cursor-pointer self-start sm:self-center flex items-center gap-1"
+                          >
+                            <span>Collapse Step 1</span>
+                            <HiOutlineChevronUp />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Quantity Selector for Requisition */}
+                      <div className="p-4 rounded-xl bg-surface-hover/60 border border-border space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <span className="text-xs font-black uppercase tracking-wider text-text-primary block">
+                              Target Kits Quantity to Requisition:
+                            </span>
+                            <span className="text-[11px] text-text-muted">
+                              Kitna quantity raw material Account Manager se order karna hai select karein:
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {[1, 2, 5, 10, 20].map(q => (
+                              <button
+                                key={q}
+                                type="button"
+                                onClick={() => setStep1RequisitionQty(q)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                                  step1RequisitionQty === q
+                                    ? 'bg-amber-500 text-gray-950 font-black shadow-xs'
+                                    : 'bg-surface border border-border text-text-secondary hover:text-text-primary'
+                                }`}
+                              >
+                                {q} {q === 1 ? 'Kit' : 'Kits'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Summary of BOM components that will be requested */}
+                        <div className="pt-2 border-t border-border/60">
+                          <div className="text-[11px] font-bold text-text-secondary mb-2 flex items-center justify-between">
+                            <span>BOM Components Included in Requisition ({activeModel.bom_components?.length || 21} SKUs):</span>
+                            <span className="text-text-muted font-normal text-[10px]">Calculated for {step1RequisitionQty} Kits</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {(activeModel.bom_components || []).slice(0, 6).map((c, idx) => (
+                              <div key={idx} className="p-2 rounded-lg bg-surface border border-border/80 flex items-center justify-between text-xs">
+                                <span className="font-semibold text-text-primary truncate pr-2 text-[11px]">{c.name}</span>
+                                <span className="font-mono font-bold text-amber-400 text-[10px] shrink-0">
+                                  {(c.qty || 1) * step1RequisitionQty} {c.unit || 'Pcs'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          {(activeModel.bom_components || []).length > 6 && (
+                            <div className="text-[10px] text-text-muted mt-1.5 text-center">
+                              + {(activeModel.bom_components || []).length - 6} additional fasteners, clamps, lugs, and earthing accessories auto-calculated.
                             </div>
                           )}
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleOpenBufferRequisition(activeModel, 5)}
-                        className="w-full py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-xs"
-                      >
-                        <FaPaperPlane className="text-xs" />
-                        <span>+ Request Raw Materials from Accounts</span>
-                      </button>
-                    </div>
-
-                    {/* STEP 2: Inward Materials in Warehouse */}
-                    <div className={`card p-5 rounded-2xl border-2 flex flex-col justify-between space-y-4 shadow-xs transition-all ${
-                      hasShortage
-                        ? 'border-amber-500/40 bg-amber-950/10'
-                        : 'border-emerald-500/40 bg-emerald-950/10'
-                    }`}>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-6 h-6 rounded-full font-black flex items-center justify-center text-xs ${
-                            hasShortage ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'
-                          }`}>
-                            2
-                          </span>
-                          <h4 className="text-xs font-black uppercase tracking-wider text-text-primary">
-                            Step 2: Warehouse Material Inward
-                          </h4>
-                        </div>
-                        <p className="text-[11px] text-text-secondary leading-relaxed">
-                          Suppliers se dispatch hokar jab material warehouse me physical arrive ho, to use <strong>Material Inward</strong> tab se inward karna zaroori hai.
-                        </p>
-
-                        {/* Status Alert Banner */}
-                        {hasShortage ? (
-                          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-1.5">
-                            <div className="font-bold flex items-center gap-1.5">
-                              <FaExclamationTriangle className="text-amber-400 text-xs" />
-                              <span>⚠️ Material Inward Pending!</span>
-                            </div>
-                            <p className="text-[10px] text-amber-200/90 leading-tight">
-                              Warehouse me <strong>{shortItems.length} raw components</strong> abhi inward nahi huye hain. Pehle inward karein, tabhi assembly unlock hogi.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs space-y-1.5">
-                            <div className="font-bold flex items-center gap-1.5">
-                              <FaCheckCircle className="text-emerald-400 text-xs" />
-                              <span>✅ Raw Materials Inwarded & Ready!</span>
-                            </div>
-                            <p className="text-[10px] text-emerald-200/90 leading-tight">
-                              Sabhi required components warehouse bins me physical verified hain. Assembly start ki ja sakti hai!
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <button
-                          type="button"
-                          onClick={() => navigate(`${prefix}/material-inward`)}
-                          className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-surface-hover hover:bg-surface text-primary border border-primary/30 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
-                        >
-                          <FaWarehouse className="text-xs" />
-                          <span>Go to Material Inward Tab →</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleQuickInwardRawStock(activeModel.id, stockAssembleQty || 5)}
-                          className="w-full py-1.5 px-3 rounded-lg text-[10px] font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center gap-1 cursor-pointer transition-all"
-                          title="Inward all required components for this kit model into warehouse inventory"
-                        >
-                          <FaPlus className="text-[9px]" />
-                          <span>✓ Inward Received Raw Materials Now</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* STEP 3: 5-Stage Kit Pre-Assembly Workstation */}
-                    <div className="card p-5 rounded-2xl border border-border bg-surface flex flex-col justify-between space-y-4 shadow-xs">
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 font-black flex items-center justify-center text-xs">
-                            3
-                          </span>
-                          <h4 className="text-xs font-black uppercase tracking-wider text-text-primary">
-                            Step 3: 5-Stage Kit Assembly & QC
-                          </h4>
-                        </div>
-                        <p className="text-[11px] text-text-secondary leading-relaxed">
-                          Inwarded material se kit picking, wiring, insulation testing, packaging aur pallet deposit 5 sequential steps me complete karein.
-                        </p>
-
-                        <div className="p-3 rounded-xl bg-surface-hover/60 border border-border text-xs space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] uppercase font-bold text-text-muted">Target Batch Quantity:</span>
-                            <div className="flex items-center gap-1">
-                              {[1, 2, 5, 10].map(q => (
-                                <button
-                                  key={q}
-                                  type="button"
-                                  onClick={() => setStockAssembleQty(q)}
-                                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all cursor-pointer ${
-                                    stockAssembleQty === q
-                                      ? 'bg-primary text-white'
-                                      : 'bg-surface border border-border text-text-secondary hover:text-text-primary'
-                                  }`}
-                                >
-                                  {q}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="text-[10px] text-text-muted">
-                            Assembling for: <strong className="text-text-primary">{activeModel.storage_location}</strong>
-                          </div>
-                        </div>
-                      </div>
-
-                      {hasShortage ? (
-                        <button
-                          type="button"
-                          disabled
-                          className="w-full py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider bg-gray-700/50 text-gray-400 border border-gray-600/40 cursor-not-allowed flex items-center justify-center gap-1.5 opacity-60"
-                        >
-                          <FaLock className="text-xs" />
-                          <span>🔒 Assembly Locked (Pehle Inward Karein)</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedStockModelId(activeModel.id);
-                            setStockAssemblyRack(activeModel.storage_location || 'Bay 1 / Pallet A-01');
-                            handleConfirmStockAssembly();
-                          }}
-                          className="w-full py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-500/25 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
-                        >
-                          <FaTools className="text-xs" />
-                          <span>🚀 Start 5-Stage Assembly ({stockAssembleQty} Kits) →</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* ── Active 5-Stage Assembly Workstation Stepper (Line #1) ── */}
-                  {activeBufferJob && activeBufferJob.model_id === activeModel.id && (
-                    <div className="card p-6 rounded-2xl border-2 border-emerald-500/50 bg-gradient-to-r from-emerald-950/40 via-surface to-teal-950/30 shadow-lg shadow-emerald-500/10 space-y-5">
-                      {/* Job Header */}
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border/80">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5">
-                              <FaTools className="text-emerald-400" />
-                              Active Buffer Job: #{activeBufferJob.job_id}
-                            </span>
-                            <span className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-purple-500/15 text-purple-300 border border-purple-500/30">
-                              {activeBufferJob.model_name} ({activeBufferJob.capacity})
-                            </span>
-                            <span className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono">
-                              Target: {activeBufferJob.qty} Kit(s)
-                            </span>
-                          </div>
-                          <div className="text-xs text-text-muted flex items-center gap-4 flex-wrap">
-                            <span><strong>Lead:</strong> {activeBufferJob.technician}</span>
-                            <span><strong>Target Storage:</strong> <code className="text-emerald-400 font-bold">{activeBufferJob.target_rack}</code></span>
-                            <span><strong>Started:</strong> {new Date(activeBufferJob.started_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={handleAbortBufferJob}
-                            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-surface-hover hover:bg-rose-500/20 border border-border hover:border-rose-500/40 text-text-secondary hover:text-rose-400 transition-all cursor-pointer"
-                          >
-                            ✕ Cancel Job
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 5-Stage Stepper Bar */}
+                      {/* Step 1 Action Button */}
                       <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-black uppercase tracking-wider text-text-primary">
-                            Stage {activeBufferJob.current_stage} of 5: Sequential Assembly Progression
-                          </span>
-                          <span className="text-xs font-mono font-bold text-emerald-400">
-                            {Math.round((activeBufferJob.current_stage / 5) * 100)}% Complete
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center text-xs">
-                          {[
-                            { num: 1, title: '1. Picking', subtitle: 'Raw Materials Picking', icon: FaBoxes },
-                            { num: 2, title: '2. Wiring', subtitle: 'Wiring & Enclosure', icon: FaWrench },
-                            { num: 3, title: '3. QC Check', subtitle: 'Electrical QC Test', icon: FaClipboardCheck },
-                            { num: 4, title: '4. Packaging', subtitle: 'Box & Batch Label', icon: FaBarcode },
-                            { num: 5, title: '5. Buffer Stock', subtitle: 'Store in WH Rack', icon: FaCheckDouble }
-                          ].map((st) => {
-                            const isDone = activeBufferJob.current_stage > st.num;
-                            const isActive = activeBufferJob.current_stage === st.num;
-                            const StepIcon = st.icon;
-
-                            return (
-                              <div
-                                key={st.num}
-                                onClick={() => {
-                                  if (isDone) handleAdvanceBufferStage(st.num);
-                                }}
-                                className={`p-3 rounded-2xl border transition-all duration-300 relative overflow-hidden flex flex-col justify-between ${
-                                  isDone
-                                    ? 'bg-emerald-500/10 border-2 border-emerald-500/40 text-emerald-400 font-bold shadow-xs cursor-pointer hover:border-emerald-400'
-                                    : isActive
-                                    ? 'bg-gradient-to-b from-emerald-500/15 via-teal-500/10 to-transparent border-2 border-emerald-500 text-emerald-300 font-black shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-500/30 scale-[1.02]'
-                                    : 'bg-surface-hover/30 border-border/60 text-text-muted opacity-50 cursor-not-allowed select-none'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black ${
-                                    isDone ? 'bg-emerald-500 text-white' : isActive ? 'bg-emerald-500 text-white animate-pulse' : 'bg-surface border border-border text-text-muted'
-                                  }`}>
-                                    {isDone ? '✓' : st.num}
-                                  </span>
-                                  <StepIcon className={`text-sm ${isActive ? 'text-emerald-400' : isDone ? 'text-emerald-500' : 'text-text-muted'}`} />
-                                </div>
-                                <div className="text-left">
-                                  <div className={`text-xs font-black leading-tight ${isActive ? 'text-emerald-300' : isDone ? 'text-text-primary' : 'text-text-muted'}`}>
-                                    {st.title}
-                                  </div>
-                                  <div className="text-[10px] text-text-muted mt-0.5 leading-tight">{st.subtitle}</div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Stage Workspace Content */}
-                      <div className="p-4 rounded-xl bg-surface border border-border/80 space-y-4">
-                        {activeBufferJob.current_stage === 1 && (
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h4 className="text-xs font-black text-text-primary uppercase tracking-wider">
-                                  Stage 1: Raw Component Picking from Warehouse Inward Bins
-                                </h4>
-                                <p className="text-[11px] text-text-secondary">
-                                  Pick all required BOM materials from warehouse inward bins and stage on assembly trolley.
-                                </p>
-                              </div>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                                {activeBufferJob.bom_components?.length || 0} Components
-                              </span>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto scrollbar-thin text-xs">
-                              {(activeBufferJob.bom_components || []).map((c, i) => (
-                                <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-surface-hover/60 border border-border/70">
-                                  <div className="flex items-center gap-1.5 truncate pr-2">
-                                    <span className="text-emerald-400 font-bold">✓</span>
-                                    <span className="truncate text-text-secondary">{c.name}</span>
-                                  </div>
-                                  <span className="font-mono font-bold text-primary whitespace-nowrap bg-surface px-1.5 py-0.5 rounded border border-border/50 text-[10px]">
-                                    {c.qty * activeBufferJob.qty} {c.unit}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-
-                            <div className="flex justify-end pt-2">
-                              <button
-                                type="button"
-                                onClick={() => handleAdvanceBufferStage(2)}
-                                className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
-                              >
-                                <span>✓ Confirm Components Picked → Proceed to Wiring (Stage 2)</span>
-                                <FaArrowRight className="text-xs" />
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {activeBufferJob.current_stage === 2 && (
-                          <div className="space-y-3">
-                            <div>
-                              <h4 className="text-xs font-black text-text-primary uppercase tracking-wider">
-                                Stage 2: Wiring Harness & Enclosure Assembly
-                              </h4>
-                              <p className="text-[11px] text-text-secondary">
-                                DCDB box assembly, wire crimping, MC4 connector termination, ferrule numbering & gland sealing.
-                              </p>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                              {[
-                                'DCDB / AJB Box Internal Wiring & Fuse Holder Installation',
-                                'Solar DC Cable 4 sq. mm Crimping & MC4 Termination (IP68)',
-                                'Earth Cable 2.5 sq. mm Lug Crimping with Copper Ferrules',
-                                'Enclosure Cable Glands Tightened & IP65 Gasket Verification'
-                              ].map((item, idx) => (
-                                <div key={idx} className="flex items-center gap-2 p-2.5 rounded-lg bg-surface-hover/60 border border-border text-text-secondary">
-                                  <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold">✓</span>
-                                  <span>{item}</span>
-                                </div>
-                              ))}
-                            </div>
-
-                            <div className="flex justify-end pt-2">
-                              <button
-                                type="button"
-                                onClick={() => handleAdvanceBufferStage(3)}
-                                className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
-                              >
-                                <span>✓ Wiring Assembly Complete → Proceed to Electrical QC (Stage 3)</span>
-                                <FaArrowRight className="text-xs" />
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {activeBufferJob.current_stage === 3 && (
-                          <div className="space-y-3">
-                            <div>
-                              <h4 className="text-xs font-black text-text-primary uppercase tracking-wider">
-                                Stage 3: Electrical QC & Insulation Test
-                              </h4>
-                              <p className="text-[11px] text-text-secondary">
-                                Physical inspection, megger insulation resistance test & continuity check.
-                              </p>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                              <div className="p-3 rounded-xl bg-surface-hover border border-border">
-                                <div className="text-[10px] text-text-muted font-bold uppercase">Insulation Resistance (1000V Megger)</div>
-                                <div className="text-base font-black text-emerald-400 mt-1">32.4 MΩ</div>
-                                <div className="text-[10px] text-emerald-500 font-bold mt-0.5">✓ PASS (Min 10 MΩ req)</div>
-                              </div>
-                              <div className="p-3 rounded-xl bg-surface-hover border border-border">
-                                <div className="text-[10px] text-text-muted font-bold uppercase">Earth Continuity Resistance</div>
-                                <div className="text-base font-black text-emerald-400 mt-1">0.06 Ω</div>
-                                <div className="text-[10px] text-emerald-500 font-bold mt-0.5">✓ PASS (Max 0.2 Ω allowed)</div>
-                              </div>
-                              <div className="p-3 rounded-xl bg-surface-hover border border-border">
-                                <div className="text-[10px] text-text-muted font-bold uppercase">DC/AC Polarity Verification</div>
-                                <div className="text-base font-black text-emerald-400 mt-1">Verified</div>
-                                <div className="text-[10px] text-emerald-500 font-bold mt-0.5">✓ PASS (Correct +/-)</div>
-                              </div>
-                            </div>
-
-                            <div className="flex justify-end pt-2">
-                              <button
-                                type="button"
-                                onClick={() => handleAdvanceBufferStage(4)}
-                                className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
-                              >
-                                <span>✓ Electrical QC Passed → Proceed to Packaging (Stage 4)</span>
-                                <FaArrowRight className="text-xs" />
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {activeBufferJob.current_stage === 4 && (
-                          <div className="space-y-3">
-                            <div>
-                              <h4 className="text-xs font-black text-text-primary uppercase tracking-wider">
-                                Stage 4: Packaging & Warehouse Buffer Stock Batch Labeling
-                              </h4>
-                              <p className="text-[11px] text-text-secondary">
-                                Carton boxing with protective foam padding. Buffer batch codes generated for warehouse ready inventory.
-                              </p>
-                            </div>
-
-                            <div className="p-3 rounded-xl bg-surface-hover border border-border space-y-2">
-                              <div className="text-[11px] font-bold text-text-secondary">
-                                Generated Warehouse Buffer Batch Codes:
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {(activeBufferJob.batches || []).map((b, i) => (
-                                  <span key={i} className="px-2.5 py-1 rounded-lg font-mono text-xs font-bold bg-surface border border-emerald-500/40 text-emerald-400 shadow-xs">
-                                    🏷️ {b}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="flex justify-end pt-2">
-                              <button
-                                type="button"
-                                onClick={() => handleAdvanceBufferStage(5)}
-                                className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
-                              >
-                                <span>✓ Packaging Complete → Proceed to Storage Placement (Stage 5)</span>
-                                <FaArrowRight className="text-xs" />
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {activeBufferJob.current_stage === 5 && (
-                          <div className="space-y-3">
-                            <div>
-                              <h4 className="text-xs font-black text-text-primary uppercase tracking-wider">
-                                Stage 5: Deposit to Warehouse Buffer Storage Rack
-                              </h4>
-                              <p className="text-[11px] text-text-secondary">
-                                Place the assembled BOS Kit in designated warehouse bay/rack. Kit is now ready for zero-delay order allocation!
-                              </p>
-                            </div>
-
-                            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
-                              <div>
-                                <div className="text-xs font-bold text-emerald-400">Assigned Buffer Storage Location:</div>
-                                <div className="text-base font-black text-text-primary mt-0.5 font-mono">
-                                  📍 {activeBufferJob.target_rack}
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xs text-text-muted">Quantity to Credit:</div>
-                                <div className="text-base font-black text-emerald-400">+{activeBufferJob.qty} Ready Kits</div>
-                              </div>
-                            </div>
-
-                            <div className="flex justify-end pt-2">
-                              <button
-                                type="button"
-                                onClick={handleFinalizeBufferStock}
-                                className="px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/30 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
-                              >
-                                <FaCheckCircle className="text-sm" />
-                                <span>🎉 Finalize & Credit {activeBufferJob.qty} Kit(s) to Warehouse Ready Stock</span>
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenBufferRequisition(activeModel, step1RequisitionQty || 5)}
+                          className="w-full py-3.5 px-6 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.01] active:scale-95"
+                        >
+                          <FaPaperPlane className="text-sm" />
+                          <span>Send Material Requisition to Account Manager (PO Request) 🚀</span>
+                        </button>
                       </div>
                     </div>
                   )}
 
-                  {/* ── BOM Components Recipe & Live Inward Stock Table for this Model ── */}
-                  <div className="card p-5 rounded-2xl border border-border bg-surface space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FaBoxes className="text-primary text-sm" />
-                        <h3 className="text-sm font-black text-text-primary uppercase tracking-wider">
-                          BOM Recipe & Warehouse Inward Stock Check ({activeModel.bom_components?.length || 0} Dynamic Components)
-                        </h3>
-                      </div>
-                      <span className="text-xs text-text-muted font-mono">
-                        Per Kit vs Available Warehouse Stock
-                      </span>
-                    </div>
+                  {/* ─────────────────────────────────────────────────────────
+                      STEP 2: MATERIAL INWARD IN WAREHOUSE RECEIVING DOCK
+                      (Only displayed AFTER Step 1 Requisition is sent!)
+                      ───────────────────────────────────────────────────────── */}
+                  {naturalActiveStep >= 2 && (
+                    naturalActiveStep > 2 && !isStep2Expanded ? (
+                      /* Step 2 Collapsed Bar ("jo hogya hai vo band kar do") */
+                      <div className="card p-4 rounded-2xl border border-emerald-500/40 bg-surface/90 hover:bg-surface-hover/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 font-black flex items-center justify-center text-sm border border-emerald-500/30 shrink-0">
+                            ✓
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="text-xs font-black uppercase tracking-wider text-text-primary">
+                                Step 2 Completed: All Raw Materials Inwarded & Stock Ready in Warehouse
+                              </h4>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                Dock Verified
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-text-muted mt-0.5">
+                              All {items.length} BOM components verified present in warehouse stock bins. Sufficient for {targetBuildQty} kits.
+                            </p>
+                          </div>
+                        </div>
 
-                    <div className="border border-border rounded-xl overflow-hidden bg-surface">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-surface-hover/80 border-b border-border text-[10px] font-black uppercase text-text-muted">
-                          <tr>
-                            <th className="p-3">Component / Product Name</th>
-                            <th className="p-3">SKU Code</th>
-                            <th className="p-3 text-center">Required (Per Kit)</th>
-                            <th className="p-3 text-center">Required ({stockAssembleQty || 1} Kits)</th>
-                            <th className="p-3 text-center">Inwarded WH Stock</th>
-                            <th className="p-3 text-right">Inward Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {(items || []).map((it, idx) => (
-                            <tr key={idx} className="hover:bg-surface-hover/30">
-                              <td className="p-3 font-bold text-text-primary">
-                                {it.name}
-                              </td>
-                              <td className="p-3 font-mono text-primary text-[10px]">
-                                {it.sku}
-                              </td>
-                              <td className="p-3 text-center font-mono font-bold text-text-secondary">
-                                {it.required / (stockAssembleQty || 1)} {it.unit || 'Pcs'}
-                              </td>
-                              <td className="p-3 text-center font-mono font-bold text-text-primary">
-                                {it.required} {it.unit || 'Pcs'}
-                              </td>
-                              <td className="p-3 text-center font-mono font-bold">
-                                <span className={it.isShort ? 'text-amber-400' : 'text-emerald-400'}>
-                                  {it.available} {it.unit || 'Pcs'}
+                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setManualStepToggle(prev => ({ ...prev, [2]: true }))}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-hover hover:bg-surface border border-border text-text-secondary hover:text-text-primary transition-all cursor-pointer flex items-center gap-1.5"
+                          >
+                            <span>View Inward Stock</span>
+                            <HiOutlineChevronDown />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Step 2 Expanded UI */
+                      <div className={`card p-6 rounded-2xl border-2 shadow-md space-y-5 transition-all ${
+                        hasShortage
+                          ? 'border-blue-500/50 bg-gradient-to-b from-blue-950/20 via-surface to-surface'
+                          : 'border-emerald-500/50 bg-surface'
+                      }`}>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-6 h-6 rounded-full font-black flex items-center justify-center text-xs ${
+                                hasShortage ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'
+                              }`}>
+                                2
+                              </span>
+                              <span className="text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-md border border-blue-500/30">
+                                Step 2 of 3: Material Inward Verification
+                              </span>
+                              {modelReq && (
+                                <span className="font-mono text-[10px] font-bold text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded border border-purple-500/30">
+                                  PO #{modelReq.req_number}
                                 </span>
-                              </td>
-                              <td className="p-3 text-right">
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                                  it.isShort
-                                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                }`}>
-                                  {it.isShort ? '⚠️ Inward Pending' : '✓ In Stock'}
+                              )}
+                            </div>
+                            <h3 className="text-sm font-black text-text-primary uppercase tracking-wider">
+                              Warehouse Dock Material Inward Verification
+                            </h3>
+                            <p className="text-xs text-text-secondary leading-relaxed max-w-3xl">
+                              {isPoPlaced ? (
+                                <span>
+                                  <strong className="text-emerald-400">✅ Accounts Manager ne request accept karke PO #{modelReq?.po_number || modelReq?.req_number} place kar diya hai!</strong> Supplier se dispatch hone ke baad jab shipment warehouse receiving dock par physically receive ho, to <strong>Material Inward</strong> tab se receive karein.
                                 </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                              ) : (
+                                <span>
+                                  <strong className="text-amber-400">⏳ Material Requisition Account Manager ko bhej di gayi hai (#{modelReq?.req_number}).</strong> Abhi Account Manager Portal (Purchase Orders ➔ Warehouse Requests) me jakar ise <strong>accept & PO place</strong> karein. PO banne ke baad supplier material dispatch karega.
+                                </span>
+                              )}
+                            </p>
+                          </div>
+
+                          {naturalActiveStep > 2 && (
+                            <button
+                              type="button"
+                              onClick={() => setManualStepToggle(prev => ({ ...prev, [2]: false }))}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-hover hover:bg-surface border border-border text-text-secondary cursor-pointer self-start sm:self-center flex items-center gap-1"
+                            >
+                              <span>Collapse Step 2</span>
+                              <HiOutlineChevronUp />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Dynamic Status Alert Banner */}
+                        {!isPoPlaced ? (
+                          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-2">
+                            <div className="flex items-center gap-2 font-black text-xs uppercase tracking-wide">
+                              <FaClock className="text-amber-400" />
+                              <span>⏳ Step 2A: Waiting for Account Manager to Accept & Place PO!</span>
+                            </div>
+                            <p className="text-xs text-amber-200/90 leading-relaxed">
+                              Warehouse ne material requisition bhej di hai. Ab <strong>Account Manager</strong> apne portal (Purchase Orders ➔ Warehouse Requests) me jaakar ise <strong>accept</strong> karega aur Supplier ke sath <strong>PO place</strong> karega.
+                            </p>
+                          </div>
+                        ) : (!isRequisitionInwarded || hasShortage) ? (
+                          <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 space-y-2">
+                            <div className="flex items-center gap-2 font-black text-xs uppercase tracking-wide">
+                              <FaTruck className="text-blue-400" />
+                              <span>🚚 Step 2B: PO Booked (#{modelReq?.po_number || modelReq?.req_number}) — Awaiting Supplier Delivery at Dock</span>
+                            </div>
+                            <p className="text-xs text-blue-200/90 leading-relaxed">
+                              Accounts Manager ne PO book kar diya hai. Supplier dispatch ke baad jab shipment dock par physically arrive ho, to niche diye gaye button se <strong>'Material Inward'</strong> tab me jakar GRN receipt verify aur inward karein. Jab tak dock par inward complete nahi hoga, tab tak Step 3 (5-Stage Assembly) locked rahega.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 space-y-1">
+                            <div className="flex items-center gap-2 font-black text-xs uppercase tracking-wide">
+                              <FaCheckCircle className="text-emerald-400" />
+                              <span>✅ All Raw Materials Inwarded & Stock Ready in Warehouse!</span>
+                            </div>
+                            <p className="text-xs text-emerald-200/90 leading-relaxed">
+                              Sabhi required BOM components warehouse bins me verify ho chuke hain. Step 3 (5-Stage Assembly) unlock ho gaya hai!
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Official Material Inward Navigation Button */}
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const poNum = modelReq?.po_number || '';
+                              const reqNum = modelReq?.req_number || '';
+                              navigate(`${prefix}/material-inward?source=boskit&model=${encodeURIComponent(activeModel.id)}&req=${encodeURIComponent(reqNum)}&po=${encodeURIComponent(poNum)}`);
+                            }}
+                            className="w-full py-3.5 px-6 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2.5 cursor-pointer transition-all hover:scale-[1.01] active:scale-95 group"
+                          >
+                            <FaWarehouse className="text-sm text-blue-200 group-hover:scale-110 transition-transform" />
+                            <span>Go to 'Material Inward' Tab to Receive & Inward Materials →</span>
+                          </button>
+                        </div>
+
+                        {/* BOM Inward Check Table */}
+                        <div className="space-y-2 pt-2 border-t border-border">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-text-primary uppercase tracking-wider text-[11px]">
+                              BOM Components Inward Verification ({items.length} SKUs):
+                            </span>
+                            <span className="text-[11px] text-text-muted font-mono">
+                              Required for {targetBuildQty} Kits vs Inwarded WH Stock
+                            </span>
+                          </div>
+
+                          <div className="border border-border rounded-xl overflow-hidden bg-surface max-h-60 overflow-y-auto">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-surface-hover/80 border-b border-border text-[10px] font-black uppercase text-text-muted sticky top-0">
+                                <tr>
+                                  <th className="p-2.5">Component / Product Name</th>
+                                  <th className="p-2.5">SKU Code</th>
+                                  <th className="p-2.5 text-center">Required ({targetBuildQty} Kits)</th>
+                                  <th className="p-2.5 text-center">Inwarded WH Stock</th>
+                                  <th className="p-2.5 text-right">Inward Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                {items.map((it, idx) => {
+                                  const itemPending = !isRequisitionInwarded || it.isShort;
+                                  return (
+                                    <tr key={idx} className="hover:bg-surface-hover/30">
+                                      <td className="p-2.5 font-bold text-text-primary text-[11px]">{it.name}</td>
+                                      <td className="p-2.5 font-mono text-primary text-[10px]">{it.sku}</td>
+                                      <td className="p-2.5 text-center font-mono font-bold text-text-primary">{it.required} {it.unit}</td>
+                                      <td className="p-2.5 text-center font-mono font-bold">
+                                        <span className={itemPending ? 'text-amber-400' : 'text-emerald-400'}>
+                                          {isRequisitionInwarded ? it.available : 0} {it.unit}
+                                        </span>
+                                      </td>
+                                      <td className="p-2.5 text-right">
+                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                                          itemPending
+                                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                        }`}>
+                                          {itemPending ? '⚠️ Inward Pending' : '✓ In Stock'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                  {/* ─────────────────────────────────────────────────────────
+                      STEP 3: 5-STAGE SEQUENTIAL KIT ASSEMBLY WORKSTATION
+                      (Only displayed AFTER Step 2 Material Inward is verified!)
+                      ───────────────────────────────────────────────────────── */}
+                  {naturalActiveStep === 3 && (
+                    <div className="space-y-6">
+                      {/* Active 5-Stage Stepper Workstation */}
+                      {activeBufferJob && activeBufferJob.model_id === activeModel.id ? (
+                        <div className="card p-6 rounded-2xl border-2 border-emerald-500/50 bg-gradient-to-r from-emerald-950/40 via-surface to-teal-950/30 shadow-lg shadow-emerald-500/10 space-y-5">
+                          {/* Job Header */}
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border/80">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5">
+                                  <FaTools className="text-emerald-400" />
+                                  Active Buffer Job: #{activeBufferJob.job_id}
+                                </span>
+                                <span className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                                  {activeBufferJob.model_name} ({activeBufferJob.capacity})
+                                </span>
+                                <span className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono">
+                                  Target: {activeBufferJob.qty} Kit(s)
+                                </span>
+                              </div>
+                              <div className="text-xs text-text-muted flex items-center gap-4 flex-wrap">
+                                <span><strong>Lead:</strong> {activeBufferJob.technician}</span>
+                                <span><strong>Target Storage:</strong> <code className="text-emerald-400 font-bold">{activeBufferJob.target_rack}</code></span>
+                                <span><strong>Started:</strong> {new Date(activeBufferJob.started_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={handleAbortBufferJob}
+                                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-surface-hover hover:bg-rose-500/20 border border-border hover:border-rose-500/40 text-text-secondary hover:text-rose-400 transition-all cursor-pointer"
+                              >
+                                ✕ Cancel Job
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 5-Stage Stepper Bar */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-black uppercase tracking-wider text-text-primary">
+                                Stage {activeBufferJob.current_stage} of 5: Sequential Assembly Progression
+                              </span>
+                              <span className="text-xs font-mono font-bold text-emerald-400">
+                                {Math.round((activeBufferJob.current_stage / 5) * 100)}% Complete
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center text-xs">
+                              {[
+                                { num: 1, title: '1. Picking', subtitle: 'Raw Materials Picking', icon: FaBoxes },
+                                { num: 2, title: '2. Wiring', subtitle: 'Wiring & Enclosure', icon: FaWrench },
+                                { num: 3, title: '3. QC Check', subtitle: 'Electrical QC Test', icon: FaClipboardCheck },
+                                { num: 4, title: '4. Packaging', subtitle: 'Box & Batch Label', icon: FaBarcode },
+                                { num: 5, title: '5. Buffer Stock', subtitle: 'Store in WH Rack', icon: FaCheckDouble }
+                              ].map((stage) => {
+                                const isCurrent = activeBufferJob.current_stage === stage.num;
+                                const isDone = activeBufferJob.current_stage > stage.num;
+                                const StageIcon = stage.icon;
+
+                                return (
+                                  <div
+                                    key={stage.num}
+                                    className={`p-3 rounded-xl border transition-all text-left flex flex-col justify-between ${
+                                      isCurrent
+                                        ? 'bg-emerald-500/20 border-emerald-500 text-text-primary ring-2 ring-emerald-500/30'
+                                        : isDone
+                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                        : 'bg-surface border-border text-text-muted opacity-60'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <StageIcon className={isCurrent ? 'text-emerald-400 text-base' : isDone ? 'text-emerald-500 text-sm' : 'text-text-muted text-sm'} />
+                                      {isDone ? (
+                                        <span className="w-5 h-5 rounded-full bg-emerald-500 text-black text-[10px] font-black flex items-center justify-center">✓</span>
+                                      ) : (
+                                        <span className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center ${
+                                          isCurrent ? 'bg-emerald-400 text-black' : 'bg-surface-hover text-text-muted'
+                                        }`}>
+                                          {stage.num}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <div className="font-black text-xs">{stage.title}</div>
+                                      <div className="text-[10px] text-text-muted leading-tight mt-0.5">{stage.subtitle}</div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Stage Interactive Work Area */}
+                          <div className="p-4 rounded-xl bg-surface border border-border">
+                            {activeBufferJob.current_stage === 1 && (
+                              <div className="space-y-3">
+                                <div>
+                                  <h4 className="text-xs font-black text-text-primary uppercase tracking-wider">
+                                    Stage 1: Raw Materials Picking & Verification
+                                  </h4>
+                                  <p className="text-[11px] text-text-secondary">
+                                    Warehouse inventory racks se sabhi raw components pick karke assembly table par assemble karne ke liye verify karein.
+                                  </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+                                  {(activeBufferJob.bom_components || []).map((c, idx) => (
+                                    <div key={idx} className="p-2.5 rounded-lg bg-surface-hover/70 border border-border/70 flex items-center justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <div className="font-bold text-text-primary truncate text-[11px]">{c.name}</div>
+                                        <div className="text-[10px] text-text-muted font-mono">{c.sku}</div>
+                                      </div>
+                                      <span className="font-mono font-bold text-primary whitespace-nowrap bg-surface px-1.5 py-0.5 rounded border border-border/50 text-[10px]">
+                                        {c.qty * activeBufferJob.qty} {c.unit}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="flex justify-end pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdvanceBufferStage(2)}
+                                    className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                                  >
+                                    <span>✓ Confirm Components Picked → Proceed to Wiring (Stage 2)</span>
+                                    <FaArrowRight className="text-xs" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {activeBufferJob.current_stage === 2 && (
+                              <div className="space-y-3">
+                                <div>
+                                  <h4 className="text-xs font-black text-text-primary uppercase tracking-wider">
+                                    Stage 2: Wiring Harness & Enclosure Assembly
+                                  </h4>
+                                  <p className="text-[11px] text-text-secondary">
+                                    DCDB box assembly, wire crimping, MC4 connector termination, ferrule numbering & gland sealing.
+                                  </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                  {[
+                                    'DCDB / AJB Box Internal Wiring & Fuse Holder Installation',
+                                    'Solar DC Cable 4 sq. mm Crimping & MC4 Termination (IP68)',
+                                    'Earth Cable 2.5 sq. mm Lug Crimping with Copper Ferrules',
+                                    'Enclosure Cable Glands Tightened & IP65 Gasket Verification'
+                                  ].map((item, idx) => (
+                                    <div key={idx} className="flex items-center gap-2 p-2.5 rounded-lg bg-surface-hover/60 border border-border text-text-secondary">
+                                      <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold">✓</span>
+                                      <span>{item}</span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="flex justify-end pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdvanceBufferStage(3)}
+                                    className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                                  >
+                                    <span>✓ Wiring Assembly Complete → Proceed to Electrical QC (Stage 3)</span>
+                                    <FaArrowRight className="text-xs" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {activeBufferJob.current_stage === 3 && (
+                              <div className="space-y-3">
+                                <div>
+                                  <h4 className="text-xs font-black text-text-primary uppercase tracking-wider">
+                                    Stage 3: Electrical QC & Insulation Test
+                                  </h4>
+                                  <p className="text-[11px] text-text-secondary">
+                                    Physical inspection, megger insulation resistance test & continuity check.
+                                  </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                  <div className="p-3 rounded-xl bg-surface-hover border border-border">
+                                    <div className="text-[10px] text-text-muted font-bold uppercase">Insulation Resistance (1000V Megger)</div>
+                                    <div className="text-base font-black text-emerald-400 mt-1">32.4 MΩ</div>
+                                    <div className="text-[10px] text-emerald-500 font-bold mt-0.5">✓ PASS (Min 10 MΩ req)</div>
+                                  </div>
+                                  <div className="p-3 rounded-xl bg-surface-hover border border-border">
+                                    <div className="text-[10px] text-text-muted font-bold uppercase">Earth Continuity Resistance</div>
+                                    <div className="text-base font-black text-emerald-400 mt-1">0.06 Ω</div>
+                                    <div className="text-[10px] text-emerald-500 font-bold mt-0.5">✓ PASS (Max 0.2 Ω allowed)</div>
+                                  </div>
+                                  <div className="p-3 rounded-xl bg-surface-hover border border-border">
+                                    <div className="text-[10px] text-text-muted font-bold uppercase">DC/AC Polarity Verification</div>
+                                    <div className="text-base font-black text-emerald-400 mt-1">Verified</div>
+                                    <div className="text-[10px] text-emerald-500 font-bold mt-0.5">✓ PASS (Correct +/-)</div>
+                                  </div>
+                                </div>
+
+                                <div className="flex justify-end pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdvanceBufferStage(4)}
+                                    className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                                  >
+                                    <span>✓ Electrical QC Passed → Proceed to Packaging (Stage 4)</span>
+                                    <FaArrowRight className="text-xs" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {activeBufferJob.current_stage === 4 && (
+                              <div className="space-y-3">
+                                <div>
+                                  <h4 className="text-xs font-black text-text-primary uppercase tracking-wider">
+                                    Stage 4: Packaging & Warehouse Buffer Stock Batch Labeling
+                                  </h4>
+                                  <p className="text-[11px] text-text-secondary">
+                                    Carton boxing with protective foam padding. Buffer batch codes generated for warehouse ready inventory.
+                                  </p>
+                                </div>
+
+                                <div className="p-3 rounded-xl bg-surface-hover border border-border space-y-2">
+                                  <div className="text-[11px] font-bold text-text-secondary">
+                                    Generated Warehouse Buffer Batch Codes:
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {(activeBufferJob.batches || []).map((b, i) => (
+                                      <span key={i} className="px-2.5 py-1 rounded-lg font-mono text-xs font-bold bg-surface border border-emerald-500/40 text-emerald-400 shadow-xs">
+                                        🏷️ {b}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div className="flex justify-end pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdvanceBufferStage(5)}
+                                    className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                                  >
+                                    <span>✓ Packaging Complete → Proceed to Storage Placement (Stage 5)</span>
+                                    <FaArrowRight className="text-xs" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {activeBufferJob.current_stage === 5 && (
+                              <div className="space-y-3">
+                                <div>
+                                  <h4 className="text-xs font-black text-text-primary uppercase tracking-wider">
+                                    Stage 5: Deposit to Warehouse Buffer Storage Rack
+                                  </h4>
+                                  <p className="text-[11px] text-text-secondary">
+                                    Ready kits warehouse rack me place karein aur buffer stock inventory me add karein.
+                                  </p>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-surface-hover border border-border flex items-center justify-between">
+                                  <div>
+                                    <div className="text-xs text-text-muted">Target Storage Rack:</div>
+                                    <div className="text-base font-black text-text-primary font-mono">{activeBufferJob.target_rack}</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-xs text-text-muted">Quantity to Credit:</div>
+                                    <div className="text-base font-black text-emerald-400">+{activeBufferJob.qty} Ready Kits</div>
+                                  </div>
+                                </div>
+
+                                <div className="flex justify-end pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={handleFinalizeBufferStock}
+                                    className="px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/30 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                                  >
+                                    <FaCheckCircle className="text-sm" />
+                                    <span>🎉 Finalize & Credit {activeBufferJob.qty} Kit(s) to Warehouse Ready Stock</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        /* Step 3 Start Assembly Call to Action */
+                        <div className="card p-6 rounded-2xl border-2 border-emerald-500/50 bg-surface shadow-md space-y-4">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 font-black flex items-center justify-center text-xs">
+                              3
+                            </span>
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                              Step 3 of 3: 5-Stage Kit Assembly
+                            </span>
+                          </div>
+
+                          <div>
+                            <h3 className="text-sm font-black text-text-primary uppercase tracking-wider">
+                              Ready for 5-Stage Sequential Assembly ({targetBuildQty} Kits)
+                            </h3>
+                            <p className="text-xs text-text-secondary leading-relaxed mt-1">
+                              Sabhi raw materials inward ho chuke hain aur stock verify ho chuka hai. Ab 5 sequential assembly stages (Picking ➔ Wiring ➔ QC Test ➔ Packaging ➔ Storage) start karein aur finished kits ready stock me add karein.
+                            </p>
+                          </div>
+
+                          <div className="p-4 rounded-xl bg-surface-hover border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                            <div className="space-y-0.5">
+                              <div className="text-text-muted font-bold text-[10px] uppercase">Model to Assemble:</div>
+                              <div className="font-bold text-text-primary">{activeModel.name} ({activeModel.capacity})</div>
+                            </div>
+                            <div className="space-y-0.5">
+                              <div className="text-text-muted font-bold text-[10px] uppercase">Storage Rack:</div>
+                              <div className="font-mono font-bold text-text-primary">{activeModel.storage_location}</div>
+                            </div>
+                            <div className="space-y-0.5 sm:text-right">
+                              <div className="text-text-muted font-bold text-[10px] uppercase">Target Batch:</div>
+                              <div className="font-mono font-black text-emerald-400 text-sm">{targetBuildQty} Kits</div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleStartAssemblyForModel(activeModel, targetBuildQty)}
+                            className="w-full py-4 px-6 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xl shadow-emerald-500/30 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.01] active:scale-95"
+                          >
+                            <FaTools className="text-sm" />
+                            <span>🚀 Start 5-Stage Assembly ({targetBuildQty} Kits) →</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  )}
                 </div>
               );
             })()
           )}
         </div>
+
       ) : (
         /* ─────────────────────────────────────────────────────────────
             PART 1: ORDER-SPECIFIC KIT ASSEMBLY & STOCK ALLOCATION
@@ -3287,7 +3642,12 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                   return (
                     <div
                       key={ord._id}
-                      className="card rounded-2xl border border-border bg-surface p-5 space-y-5 shadow-xs hover:border-purple-500/40 transition-all"
+                      id={`boskit-order-${ord._id}`}
+                      className={`card rounded-2xl border bg-surface p-5 space-y-5 shadow-xs transition-all ${
+                        focusedOrderId === ord._id
+                          ? 'border-purple-500 ring-4 ring-purple-500/40 shadow-xl scale-[1.01]'
+                          : 'border-border hover:border-purple-500/40'
+                      }`}
                     >
                       {/* Top Context Strip */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/70 pb-3">
@@ -4452,16 +4812,8 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                                               <button
                                                 type="button"
                                                 onClick={() => {
-                                                  setInwardModalOpen(false);
-                                                  if (!standaloneBoskit) {
-                                                    setMainSectionTab('boskit_station');
-                                                    setSelectedOrderForAssembly(selectedOrderForInward);
-                                                    setExpandedCards(prev => ({ ...prev, [selectedOrderForInward._id]: true }));
-                                                  } else if (onNavigateToBosKit) {
-                                                    onNavigateToBosKit(selectedOrderForInward);
-                                                  } else {
-                                                    navigate(`${prefix}/bos-kit-assembly?orderId=${selectedOrderForInward._id}`);
-                                                  }
+                                                  handleOpenOrderAssembly(selectedOrderForInward);
+                                                  setExpandedCards(prev => ({ ...prev, [selectedOrderForInward._id]: true }));
                                                 }}
                                                 className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-white hover:bg-purple-100 text-purple-900 border-2 border-purple-500 shadow-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 ml-auto"
                                               >
@@ -5980,11 +6332,7 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                     ) : (
                       <button
                         type="button"
-                        onClick={() => {
-                          setOrderDetailsModalOpen(false);
-                          setSelectedOrderForAssembly(ord);
-                          setMainSectionTab('boskit_station');
-                        }}
+                        onClick={() => handleOpenOrderAssembly(ord)}
                         className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-purple-600 hover:bg-purple-500 text-white cursor-pointer shadow-sm flex items-center gap-1.5"
                         title="Warehouse buffer me kit nahi hai. Assembly workstation par build karein"
                       >
