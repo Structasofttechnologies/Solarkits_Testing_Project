@@ -345,12 +345,19 @@ export default function PoOrder() {
           unit_price: price,
           price: price,
           base_price_paise: Math.round(price * 100),
+          token_booking_enabled: k.token_booking_enabled !== false,
+          token_type: k.token_type || 'FIXED_AMOUNT',
+          token_value: k.token_value != null && Number(k.token_value) > 0 ? Number(k.token_value) : 35000,
           token_rate_per_kit_paise: k.token_rate_per_kit_paise || 0,
           trial_kit_quantity: k.trial_kit_quantity || 10,
           is_trial_allowed: k.is_trial_allowed !== false,
           order_quantities: finalOrderQtys,
           loose_order_quantities: finalLooseQtys,
-          min_po_quantity: finalOrderQtys[0] || 200,
+          min_po_quantity: k.min_po_quantity || finalOrderQtys[0] || 200,
+          max_po_quantity: k.max_po_quantity || null,
+          po_validity_days: k.po_validity_days || 30,
+          po_lock_days: k.po_lock_days || 30,
+          po_setting_id: k.po_setting_id || null,
           specifications: k.description || k.specifications || "High performance solar kit featuring top-tier string inverter and heavy-duty GI mounting structure.",
           po_order_pricing: poPricing,
           poOrderPricing: poPricing,
@@ -383,12 +390,23 @@ export default function PoOrder() {
     const list = [];
     const seen = new Set();
 
+    const getCount = (name, id) => {
+      const targetName = (name || "").toLowerCase();
+      const targetId = id ? String(id) : null;
+      return availableKits.filter((k) => {
+        const kName = (k.industry_type_name || "").toLowerCase();
+        const kId = k.industry_type_id ? String(k.industry_type_id) : null;
+        return (kName && (kName === targetName || kName.includes(targetName))) || (targetId && kId && kId === targetId);
+      }).length;
+    };
+
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       shopHierarchy.forEach((ind) => {
         const name = ind.name;
         if (name && !seen.has(name.toLowerCase())) {
           seen.add(name.toLowerCase());
-          list.push({ value: name, label: name, id: ind.id || ind._id });
+          const count = getCount(name, ind.id || ind._id);
+          list.push({ value: name, label: `${name} (${count})`, rawLabel: name, id: ind.id || ind._id, count });
         }
       });
     }
@@ -397,16 +415,36 @@ export default function PoOrder() {
       const name = kit.industry_type_name;
       if (name && !seen.has(name.toLowerCase())) {
         seen.add(name.toLowerCase());
-        list.push({ value: name, label: name, id: kit.industry_type_id });
+        const count = getCount(name, kit.industry_type_id);
+        list.push({ value: name, label: `${name} (${count})`, rawLabel: name, id: kit.industry_type_id, count });
       }
     });
 
-    return [{ value: "all", label: "All Industry Types" }, ...list];
+    return [{ value: "all", label: `All Industry Types (${availableKits.length})`, count: availableKits.length }, ...list];
   }, [shopHierarchy, availableKits]);
 
   const categoryOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    // Kits matching current industry filter
+    const kitsInCurrentIndustry = availableKits.filter((k) => {
+      if (quickFilters.industryType === "all") return true;
+      const indVal = quickFilters.industryType.toLowerCase();
+      const kInd = (k.industry_type_name || "").toLowerCase();
+      const kIndId = String(k.industry_type_id || "");
+      return kInd === indVal || kIndId === indVal || kInd.includes(indVal);
+    });
+
+    const getCount = (name, id) => {
+      const targetName = (name || "").toLowerCase();
+      const targetId = id ? String(id) : null;
+      return kitsInCurrentIndustry.filter((k) => {
+        const kName = (k.category_name || "").toLowerCase();
+        const kId = k.category_id ? String(k.category_id) : null;
+        return (kName && (kName === targetName || kName.includes(targetName))) || (targetId && kId && kId === targetId);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -421,7 +459,8 @@ export default function PoOrder() {
         (ind.categories || []).forEach((cat) => {
           if (cat.name && !seen.has(cat.name.toLowerCase())) {
             seen.add(cat.name.toLowerCase());
-            list.push({ value: cat.name, label: cat.name, id: cat.id || cat._id });
+            const count = getCount(cat.name, cat.id || cat._id);
+            list.push({ value: cat.name, label: `${cat.name} (${count})`, rawLabel: cat.name, id: cat.id || cat._id, count });
           }
         });
       });
@@ -430,19 +469,47 @@ export default function PoOrder() {
     availableKits.forEach((kit) => {
       const indOk =
         quickFilters.industryType === "all" ||
-        kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase();
+        kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+        String(kit.industry_type_id || "") === String(quickFilters.industryType);
       if (indOk && kit.category_name && !seen.has(kit.category_name.toLowerCase())) {
         seen.add(kit.category_name.toLowerCase());
-        list.push({ value: kit.category_name, label: kit.category_name, id: kit.category_id });
+        const count = getCount(kit.category_name, kit.category_id);
+        list.push({ value: kit.category_name, label: `${kit.category_name} (${count})`, rawLabel: kit.category_name, id: kit.category_id, count });
       }
     });
 
-    return [{ value: "all", label: "All Categories" }, ...list];
+    return [{ value: "all", label: `All Categories (${kitsInCurrentIndustry.length})`, count: kitsInCurrentIndustry.length }, ...list];
   }, [shopHierarchy, availableKits, quickFilters.industryType]);
 
   const subCategoryOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    const kitsInCurrentCat = availableKits.filter((k) => {
+      if (quickFilters.industryType !== "all") {
+        const indVal = quickFilters.industryType.toLowerCase();
+        const kInd = (k.industry_type_name || "").toLowerCase();
+        const kIndId = String(k.industry_type_id || "");
+        if (kInd !== indVal && kIndId !== indVal && !kInd.includes(indVal)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const catVal = quickFilters.category.toLowerCase();
+        const kCat = (k.category_name || "").toLowerCase();
+        const kCatId = String(k.category_id || "");
+        if (kCat !== catVal && kCatId !== catVal && !kCat.includes(catVal)) return false;
+      }
+      return true;
+    });
+
+    const getCount = (name, id) => {
+      const targetName = (name || "").toLowerCase();
+      const targetId = id ? String(id) : null;
+      return kitsInCurrentCat.filter((k) => {
+        const kName = (k.subcategory_name || "").toLowerCase();
+        const kId = k.subcategory_id ? String(k.subcategory_id) : null;
+        return (kName && (kName === targetName || kName.includes(targetName))) || (targetId && kId && kId === targetId);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -463,7 +530,8 @@ export default function PoOrder() {
             (cat.subcategories || []).forEach((sub) => {
               if (sub.name && !seen.has(sub.name.toLowerCase())) {
                 seen.add(sub.name.toLowerCase());
-                list.push({ value: sub.name, label: sub.name, id: sub.id || sub._id });
+                const count = getCount(sub.name, sub.id || sub._id);
+                list.push({ value: sub.name, label: `${sub.name} (${count})`, rawLabel: sub.name, id: sub.id || sub._id, count });
               }
             });
           }
@@ -474,22 +542,56 @@ export default function PoOrder() {
     availableKits.forEach((kit) => {
       const indOk =
         quickFilters.industryType === "all" ||
-        kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase();
+        kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+        String(kit.industry_type_id || "") === String(quickFilters.industryType);
       const catOk =
         quickFilters.category === "all" ||
-        kit.category_name?.toLowerCase() === quickFilters.category.toLowerCase();
+        kit.category_name?.toLowerCase() === quickFilters.category.toLowerCase() ||
+        String(kit.category_id || "") === String(quickFilters.category);
       if (indOk && catOk && kit.subcategory_name && !seen.has(kit.subcategory_name.toLowerCase())) {
         seen.add(kit.subcategory_name.toLowerCase());
-        list.push({ value: kit.subcategory_name, label: kit.subcategory_name, id: kit.subcategory_id });
+        const count = getCount(kit.subcategory_name, kit.subcategory_id);
+        list.push({ value: kit.subcategory_name, label: `${kit.subcategory_name} (${count})`, rawLabel: kit.subcategory_name, id: kit.subcategory_id, count });
       }
     });
 
-    return [{ value: "all", label: "All Sub-Categories" }, ...list];
+    return [{ value: "all", label: `All Sub-Categories (${kitsInCurrentCat.length})`, count: kitsInCurrentCat.length }, ...list];
   }, [shopHierarchy, availableKits, quickFilters.industryType, quickFilters.category]);
 
   const systemTypeOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    const kitsInCurrentSub = availableKits.filter((k) => {
+      if (quickFilters.industryType !== "all") {
+        const indVal = quickFilters.industryType.toLowerCase();
+        const kInd = (k.industry_type_name || "").toLowerCase();
+        const kIndId = String(k.industry_type_id || "");
+        if (kInd !== indVal && kIndId !== indVal && !kInd.includes(indVal)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const catVal = quickFilters.category.toLowerCase();
+        const kCat = (k.category_name || "").toLowerCase();
+        const kCatId = String(k.category_id || "");
+        if (kCat !== catVal && kCatId !== catVal && !kCat.includes(catVal)) return false;
+      }
+      if (quickFilters.subCategory !== "all") {
+        const subVal = quickFilters.subCategory.toLowerCase();
+        const kSub = (k.subcategory_name || "").toLowerCase();
+        const kSubId = String(k.subcategory_id || "");
+        if (kSub !== subVal && kSubId !== subVal && !kSub.includes(subVal)) return false;
+      }
+      return true;
+    });
+
+    const getCount = (sysName) => {
+      const targetSys = (sysName || "").toLowerCase();
+      return kitsInCurrentSub.filter((k) => {
+        const kSys = (k.system_type || "").toLowerCase();
+        const kProjType = (k.project_type_name || "").toLowerCase();
+        return kSys === targetSys || kSys.includes(targetSys) || kProjType.includes(targetSys);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -514,7 +616,8 @@ export default function PoOrder() {
                 (sub.mappedTypes || []).forEach((mt) => {
                   if (mt.name && !seen.has(mt.name.toLowerCase())) {
                     seen.add(mt.name.toLowerCase());
-                    list.push({ value: mt.name, label: mt.name, id: mt.id || mt.type_id });
+                    const count = getCount(mt.name);
+                    list.push({ value: mt.name, label: `${mt.name} (${count})`, rawLabel: mt.name, id: mt.id || mt.type_id, count });
                   }
                 });
               }
@@ -538,17 +641,59 @@ export default function PoOrder() {
         const sys = kit.system_type || "On-Grid";
         if (sys && !seen.has(sys.toLowerCase())) {
           seen.add(sys.toLowerCase());
-          list.push({ value: sys, label: sys, id: sys });
+          const count = getCount(sys);
+          list.push({ value: sys, label: `${sys} (${count})`, rawLabel: sys, id: sys, count });
         }
       }
     });
 
-    return [{ value: "all", label: "All System Types" }, ...list];
+    return [{ value: "all", label: `All System Types (${kitsInCurrentSub.length})`, count: kitsInCurrentSub.length }, ...list];
   }, [shopHierarchy, availableKits, quickFilters.industryType, quickFilters.category, quickFilters.subCategory]);
 
   const projectRangeOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    const kitsInCurrentSys = availableKits.filter((k) => {
+      if (quickFilters.industryType !== "all") {
+        const indVal = quickFilters.industryType.toLowerCase();
+        const kInd = (k.industry_type_name || "").toLowerCase();
+        const kIndId = String(k.industry_type_id || "");
+        if (kInd !== indVal && kIndId !== indVal && !kInd.includes(indVal)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const catVal = quickFilters.category.toLowerCase();
+        const kCat = (k.category_name || "").toLowerCase();
+        const kCatId = String(k.category_id || "");
+        if (kCat !== catVal && kCatId !== catVal && !kCat.includes(catVal)) return false;
+      }
+      if (quickFilters.subCategory !== "all") {
+        const subVal = quickFilters.subCategory.toLowerCase();
+        const kSub = (k.subcategory_name || "").toLowerCase();
+        const kSubId = String(k.subcategory_id || "");
+        if (kSub !== subVal && kSubId !== subVal && !kSub.includes(subVal)) return false;
+      }
+      if (quickFilters.systemType !== "all") {
+        const sysVal = quickFilters.systemType.toLowerCase();
+        const kSys = (k.system_type || "").toLowerCase();
+        const kProjType = (k.project_type_name || "").toLowerCase();
+        if (kSys !== sysVal && !kSys.includes(sysVal) && !kProjType.includes(sysVal)) return false;
+      }
+      return true;
+    });
+
+    const getCount = (label, min, max) => {
+      const targetLabel = (label || "").toLowerCase();
+      return kitsInCurrentSys.filter((k) => {
+        const kRange = (k.project_range_label || "").toLowerCase();
+        if (kRange === targetLabel || kRange.includes(targetLabel)) return true;
+        if (min != null && max != null) {
+          const cap = Number(k.capacity_kw || 0);
+          return cap >= min && cap <= max;
+        }
+        return false;
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -580,7 +725,8 @@ export default function PoOrder() {
                       const label = r.range_label || `${r.min_value} - ${r.max_value} ${r.unit_symbol || 'kW'}`;
                       if (label && !seen.has(label.toLowerCase())) {
                         seen.add(label.toLowerCase());
-                        list.push({ value: label, label: label, id: r.id || r._id, min: r.min_value, max: r.max_value });
+                        const count = getCount(label, r.min_value, r.max_value);
+                        list.push({ value: label, label: `${label} (${count})`, rawLabel: label, id: r.id || r._id, min: r.min_value, max: r.max_value, count });
                       }
                     });
                   }
@@ -596,11 +742,12 @@ export default function PoOrder() {
       const label = kit.project_range_label || (kit.capacity_kw ? `${kit.capacity_kw} kW System` : null);
       if (label && !seen.has(label.toLowerCase())) {
         seen.add(label.toLowerCase());
-        list.push({ value: label, label: label, id: kit.project_range_id, min: kit.min_kw, max: kit.max_kw });
+        const count = getCount(label, kit.min_kw, kit.max_kw);
+        list.push({ value: label, label: `${label} (${count})`, rawLabel: label, id: kit.project_range_id, min: kit.min_kw, max: kit.max_kw, count });
       }
     });
 
-    return [{ value: "all", label: "All Project Ranges" }, ...list];
+    return [{ value: "all", label: `All Project Ranges (${kitsInCurrentSys.length})`, count: kitsInCurrentSys.length }, ...list];
   }, [shopHierarchy, availableKits, quickFilters.industryType, quickFilters.category, quickFilters.subCategory, quickFilters.systemType]);
 
   const handleClearMainFilters = () => {
@@ -2349,10 +2496,15 @@ export default function PoOrder() {
                           className="w-full appearance-none px-4 py-3 text-xs font-bold bg-surface border-2 border-border hover:border-primary/50 focus:border-primary rounded-xl text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 pr-10 cursor-pointer shadow-xs transition"
                         >
                           {filteredComboKits.map((kit) => {
-                            const priceINR = kit.dealer_price || kit.unit_price || kit.selling_price_cached || 0;
+                            const priceINR = Math.round(Number(kit.dealer_price || kit.unit_price || kit.selling_price_cached || 0));
+                            const poPricing = Array.isArray(kit.po_order_pricing) ? kit.po_order_pricing : [];
+                            const minPoPrice = poPricing.length > 0 ? Math.min(...poPricing.map((t) => Number(t.price_per_kit)).filter((p) => p > 0)) : null;
+                            const priceLabel = minPoPrice && minPoPrice !== Infinity
+                              ? `₹${minPoPrice.toLocaleString("en-IN")}/kit`
+                              : (priceINR > 0 ? `₹${priceINR.toLocaleString("en-IN")}/kit` : "");
                             return (
                               <option key={kit._id} value={kit._id}>
-                                {kit.name} — {kit.capacity_kw} kW • {kit.system_type}{kit.category_name ? ` • ${kit.category_name}` : ""}{priceINR > 0 ? ` (₹${priceINR.toLocaleString("en-IN")}/kit)` : ""}
+                                {kit.name} — {kit.capacity_kw} kW • {kit.system_type}{kit.category_name ? ` • ${kit.category_name}` : ""}{priceLabel ? ` (${priceLabel})` : ""}
                               </option>
                             );
                           })}
@@ -2607,11 +2759,11 @@ export default function PoOrder() {
                         <div className="text-[10px] text-emerald-700/90 dark:text-emerald-400/90 flex flex-col gap-0.5 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/60">
                           <div className="flex justify-between items-center font-medium">
                             <span>Flat Deposit for entire {targetQuantity} Kits PO</span>
-                            <span className="font-bold text-emerald-800 dark:text-emerald-300">Not per kit</span>
+                            {/* <span className="font-bold text-emerald-800 dark:text-emerald-300">Not per kit</span> */}
                           </div>
-                          <div className="text-[9px] text-text-muted">
+                          {/* <div className="text-[9px] text-text-muted">
                             Adjustable against loose orders at ₹{targetQuantity > 0 ? Math.round(poFixedTokenAmount / targetQuantity).toLocaleString("en-IN") : 0}/kit upon dispatch.
-                          </div>
+                          </div> */}
                         </div>
                       </div>
                     </div>

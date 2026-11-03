@@ -514,17 +514,28 @@ export default function BdePoOrders() {
     });
   }, [availableKits, quickFilters]);
 
-  // ── Cascading Quick Filter Options derived from shopHierarchy & availableKits ──
+  // ── Cascading Quick Filter Options derived from shopHierarchy & availableKits with live counts ──
   const industryTypeOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    const getCount = (name, id) => {
+      const targetName = (name || "").toLowerCase();
+      const targetId = id ? String(id) : null;
+      return availableKits.filter((k) => {
+        const kName = (k.industry_type_name || "").toLowerCase();
+        const kId = k.industry_type_id ? String(k.industry_type_id) : null;
+        return (kName && (kName === targetName || kName.includes(targetName))) || (targetId && kId && kId === targetId);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       shopHierarchy.forEach((ind) => {
         const name = ind.name;
         if (name && !seen.has(name.toLowerCase())) {
           seen.add(name.toLowerCase());
-          list.push({ value: name, label: name, id: ind.id || ind._id });
+          const count = getCount(name, ind.id || ind._id);
+          list.push({ value: name, label: `${name} (${count})`, rawLabel: name, id: ind.id || ind._id, count });
         }
       });
     }
@@ -533,16 +544,36 @@ export default function BdePoOrders() {
       const name = kit.industry_type_name;
       if (name && !seen.has(name.toLowerCase())) {
         seen.add(name.toLowerCase());
-        list.push({ value: name, label: name, id: kit.industry_type_id });
+        const count = getCount(name, kit.industry_type_id);
+        list.push({ value: name, label: `${name} (${count})`, rawLabel: name, id: kit.industry_type_id, count });
       }
     });
 
-    return [{ value: 'all', label: 'All Industry Types' }, ...list];
+    return [{ value: 'all', label: `All Industry Types (${availableKits.length})`, count: availableKits.length }, ...list];
   }, [shopHierarchy, availableKits]);
 
   const categoryOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    // Kits matching current industry filter
+    const kitsInCurrentIndustry = availableKits.filter((k) => {
+      if (quickFilters.industryType === "all") return true;
+      const indVal = quickFilters.industryType.toLowerCase();
+      const kInd = (k.industry_type_name || "").toLowerCase();
+      const kIndId = String(k.industry_type_id || "");
+      return kInd === indVal || kIndId === indVal || kInd.includes(indVal);
+    });
+
+    const getCount = (name, id) => {
+      const targetName = (name || "").toLowerCase();
+      const targetId = id ? String(id) : null;
+      return kitsInCurrentIndustry.filter((k) => {
+        const kName = (k.category_name || "").toLowerCase();
+        const kId = k.category_id ? String(k.category_id) : null;
+        return (kName && (kName === targetName || kName.includes(targetName))) || (targetId && kId && kId === targetId);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -557,7 +588,8 @@ export default function BdePoOrders() {
         (ind.categories || []).forEach((cat) => {
           if (cat.name && !seen.has(cat.name.toLowerCase())) {
             seen.add(cat.name.toLowerCase());
-            list.push({ value: cat.name, label: cat.name, id: cat.id || cat._id });
+            const count = getCount(cat.name, cat.id || cat._id);
+            list.push({ value: cat.name, label: `${cat.name} (${count})`, rawLabel: cat.name, id: cat.id || cat._id, count });
           }
         });
       });
@@ -569,16 +601,44 @@ export default function BdePoOrders() {
         kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase();
       if (indOk && kit.category_name && !seen.has(kit.category_name.toLowerCase())) {
         seen.add(kit.category_name.toLowerCase());
-        list.push({ value: kit.category_name, label: kit.category_name, id: kit.category_id });
+        const count = getCount(kit.category_name, kit.category_id);
+        list.push({ value: kit.category_name, label: `${kit.category_name} (${count})`, rawLabel: kit.category_name, id: kit.category_id, count });
       }
     });
 
-    return [{ value: 'all', label: 'All Categories' }, ...list];
+    return [{ value: 'all', label: `All Categories (${kitsInCurrentIndustry.length})`, count: kitsInCurrentIndustry.length }, ...list];
   }, [shopHierarchy, availableKits, quickFilters.industryType]);
 
   const subCategoryOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    // Kits matching current industry and category filter
+    const kitsInCurrentCat = availableKits.filter((k) => {
+      if (quickFilters.industryType !== "all") {
+        const indVal = quickFilters.industryType.toLowerCase();
+        const kInd = (k.industry_type_name || "").toLowerCase();
+        const kIndId = String(k.industry_type_id || "");
+        if (kInd !== indVal && kIndId !== indVal && !kInd.includes(indVal)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const catVal = quickFilters.category.toLowerCase();
+        const kCat = (k.category_name || "").toLowerCase();
+        const kCatId = String(k.category_id || "");
+        if (kCat !== catVal && kCatId !== catVal && !kCat.includes(catVal)) return false;
+      }
+      return true;
+    });
+
+    const getCount = (name, id) => {
+      const targetName = (name || "").toLowerCase();
+      const targetId = id ? String(id) : null;
+      return kitsInCurrentCat.filter((k) => {
+        const kName = (k.subcategory_name || "").toLowerCase();
+        const kId = k.subcategory_id ? String(k.subcategory_id) : null;
+        return (kName && (kName === targetName || kName.includes(targetName))) || (targetId && kId && kId === targetId);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -599,7 +659,8 @@ export default function BdePoOrders() {
             (cat.subcategories || []).forEach((sub) => {
               if (sub.name && !seen.has(sub.name.toLowerCase())) {
                 seen.add(sub.name.toLowerCase());
-                list.push({ value: sub.name, label: sub.name, id: sub.id || sub._id });
+                const count = getCount(sub.name, sub.id || sub._id);
+                list.push({ value: sub.name, label: `${sub.name} (${count})`, rawLabel: sub.name, id: sub.id || sub._id, count });
               }
             });
           }
@@ -616,16 +677,48 @@ export default function BdePoOrders() {
         kit.category_name?.toLowerCase() === quickFilters.category.toLowerCase();
       if (indOk && catOk && kit.subcategory_name && !seen.has(kit.subcategory_name.toLowerCase())) {
         seen.add(kit.subcategory_name.toLowerCase());
-        list.push({ value: kit.subcategory_name, label: kit.subcategory_name, id: kit.subcategory_id });
+        const count = getCount(kit.subcategory_name, kit.subcategory_id);
+        list.push({ value: kit.subcategory_name, label: `${kit.subcategory_name} (${count})`, rawLabel: kit.subcategory_name, id: kit.subcategory_id, count });
       }
     });
 
-    return [{ value: 'all', label: 'All Sub-Categories' }, ...list];
+    return [{ value: 'all', label: `All Sub-Categories (${kitsInCurrentCat.length})`, count: kitsInCurrentCat.length }, ...list];
   }, [shopHierarchy, availableKits, quickFilters.industryType, quickFilters.category]);
 
   const systemTypeOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    // Kits matching current industry, category, and subcategory filter
+    const kitsInCurrentSub = availableKits.filter((k) => {
+      if (quickFilters.industryType !== "all") {
+        const indVal = quickFilters.industryType.toLowerCase();
+        const kInd = (k.industry_type_name || "").toLowerCase();
+        const kIndId = String(k.industry_type_id || "");
+        if (kInd !== indVal && kIndId !== indVal && !kInd.includes(indVal)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const catVal = quickFilters.category.toLowerCase();
+        const kCat = (k.category_name || "").toLowerCase();
+        const kCatId = String(k.category_id || "");
+        if (kCat !== catVal && kCatId !== catVal && !kCat.includes(catVal)) return false;
+      }
+      if (quickFilters.subCategory !== "all") {
+        const subVal = quickFilters.subCategory.toLowerCase();
+        const kSub = (k.subcategory_name || "").toLowerCase();
+        const kSubId = String(k.subcategory_id || "");
+        if (kSub !== subVal && kSubId !== subVal && !kSub.includes(subVal)) return false;
+      }
+      return true;
+    });
+
+    const getCount = (name) => {
+      const target = (name || "").toLowerCase();
+      return kitsInCurrentSub.filter((k) => {
+        const sys = (k.system_type || "").toLowerCase();
+        return sys === target || sys.includes(target) || target.includes(sys);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -650,7 +743,8 @@ export default function BdePoOrders() {
                 (sub.mappedTypes || []).forEach((mt) => {
                   if (mt.name && !seen.has(mt.name.toLowerCase())) {
                     seen.add(mt.name.toLowerCase());
-                    list.push({ value: mt.name, label: mt.name, id: mt.id || mt.type_id });
+                    const count = getCount(mt.name);
+                    list.push({ value: mt.name, label: `${mt.name} (${count})`, rawLabel: mt.name, id: mt.id || mt.type_id, count });
                   }
                 });
               }
@@ -674,17 +768,59 @@ export default function BdePoOrders() {
         const sys = kit.system_type || 'On-Grid';
         if (sys && !seen.has(sys.toLowerCase())) {
           seen.add(sys.toLowerCase());
-          list.push({ value: sys, label: sys, id: sys });
+          const count = getCount(sys);
+          list.push({ value: sys, label: `${sys} (${count})`, rawLabel: sys, id: sys, count });
         }
       }
     });
 
-    return [{ value: 'all', label: 'All System Types' }, ...list];
+    return [{ value: 'all', label: `All System Types (${kitsInCurrentSub.length})`, count: kitsInCurrentSub.length }, ...list];
   }, [shopHierarchy, availableKits, quickFilters.industryType, quickFilters.category, quickFilters.subCategory]);
 
   const projectRangeOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    // Kits matching current industry, category, subcategory, and systemType
+    const kitsInCurrentSys = availableKits.filter((k) => {
+      if (quickFilters.industryType !== "all") {
+        const indVal = quickFilters.industryType.toLowerCase();
+        const kInd = (k.industry_type_name || "").toLowerCase();
+        const kIndId = String(k.industry_type_id || "");
+        if (kInd !== indVal && kIndId !== indVal && !kInd.includes(indVal)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const catVal = quickFilters.category.toLowerCase();
+        const kCat = (k.category_name || "").toLowerCase();
+        const kCatId = String(k.category_id || "");
+        if (kCat !== catVal && kCatId !== catVal && !kCat.includes(catVal)) return false;
+      }
+      if (quickFilters.subCategory !== "all") {
+        const subVal = quickFilters.subCategory.toLowerCase();
+        const kSub = (k.subcategory_name || "").toLowerCase();
+        const kSubId = String(k.subcategory_id || "");
+        if (kSub !== subVal && kSubId !== subVal && !kSub.includes(subVal)) return false;
+      }
+      if (quickFilters.systemType !== "all") {
+        const sysVal = quickFilters.systemType.toLowerCase();
+        const kSys = (k.system_type || "").toLowerCase();
+        if (kSys !== sysVal && !kSys.includes(sysVal) && !sysVal.includes(kSys)) return false;
+      }
+      return true;
+    });
+
+    const getCount = (label, minKw, maxKw) => {
+      const targetLabel = (label || "").toLowerCase();
+      return kitsInCurrentSys.filter((k) => {
+        const kLabel = (k.project_range_label || "").toLowerCase();
+        if (kLabel && (kLabel === targetLabel || kLabel.includes(targetLabel))) return true;
+        const cap = Number(k.capacity_kw);
+        if (!isNaN(cap) && minKw != null && maxKw != null) {
+          return cap >= Number(minKw) && cap <= Number(maxKw);
+        }
+        return false;
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -716,7 +852,8 @@ export default function BdePoOrders() {
                       const label = r.range_label || `${r.min_value} - ${r.max_value} ${r.unit_symbol || 'kW'}`;
                       if (label && !seen.has(label.toLowerCase())) {
                         seen.add(label.toLowerCase());
-                        list.push({ value: label, label: label, id: r.id || r._id, min: r.min_value, max: r.max_value });
+                        const count = getCount(label, r.min_value, r.max_value);
+                        list.push({ value: label, label: `${label} (${count})`, rawLabel: label, id: r.id || r._id, min: r.min_value, max: r.max_value, count });
                       }
                     });
                   }
@@ -732,11 +869,12 @@ export default function BdePoOrders() {
       const label = kit.project_range_label || (kit.capacity_kw ? `${kit.capacity_kw} kW System` : null);
       if (label && !seen.has(label.toLowerCase())) {
         seen.add(label.toLowerCase());
-        list.push({ value: label, label: label, id: kit.project_range_id, min: kit.min_kw, max: kit.max_kw });
+        const count = getCount(label, kit.min_kw, kit.max_kw);
+        list.push({ value: label, label: `${label} (${count})`, rawLabel: label, id: kit.project_range_id, min: kit.min_kw, max: kit.max_kw, count });
       }
     });
 
-    return [{ value: 'all', label: 'All Project Ranges' }, ...list];
+    return [{ value: 'all', label: `All Project Ranges (${kitsInCurrentSys.length})`, count: kitsInCurrentSys.length }, ...list];
   }, [shopHierarchy, availableKits, quickFilters.industryType, quickFilters.category, quickFilters.subCategory, quickFilters.systemType]);
 
   const handleClearMainFilters = () => {

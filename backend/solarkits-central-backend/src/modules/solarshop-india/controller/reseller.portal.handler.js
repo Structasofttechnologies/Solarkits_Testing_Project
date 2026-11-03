@@ -1766,20 +1766,10 @@ const get_reseller_authorized_products = async (req, res) => {
       }
     }
 
-    // 4. Enrich items with plan product-wise commission & MOQ rules
+    // 4. Enrich items with plan product-wise MOQ rules
     if (activePlan) {
-      const { FranchiseeCommissionRule, FranchiseeMoqRule } = require('../../admin-panel/models/india_solarshop_db');
-      const [commRules, moqRules] = await Promise.all([
-        FranchiseeCommissionRule.find({ plan_id: activePlan._id, is_active: true, deleted_at: null }).lean(),
-        FranchiseeMoqRule.find({ plan_id: activePlan._id, is_active: true, deleted_at: null }).lean(),
-      ]);
-
-      const commMap = {};
-      let defaultComm = null;
-      commRules.forEach((r) => {
-        if (r.combo_kit_id) commMap[r.combo_kit_id.toString()] = r;
-        else defaultComm = r;
-      });
+      const { FranchiseeMoqRule } = require('../../admin-panel/models/india_solarshop_db');
+      const moqRules = await FranchiseeMoqRule.find({ plan_id: activePlan._id, is_active: true, deleted_at: null }).lean();
 
       const moqMap = {};
       let defaultMoq = null;
@@ -1790,14 +1780,8 @@ const get_reseller_authorized_products = async (req, res) => {
 
       for (const [key, item] of itemMap.entries()) {
         const kitId = item.id ? item.id.toString() : (item._id ? item._id.toString() : null);
-        const comm = kitId && commMap[kitId] ? commMap[kitId] : null;
         const moqR = (kitId && moqMap[kitId]) || defaultMoq;
 
-        if (comm) {
-          item.commission_method = comm.commission_method;
-          item.commission_percentage = comm.commission_percentage;
-          item.fixed_amount_per_kit_paise = comm.fixed_amount_per_kit_paise;
-        }
         if (moqR) {
           item.moq = moqR.moq;
           item.increment_quantity = moqR.increment_quantity;
@@ -1825,14 +1809,9 @@ const get_reseller_authorized_products = async (req, res) => {
 const get_reseller_commission_rates = async (req, res) => {
   try {
     const resellerId = req.reseller._id;
-    const {
-      ResellerPlanSubscription,
-      FranchiseeCommissionRule,
-      FranchiseeVariationCommission,
-    } = require('../../admin-panel/models/india_solarshop_db');
-    const { WarehouseComboKit } = require('../../admin-panel/models/core_db');
+    const { FranchiseeVariationCommission } = require('../../admin-panel/models/india_solarshop_db');
 
-    // 1. Check if individual variation commission rules are configured for this franchise
+    // Fetch individual variation commission rules configured for this franchise in Admin Settings
     const individualRules = await FranchiseeVariationCommission.find({
       reseller_id: resellerId,
       is_active: true,
@@ -1849,77 +1828,7 @@ const get_reseller_commission_rates = async (req, res) => {
       return res.json({ status: 'success', data: rates });
     }
 
-    const activeSub = await ResellerPlanSubscription.findOne({
-      reseller_id: resellerId,
-      status: 'active',
-    }).populate('plan_id').sort({ start_date: -1 }).lean();
-
-    if (!activeSub || !activeSub.plan_id) {
-      return res.json({ status: 'success', data: [] });
-    }
-
-    const planId = activeSub.plan_id._id || activeSub.plan_id;
-    const commRules = await FranchiseeCommissionRule.find({
-      plan_id: planId,
-      is_active: true,
-      deleted_at: null,
-    }).lean();
-
-    if (!commRules || commRules.length === 0) {
-      return res.json({ status: 'success', data: [] });
-    }
-
-    // Only return commission rates for kits where commission has been explicitly configured
-    const kitRules = commRules.filter((r) => r.combo_kit_id);
-    if (kitRules.length === 0) {
-      return res.json({ status: 'success', data: [] });
-    }
-
-    const uniqueKitIds = Array.from(new Set(kitRules.map((r) => r.combo_kit_id.toString()))).filter((id) => mongoose.Types.ObjectId.isValid(id));
-    if (uniqueKitIds.length === 0) {
-      return res.json({ status: 'success', data: [] });
-    }
-
-    const comboKits = await WarehouseComboKit.find({
-      _id: { $in: uniqueKitIds },
-      is_active: { $ne: false },
-      deleted_at: null,
-    }).lean();
-
-    const rates = [];
-    const standardTiers = [1, 5, 10, 25, 50, 100];
-
-    comboKits.forEach((kit) => {
-      const kitId = kit._id.toString();
-      const rule = kitRules.find((r) => r.combo_kit_id && r.combo_kit_id.toString() === kitId);
-      if (!rule) return;
-
-      const pricePaise = Math.round((kit.base_price_cached || kit.selling_price_cached || kit.base_price || 50000) * 100);
-
-      let perKitPaise = 0;
-      if (rule.commission_method === 'PERCENTAGE') {
-        perKitPaise = Math.round(pricePaise * ((rule.commission_percentage || 0) / 100));
-      } else {
-        perKitPaise = rule.fixed_amount_per_kit_paise || 0;
-      }
-
-      standardTiers.forEach((qty) => {
-        ['po', 'loose'].forEach((orderType) => {
-          rates.push({
-            combo_kit_id: kitId,
-            order_quantity: qty,
-            order_type: orderType,
-            commission_percentage: rule.commission_percentage,
-            commission_amount_paise: perKitPaise,
-          });
-        });
-      });
-    });
-
-    return res.json({
-      status: 'success',
-      data: rates,
-    });
+    return res.json({ status: 'success', data: [] });
   } catch (error) {
     console.error('[reseller.portal] get_reseller_commission_rates error:', error);
     return res.status(500).json({ status: 'error', message: 'Internal server error' });
@@ -2145,8 +2054,9 @@ const list_my_epc_orders = async (req, res) => {
       status: { $ne: 'CANCELLED' },
     }).sort({ created_at: -1 }).lean();
 
-    // Check commission ledger status and plan defaults
-    const [ledgers, fpoLedgers, resellerPlan] = await Promise.all([
+    // Check commission ledger status, plan defaults and variation commission rules
+    const { FranchiseeVariationCommission } = require('../../admin-panel/models/india_solarshop_db');
+    const [ledgers, fpoLedgers, resellerPlan, variationRules] = await Promise.all([
       ResellerWalletLedger.find({
         reseller_id: resellerId,
         transaction_type: 'commission_credit',
@@ -2155,6 +2065,11 @@ const list_my_epc_orders = async (req, res) => {
         franchisee_id: resellerId,
       }).lean(),
       req.reseller.active_plan_id ? ResellerPlan.findById(req.reseller.active_plan_id).lean() : null,
+      FranchiseeVariationCommission.find({
+        reseller_id: resellerId,
+        is_active: true,
+        deleted_at: null,
+      }).sort({ order_quantity: -1 }).lean(),
     ]);
 
     const ledgerMap = {};
@@ -2277,38 +2192,58 @@ const list_my_epc_orders = async (req, res) => {
             const subtotal = item.unit_price_paise ? Math.round((alloc.allocated_quantity * item.unit_price_paise) / 100) : Math.round(totalAmount / (1 + (item.gst_rate || 12) / 100));
             const taxAmount = totalAmount - subtotal;
 
-            // Resolve dynamic commission rate from item snapshot, FPO rule snapshot, or plan
-            let commissionRate = 2.0;
-            const commMethod = item.commission_method || f.commission_rule_snapshot?.commission_method || 'PERCENTAGE';
-
-            if (commMethod === 'PERCENTAGE') {
-              if (item.commission_snapshot != null && item.commission_snapshot > 0) {
-                commissionRate = item.commission_snapshot >= 50 ? (item.commission_snapshot / 100) : item.commission_snapshot;
-              } else if (f.commission_rule_snapshot?.commission_percentage != null) {
-                commissionRate = f.commission_rule_snapshot.commission_percentage;
-              } else if (f.plan_snapshot?.default_commission_rate != null) {
-                commissionRate = f.plan_snapshot.default_commission_rate;
-              } else if (resellerPlan?.default_commission_rate != null) {
-                commissionRate = resellerPlan.default_commission_rate;
-              }
-            }
-
-            // Calculate gross margin based on method
-            let grossMargin = 0;
-            if (commMethod === 'FIXED_PER_KIT') {
-              const fixedPaise = (item.commission_snapshot && item.commission_snapshot < 5000000) ? item.commission_snapshot : (f.commission_rule_snapshot?.fixed_amount_per_kit_paise || 0);
-              grossMargin = Math.round((alloc.allocated_quantity * fixedPaise) / 100);
-              commissionRate = subtotal > 0 ? Math.round((grossMargin / subtotal) * 100 * 10) / 10 : 0;
-            } else {
-              // Standard percentage commission on base taxable subtotal
-              grossMargin = Math.round(subtotal * (commissionRate / 100));
-            }
-
-            // Check if settled in FPO commission ledger
+            // Check if settled in FPO commission ledger first
             const fpoLedger = fpoLedgerMap[f._id.toString()] || fpoLedgerMap[f.po_number];
+            let grossMargin = 0;
+            let commissionRate = 0;
+
             if (fpoLedger?.net_commission_paise) {
               const ratio = (item.quantity > 0 && alloc.allocated_quantity < item.quantity) ? (alloc.allocated_quantity / item.quantity) : 1;
               grossMargin = Math.round((fpoLedger.commission_paise / 100) * ratio);
+              commissionRate = subtotal > 0 ? Math.round((grossMargin / subtotal) * 100 * 10) / 10 : 0;
+            } else {
+              // Check individual variation commission configured in Franchise Commission Settings
+              const comboKitId = (item.combo_kit_id || item.kit_id)?.toString();
+              const allocQty = parseInt(alloc.allocated_quantity, 10) || 1;
+              const matchingRules = (variationRules || []).filter(
+                (r) => (r.combo_kit_id?._id || r.combo_kit_id)?.toString() === comboKitId && r.order_type === 'loose'
+              );
+
+              let matchedPaise = null;
+              if (matchingRules.length > 0) {
+                const exact = matchingRules.find((r) => r.order_quantity === allocQty);
+                if (exact) {
+                  matchedPaise = exact.commission_amount_paise;
+                } else {
+                  const lower = matchingRules.find((r) => r.order_quantity <= allocQty);
+                  matchedPaise = lower ? lower.commission_amount_paise : matchingRules[matchingRules.length - 1].commission_amount_paise;
+                }
+              }
+
+              if (matchedPaise !== null && matchedPaise >= 0) {
+                grossMargin = Math.round(matchedPaise / 100);
+                commissionRate = subtotal > 0 ? Math.round((grossMargin / subtotal) * 100 * 10) / 10 : 0;
+              } else {
+                const commMethod = item.commission_method || f.commission_rule_snapshot?.commission_method || 'PERCENTAGE';
+                if (commMethod === 'FIXED_PER_KIT') {
+                  const fixedPaise = (item.commission_snapshot && item.commission_snapshot < 5000000) ? item.commission_snapshot : (f.commission_rule_snapshot?.fixed_amount_per_kit_paise || 0);
+                  grossMargin = Math.round((alloc.allocated_quantity * fixedPaise) / 100);
+                  commissionRate = subtotal > 0 ? Math.round((grossMargin / subtotal) * 100 * 10) / 10 : 0;
+                } else {
+                  let pct = 0;
+                  if (item.commission_snapshot != null && item.commission_snapshot > 0) {
+                    pct = item.commission_snapshot >= 50 ? (item.commission_snapshot / 100) : item.commission_snapshot;
+                  } else if (f.commission_rule_snapshot?.commission_percentage != null) {
+                    pct = f.commission_rule_snapshot.commission_percentage;
+                  } else if (f.plan_snapshot?.default_commission_rate != null) {
+                    pct = f.plan_snapshot.default_commission_rate;
+                  } else if (resellerPlan?.default_commission_rate != null) {
+                    pct = resellerPlan.default_commission_rate;
+                  }
+                  commissionRate = pct;
+                  grossMargin = Math.round(subtotal * (pct / 100));
+                }
+              }
             }
 
             const isVerified = alloc.payment_status === 'VERIFIED' || f.status === 'PAID';
@@ -3545,25 +3480,44 @@ const get_my_plan_po_settings = async (req, res) => {
       console.warn('[reseller.portal] Warning enriching combo kit taxonomy:', enrichErr.message);
     }
 
-    // Determine flat token booking for PO setting (default ₹35,000 flat per PO order, NOT per kit)
-    const tokenBookingEnabled = defSetting?.token_booking_enabled !== false;
-    const resolvedTokenValue = (defSetting?.token_value != null && Number(defSetting.token_value) > 0)
-      ? Number(defSetting.token_value)
-      : 35000;
-    const resolvedTokenRatePaise = 0; // Token is flat for the PO order, NOT per kit
+    // Determine kit-specific PO rules & flat token booking for each combo kit
+    const comboKits = enrichedFoundKits.map((k) => {
+      const kIdStr = String(k._id || k.id);
 
-    const comboKits = enrichedFoundKits.map((k) => ({
-      ...k,
-      po_setting_id: defSetting?._id || null,
-      min_po_quantity: defSetting?.min_po_quantity ?? 1,
-      max_po_quantity: defSetting?.max_po_quantity ?? null,
-      po_validity_days: defSetting?.po_validity_days ?? 30,
-      po_lock_days: defSetting?.po_lock_days ?? 30,
-      token_booking_enabled: tokenBookingEnabled,
-      token_type: defSetting?.token_type || 'FIXED_AMOUNT',
-      token_value: resolvedTokenValue,
-      token_rate_per_kit_paise: 0,
-    }));
+      // 1. Look for specific PO setting configured for this kit
+      let matchedSetting = poSettingsList.find((s) =>
+        Array.isArray(s.allowed_combo_kit_ids) &&
+        s.allowed_combo_kit_ids.some((id) => String(id._id || id.id || id) === kIdStr)
+      );
+
+      // 2. Fallback to plan-wide default setting (empty allowed_combo_kit_ids)
+      if (!matchedSetting) {
+        matchedSetting = poSettingsList.find((s) =>
+          !s.allowed_combo_kit_ids || s.allowed_combo_kit_ids.length === 0
+        );
+      }
+
+      // 3. Ultimate fallback to defSetting or defaults
+      const activeSetting = matchedSetting || defSetting;
+
+      const kitTokenEnabled = activeSetting?.token_booking_enabled !== false;
+      const kitTokenValue = (activeSetting?.token_value != null && Number(activeSetting.token_value) > 0)
+        ? Number(activeSetting.token_value)
+        : 35000;
+
+      return {
+        ...k,
+        po_setting_id: activeSetting?._id || null,
+        min_po_quantity: activeSetting?.min_po_quantity ?? 1,
+        max_po_quantity: activeSetting?.max_po_quantity ?? null,
+        po_validity_days: activeSetting?.po_validity_days ?? 30,
+        po_lock_days: activeSetting?.po_lock_days ?? 30,
+        token_booking_enabled: kitTokenEnabled,
+        token_type: activeSetting?.token_type || 'FIXED_AMOUNT',
+        token_value: kitTokenValue,
+        token_rate_per_kit_paise: 0,
+      };
+    });
 
     // Deduplicate combo kits
     const uniqueKitsMap = new Map();

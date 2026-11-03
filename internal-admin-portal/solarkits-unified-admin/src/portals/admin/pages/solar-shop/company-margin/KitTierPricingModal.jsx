@@ -13,7 +13,8 @@ import {
   FaCoins,
   FaReceipt,
   FaArrowUp,
-  FaArrowDown
+  FaArrowDown,
+  FaExclamationTriangle
 } from "react-icons/fa";
 import Dialog from "@/components/Dialog";
 import Button from "@/components/Button";
@@ -211,6 +212,29 @@ export default function KitTierPricingModal({
     setPoTiers((prev) =>
       prev.map((t) => (t.quantity === quantity ? { ...t, margin_amount: value } : t))
     );
+  };
+
+  // Update Target Per-Kit Price (inclusive of GST) - auto computes margin_amount
+  const handleTargetPriceChange = (quantity, targetPriceWithGst, type) => {
+    const target = parseFloat(targetPriceWithGst);
+    if (isNaN(target) || target <= 0) {
+      if (type === "loose") handleLooseMarginChange(quantity, "");
+      else handlePoMarginChange(quantity, "");
+      return;
+    }
+    const gstRateNum = Number(commonGstRate) || 0;
+    const gstMultiplier = 1 + gstRateNum / 100;
+    const priceExclGst = target / gstMultiplier;
+    const computedMargin = Math.round(priceExclGst - baseCost);
+    if (type === "loose") {
+      setLooseTiers((prev) =>
+        prev.map((t) => (t.quantity === quantity ? { ...t, margin_amount: computedMargin } : t))
+      );
+    } else {
+      setPoTiers((prev) =>
+        prev.map((t) => (t.quantity === quantity ? { ...t, margin_amount: computedMargin } : t))
+      );
+    }
   };
 
   // Delete a tier
@@ -547,8 +571,8 @@ export default function KitTierPricingModal({
             type="button"
             onClick={() => setActiveTab("loose")}
             className={`flex-1 flex items-center justify-center gap-2.5 py-3 px-4 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer border-none outline-none ${activeTab === "loose"
-                ? "bg-sky-600 text-white shadow-md shadow-sky-600/25"
-                : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+              ? "bg-sky-600 text-white shadow-md shadow-sky-600/25"
+              : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
               }`}
           >
             <FaBoxOpen size={15} />
@@ -565,8 +589,8 @@ export default function KitTierPricingModal({
             type="button"
             onClick={() => setActiveTab("po")}
             className={`flex-1 flex items-center justify-center gap-2.5 py-3 px-4 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer border-none outline-none ${activeTab === "po"
-                ? "bg-amber-600 text-white shadow-md shadow-amber-600/25"
-                : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+              ? "bg-amber-600 text-white shadow-md shadow-amber-600/25"
+              : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
               }`}
           >
             <FaIndustry size={15} />
@@ -583,8 +607,8 @@ export default function KitTierPricingModal({
         {/* Description Banner */}
         <div
           className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between text-xs font-medium gap-3 ${activeTab === "loose"
-              ? "bg-sky-500/10 border-sky-500/20 text-sky-900 dark:text-sky-200"
-              : "bg-amber-500/10 border-amber-500/20 text-amber-900 dark:text-amber-200"
+            ? "bg-sky-500/10 border-sky-500/20 text-sky-900 dark:text-sky-200"
+            : "bg-amber-500/10 border-amber-500/20 text-amber-900 dark:text-amber-200"
             }`}
         >
           <div className="flex items-center gap-2.5">
@@ -662,8 +686,8 @@ export default function KitTierPricingModal({
                           <div className="flex items-center gap-2">
                             <span
                               className={`px-3 py-1.5 rounded-xl font-mono font-black text-xs border shadow-2xs ${activeTab === "loose"
-                                  ? "bg-sky-500/10 text-sky-700 border-sky-500/25"
-                                  : "bg-amber-500/10 text-amber-800 border-amber-500/25"
+                                ? "bg-sky-500/10 text-sky-700 border-sky-500/25"
+                                : "bg-amber-500/10 text-amber-800 border-amber-500/25"
                                 }`}
                             >
                               {tier.quantity} KITS
@@ -693,23 +717,40 @@ export default function KitTierPricingModal({
 
                         {/* 3. Company Margin (₹) Editable Input */}
                         <td className="px-4 py-3.5">
-                          <div className="relative max-w-xs">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono font-bold text-xs text-text-muted">
-                              ₹
-                            </span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              placeholder="Enter Margin in ₹"
-                              value={tier.margin_amount}
-                              onChange={(e) =>
-                                activeTab === "loose"
-                                  ? handleLooseMarginChange(tier.quantity, e.target.value)
-                                  : handlePoMarginChange(tier.quantity, e.target.value)
-                              }
-                              className="w-full pl-7 pr-3 py-2 bg-surface rounded-xl border border-border text-xs font-mono font-black text-text-primary focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all shadow-2xs"
-                            />
+                          <div className="flex flex-col gap-1.5 max-w-xs">
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono font-bold text-xs text-text-muted">
+                                ₹
+                              </span>
+                              <input
+                                type="number"
+                                step="1"
+                                placeholder="Enter Margin in ₹"
+                                value={tier.margin_amount}
+                                onChange={(e) =>
+                                  activeTab === "loose"
+                                    ? handleLooseMarginChange(tier.quantity, e.target.value)
+                                    : handlePoMarginChange(tier.quantity, e.target.value)
+                                }
+                                className="w-full pl-7 pr-3 py-1.5 bg-surface rounded-xl border border-border text-xs font-mono font-black text-text-primary focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all shadow-2xs"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5 bg-surface-hover/70 px-2 py-1 rounded-lg border border-border/50">
+                              <span className="text-[9px] text-text-muted font-bold whitespace-nowrap">Target Price:</span>
+                              <div className="relative flex-1">
+                                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 font-mono text-[9px] text-text-muted">₹</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  placeholder="Kit Price"
+                                  value={hasValidMargin ? finalPerKit : ""}
+                                  onChange={(e) => handleTargetPriceChange(tier.quantity, e.target.value, activeTab)}
+                                  className="w-full pl-3.5 pr-1 py-0.5 bg-surface border border-border/80 rounded text-[10px] font-mono font-bold text-text-primary outline-none focus:border-primary"
+                                  title="Type desired per-kit price directly; margin will calculate automatically"
+                                />
+                              </div>
+                            </div>
                           </div>
                         </td>
 
@@ -718,10 +759,10 @@ export default function KitTierPricingModal({
                           {hasValidMargin ? (
                             <span
                               className={`inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-lg border w-fit font-mono ${marginPercent > 0
-                                  ? "text-emerald-700 bg-emerald-500/10 border-emerald-500/25 dark:text-emerald-300"
-                                  : marginPercent === 0
-                                    ? "text-text-muted bg-surface-hover border-border"
-                                    : "text-rose-600 bg-rose-500/10 border-rose-500/25"
+                                ? "text-emerald-700 bg-emerald-500/10 border-emerald-500/25 dark:text-emerald-300"
+                                : marginPercent === 0
+                                  ? "text-text-muted bg-surface-hover border-border"
+                                  : "text-rose-600 bg-rose-500/10 border-rose-500/25"
                                 }`}
                               title="Margin percentage on Kit Base Cost (Without GST)"
                             >
@@ -744,6 +785,11 @@ export default function KitTierPricingModal({
                             {hasValidMargin && (
                               <span className="text-[8px] text-text-muted font-bold mt-0.5">
                                 Base + Margin + {gstRateNum}% GST
+                              </span>
+                            )}
+                            {hasValidMargin && baselineKitPrice > 0 && finalPerKit > baselineKitPrice && (
+                              <span className="text-[9px] font-bold text-amber-700 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded flex items-center gap-1 mt-1 leading-tight" title="Per-kit price is higher than 1-Kit Baseline!">
+                                <FaExclamationTriangle size={9} className="shrink-0 text-amber-600" /> &gt; 1-Kit Baseline!
                               </span>
                             )}
                           </div>
@@ -805,8 +851,8 @@ export default function KitTierPricingModal({
                       disabled={alreadyExists}
                       onClick={() => handleQuickAddTier(presetQty, activeTab)}
                       className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition cursor-pointer ${alreadyExists
-                          ? "bg-primary/10 text-primary border-primary/30 cursor-not-allowed opacity-60"
-                          : "bg-surface border-border text-text-secondary hover:bg-primary/10 hover:text-primary hover:border-primary/40"
+                        ? "bg-primary/10 text-primary border-primary/30 cursor-not-allowed opacity-60"
+                        : "bg-surface border-border text-text-secondary hover:bg-primary/10 hover:text-primary hover:border-primary/40"
                         }`}
                     >
                       {alreadyExists ? `✓ ${presetQty} Kits` : `+ ${presetQty} Kits`}

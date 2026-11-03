@@ -234,7 +234,20 @@ async function createPoDraft({
     penalty_rules: [],
   };
 
-  const po_settings = (allPlanPoSettings && allPlanPoSettings.length > 0) ? allPlanPoSettings[0] : defaultPoSetting;
+  // Resolve specific PO setting for the ordered kit, with fallback to plan-wide default
+  const orderedKitId = items[0]?.kit_id || items[0]?.combo_kit_id;
+  let specificPoSetting = null;
+  if (orderedKitId && allPlanPoSettings.length > 0) {
+    const targetKitStr = String(orderedKitId);
+    specificPoSetting = allPlanPoSettings.find((s) =>
+      Array.isArray(s.allowed_combo_kit_ids) &&
+      s.allowed_combo_kit_ids.some((id) => String(id._id || id.id || id) === targetKitStr)
+    );
+  }
+  const planDefaultPoSetting = allPlanPoSettings.find((s) =>
+    !s.allowed_combo_kit_ids || s.allowed_combo_kit_ids.length === 0
+  );
+  const po_settings = specificPoSetting || planDefaultPoSetting || (allPlanPoSettings.length > 0 ? allPlanPoSettings[0] : defaultPoSetting);
 
   // Validate that items are authorized under the plan's PO settings and category allocations
   const authorizedKitIds = new Set();
@@ -1062,7 +1075,19 @@ async function createPoDraft({
           deleted_at: null,
         }).lean();
       }
-      const po_settings = (allPlanPoSettings && allPlanPoSettings.length > 0) ? allPlanPoSettings[0] : (order.po_settings_snapshot || {});
+      const allocatedKitId = items[0]?.kit_id || items[0]?.combo_kit_id || order.items?.[0]?.kit_id;
+      let specificPoSetting = null;
+      if (allocatedKitId && allPlanPoSettings.length > 0) {
+        const targetKitStr = String(allocatedKitId);
+        specificPoSetting = allPlanPoSettings.find((s) =>
+          Array.isArray(s.allowed_combo_kit_ids) &&
+          s.allowed_combo_kit_ids.some((id) => String(id._id || id.id || id) === targetKitStr)
+        );
+      }
+      const planDefaultPoSetting = allPlanPoSettings.find((s) =>
+        !s.allowed_combo_kit_ids || s.allowed_combo_kit_ids.length === 0
+      );
+      const po_settings = specificPoSetting || planDefaultPoSetting || (allPlanPoSettings.length > 0 ? allPlanPoSettings[0] : (order.po_settings_snapshot || {}));
 
       const validationResults = await validatePoItems(items, plan_id, po_settings);
       const failures = validationResults.filter((r) => !r.valid);
