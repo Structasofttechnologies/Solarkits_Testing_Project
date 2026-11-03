@@ -15,6 +15,7 @@ import {
   FiMapPin,
   FiUsers,
   FiArrowUpRight,
+  FiCheckCircle,
 } from 'react-icons/fi';
 import { FaStore } from 'react-icons/fa';
 
@@ -62,8 +63,8 @@ export default function CartAbandonmentSection({ data = {} }) {
         </div>
       </div>
 
-      {/* Top Abandoned Detection Banner (Admin & BDE Immediate Alert) */}
-      {detectionAlert && (
+      {/* Top Abandoned Detection Banner or Healthy Pipeline Banner */}
+      {detectionAlert ? (
         <div className="bg-gradient-to-r from-rose-500/10 via-amber-500/5 to-rose-500/5 border border-rose-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-start gap-2.5">
             <FiAlertOctagon className="text-rose-600 shrink-0 mt-0.5 text-base" />
@@ -86,6 +87,25 @@ export default function CartAbandonmentSection({ data = {} }) {
               {totalAbandoned} / {totalCreated} Carts
             </span>
           </div>
+        </div>
+      ) : (
+        <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-3.5 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1 rounded-full bg-emerald-100 text-emerald-600">
+              <FiCheckCircle size={16} />
+            </div>
+            <div>
+              <span className="font-black text-emerald-800 uppercase tracking-wide text-[10px]">
+                Pipeline Healthy — Zero Drop-offs Detected:
+              </span>
+              <div className="text-text-muted mt-0.5">
+                No abandoned carts detected across verified EPC accounts for this period. All active cart sessions converted smoothly.
+              </div>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 bg-emerald-100/80 text-emerald-800 font-bold rounded-lg text-[10px]">
+            0 Abandoned
+          </span>
         </div>
       )}
 
