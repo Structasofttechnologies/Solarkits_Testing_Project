@@ -32,6 +32,7 @@ import {
 import { authHeaderObj } from "@/app/authHeader";
 import Loader from "@/components/Loader";
 import Product8StageJourneyModal from "../../components/Product8StageJourneyModal";
+import PoContractModal from "@/components/PoContractModal";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -123,6 +124,15 @@ export default function FranchiseePoOrdersAccounts() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [contractModalOpen, setContractModalOpen] = useState(false);
+  const [contractModalPoId, setContractModalPoId] = useState(null);
+  const [contractModalEpcId, setContractModalEpcId] = useState(null);
+
+  const handleOpenContractModal = (poId, epcId) => {
+    setContractModalPoId(poId);
+    setContractModalEpcId(epcId);
+    setContractModalOpen(true);
+  };
   const [modalTab, setModalTab] = useState("overview"); // "overview" | "token" | "epc_pool" | "repeat_orders"
 
   // Parent Payment / Token Confirmation Modal State
@@ -1064,7 +1074,8 @@ export default function FranchiseePoOrdersAccounts() {
                               <th className="py-2.5 px-3">EPC Buyer Company</th>
                               <th className="py-2.5 px-3">GSTIN</th>
                               <th className="py-2.5 px-3 text-center">Allocated Kits</th>
-                              <th className="py-2.5 px-3 text-center">Payment Status</th>
+                              <th className="py-2.5 px-3 text-center">PO Contract</th>
+                            <th className="py-2.5 px-3 text-center">Payment Status</th>
                               <th className="py-2.5 px-3 text-right">Verification Actions</th>
                             </tr>
                           </thead>
@@ -1091,6 +1102,23 @@ export default function FranchiseePoOrdersAccounts() {
                                   <td className="py-2.5 px-3 text-text-muted text-[11px]">{alloc.gstin || "N/A"}</td>
                                   <td className="py-2.5 px-3 text-center font-black text-primary text-xs">
                                     {alloc.allocated_quantity} Kits
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center">
+                                    {alloc.contract?.status === "SIGNED" ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenContractModal(selectedOrder._id, buyerId?.toString())}
+                                        className="px-2 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 transition-all inline-flex items-center gap-1 cursor-pointer"
+                                        title="View Digitally Signed PO Contract & OTP Verification"
+                                      >
+                                        <FaCheckCircle size={10} className="text-emerald-600" />
+                                        <span>Signed ✓</span>
+                                      </button>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                        <FaClock size={9} /> Pending
+                                      </span>
+                                    )}
                                   </td>
                                   <td className="py-2.5 px-3 text-center">
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${statusBadge.cls}`}>
@@ -1496,6 +1524,14 @@ export default function FranchiseePoOrdersAccounts() {
           }}
         />
       )}
+
+      {/* Universal PO Legal Contract Modal */}
+      <PoContractModal
+        isOpen={contractModalOpen}
+        onClose={() => setContractModalOpen(false)}
+        poId={contractModalPoId}
+        epcBuyerId={contractModalEpcId}
+      />
     </div>
   );
 }

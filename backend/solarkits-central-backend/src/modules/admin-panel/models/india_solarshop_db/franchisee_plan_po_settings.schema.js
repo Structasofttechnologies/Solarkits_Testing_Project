@@ -31,6 +31,31 @@ const amendmentRulesSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const contractClauseSchema = new mongoose.Schema(
+  {
+    title:        { type: String, required: true },
+    body:         { type: String, required: true },
+    is_mandatory: { type: Boolean, default: true },
+  },
+  { _id: false }
+);
+
+const poContractSettingsSchema = new mongoose.Schema(
+  {
+    is_contract_required:    { type: Boolean, default: true },
+    contract_title:          { type: String, default: 'SolarKits EPC Purchase Order & Supply Commitment Agreement' },
+    contract_version:        { type: String, default: '1.0' },
+    validity_days:           { type: Number, default: 30 },
+    require_mobile_otp:      { type: Boolean, default: true },
+    terms_introduction:      { type: String, default: 'This Purchase Order Contract is entered into between the Authorized SolarKits Franchise Partner and the Assigned Solar EPC Contractor for supply commitment and token deposit under the terms set forth below.' },
+    clauses:                 [contractClauseSchema],
+    penalty_clauses_summary: { type: String, default: null },
+    cancellation_terms:      { type: String, default: null },
+    updated_at:              { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const schema = new mongoose.Schema(
   {
     plan_id: {
@@ -128,6 +153,9 @@ const schema = new mongoose.Schema(
     // ── Rules ─────────────────────────────────────────────────────────────────
     cancellation_rules: { type: cancellationRulesSchema, default: () => ({}) },
     amendment_rules:    { type: amendmentRulesSchema, default: () => ({}) },
+
+    // ── PO Order Contract Configuration ──────────────────────────────────────
+    po_contract: { type: poContractSettingsSchema, default: () => ({}) },
 
     // ── Target Contribution ───────────────────────────────────────────────────
     contributes_to_monthly_target: { type: Boolean, default: true },

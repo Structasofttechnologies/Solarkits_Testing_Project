@@ -1201,6 +1201,12 @@ async function createPoDraft({
             const shareRatio = totalItemQty > 0 ? (alloc.allocated_quantity / totalItemQty) : 0;
             alloc.token_amount_paise = Math.round(shareRatio * token_amount_paise);
             alloc.token_payment_status = alloc.token_payment_status || 'PENDING';
+            if (!alloc.contract || !alloc.contract.status) {
+              alloc.contract = {
+                contract_number: "CNT-" + (order.po_number || "PO") + "-" + Math.floor(1000 + Math.random() * 9000),
+                status: 'PENDING_SIGNATURE',
+              };
+            }
           });
         }
       });

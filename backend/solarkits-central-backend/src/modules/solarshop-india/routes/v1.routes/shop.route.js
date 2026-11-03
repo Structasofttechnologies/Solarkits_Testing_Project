@@ -38,6 +38,10 @@ const {
   submit_epc_po_receipt,
   verify_epc_po_payment,
   pay_epc_po_token,
+  get_epc_contract_details,
+  send_epc_contract_otp,
+  verify_epc_contract_otp,
+  get_signed_contract_document,
   list_epc_po_orders,
   get_epc_active_po_quotas,
   create_epc_po_order,
@@ -127,6 +131,12 @@ router.post("/orders/:id/milestone-payment", verify_auth, epcReceiptUpload, subm
 router.get("/po-allocations", verify_auth, get_epc_po_allocations);
 router.post("/po-allocations/:poId/upload-receipt", verify_auth, epcReceiptUpload, submit_epc_po_receipt);
 router.post("/po-allocations/:poId/pay-token", verify_auth, pay_epc_po_token);
+
+// ── EPC PO Contract & Mobile OTP Verification ─────────────────────────────
+router.get("/po-allocations/:poId/contract", verify_auth, get_epc_contract_details);
+router.post("/po-allocations/:poId/send-contract-otp", verify_auth, send_epc_contract_otp);
+router.post("/po-allocations/:poId/verify-contract-otp", verify_auth, verify_epc_contract_otp);
+router.get("/po-allocations/:poId/signed-contract", get_signed_contract_document);
 
 // ── Reseller/Franchisee verifies an EPC buyer's payment receipt ────────────
 // Called from the Reseller Portal /orders detail modal
