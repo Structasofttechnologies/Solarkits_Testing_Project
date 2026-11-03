@@ -118,7 +118,10 @@ function EpcPoCardItem({ order, onSelectOrder, onOpenReorder, onOpenRefund }) {
   const remaining = order.remaining_quantity != null ? order.remaining_quantity : Math.max(0, booked - fulfilled);
   const progressPct = booked > 0 ? Math.min(100, Math.round((fulfilled / booked) * 100)) : 0;
 
-  const tokenPaidINR = Math.round((order.token_amount_paise || order.token_paid_paise || 0) / 100);
+  const tokenReqINR = Math.round((order.token_amount_paise || 0) / 100);
+  const tokenPaidINR = Math.round((order.token_paid_paise || 0) / 100);
+  const isTokenPaid = order.token_payment_status === "PAID" || (tokenPaidINR > 0 && tokenReqINR > 0 && tokenPaidINR >= tokenReqINR);
+  const isTokenPartial = !isTokenPaid && tokenPaidINR > 0;
   const tokenAdjustedINR = Math.round((order.token_adjusted_total_paise || 0) / 100);
   const tokenBalanceINR = order.token_balance_paise != null
     ? Math.round(order.token_balance_paise / 100)
@@ -414,6 +417,8 @@ export default function EpcPoAllocations() {
   const [reorderUtr, setReorderUtr] = useState("");
   const [reorderBank, setReorderBank] = useState("");
   const [reorderDate, setReorderDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reorderSlipFile, setReorderSlipFile] = useState(null);
+  const [reorderSlipPreview, setReorderSlipPreview] = useState(null);
   const [reorderSubmitting, setReorderSubmitting] = useState(false);
   const [reorderError, setReorderError] = useState("");
   const [reorderSuccess, setReorderSuccess] = useState(null);
@@ -668,6 +673,8 @@ export default function EpcPoAllocations() {
     setReorderUtr("");
     setReorderBank("");
     setReorderDate(new Date().toISOString().slice(0, 10));
+    setReorderSlipFile(null);
+    setReorderSlipPreview(null);
     setReorderError("");
     setReorderSuccess(null);
     setReorderModal(true);
@@ -708,6 +715,21 @@ export default function EpcPoAllocations() {
 
     setReorderSubmitting(true);
     try {
+      let uploadedReceiptUrl = "";
+      if (reorderSlipFile) {
+        try {
+          const formData = new FormData();
+          formData.append("receipt", reorderSlipFile);
+          const upRes = await axiosInstance.post("/india/v1/shop/po/upload-receipt", formData, {
+            headers: { "Content-Type": "multipart/form-data" }
+          });
+          if (upRes.data?.success && upRes.data?.data?.receipt_url) {
+            uploadedReceiptUrl = upRes.data.data.receipt_url;
+          }
+        } catch (upErr) {
+          console.error("Receipt upload failed:", upErr);
+        }
+      }
       const payload = {
         quantity: reorderQty,
         kit_id: item.kit_id || item.product_id,
@@ -717,7 +739,11 @@ export default function EpcPoAllocations() {
           amount_paid: netPayable,
           payment_date: reorderDate,
           sender_bank_name: reorderBank || "Bank Transfer",
+          receipt_url: uploadedReceiptUrl,
+          payment_receipt_url: uploadedReceiptUrl,
         },
+        receipt_url: uploadedReceiptUrl,
+        payment_receipt_url: uploadedReceiptUrl,
       };
 
       const res = await axiosInstance.post(`/india/v1/shop/po/${reorderOrder._id}/reorder`, payload);
@@ -987,7 +1013,10 @@ export default function EpcPoAllocations() {
                       const remaining = order.remaining_quantity != null ? order.remaining_quantity : Math.max(0, booked - fulfilled);
                       const progressPct = booked > 0 ? Math.min(100, Math.round((fulfilled / booked) * 100)) : 0;
 
-                      const tokenPaidINR = Math.round((order.token_amount_paise || order.token_paid_paise || 0) / 100);
+                      const tokenReqINR = Math.round((order.token_amount_paise || 0) / 100);
+                      const tokenPaidINR = Math.round((order.token_paid_paise || 0) / 100);
+                      const isTokenPaid = order.token_payment_status === "PAID" || (tokenPaidINR > 0 && tokenReqINR > 0 && tokenPaidINR >= tokenReqINR);
+                      const isTokenPartial = !isTokenPaid && tokenPaidINR > 0;
                       const tokenAdjustedINR = Math.round((order.token_adjusted_total_paise || 0) / 100);
                       const tokenBalanceINR = order.token_balance_paise != null
                         ? Math.round(order.token_balance_paise / 100)
@@ -1125,11 +1154,19 @@ export default function EpcPoAllocations() {
                               <div className="flex flex-col gap-0.5 min-w-[90px]">
                                 <div className="flex items-center gap-1">
                                   <span className="font-mono font-bold text-text-primary text-[11px]">
-                                    ₹{tokenPaidINR.toLocaleString("en-IN")}
+                                    ₹{tokenReqINR.toLocaleString("en-IN")}
                                   </span>
-                                  {tokenPaidINR > 0 && (
+                                  {isTokenPaid ? (
                                     <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1 rounded border border-emerald-200/60">
                                       Paid
+                                    </span>
+                                  ) : isTokenPartial ? (
+                                    <span className="text-[8px] font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-1 rounded border border-teal-200/60">
+                                      Partial
+                                    </span>
+                                  ) : (
+                                    <span className="text-[8px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-200/60">
+                                      Pending
                                     </span>
                                   )}
                                 </div>
@@ -1844,8 +1881,11 @@ export default function EpcPoAllocations() {
                     </div>
                     <div className="p-2.5 rounded-xl bg-surface border border-border">
                       <div className="text-[10px] text-text-muted">Token Paid</div>
-                      <div className="text-sm font-black text-emerald-600">
-                        ₹{Math.round((selectedDirectOrder.token_amount_paise || selectedDirectOrder.token_paid_paise || 0) / 100).toLocaleString("en-IN")}
+                      <div className={`text-sm font-black ${(selectedDirectOrder.token_paid_paise || 0) > 0 ? "text-emerald-600" : "text-amber-600"}`}>
+                        ₹{Math.round((selectedDirectOrder.token_paid_paise || 0) / 100).toLocaleString("en-IN")}
+                        <span className="text-[10px] text-text-muted block font-normal">
+                          of ₹{Math.round((selectedDirectOrder.token_amount_paise || 0) / 100).toLocaleString("en-IN")} Req
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -2010,7 +2050,7 @@ export default function EpcPoAllocations() {
                     const fulfilled = Number(reorderOrder.fulfilled_quantity || 0);
                     const remaining = reorderOrder.remaining_quantity != null ? reorderOrder.remaining_quantity : Math.max(1, committed - fulfilled);
 
-                    const tokenPaid = Math.round((reorderOrder.token_amount_paise || reorderOrder.token_paid_paise || 0) / 100);
+                    const tokenPaid = Math.round((reorderOrder.token_paid_paise || reorderOrder.token_amount_paise || 0) / 100);
                     const tokenAdjusted = Math.round((reorderOrder.token_adjusted_total_paise || 0) / 100);
                     const tokenBalance = Math.max(0, tokenPaid - tokenAdjusted);
                     const settlementMode = reorderOrder.token_settlement_mode || reorderOrder.penalty_rule_snapshot?.token_settlement_rule || "PRO_RATA";
@@ -2226,6 +2266,59 @@ export default function EpcPoAllocations() {
                               className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs outline-none focus:border-primary"
                             />
                           </div>
+                        </div>
+
+                        {/* Payment Transfer Slip Upload */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-text-primary mb-1">
+                            Bank Transfer Slip / Payment Proof (Optional / Recommended)
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <label className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-sky-400 bg-sky-500/5 hover:bg-sky-500/10 text-sky-600 dark:text-sky-400 font-bold text-xs cursor-pointer transition-all">
+                              <FiUploadCloud size={14} />
+                              <span>{reorderSlipFile ? "Change Slip" : "Upload Transfer Slip / Receipt"}</span>
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    setReorderSlipFile(file);
+                                    if (file.type.startsWith("image/")) {
+                                      setReorderSlipPreview(URL.createObjectURL(file));
+                                    } else {
+                                      setReorderSlipPreview(null);
+                                    }
+                                  }
+                                }}
+                              />
+                            </label>
+                            {reorderSlipFile && (
+                              <div className="flex items-center gap-2 text-xs text-text-secondary bg-surface-hover px-2.5 py-1.5 rounded-lg border border-border">
+                                {reorderSlipPreview ? (
+                                  <img src={reorderSlipPreview} alt="Receipt preview" className="w-6 h-6 object-cover rounded border border-border" />
+                                ) : (
+                                  <FiFileText size={14} className="text-sky-500" />
+                                )}
+                                <span className="truncate max-w-[140px] font-mono text-[11px]">{reorderSlipFile.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setReorderSlipFile(null);
+                                    setReorderSlipPreview(null);
+                                  }}
+                                  className="text-rose-500 hover:text-rose-700 ml-1 cursor-pointer"
+                                  title="Remove receipt"
+                                >
+                                  <FiX size={13} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-text-muted mt-1">
+                            Accounts team will review and verify this payment slip before allocating inventory.
+                          </p>
                         </div>
 
                         <div className="pt-2 border-t border-border flex items-center justify-end gap-3">

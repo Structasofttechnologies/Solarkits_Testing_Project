@@ -41,6 +41,7 @@ import {
   FiZap,
   FiUserCheck,
   FiPackage,
+  FiUpload,
 } from "react-icons/fi";
 import api from "../services/api";
 
@@ -251,6 +252,9 @@ export default function PoOrder() {
   const [reorderSubmitting, setReorderSubmitting] = useState(false);
   const [reorderError, setReorderError] = useState("");
   const [reorderSuccess, setReorderSuccess] = useState(null);
+  const [reorderSlipFile, setReorderSlipFile] = useState(null);
+  const [reorderSlipPreview, setReorderSlipPreview] = useState(null);
+  const [reorderUploadingSlip, setReorderUploadingSlip] = useState(false);
 
   // ── Refund Modal State ──
   const [refundModal, setRefundModal] = useState(false);
@@ -1167,7 +1171,7 @@ export default function PoOrder() {
             gstin: buyer?.gstin || null,
             allocated_quantity: allocQ,
             token_amount_paise: allocTokenPaise,
-            payment_status: (allocatingOrder.token_paid_paise >= allocTokenPaise && allocTokenPaise > 0) ? "PAID" : "PENDING",
+            payment_status: (allocatingOrder.token_paid_paise > 0 && allocatingOrder.token_paid_paise >= allocTokenPaise && allocTokenPaise > 0) ? "PAID" : "PENDING",
           };
         });
     } else {
@@ -1185,7 +1189,7 @@ export default function PoOrder() {
             gstin: buyer?.gstin || null,
             allocated_quantity: totalCommitted,
             token_amount_paise: poTotalTokenPaise,
-            payment_status: (allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? "PAID" : "PENDING",
+            payment_status: (allocatingOrder.token_paid_paise > 0 && allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? "PAID" : "PENDING",
           },
         ];
       } else {
@@ -1197,7 +1201,7 @@ export default function PoOrder() {
             gstin: null,
             allocated_quantity: totalCommitted,
             token_amount_paise: poTotalTokenPaise,
-            payment_status: (allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? "PAID" : "PENDING",
+            payment_status: (allocatingOrder.token_paid_paise > 0 && allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? "PAID" : "PENDING",
           },
         ];
       }
@@ -1236,6 +1240,10 @@ export default function PoOrder() {
           sessionStorage.removeItem(CACHE_KEYS.ORDERS);
         } catch { }
         await fetchData(true);
+        const updated = res.data.data;
+        if (updated && (updated.status === "AWAITING_TOKEN_PAYMENT" || updated.token_payment_status !== "PAID")) {
+          handleOpenTokenModal(updated);
+        }
       } else {
         setAllocateError(res.data?.message || "Failed to allocate products to PO.");
       }
@@ -1341,6 +1349,9 @@ export default function PoOrder() {
     setReorderDate(new Date().toISOString().slice(0, 10));
     setReorderError("");
     setReorderSuccess(null);
+    setReorderSlipFile(null);
+    setReorderSlipPreview(null);
+    setReorderUploadingSlip(false);
     setReorderModal(true);
   };
 
@@ -1379,6 +1390,26 @@ export default function PoOrder() {
 
     setReorderSubmitting(true);
     try {
+      let uploadedSlipUrl = null;
+      if (reorderSlipFile) {
+        setReorderUploadingSlip(true);
+        try {
+          const formData = new FormData();
+          formData.append("file", reorderSlipFile);
+          formData.append("files", reorderSlipFile);
+          const upRes = await api.post("/india/v1/reseller/po/upload-receipt", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          if (upRes.data?.data?.receipt_url) {
+            uploadedSlipUrl = upRes.data.data.receipt_url;
+          }
+        } catch (upErr) {
+          console.error("Slip upload error:", upErr);
+        } finally {
+          setReorderUploadingSlip(false);
+        }
+      }
+
       const payload = {
         quantity: reorderQty,
         kit_id: item.kit_id || item.product_id,
@@ -1388,6 +1419,8 @@ export default function PoOrder() {
           amount_paid: netPayable,
           payment_date: reorderDate,
           sender_bank_name: reorderBank || "Bank Transfer",
+          receipt_url: uploadedSlipUrl || null,
+          payment_receipt_url: uploadedSlipUrl || null,
         },
       };
 
@@ -1738,7 +1771,10 @@ export default function PoOrder() {
                   const remaining = order.remaining_quantity != null ? order.remaining_quantity : Math.max(0, booked - fulfilled);
                   const progressPct = booked > 0 ? Math.min(100, Math.round((fulfilled / booked) * 100)) : 0;
 
-                  const tokenPaidINR = Math.round((order.token_amount_paise || order.token_paid_paise || 0) / 100);
+                  const tokenReqINR = Math.round((order.token_amount_paise || 0) / 100);
+                  const tokenPaidINR = Math.round((order.token_paid_paise || 0) / 100);
+                  const isTokenPaid = order.token_payment_status === "PAID" || (tokenPaidINR > 0 && tokenReqINR > 0 && tokenPaidINR >= tokenReqINR);
+                  const isTokenPartial = !isTokenPaid && tokenPaidINR > 0;
                   const tokenAdjustedINR = Math.round((order.token_adjusted_total_paise || 0) / 100);
                   const tokenBalanceINR = order.token_balance_paise != null
                     ? Math.round(order.token_balance_paise / 100)
@@ -1889,11 +1925,19 @@ export default function PoOrder() {
                           <div className="flex flex-col gap-0.5 min-w-[90px]">
                             <div className="flex items-center gap-1">
                               <span className="font-mono font-bold text-text-primary text-[11px]">
-                                ₹{tokenPaidINR.toLocaleString("en-IN")}
+                                ₹{tokenReqINR.toLocaleString("en-IN")}
                               </span>
-                              {tokenPaidINR > 0 && (
+                              {isTokenPaid ? (
                                 <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1 rounded border border-emerald-200/60">
                                   Paid
+                                </span>
+                              ) : isTokenPartial ? (
+                                <span className="text-[8px] font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-1 rounded border border-teal-200/60">
+                                  Partial
+                                </span>
+                              ) : (
+                                <span className="text-[8px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-200/60">
+                                  Pending
                                 </span>
                               )}
                             </div>
@@ -1931,9 +1975,22 @@ export default function PoOrder() {
                               <button
                                 onClick={() => handleOpenAllocateModal(order)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-all cursor-pointer"
+                                title="Allocate Quota to EPC Partners"
                               >
                                 <FiBox size={11} />
                                 <span>Allocate</span>
+                              </button>
+                            )}
+
+                            {/* Stage 3: Pay Token Button when Awaiting Token Payment */}
+                            {isAwaitingToken && !isTokenPaid && (
+                              <button
+                                onClick={() => handleOpenTokenModal(order)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-2xs transition-all cursor-pointer"
+                                title="Deposit Escrow Token to Start PO"
+                              >
+                                <FiDollarSign size={11} />
+                                <span>Pay Token</span>
                               </button>
                             )}
 
@@ -3404,7 +3461,7 @@ export default function PoOrder() {
                     const subtotal = reorderQty * unitPrice;
                     const tax = Math.round(subtotal * 0.12);
                     const grossTotal = subtotal + tax;
-                    const tokenPaid = Math.round((reorderOrder.token_amount_paise || reorderOrder.token_paid_paise || 0) / 100);
+                    const tokenPaid = Math.round((reorderOrder.token_paid_paise || reorderOrder.token_amount_paise || 0) / 100);
                     const tokenPerKit = committed > 0 ? Math.floor(tokenPaid / committed) : 0;
                     const tokenToDeduct = Math.min(reorderQty * tokenPerKit, grossTotal);
                     const netPayable = Math.max(0, grossTotal - tokenToDeduct);
@@ -3536,6 +3593,56 @@ export default function PoOrder() {
                           </div>
                         </div>
 
+                        {/* Payment Slip Upload */}
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-bold text-text-muted">
+                            Upload Bank Transfer Slip / Payment Screenshot <span className="text-text-muted font-normal">(Receipt / JPG / PNG / PDF)</span>
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-border hover:border-primary/50 bg-surface text-xs font-bold text-text-secondary cursor-pointer transition">
+                              <FiUpload size={14} className="text-primary" />
+                              <span className="truncate">{reorderSlipFile ? reorderSlipFile.name : "Attach Payment Transfer Receipt..."}</span>
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    setReorderSlipFile(file);
+                                    if (file.type.startsWith("image/")) {
+                                      const reader = new FileReader();
+                                      reader.onload = (ev) => setReorderSlipPreview(ev.target.result);
+                                      reader.readAsDataURL(file);
+                                    } else {
+                                      setReorderSlipPreview(null);
+                                    }
+                                  }
+                                }}
+                              />
+                            </label>
+                            {reorderSlipPreview && (
+                              <img
+                                src={reorderSlipPreview}
+                                alt="Slip Preview"
+                                className="w-10 h-10 object-cover rounded-lg border border-border shadow-xs shrink-0"
+                              />
+                            )}
+                            {reorderSlipFile && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReorderSlipFile(null);
+                                  setReorderSlipPreview(null);
+                                }}
+                                className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
                         <div className="pt-3 border-t border-border flex items-center justify-end gap-3">
                           <button
                             type="button"
@@ -3648,8 +3755,11 @@ export default function PoOrder() {
                     </div>
                     <div className="p-2.5 rounded-xl bg-surface border border-border">
                       <div className="text-[10px] text-text-muted">Token Paid</div>
-                      <div className="text-sm font-black text-emerald-600">
-                        ₹{Math.round((selectedOrder.token_amount_paise || selectedOrder.token_paid_paise || 0) / 100).toLocaleString("en-IN")}
+                      <div className={`text-sm font-black ${(selectedOrder.token_paid_paise || 0) > 0 ? "text-emerald-600" : "text-amber-600"}`}>
+                        ₹{Math.round((selectedOrder.token_paid_paise || 0) / 100).toLocaleString("en-IN")}
+                        <span className="text-[10px] text-text-muted block font-normal">
+                          of ₹{Math.round((selectedOrder.token_amount_paise || 0) / 100).toLocaleString("en-IN")} Req
+                        </span>
                       </div>
                     </div>
                   </div>

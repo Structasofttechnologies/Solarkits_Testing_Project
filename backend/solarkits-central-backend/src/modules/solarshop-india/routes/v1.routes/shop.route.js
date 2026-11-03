@@ -44,6 +44,7 @@ const {
   preview_epc_po_penalty,
   request_epc_po_refund,
   reorder_against_epc_po,
+  upload_epc_po_receipt,
   submit_epc_milestone_payment,
   resolve_payment_milestones
 } = require("../../controller/v1.handlers/shop.handler");
@@ -138,6 +139,7 @@ router.get("/po/active-quotas", verify_auth, get_epc_active_po_quotas);
 router.post("/po/create", verify_auth, create_epc_po_order);
 router.get("/po/:id/penalty-preview", verify_auth, preview_epc_po_penalty);
 router.post("/po/:id/request-refund", verify_auth, request_epc_po_refund);
+router.post("/po/upload-receipt", verify_auth, epcReceiptUpload, upload_epc_po_receipt);
 router.post("/po/:id/reorder", verify_auth, reorder_against_epc_po);
 
 // ── EPC Industry Content Dashboard Routes ─────────────────────────────────────

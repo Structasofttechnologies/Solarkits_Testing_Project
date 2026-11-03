@@ -21,6 +21,7 @@ import {
   FaEnvelope,
   FaExternalLinkAlt,
   FaCheck,
+  FaCopy,
   FaTruckMoving,
   FaArrowRight,
   FaLayerGroup,
@@ -132,7 +133,14 @@ export default function FranchiseePoOrdersAccounts() {
   const [verifyingEpcReceipt, setVerifyingEpcReceipt] = useState(null); // { poId, epcBuyerId, action }
 
   // Child Repeat Order Payment Confirmation Modal State
-  const [childPaymentModal, setChildPaymentModal] = useState(null); // childOrder object
+  const [childPaymentModal, setChildPaymentModal] = useState(null);
+  const [copiedField, setCopiedField] = useState(null);
+  const handleCopyText = (text, key) => {
+    if (!text || text === "—") return;
+    navigator.clipboard.writeText(text);
+    setCopiedField(key);
+    setTimeout(() => setCopiedField(null), 2000);
+  }; // childOrder object
   const [childPaymentRefInput, setChildPaymentRefInput] = useState("");
 
   // 8-Step Journey Modal State
@@ -221,7 +229,7 @@ export default function FranchiseePoOrdersAccounts() {
         `${API_URL}/franchisee/po/confirm-payment?unique_id=ACC_PO&req_for=edit`,
         {
           order_id: childPaymentModal._id,
-          payment_reference: childPaymentRefInput || `UTR-ACC-${Date.now()}`,
+          payment_reference: childPaymentModal.payment_reference || childPaymentModal.offline_payment?.utr_number || childPaymentRefInput || `UTR-ACC-${Date.now()}`,
           payment_mode: "BANK_TRANSFER",
         },
         { headers: authHeaderObj() }
@@ -229,7 +237,7 @@ export default function FranchiseePoOrdersAccounts() {
       if (res.data?.status === "success") {
         setAlertMsg({
           type: "success",
-          text: `Repeat Order ${childPaymentModal.order_number || childPaymentModal.po_number} payment verified successfully! Parent PO quota deducted & transferred to Supplier Payment.`,
+          text: `Repeat Order ${childPaymentModal.order_number || childPaymentModal.po_number} payment verified successfully! Parent PO quota deducted & order sent to New Orders queue.`,
         });
         setChildPaymentModal(null);
         setChildPaymentRefInput("");
@@ -480,10 +488,10 @@ export default function FranchiseePoOrdersAccounts() {
                           })}
                         </div>
                         <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${isCombinePo
-                            ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
-                            : allocationsList.length > 0
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                              : "bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-300"
+                          ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+                          : allocationsList.length > 0
+                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                            : "bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-300"
                           }`}>
                           {isCombinePo
                             ? `Combine PO (${allocationsList.length} EPCs)`
@@ -554,8 +562,8 @@ export default function FranchiseePoOrdersAccounts() {
                           ₹{tokenAmt.toLocaleString("en-IN")}
                         </div>
                         <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black mt-1 ${tokenStatus === "PAID"
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
-                            : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                          : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
                           }`}>
                           {tokenStatus === "PAID" ? "✓ Verified Token" : "⏳ Token Pending"}
                         </span>
@@ -672,8 +680,8 @@ export default function FranchiseePoOrdersAccounts() {
                 <button
                   onClick={() => setModalTab("overview")}
                   className={`py-3 px-4 border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${modalTab === "overview"
-                      ? "border-primary text-primary font-black"
-                      : "border-transparent text-text-muted hover:text-text-primary"
+                    ? "border-primary text-primary font-black"
+                    : "border-transparent text-text-muted hover:text-text-primary"
                     }`}
                 >
                   <FaLayerGroup size={13} />
@@ -683,8 +691,8 @@ export default function FranchiseePoOrdersAccounts() {
                 <button
                   onClick={() => setModalTab("token")}
                   className={`py-3 px-4 border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${modalTab === "token"
-                      ? "border-primary text-primary font-black"
-                      : "border-transparent text-text-muted hover:text-text-primary"
+                    ? "border-primary text-primary font-black"
+                    : "border-transparent text-text-muted hover:text-text-primary"
                     }`}
                 >
                   <FaMoneyBillWave size={13} />
@@ -697,8 +705,8 @@ export default function FranchiseePoOrdersAccounts() {
                 <button
                   onClick={() => setModalTab("epc_pool")}
                   className={`py-3 px-4 border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${modalTab === "epc_pool"
-                      ? "border-primary text-primary font-black"
-                      : "border-transparent text-text-muted hover:text-text-primary"
+                    ? "border-primary text-primary font-black"
+                    : "border-transparent text-text-muted hover:text-text-primary"
                     }`}
                 >
                   <FaUsers size={13} />
@@ -711,8 +719,8 @@ export default function FranchiseePoOrdersAccounts() {
                 <button
                   onClick={() => setModalTab("repeat_orders")}
                   className={`py-3 px-4 border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${modalTab === "repeat_orders"
-                      ? "border-primary text-primary font-black"
-                      : "border-transparent text-text-muted hover:text-text-primary"
+                    ? "border-primary text-primary font-black"
+                    : "border-transparent text-text-muted hover:text-text-primary"
                     }`}
                 >
                   <FaShoppingCart size={13} />
@@ -1222,19 +1230,53 @@ export default function FranchiseePoOrdersAccounts() {
                                   </td>
 
                                   <td className="py-2.5 px-3 text-xs">
-                                    <div className="font-mono font-bold text-text-primary truncate max-w-[120px]" title={child.payment_reference || child.offline_payment?.utr_number}>
-                                      {child.payment_reference || child.offline_payment?.utr_number || "—"}
-                                    </div>
-                                    {child.offline_payment?.payment_receipt_url && (
-                                      <a
-                                        href={child.offline_payment.payment_receipt_url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-[9px] font-bold text-primary hover:underline inline-flex items-center gap-0.5 mt-0.5"
-                                      >
-                                        Receipt <FaExternalLinkAlt size={7} />
-                                      </a>
-                                    )}
+                                    {(() => {
+                                      const utr = child.payment_reference || child.offline_payment?.utr_number || "—";
+                                      const rawSlipUrl = child.offline_payment?.receipt_url || child.offline_payment?.payment_receipt_url || child.payment_receipt_url || child.receipt_url;
+                                      const slipUrl = rawSlipUrl
+                                        ? (rawSlipUrl.startsWith("http")
+                                          ? rawSlipUrl
+                                          : `${(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${rawSlipUrl.startsWith("/") ? "" : "/"}${rawSlipUrl}`)
+                                        : null;
+
+                                      return (
+                                        <div className="flex flex-col gap-1">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="font-mono font-bold text-text-primary text-[11px] bg-surface-hover px-1.5 py-0.5 rounded border border-border/80 select-all" title={utr}>
+                                              {utr}
+                                            </span>
+                                            {utr !== "—" && (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleCopyText(utr, `utr-${child._id}`)}
+                                                className="text-text-muted hover:text-text-primary p-0.5 rounded hover:bg-surface-hover transition cursor-pointer"
+                                                title="Copy UTR Reference"
+                                              >
+                                                {copiedField === `utr-${child._id}` ? (
+                                                  <FaCheck size={10} className="text-emerald-500" />
+                                                ) : (
+                                                  <FaCopy size={10} />
+                                                )}
+                                              </button>
+                                            )}
+                                          </div>
+                                          {slipUrl ? (
+                                            <a
+                                              href={slipUrl}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-white transition-all w-fit"
+                                              title="View Payment Transfer Slip"
+                                            >
+                                              <span>View Slip</span>
+                                              <FaExternalLinkAlt size={8} />
+                                            </a>
+                                          ) : (
+                                            <span className="text-[9px] text-text-muted italic">No Slip Uploaded</span>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
                                   </td>
 
                                   <td className="py-2.5 px-3 text-center">
@@ -1335,22 +1377,86 @@ export default function FranchiseePoOrdersAccounts() {
             </p>
 
             <form onSubmit={handleConfirmChildPayment} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-text-muted uppercase mb-1">
-                  Bank / UTR Reference Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={childPaymentRefInput}
-                  onChange={(e) => setChildPaymentRefInput(e.target.value)}
-                  placeholder="e.g. UTR-ICICI-2026-443322"
-                  className="w-full px-3.5 py-2.5 rounded-xl text-xs font-bold border border-border bg-surface text-text-primary focus:outline-hidden focus:border-primary"
-                />
+              {/* Read-Only UTR Card with Copy Button */}
+              <div className="p-3.5 rounded-xl bg-surface-hover/80 border border-border space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                    Customer Submitted UTR Reference
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                    Read-Only Check
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <span className="font-mono font-black text-sm text-text-primary select-all">
+                    {childPaymentModal.payment_reference || childPaymentModal.offline_payment?.utr_number || childPaymentRefInput || "—"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyText(childPaymentModal.payment_reference || childPaymentModal.offline_payment?.utr_number || childPaymentRefInput, "modal-utr")}
+                    className="px-2.5 py-1 text-xs font-bold bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                    title="Copy UTR to check in Bank Portal"
+                  >
+                    {copiedField === "modal-utr" ? (
+                      <>
+                        <FaCheck size={11} className="text-emerald-500" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <FaCopy size={11} />
+                        <span>Copy UTR</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
+              {/* Payment Slip Preview Card */}
+              {(() => {
+                const rawSlip = childPaymentModal.offline_payment?.receipt_url || childPaymentModal.offline_payment?.payment_receipt_url || childPaymentModal.payment_receipt_url || childPaymentModal.receipt_url;
+                const slipUrl = rawSlip
+                  ? (rawSlip.startsWith("http")
+                    ? rawSlip
+                    : `${(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${rawSlip.startsWith("/") ? "" : "/"}${rawSlip}`)
+                  : null;
+
+                return (
+                  <div className="p-3.5 rounded-xl bg-surface-hover/80 border border-border space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                      Attached Payment Transfer Slip
+                    </span>
+                    {slipUrl ? (
+                      <div className="flex items-center justify-between gap-3 pt-1">
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                            📄 Slip
+                          </span>
+                          <span className="text-xs text-text-primary font-bold truncate">
+                            {rawSlip.split("/").pop() || "Payment_Receipt.png"}
+                          </span>
+                        </div>
+                        <a
+                          href={slipUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary text-white hover:opacity-90 transition-all flex items-center gap-1 shrink-0"
+                        >
+                          <span>View Slip</span>
+                          <FaExternalLinkAlt size={9} />
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                        ⚠️ No payment receipt was attached by the buyer. Please check UTR in bank statement.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/40 text-[11px] text-blue-800 dark:text-blue-300">
-                ⚡ Upon verification, parent PO quota will be deducted and this order will immediately transfer to <strong>Supplier Procurement</strong> for supplier disbursement.
+                ⚡ Upon verification, parent PO quota will be deducted and this order will immediately transfer to <strong>New Orders Queue</strong> for batching and supplier procurement.
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">

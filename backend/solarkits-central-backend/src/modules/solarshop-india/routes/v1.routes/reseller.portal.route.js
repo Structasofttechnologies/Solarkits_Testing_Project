@@ -17,6 +17,7 @@ const { upload_files, upload_any_files } = require('../../../admin-panel/utils/u
 const { authRateLimiter, gstRateLimiter, otpRateLimiter } = require('../../../admin-panel/middlewares/rate.limit');
 
 const kycDocUpload = upload_any_files('public/uploads/kyc', 10);
+const poReceiptUpload = upload_any_files('public/uploads/po_receipts', 10);
 
 // ── Public Auth & Registration ───────────────────────────────────────────────
 router.get('/types', handler.get_active_types);
@@ -87,6 +88,7 @@ router.post('/po/:id/validate',       verify_reseller_auth, handler.validate_my_
 router.get('/po/detail/:id',          verify_reseller_auth, handler.get_my_po_order_detail);
 router.get('/po/:id/penalty-preview', verify_reseller_auth, handler.preview_po_penalty);
 router.post('/po/:id/request-refund', verify_reseller_auth, handler.request_po_refund);
+router.post('/po/upload-receipt',    verify_reseller_auth, poReceiptUpload, handler.upload_po_receipt);
 router.post('/po/:id/reorder',        verify_reseller_auth, handler.reorder_against_po);
 router.get('/goals/my-goal',          verify_reseller_auth, handler.get_my_goal_progress);
 

@@ -560,7 +560,12 @@ async function createPoDraft({
       destination_type,
       destination_address,
       destination_pincode,
-      offline_payment,
+      offline_payment: offline_payment ? {
+        ...offline_payment,
+        receipt_url: offline_payment.receipt_url || offline_payment.payment_receipt_url || null,
+        payment_receipt_url: offline_payment.payment_receipt_url || offline_payment.receipt_url || null,
+      } : null,
+      payment_receipt_url: offline_payment?.receipt_url || offline_payment?.payment_receipt_url || null,
       payment_reference: offline_payment?.utr_number || null,
       payment_utr: offline_payment?.utr_number || null,
       items: builtItems,
@@ -747,6 +752,11 @@ async function createPoDraft({
         extra_update: {
           payment_reference: ref || null,
           payment_utr: ref || null,
+          payment_status: 'paid',
+          'offline_payment.verification_status': 'approved',
+          'offline_payment.admin_approval_status': 'approved',
+          'offline_payment.verified_by': admin_id,
+          'offline_payment.verified_at': new Date(),
           razorpay_payment_id: razorpay_payment_id || null,
           payment_confirmed_at: new Date(),
         },
@@ -1218,8 +1228,8 @@ async function createPoDraft({
       order.token_amount_paise = token_amount_paise;
 
       // Check if token was already paid (e.g. at PO creation or advance escrow)
-      const isTokenAlreadyPaid = (order.token_paid_paise != null && order.token_paid_paise >= token_amount_paise);
-      order.token_payment_status = isTokenAlreadyPaid ? 'PAID' : 'PENDING';
+      const isTokenAlreadyPaid = Boolean(order.token_paid_paise && Number(order.token_paid_paise) > 0 && Number(order.token_paid_paise) >= token_amount_paise);
+      order.token_payment_status = isTokenAlreadyPaid ? 'PAID' : (Number(order.token_paid_paise) > 0 ? 'PARTIALLY_PAID' : 'PENDING');
       order.token_balance_paise = order.token_paid_paise || 0;
 
       if (isTokenAlreadyPaid) {
