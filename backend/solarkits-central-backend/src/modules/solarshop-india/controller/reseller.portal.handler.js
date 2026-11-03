@@ -159,7 +159,7 @@ const register_reseller = async (req, res) => {
     // Create empty initial KYC container
     await ResellerKyc.create({
       reseller_id: reseller._id,
-      status:      'draft',
+      status: 'draft',
     });
 
     // Auto-create initial GST-derived territory entry for immediate activation & visibility in admin portal
@@ -176,12 +176,12 @@ const register_reseller = async (req, res) => {
 
       if (indiaCountry) {
         await ResellerTerritory.create({
-          reseller_id:     reseller._id,
+          reseller_id: reseller._id,
           territory_level: matchedState ? 'state' : 'country',
-          country_id:      indiaCountry._id,
-          state_id:        matchedState ? matchedState._id : null,
-          source:          'gst_derived',
-          status:          'active',
+          country_id: indiaCountry._id,
+          state_id: matchedState ? matchedState._id : null,
+          source: 'gst_derived',
+          status: 'active',
           override_reason: `Auto-assigned from GSTIN registration state (${resolvedAddress.gst_state_name || 'India'})`,
         });
       }
@@ -190,17 +190,17 @@ const register_reseller = async (req, res) => {
     }
 
     await logAudit({
-      actor_type:  'reseller',
-      actor_id:    reseller._id,
-      action:      'RESELLER_REGISTER',
+      actor_type: 'reseller',
+      actor_id: reseller._id,
+      action: 'RESELLER_REGISTER',
       entity_type: 'resellers',
-      entity_id:   reseller._id,
+      entity_id: reseller._id,
       after_snapshot: {
-        business_name:   reseller.business_name,
-        email:           reseller.email,
+        business_name: reseller.business_name,
+        email: reseller.email,
         commercial_mode: reseller.commercial_mode,
-        gst_verified:    !!gst_verified,
-        gst_state:       resolvedAddress.gst_state_name || null,
+        gst_verified: !!gst_verified,
+        gst_state: resolvedAddress.gst_state_name || null,
       },
       req,
     });
@@ -209,13 +209,13 @@ const register_reseller = async (req, res) => {
       status: 'success',
       message: 'Registration successful! Please complete your KYC upload to activate your account.',
       data: {
-        id:              reseller._id,
-        business_name:   reseller.business_name,
-        email:           reseller.email,
-        mobile:          reseller.mobile,
+        id: reseller._id,
+        business_name: reseller.business_name,
+        email: reseller.email,
+        mobile: reseller.mobile,
         commercial_mode: reseller.commercial_mode,
-        kyc_status:      reseller.kyc_status,
-        gst_state:       resolvedAddress.gst_state_name || null,
+        kyc_status: reseller.kyc_status,
+        gst_state: resolvedAddress.gst_state_name || null,
       },
     });
   } catch (error) {
@@ -437,12 +437,12 @@ const login_reseller = async (req, res) => {
 
     // Generate JWT token
     const tokenPayload = {
-      id:              reseller._id,
-      email:           reseller.email,
-      business_name:   reseller.business_name,
+      id: reseller._id,
+      email: reseller.email,
+      business_name: reseller.business_name,
       commercial_mode: reseller.commercial_mode,
-      role:            'reseller',
-      token_version:   reseller.token_version,
+      role: 'reseller',
+      token_version: reseller.token_version,
     };
     const token = generate_token(tokenPayload);
 
@@ -455,11 +455,11 @@ const login_reseller = async (req, res) => {
     });
 
     await logAudit({
-      actor_type:  'reseller',
-      actor_id:    reseller._id,
-      action:      'RESELLER_LOGIN',
+      actor_type: 'reseller',
+      actor_id: reseller._id,
+      action: 'RESELLER_LOGIN',
       entity_type: 'resellers',
-      entity_id:   reseller._id,
+      entity_id: reseller._id,
       req,
     });
 
@@ -467,19 +467,19 @@ const login_reseller = async (req, res) => {
       status: 'success',
       token,
       user: {
-        id:                reseller._id,
-        business_name:     reseller.business_name,
-        contact_person:    reseller.contact_person,
-        email:             reseller.email,
-        mobile:            reseller.mobile,
-        commercial_mode:   reseller.commercial_mode,
-        kyc_status:        reseller.kyc_status,
-        agreement_status:  reseller.agreement_status,
+        id: reseller._id,
+        business_name: reseller.business_name,
+        contact_person: reseller.contact_person,
+        email: reseller.email,
+        mobile: reseller.mobile,
+        commercial_mode: reseller.commercial_mode,
+        kyc_status: reseller.kyc_status,
+        agreement_status: reseller.agreement_status,
         fee_payment_status: reseller.fee_payment_status || 'pending_payment',
         activation_status: reseller.activation_status,
         reseller_lifecycle_status: reseller.reseller_lifecycle_status || 'draft',
-        is_pin_set:        Boolean(reseller.is_pin_set && reseller.security_pin_hash),
-        pin_set_at:        reseller.pin_set_at || null,
+        is_pin_set: Boolean(reseller.is_pin_set && reseller.security_pin_hash),
+        pin_set_at: reseller.pin_set_at || null,
       },
     });
   } catch (error) {
@@ -515,32 +515,32 @@ const get_reseller_me = async (req, res) => {
       .lean();
 
     const userData = {
-      id:                reseller._id,
-      business_name:     reseller.business_name,
-      contact_person:    reseller.contact_person,
-      gst_number:        reseller.gst_number,
-      pan_number:        reseller.pan_number,
-      aadhaar_masked:    reseller.aadhaar_masked,
-      mobile:            reseller.mobile,
-      email:             reseller.email,
-      commercial_mode:   reseller.commercial_mode,
-      address:           reseller.address,
-      kyc_status:        reseller.kyc_status,
-      agreement_status:  reseller.agreement_status || 'pending',
+      id: reseller._id,
+      business_name: reseller.business_name,
+      contact_person: reseller.contact_person,
+      gst_number: reseller.gst_number,
+      pan_number: reseller.pan_number,
+      aadhaar_masked: reseller.aadhaar_masked,
+      mobile: reseller.mobile,
+      email: reseller.email,
+      commercial_mode: reseller.commercial_mode,
+      address: reseller.address,
+      kyc_status: reseller.kyc_status,
+      agreement_status: reseller.agreement_status || 'pending',
       agreement_signed_at: reseller.agreement_signed_at || agreement?.signed_at || null,
       agreement_signer_name: reseller.agreement_signer_name || agreement?.signer_name || null,
       fee_payment_status: reseller.fee_payment_status || subscription?.payment_status || 'pending_payment',
-      fee_payment_utr:    reseller.fee_payment_utr || subscription?.utr_number || null,
+      fee_payment_utr: reseller.fee_payment_utr || subscription?.utr_number || null,
       fee_payment_amount: reseller.fee_payment_amount || subscription?.amount_paid || null,
       fee_payment_receipt_url: reseller.fee_payment_receipt_url || subscription?.receipt_url || null,
       fee_payment_remarks: reseller.fee_payment_remarks || subscription?.verification_remarks || null,
       activation_status: reseller.activation_status,
       reseller_lifecycle_status: reseller.reseller_lifecycle_status || 'draft',
-      is_pin_set:        Boolean(reseller.is_pin_set && reseller.security_pin_hash),
-      pin_set_at:        reseller.pin_set_at || null,
-      bank_details:      reseller.bank_details || null,
-      plan_name:         subscription?.plan_id?.name || null,
-      plan_id:           subscription?.plan_id?._id || subscription?.plan_id || null,
+      is_pin_set: Boolean(reseller.is_pin_set && reseller.security_pin_hash),
+      pin_set_at: reseller.pin_set_at || null,
+      bank_details: reseller.bank_details || null,
+      plan_name: subscription?.plan_id?.name || null,
+      plan_id: subscription?.plan_id?._id || subscription?.plan_id || null,
       order_type_allowed: normalizeOrderTypes(subscription?.plan_id?.order_type_allowed),
       warehouse_capacity: reseller.warehouse_capacity || {
         max_kits: 50,
@@ -678,12 +678,12 @@ const login_reseller_pin = async (req, res) => {
 
     // Generate JWT token
     const tokenPayload = {
-      id:              reseller._id,
-      email:           reseller.email,
-      business_name:   reseller.business_name,
+      id: reseller._id,
+      email: reseller.email,
+      business_name: reseller.business_name,
       commercial_mode: reseller.commercial_mode,
-      role:            'reseller',
-      token_version:   reseller.token_version,
+      role: 'reseller',
+      token_version: reseller.token_version,
     };
     const token = generate_token(tokenPayload);
 
@@ -696,11 +696,11 @@ const login_reseller_pin = async (req, res) => {
     });
 
     await logAudit({
-      actor_type:  'reseller',
-      actor_id:    reseller._id,
-      action:      'RESELLER_PIN_LOGIN',
+      actor_type: 'reseller',
+      actor_id: reseller._id,
+      action: 'RESELLER_PIN_LOGIN',
       entity_type: 'resellers',
-      entity_id:   reseller._id,
+      entity_id: reseller._id,
       req,
     });
 
@@ -708,19 +708,19 @@ const login_reseller_pin = async (req, res) => {
       status: 'success',
       token,
       user: {
-        id:                reseller._id,
-        business_name:     reseller.business_name,
-        contact_person:    reseller.contact_person,
-        email:             reseller.email,
-        mobile:            reseller.mobile,
-        commercial_mode:   reseller.commercial_mode,
-        kyc_status:        reseller.kyc_status,
-        agreement_status:  reseller.agreement_status,
+        id: reseller._id,
+        business_name: reseller.business_name,
+        contact_person: reseller.contact_person,
+        email: reseller.email,
+        mobile: reseller.mobile,
+        commercial_mode: reseller.commercial_mode,
+        kyc_status: reseller.kyc_status,
+        agreement_status: reseller.agreement_status,
         fee_payment_status: reseller.fee_payment_status || 'pending_payment',
         activation_status: reseller.activation_status,
         reseller_lifecycle_status: reseller.reseller_lifecycle_status || 'draft',
-        is_pin_set:        true,
-        pin_set_at:        reseller.pin_set_at,
+        is_pin_set: true,
+        pin_set_at: reseller.pin_set_at,
       },
     });
   } catch (error) {
@@ -810,11 +810,11 @@ const setup_reseller_pin = async (req, res) => {
     await reseller.save();
 
     await logAudit({
-      actor_type:  'reseller',
-      actor_id:    reseller._id,
-      action:      'RESELLER_PIN_SET',
+      actor_type: 'reseller',
+      actor_id: reseller._id,
+      action: 'RESELLER_PIN_SET',
       entity_type: 'resellers',
-      entity_id:   reseller._id,
+      entity_id: reseller._id,
       req,
     });
 
@@ -884,11 +884,11 @@ const change_reseller_pin = async (req, res) => {
     await reseller.save();
 
     await logAudit({
-      actor_type:  'reseller',
-      actor_id:    reseller._id,
-      action:      'RESELLER_PIN_CHANGED',
+      actor_type: 'reseller',
+      actor_id: reseller._id,
+      action: 'RESELLER_PIN_CHANGED',
       entity_type: 'resellers',
-      entity_id:   reseller._id,
+      entity_id: reseller._id,
       req,
     });
 
@@ -1289,11 +1289,11 @@ const upload_kyc_document = async (req, res) => {
 
     // Save document metadata (secure key stored, direct public URL omitted)
     kyc.docs[doc_type] = {
-      storage_key:   uploadedFile.path || uploadedFile.filename || uploadedFile.key,
+      storage_key: uploadedFile.path || uploadedFile.filename || uploadedFile.key,
       original_name: uploadedFile.originalname,
-      mime_type:     uploadedFile.mimetype,
-      size_bytes:    uploadedFile.size,
-      uploaded_at:   new Date(),
+      mime_type: uploadedFile.mimetype,
+      size_bytes: uploadedFile.size,
+      uploaded_at: new Date(),
     };
 
     if (kyc.status === 'resubmission_required' || kyc.status === 'rejected') {
@@ -1308,7 +1308,7 @@ const upload_kyc_document = async (req, res) => {
       data: {
         doc_type,
         original_name: uploadedFile.originalname,
-        uploaded_at:   new Date(),
+        uploaded_at: new Date(),
       },
     });
   } catch (error) {
@@ -1343,11 +1343,11 @@ const submit_kyc = async (req, res) => {
     const beforeStatus = kyc.status;
     kyc.status = 'submitted';
     kyc.history.push({
-      status:     'submitted',
+      status: 'submitted',
       actor_type: 'reseller',
-      actor_id:   req.reseller._id,
-      note:       'KYC documents submitted by reseller',
-      timestamp:  new Date(),
+      actor_id: req.reseller._id,
+      note: 'KYC documents submitted by reseller',
+      timestamp: new Date(),
     });
     await kyc.save();
 
@@ -1360,20 +1360,20 @@ const submit_kyc = async (req, res) => {
     });
 
     await logAudit({
-      actor_type:  'reseller',
-      actor_id:    req.reseller._id,
-      action:      'KYC_SUBMIT',
+      actor_type: 'reseller',
+      actor_id: req.reseller._id,
+      action: 'KYC_SUBMIT',
       entity_type: 'reseller_kyc',
-      entity_id:   kyc._id,
+      entity_id: kyc._id,
       before_snapshot: { status: beforeStatus },
-      after_snapshot:  { status: 'submitted' },
+      after_snapshot: { status: 'submitted' },
       req,
     });
 
     return res.json({
-      status:  'success',
+      status: 'success',
       message: 'KYC submitted successfully for admin review!',
-      data:    { kyc_status: 'submitted' },
+      data: { kyc_status: 'submitted' },
     });
   } catch (error) {
     console.error('[reseller.portal] submit_kyc error:', error);
@@ -1417,33 +1417,33 @@ const subscribe_plan = async (req, res) => {
     );
 
     const subscription = await ResellerPlanSubscription.create({
-      reseller_id:       req.reseller._id,
-      plan_id:           plan._id,
-      start_date:        startDate,
-      expiry_date:       expiryDate,
+      reseller_id: req.reseller._id,
+      plan_id: plan._id,
+      start_date: startDate,
+      expiry_date: expiryDate,
       grace_expiry_date: graceExpiryDate,
-      amount_paid:       plan.one_time_fee,
-      currency:          plan.currency,
+      amount_paid: plan.one_time_fee,
+      currency: plan.currency,
       payment_reference: payment_reference ? payment_reference.trim() : 'ONLINE_SELF_SUBSCRIBE',
-      status:            'active',
+      status: 'active',
     });
 
     await Reseller.findByIdAndUpdate(req.reseller._id, { $set: { plan_subscription_id: subscription._id } });
 
     await logAudit({
-      actor_type:  'reseller',
-      actor_id:    req.reseller._id,
-      action:      'RESELLER_PLAN_SUBSCRIBE',
+      actor_type: 'reseller',
+      actor_id: req.reseller._id,
+      action: 'RESELLER_PLAN_SUBSCRIBE',
       entity_type: 'reseller_plan_subscriptions',
-      entity_id:   subscription._id,
+      entity_id: subscription._id,
       after_snapshot: subscription.toObject(),
       req,
     });
 
     return res.status(201).json({
-      status:  'success',
+      status: 'success',
       message: `Successfully subscribed to plan "${plan.name}"`,
-      data:    { subscription_id: subscription._id, expiry_date: expiryDate },
+      data: { subscription_id: subscription._id, expiry_date: expiryDate },
     });
   } catch (error) {
     console.error('[reseller.portal] subscribe_plan error:', error);
@@ -1480,17 +1480,17 @@ const get_reseller_my_territories = async (req, res) => {
         }
 
         return {
-          id:                t._id,
-          scope_level:       t.territory_level,
-          territory_level:   t.territory_level,
-          location_name:     locationName,
-          country:           t.country_id,
-          state:             t.state_id,
-          district:          t.district_id,
+          id: t._id,
+          scope_level: t.territory_level,
+          territory_level: t.territory_level,
+          location_name: locationName,
+          country: t.country_id,
+          state: t.state_id,
+          district: t.district_id,
           precedence_source: t.source ? t.source.replace(/_/g, ' ') : 'assigned',
-          source:            t.source ? t.source.replace(/_/g, ' ') : 'assigned',
-          effective_date:    t.effective_date,
-          expiry_date:       t.expiry_date,
+          source: t.source ? t.source.replace(/_/g, ' ') : 'assigned',
+          effective_date: t.effective_date,
+          expiry_date: t.expiry_date,
         };
       }),
     });
@@ -1766,20 +1766,10 @@ const get_reseller_authorized_products = async (req, res) => {
       }
     }
 
-    // 4. Enrich items with plan product-wise commission & MOQ rules
+    // 4. Enrich items with plan product-wise MOQ rules
     if (activePlan) {
-      const { FranchiseeCommissionRule, FranchiseeMoqRule } = require('../../admin-panel/models/india_solarshop_db');
-      const [commRules, moqRules] = await Promise.all([
-        FranchiseeCommissionRule.find({ plan_id: activePlan._id, is_active: true, deleted_at: null }).lean(),
-        FranchiseeMoqRule.find({ plan_id: activePlan._id, is_active: true, deleted_at: null }).lean(),
-      ]);
-
-      const commMap = {};
-      let defaultComm = null;
-      commRules.forEach((r) => {
-        if (r.combo_kit_id) commMap[r.combo_kit_id.toString()] = r;
-        else defaultComm = r;
-      });
+      const { FranchiseeMoqRule } = require('../../admin-panel/models/india_solarshop_db');
+      const moqRules = await FranchiseeMoqRule.find({ plan_id: activePlan._id, is_active: true, deleted_at: null }).lean();
 
       const moqMap = {};
       let defaultMoq = null;
@@ -1790,14 +1780,8 @@ const get_reseller_authorized_products = async (req, res) => {
 
       for (const [key, item] of itemMap.entries()) {
         const kitId = item.id ? item.id.toString() : (item._id ? item._id.toString() : null);
-        const comm = kitId && commMap[kitId] ? commMap[kitId] : null;
         const moqR = (kitId && moqMap[kitId]) || defaultMoq;
 
-        if (comm) {
-          item.commission_method = comm.commission_method;
-          item.commission_percentage = comm.commission_percentage;
-          item.fixed_amount_per_kit_paise = comm.fixed_amount_per_kit_paise;
-        }
         if (moqR) {
           item.moq = moqR.moq;
           item.increment_quantity = moqR.increment_quantity;
@@ -1825,14 +1809,9 @@ const get_reseller_authorized_products = async (req, res) => {
 const get_reseller_commission_rates = async (req, res) => {
   try {
     const resellerId = req.reseller._id;
-    const {
-      ResellerPlanSubscription,
-      FranchiseeCommissionRule,
-      FranchiseeVariationCommission,
-    } = require('../../admin-panel/models/india_solarshop_db');
-    const { WarehouseComboKit } = require('../../admin-panel/models/core_db');
+    const { FranchiseeVariationCommission } = require('../../admin-panel/models/india_solarshop_db');
 
-    // 1. Check if individual variation commission rules are configured for this franchise
+    // Fetch individual variation commission rules configured for this franchise in Admin Settings
     const individualRules = await FranchiseeVariationCommission.find({
       reseller_id: resellerId,
       is_active: true,
@@ -1849,77 +1828,7 @@ const get_reseller_commission_rates = async (req, res) => {
       return res.json({ status: 'success', data: rates });
     }
 
-    const activeSub = await ResellerPlanSubscription.findOne({
-      reseller_id: resellerId,
-      status: 'active',
-    }).populate('plan_id').sort({ start_date: -1 }).lean();
-
-    if (!activeSub || !activeSub.plan_id) {
-      return res.json({ status: 'success', data: [] });
-    }
-
-    const planId = activeSub.plan_id._id || activeSub.plan_id;
-    const commRules = await FranchiseeCommissionRule.find({
-      plan_id: planId,
-      is_active: true,
-      deleted_at: null,
-    }).lean();
-
-    if (!commRules || commRules.length === 0) {
-      return res.json({ status: 'success', data: [] });
-    }
-
-    // Only return commission rates for kits where commission has been explicitly configured
-    const kitRules = commRules.filter((r) => r.combo_kit_id);
-    if (kitRules.length === 0) {
-      return res.json({ status: 'success', data: [] });
-    }
-
-    const uniqueKitIds = Array.from(new Set(kitRules.map((r) => r.combo_kit_id.toString()))).filter((id) => mongoose.Types.ObjectId.isValid(id));
-    if (uniqueKitIds.length === 0) {
-      return res.json({ status: 'success', data: [] });
-    }
-
-    const comboKits = await WarehouseComboKit.find({
-      _id: { $in: uniqueKitIds },
-      is_active: { $ne: false },
-      deleted_at: null,
-    }).lean();
-
-    const rates = [];
-    const standardTiers = [1, 5, 10, 25, 50, 100];
-
-    comboKits.forEach((kit) => {
-      const kitId = kit._id.toString();
-      const rule = kitRules.find((r) => r.combo_kit_id && r.combo_kit_id.toString() === kitId);
-      if (!rule) return;
-
-      const pricePaise = Math.round((kit.base_price_cached || kit.selling_price_cached || kit.base_price || 50000) * 100);
-
-      let perKitPaise = 0;
-      if (rule.commission_method === 'PERCENTAGE') {
-        perKitPaise = Math.round(pricePaise * ((rule.commission_percentage || 0) / 100));
-      } else {
-        perKitPaise = rule.fixed_amount_per_kit_paise || 0;
-      }
-
-      standardTiers.forEach((qty) => {
-        ['po', 'loose'].forEach((orderType) => {
-          rates.push({
-            combo_kit_id: kitId,
-            order_quantity: qty,
-            order_type: orderType,
-            commission_percentage: rule.commission_percentage,
-            commission_amount_paise: perKitPaise,
-          });
-        });
-      });
-    });
-
-    return res.json({
-      status: 'success',
-      data: rates,
-    });
+    return res.json({ status: 'success', data: [] });
   } catch (error) {
     console.error('[reseller.portal] get_reseller_commission_rates error:', error);
     return res.status(500).json({ status: 'error', message: 'Internal server error' });
@@ -2145,8 +2054,9 @@ const list_my_epc_orders = async (req, res) => {
       status: { $ne: 'CANCELLED' },
     }).sort({ created_at: -1 }).lean();
 
-    // Check commission ledger status and plan defaults
-    const [ledgers, fpoLedgers, resellerPlan] = await Promise.all([
+    // Check commission ledger status, plan defaults and variation commission rules
+    const { FranchiseeVariationCommission } = require('../../admin-panel/models/india_solarshop_db');
+    const [ledgers, fpoLedgers, resellerPlan, variationRules] = await Promise.all([
       ResellerWalletLedger.find({
         reseller_id: resellerId,
         transaction_type: 'commission_credit',
@@ -2155,6 +2065,11 @@ const list_my_epc_orders = async (req, res) => {
         franchisee_id: resellerId,
       }).lean(),
       req.reseller.active_plan_id ? ResellerPlan.findById(req.reseller.active_plan_id).lean() : null,
+      FranchiseeVariationCommission.find({
+        reseller_id: resellerId,
+        is_active: true,
+        deleted_at: null,
+      }).sort({ order_quantity: -1 }).lean(),
     ]);
 
     const ledgerMap = {};
@@ -2277,38 +2192,58 @@ const list_my_epc_orders = async (req, res) => {
             const subtotal = item.unit_price_paise ? Math.round((alloc.allocated_quantity * item.unit_price_paise) / 100) : Math.round(totalAmount / (1 + (item.gst_rate || 12) / 100));
             const taxAmount = totalAmount - subtotal;
 
-            // Resolve dynamic commission rate from item snapshot, FPO rule snapshot, or plan
-            let commissionRate = 2.0;
-            const commMethod = item.commission_method || f.commission_rule_snapshot?.commission_method || 'PERCENTAGE';
-
-            if (commMethod === 'PERCENTAGE') {
-              if (item.commission_snapshot != null && item.commission_snapshot > 0) {
-                commissionRate = item.commission_snapshot >= 50 ? (item.commission_snapshot / 100) : item.commission_snapshot;
-              } else if (f.commission_rule_snapshot?.commission_percentage != null) {
-                commissionRate = f.commission_rule_snapshot.commission_percentage;
-              } else if (f.plan_snapshot?.default_commission_rate != null) {
-                commissionRate = f.plan_snapshot.default_commission_rate;
-              } else if (resellerPlan?.default_commission_rate != null) {
-                commissionRate = resellerPlan.default_commission_rate;
-              }
-            }
-
-            // Calculate gross margin based on method
-            let grossMargin = 0;
-            if (commMethod === 'FIXED_PER_KIT') {
-              const fixedPaise = (item.commission_snapshot && item.commission_snapshot < 5000000) ? item.commission_snapshot : (f.commission_rule_snapshot?.fixed_amount_per_kit_paise || 0);
-              grossMargin = Math.round((alloc.allocated_quantity * fixedPaise) / 100);
-              commissionRate = subtotal > 0 ? Math.round((grossMargin / subtotal) * 100 * 10) / 10 : 0;
-            } else {
-              // Standard percentage commission on base taxable subtotal
-              grossMargin = Math.round(subtotal * (commissionRate / 100));
-            }
-
-            // Check if settled in FPO commission ledger
+            // Check if settled in FPO commission ledger first
             const fpoLedger = fpoLedgerMap[f._id.toString()] || fpoLedgerMap[f.po_number];
+            let grossMargin = 0;
+            let commissionRate = 0;
+
             if (fpoLedger?.net_commission_paise) {
               const ratio = (item.quantity > 0 && alloc.allocated_quantity < item.quantity) ? (alloc.allocated_quantity / item.quantity) : 1;
               grossMargin = Math.round((fpoLedger.commission_paise / 100) * ratio);
+              commissionRate = subtotal > 0 ? Math.round((grossMargin / subtotal) * 100 * 10) / 10 : 0;
+            } else {
+              // Check individual variation commission configured in Franchise Commission Settings
+              const comboKitId = (item.combo_kit_id || item.kit_id)?.toString();
+              const allocQty = parseInt(alloc.allocated_quantity, 10) || 1;
+              const matchingRules = (variationRules || []).filter(
+                (r) => (r.combo_kit_id?._id || r.combo_kit_id)?.toString() === comboKitId && r.order_type === 'loose'
+              );
+
+              let matchedPaise = null;
+              if (matchingRules.length > 0) {
+                const exact = matchingRules.find((r) => r.order_quantity === allocQty);
+                if (exact) {
+                  matchedPaise = exact.commission_amount_paise;
+                } else {
+                  const lower = matchingRules.find((r) => r.order_quantity <= allocQty);
+                  matchedPaise = lower ? lower.commission_amount_paise : matchingRules[matchingRules.length - 1].commission_amount_paise;
+                }
+              }
+
+              if (matchedPaise !== null && matchedPaise >= 0) {
+                grossMargin = Math.round(matchedPaise / 100);
+                commissionRate = subtotal > 0 ? Math.round((grossMargin / subtotal) * 100 * 10) / 10 : 0;
+              } else {
+                const commMethod = item.commission_method || f.commission_rule_snapshot?.commission_method || 'PERCENTAGE';
+                if (commMethod === 'FIXED_PER_KIT') {
+                  const fixedPaise = (item.commission_snapshot && item.commission_snapshot < 5000000) ? item.commission_snapshot : (f.commission_rule_snapshot?.fixed_amount_per_kit_paise || 0);
+                  grossMargin = Math.round((alloc.allocated_quantity * fixedPaise) / 100);
+                  commissionRate = subtotal > 0 ? Math.round((grossMargin / subtotal) * 100 * 10) / 10 : 0;
+                } else {
+                  let pct = 0;
+                  if (item.commission_snapshot != null && item.commission_snapshot > 0) {
+                    pct = item.commission_snapshot >= 50 ? (item.commission_snapshot / 100) : item.commission_snapshot;
+                  } else if (f.commission_rule_snapshot?.commission_percentage != null) {
+                    pct = f.commission_rule_snapshot.commission_percentage;
+                  } else if (f.plan_snapshot?.default_commission_rate != null) {
+                    pct = f.plan_snapshot.default_commission_rate;
+                  } else if (resellerPlan?.default_commission_rate != null) {
+                    pct = resellerPlan.default_commission_rate;
+                  }
+                  commissionRate = pct;
+                  grossMargin = Math.round(subtotal * (pct / 100));
+                }
+              }
             }
 
             const isVerified = alloc.payment_status === 'VERIFIED' || f.status === 'PAID';
@@ -2567,44 +2502,44 @@ const get_active_plans = async (req, res) => {
           : 'All Admin Combo Kits';
 
         return {
-          id:                        p._id,
-          name:                      p.name,
-          plan_name:                 p.name,
-          slug:                      p.slug,
-          territory_level:           p.territory_level,
-          one_time_fee:              p.one_time_fee,
-          annual_fee:                p.one_time_fee,
-          currency:                  p.currency,
-          validity_value:            p.validity_value,
-          validity_unit:             p.validity_unit,
+          id: p._id,
+          name: p.name,
+          plan_name: p.name,
+          slug: p.slug,
+          territory_level: p.territory_level,
+          one_time_fee: p.one_time_fee,
+          annual_fee: p.one_time_fee,
+          currency: p.currency,
+          validity_value: p.validity_value,
+          validity_unit: p.validity_unit,
           allowed_territories_count: p.allowed_territories_count,
-          allowed_project_types:     p.allowed_project_type_ids || [],
-          allowed_categories:        p.allowed_category_ids || [],
-          allowed_combo_kits:        p.allowed_combo_kit_ids || [],
-          project_types_display:     projectTypesDisplay,
-          combo_kits_display:        comboKitsDisplay,
-          max_states_allowed:        p.territory_level === 'district' ? `${p.allowed_territories_count} District(s)` : `${p.allowed_territories_count} State(s)`,
-          default_commission_rate:   p.default_commission_rate != null ? p.default_commission_rate : (p.territory_level === 'district' ? 8 : p.territory_level === 'state' ? 12 : 15),
-          default_dealer_margin:     p.default_dealer_margin != null ? p.default_dealer_margin : (p.territory_level === 'district' ? 5 : p.territory_level === 'state' ? 8 : 10),
+          allowed_project_types: p.allowed_project_type_ids || [],
+          allowed_categories: p.allowed_category_ids || [],
+          allowed_combo_kits: p.allowed_combo_kit_ids || [],
+          project_types_display: projectTypesDisplay,
+          combo_kits_display: comboKitsDisplay,
+          max_states_allowed: p.territory_level === 'district' ? `${p.allowed_territories_count} District(s)` : `${p.allowed_territories_count} State(s)`,
+          default_commission_rate: p.default_commission_rate != null ? p.default_commission_rate : (p.territory_level === 'district' ? 8 : p.territory_level === 'state' ? 12 : 15),
+          default_dealer_margin: p.default_dealer_margin != null ? p.default_dealer_margin : (p.territory_level === 'district' ? 5 : p.territory_level === 'state' ? 8 : 10),
 
           // ─── 1. Warehouse Requirements ─────────────────────────────────────────
-          warehouse_required:        p.warehouse_required ?? false,
-          warehouse_count:           p.warehouse_count ?? 0,
-          warehouse_space_sqft:      p.warehouse_space_sqft ?? 0,
+          warehouse_required: p.warehouse_required ?? false,
+          warehouse_count: p.warehouse_count ?? 0,
+          warehouse_space_sqft: p.warehouse_space_sqft ?? 0,
 
           // ─── 2. MOQ & Capacity Specifications ──────────────────────────────────
-          moq_capacity_kw:          p.moq_capacity_kw ?? 10000,
-          moq_kits_count:           p.moq_kits_count ?? 1,
-          moq_project_type:         projectTypesDisplay,
-          moq_kit_name:             comboKitsDisplay,
-          moq_description:          p.moq_description || null,
+          moq_capacity_kw: p.moq_capacity_kw ?? 10000,
+          moq_kits_count: p.moq_kits_count ?? 1,
+          moq_project_type: projectTypesDisplay,
+          moq_kit_name: comboKitsDisplay,
+          moq_description: p.moq_description || null,
 
           // ─── 3. Order Type Support ─────────────────────────────────────────────
-          order_type_allowed:       normalizeOrderTypes(p.order_type_allowed),
+          order_type_allowed: normalizeOrderTypes(p.order_type_allowed),
 
-          description:               p.description,
-          is_popular:                p.sort_order === 2 || p.sort_order === 3,
-          is_active:                 p.is_active,
+          description: p.description,
+          is_popular: p.sort_order === 2 || p.sort_order === 3,
+          is_active: p.is_active,
         };
       }),
     });
@@ -2627,7 +2562,7 @@ const update_reseller_bank_details = async (req, res) => {
 
     if (!bank_name || !account_number || !ifsc_code || !account_holder_name) {
       return res.status(400).json({
-        status:  'error',
+        status: 'error',
         message: 'Bank Name, Account Number, IFSC Code, and Account Holder Name are required.',
       });
     }
@@ -2643,22 +2578,22 @@ const update_reseller_bank_details = async (req, res) => {
       resellerId,
       {
         $set: {
-          'bank_details.bank_name':           bank_name.trim(),
-          'bank_details.account_number':      account_number.trim(),
-          'bank_details.ifsc_code':           cleanIfsc,
+          'bank_details.bank_name': bank_name.trim(),
+          'bank_details.account_number': account_number.trim(),
+          'bank_details.ifsc_code': cleanIfsc,
           'bank_details.account_holder_name': account_holder_name.trim(),
-          'bank_details.branch':              branch ? branch.trim() : null,
-          'bank_details.upi_id':              upi_id ? upi_id.trim() : null,
-          'bank_details.updated_at':          new Date(),
+          'bank_details.branch': branch ? branch.trim() : null,
+          'bank_details.upi_id': upi_id ? upi_id.trim() : null,
+          'bank_details.updated_at': new Date(),
         },
       },
       { new: true }
     ).select('business_name email mobile bank_details');
 
     return res.json({
-      status:  'success',
+      status: 'success',
       message: 'Bank details updated. Commission payouts will be transferred to this account.',
-      data:    updated.bank_details,
+      data: updated.bank_details,
     });
   } catch (error) {
     console.error('[reseller.portal] update_reseller_bank_details error:', error);
@@ -2679,7 +2614,7 @@ const get_reseller_bank_details = async (req, res) => {
 
     return res.json({
       status: 'success',
-      data:   reseller?.bank_details || null,
+      data: reseller?.bank_details || null,
     });
   } catch (error) {
     console.error('[reseller.portal] get_reseller_bank_details error:', error);
@@ -3208,7 +3143,7 @@ function clearResellerPoCache(resellerId) {
   try {
     const { invalidateGoalCache } = require('../../admin-panel/services/franchisee.goal.service');
     invalidateGoalCache(resellerId);
-  } catch (_e) {}
+  } catch (_e) { }
 }
 
 const get_my_plan_po_settings = async (req, res) => {
@@ -3412,7 +3347,7 @@ const get_my_plan_po_settings = async (req, res) => {
             ? marginDoc.loose_order_pricing
             : (k.loose_order_pricing || []);
 
-          // Prioritize Admin configured order_quantities and loose_order_quantities from ComboKit ("Trial Kits / MOQ")
+          // Combine Admin configured order_quantities and quantities from po_order_pricing so all configured tiers are available
           const kitOrderQtys = Array.isArray(k.order_quantities) && k.order_quantities.length > 0
             ? k.order_quantities.map(Number).filter((n) => !isNaN(n) && n > 0).sort((a, b) => a - b)
             : [];
@@ -3420,7 +3355,8 @@ const get_my_plan_po_settings = async (req, res) => {
             .map((p) => Number(p.quantity))
             .filter((n) => !isNaN(n) && n > 0)
             .sort((a, b) => a - b);
-          const resolvedPoQtys = kitOrderQtys.length > 0 ? kitOrderQtys : poQtysFromPricing;
+          const combinedPoQtys = Array.from(new Set([...kitOrderQtys, ...poQtysFromPricing])).sort((a, b) => a - b);
+          const resolvedPoQtys = combinedPoQtys.length > 0 ? combinedPoQtys : [200, 500];
 
           const kitLooseQtys = Array.isArray(k.loose_order_quantities) && k.loose_order_quantities.length > 0
             ? k.loose_order_quantities.map(Number).filter((n) => !isNaN(n) && n > 0).sort((a, b) => a - b)
@@ -3429,7 +3365,8 @@ const get_my_plan_po_settings = async (req, res) => {
             .map((p) => Number(p.quantity))
             .filter((n) => !isNaN(n) && n > 0)
             .sort((a, b) => a - b);
-          const resolvedLooseQtys = kitLooseQtys.length > 0 ? kitLooseQtys : looseQtysFromPricing;
+          const combinedLooseQtys = Array.from(new Set([...kitLooseQtys, ...looseQtysFromPricing])).sort((a, b) => a - b);
+          const resolvedLooseQtys = combinedLooseQtys.length > 0 ? combinedLooseQtys : [5, 10, 15, 20, 25, 30];
 
           return {
             ...k,
@@ -3543,29 +3480,44 @@ const get_my_plan_po_settings = async (req, res) => {
       console.warn('[reseller.portal] Warning enriching combo kit taxonomy:', enrichErr.message);
     }
 
-    // Determine token rate per kit from PO setting without fake demo fallbacks
-    const tokenBookingEnabled = defSetting?.token_booking_enabled === true;
-    let resolvedTokenRatePaise = 0;
-    if (tokenBookingEnabled) {
-      if (defSetting?.token_rate_per_kit_paise != null && Number(defSetting.token_rate_per_kit_paise) > 0) {
-        resolvedTokenRatePaise = Number(defSetting.token_rate_per_kit_paise);
-      } else if (defSetting?.token_type === 'FIXED_AMOUNT' && defSetting?.token_value != null && Number(defSetting.token_value) > 0) {
-        resolvedTokenRatePaise = Number(defSetting.token_value) * 100;
-      }
-    }
+    // Determine kit-specific PO rules & flat token booking for each combo kit
+    const comboKits = enrichedFoundKits.map((k) => {
+      const kIdStr = String(k._id || k.id);
 
-    const comboKits = enrichedFoundKits.map((k) => ({
-      ...k,
-      po_setting_id: defSetting?._id || null,
-      min_po_quantity: defSetting?.min_po_quantity ?? 1,
-      max_po_quantity: defSetting?.max_po_quantity ?? null,
-      po_validity_days: defSetting?.po_validity_days ?? 30,
-      po_lock_days: defSetting?.po_lock_days ?? 30,
-      token_booking_enabled: tokenBookingEnabled && resolvedTokenRatePaise > 0,
-      token_type: defSetting?.token_type || 'FIXED_AMOUNT',
-      token_value: defSetting?.token_value ?? 0,
-      token_rate_per_kit_paise: resolvedTokenRatePaise,
-    }));
+      // 1. Look for specific PO setting configured for this kit
+      let matchedSetting = poSettingsList.find((s) =>
+        Array.isArray(s.allowed_combo_kit_ids) &&
+        s.allowed_combo_kit_ids.some((id) => String(id._id || id.id || id) === kIdStr)
+      );
+
+      // 2. Fallback to plan-wide default setting (empty allowed_combo_kit_ids)
+      if (!matchedSetting) {
+        matchedSetting = poSettingsList.find((s) =>
+          !s.allowed_combo_kit_ids || s.allowed_combo_kit_ids.length === 0
+        );
+      }
+
+      // 3. Ultimate fallback to defSetting or defaults
+      const activeSetting = matchedSetting || defSetting;
+
+      const kitTokenEnabled = activeSetting?.token_booking_enabled !== false;
+      const kitTokenValue = (activeSetting?.token_value != null && Number(activeSetting.token_value) > 0)
+        ? Number(activeSetting.token_value)
+        : 35000;
+
+      return {
+        ...k,
+        po_setting_id: activeSetting?._id || null,
+        min_po_quantity: activeSetting?.min_po_quantity ?? 1,
+        max_po_quantity: activeSetting?.max_po_quantity ?? null,
+        po_validity_days: activeSetting?.po_validity_days ?? 30,
+        po_lock_days: activeSetting?.po_lock_days ?? 30,
+        token_booking_enabled: kitTokenEnabled,
+        token_type: activeSetting?.token_type || 'FIXED_AMOUNT',
+        token_value: kitTokenValue,
+        token_rate_per_kit_paise: 0,
+      };
+    });
 
     // Deduplicate combo kits
     const uniqueKitsMap = new Map();
@@ -3701,6 +3653,7 @@ const create_my_po_order = async (req, res) => {
       po_category,
       epc_id,
       is_token_booking,
+      token_amount_paise,
       parent_po_id,
       destination_type,
       destination_address,
@@ -3718,6 +3671,7 @@ const create_my_po_order = async (req, res) => {
       order_type: order_type || 'po_order',
       po_category: po_category || 'SINGLE_PO',
       is_token_booking: is_token_booking !== undefined ? Boolean(is_token_booking) : true,
+      token_amount_paise: token_amount_paise != null ? Number(token_amount_paise) : 3500000,
       parent_po_id: parent_po_id || null,
       destination_type: destination_type || 'hub_stock',
       destination_address: destination_address || null,
@@ -4561,7 +4515,39 @@ const get_my_subscription = async (req, res) => {
   }
 };
 
+const upload_po_receipt = async (req, res) => {
+  try {
+    let receiptUrl = "";
+    let filename = "";
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      const file = req.files[0];
+      receiptUrl = file.path || file.secure_url || file.url || (file.filename ? "/uploads/po_receipts/" + file.filename : "");
+      filename = file.originalname || file.filename;
+    } else if (req.file) {
+      receiptUrl = req.file.path || req.file.secure_url || req.file.url || (req.file.filename ? "/uploads/po_receipts/" + req.file.filename : "");
+      filename = req.file.originalname || req.file.filename;
+    }
+    if (receiptUrl && receiptUrl.startsWith("public/")) {
+      receiptUrl = "/" + receiptUrl.substring(7);
+    }
+    if (!receiptUrl) {
+      return res.status(400).json({ status: "error", message: "No receipt file uploaded" });
+    }
+    return res.status(200).json({
+      status: "success",
+      data: {
+        receipt_url: receiptUrl,
+        filename,
+      },
+    });
+  } catch (error) {
+    console.error("[reseller.portal] upload_po_receipt error:", error);
+    return res.status(500).json({ status: "error", message: error.message || "Failed to upload receipt" });
+  }
+};
+
 module.exports = {
+  upload_po_receipt,
   register_reseller,
   login_reseller,
   login_reseller_pin,

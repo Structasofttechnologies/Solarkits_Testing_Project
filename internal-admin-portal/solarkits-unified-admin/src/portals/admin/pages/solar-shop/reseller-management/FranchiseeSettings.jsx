@@ -113,7 +113,6 @@ export default function FranchiseeSettings() {
   // Core Data
   const [plans, setPlans] = useState([]);
   const [moqRules, setMoqRules] = useState([]);
-  const [commissionRules, setCommissionRules] = useState([]);
   const [poSettings, setPoSettings] = useState([]);
   const [kitTargets, setKitTargets] = useState([]);
   const [configOptions, setConfigOptions] = useState({ combo_kits: [], categories: [] });
@@ -121,7 +120,7 @@ export default function FranchiseeSettings() {
 
   // Navigation State
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [activeTab, setActiveTab] = useState("moq"); // 'moq' | 'commission' | 'po' | 'target'
+  const [activeTab, setActiveTab] = useState("moq"); // 'moq' | 'po' | 'target'
 
   // View & Filters (Level 1: Plans View)
   const [searchPlan, setSearchPlan] = useState("");
@@ -134,7 +133,7 @@ export default function FranchiseeSettings() {
   const [categoryFilter, setCategoryFilter] = useState("all");
 
   // Edit / Add Modal States
-  const [modalType, setModalType] = useState(null); // 'moq' | 'commission' | 'po' | 'target'
+  const [modalType, setModalType] = useState(null); // 'moq' | 'po' | 'target'
   const [modalTargetProduct, setModalTargetProduct] = useState(null); // null means all products for this plan, or specific product
   const [modalInitialData, setModalInitialData] = useState(null);
   const [savingModal, setSavingModal] = useState(false);
@@ -146,22 +145,18 @@ export default function FranchiseeSettings() {
       const results = await Promise.allSettled([
         axios.get(`${API_BASE}/resellers/plans/list?req_for=view&unique_id=RSL_PLAN`, { headers: authHeaderObj() }),
         axios.get(`${API_BASE}/franchisee/moq-rules/list?req_for=view&unique_id=FPO_MOQ`, { headers: authHeaderObj() }),
-        axios.get(`${API_BASE}/franchisee/commission-rules/list?req_for=view&unique_id=FPO_COMM`, { headers: authHeaderObj() }),
         axios.get(`${API_BASE}/franchisee/po-settings/list?req_for=view&unique_id=FPO_SETTINGS`, { headers: authHeaderObj() }),
         axios.get(`${API_BASE}/resellers/plans/config-options?req_for=view&unique_id=RSL_PLAN`, { headers: authHeaderObj() }),
         axios.get(`${API_BASE}/franchisee/kit-targets/list?req_for=view&unique_id=FPO_TARGET`, { headers: authHeaderObj() }),
       ]);
 
-      const [plansRes, moqRes, commRes, poRes, cfgRes, targetsRes] = results;
+      const [plansRes, moqRes, poRes, cfgRes, targetsRes] = results;
 
       if (plansRes.status === "fulfilled" && plansRes.value.data?.status === "success") {
         setPlans(plansRes.value.data.data || []);
       }
       if (moqRes.status === "fulfilled" && moqRes.value.data?.status === "success") {
         setMoqRules(moqRes.value.data.data || []);
-      }
-      if (commRes.status === "fulfilled" && commRes.value.data?.status === "success") {
-        setCommissionRules(commRes.value.data.data || []);
       }
       if (poRes.status === "fulfilled" && poRes.value.data?.status === "success") {
         setPoSettings(poRes.value.data.data || []);
@@ -206,7 +201,7 @@ export default function FranchiseeSettings() {
 
   // Helper to compute stats for a specific plan
   const getPlanStats = useCallback((plan) => {
-    if (!plan) return { totalProducts: 0, assignedKitIds: [], moqConfiguredCount: 0, moqPendingCount: 0, commConfiguredCount: 0, commPendingCount: 0, poConfiguredCount: 0, poPendingCount: 0, readinessPct: 0, planMoqRules: [], planCommRules: [], planPoSettings: [], planTarget: null, targetConfigured: false, targetQuantity: null };
+    if (!plan) return { totalProducts: 0, assignedKitIds: [], moqConfiguredCount: 0, moqPendingCount: 0, poConfiguredCount: 0, poPendingCount: 0, readinessPct: 0, planMoqRules: [], planPoSettings: [], planTarget: null, targetConfigured: false, targetQuantity: null };
 
     const planIdStr = String(plan.id || plan._id);
     const rawIds = (plan.allowed_combo_kit_ids || plan.allowed_combo_kits || [])
@@ -223,7 +218,6 @@ export default function FranchiseeSettings() {
 
     // Filter rules belonging to this plan
     const planMoqRules = moqRules.filter((r) => r.plan_id && String(r.plan_id._id || r.plan_id) === planIdStr);
-    const planCommRules = commissionRules.filter((r) => r.plan_id && String(r.plan_id._id || r.plan_id) === planIdStr);
     const planPoSettings = poSettings.filter((s) => s.plan_id && String(s.plan_id._id || s.plan_id) === planIdStr);
 
     // Find Target rule for this plan
@@ -240,12 +234,6 @@ export default function FranchiseeSettings() {
       else if (!r.combo_kit_id && assignedKitIds.length > 0) assignedKitIds.forEach((id) => moqConfiguredKits.add(id));
     });
 
-    const commConfiguredKits = new Set();
-    planCommRules.forEach((r) => {
-      if (r.combo_kit_id) commConfiguredKits.add(String(r.combo_kit_id._id || r.combo_kit_id));
-      else if (!r.combo_kit_id && assignedKitIds.length > 0) assignedKitIds.forEach((id) => commConfiguredKits.add(id));
-    });
-
     const poConfiguredKits = new Set();
     planPoSettings.forEach((s) => {
       (s.allowed_combo_kit_ids || []).forEach((k) => poConfiguredKits.add(String(k._id || k.id || k)));
@@ -258,14 +246,11 @@ export default function FranchiseeSettings() {
     const moqConfiguredCount = assignedKitIds.filter((id) => moqConfiguredKits.has(id)).length;
     const moqPendingCount = Math.max(0, totalProducts - moqConfiguredCount);
 
-    const commConfiguredCount = assignedKitIds.filter((id) => commConfiguredKits.has(id)).length;
-    const commPendingCount = Math.max(0, totalProducts - commConfiguredCount);
-
     const poConfiguredCount = assignedKitIds.filter((id) => poConfiguredKits.has(id)).length;
     const poPendingCount = Math.max(0, totalProducts - poConfiguredCount);
 
-    const totalPossibleConfigs = (totalProducts * 3) + 1;
-    const totalConfigured = moqConfiguredCount + commConfiguredCount + poConfiguredCount + (targetConfigured ? 1 : 0);
+    const totalPossibleConfigs = (totalProducts * 2) + 1;
+    const totalConfigured = moqConfiguredCount + poConfiguredCount + (targetConfigured ? 1 : 0);
     const readinessPct = totalPossibleConfigs > 0 ? Math.round((totalConfigured / totalPossibleConfigs) * 100) : (totalProducts === 0 ? 0 : 100);
 
     return {
@@ -273,8 +258,6 @@ export default function FranchiseeSettings() {
       assignedKitIds,
       moqConfiguredCount,
       moqPendingCount,
-      commConfiguredCount,
-      commPendingCount,
       poConfiguredCount,
       poPendingCount,
       planTarget,
@@ -282,16 +265,14 @@ export default function FranchiseeSettings() {
       targetQuantity,
       readinessPct,
       planMoqRules,
-      planCommRules,
       planPoSettings,
     };
-  }, [moqRules, commissionRules, poSettings, kitTargets, allProductsMap]);
+  }, [moqRules, poSettings, kitTargets, allProductsMap]);
 
   // Overall Global Counts
   const globalSummary = useMemo(() => {
     let totalAssignedProducts = 0;
     let totalMoqConfigured = 0;
-    let totalCommConfigured = 0;
     let totalPoConfigured = 0;
     let totalTargetsConfigured = 0;
 
@@ -299,7 +280,6 @@ export default function FranchiseeSettings() {
       const stats = getPlanStats(p);
       totalAssignedProducts += stats.totalProducts;
       totalMoqConfigured += stats.moqConfiguredCount;
-      totalCommConfigured += stats.commConfiguredCount;
       totalPoConfigured += stats.poConfiguredCount;
       if (stats.targetConfigured) totalTargetsConfigured += 1;
     });
@@ -308,7 +288,6 @@ export default function FranchiseeSettings() {
       totalPlans: plans.length,
       totalAssignedProducts,
       totalMoqConfigured,
-      totalCommConfigured,
       totalPoConfigured,
       totalTargetsConfigured,
     };
@@ -350,11 +329,6 @@ export default function FranchiseeSettings() {
       const fallbackMoq = stats.planMoqRules.find((r) => !r.combo_kit_id);
       const activeMoq = specificMoq || fallbackMoq || null;
 
-      // Find specific Commission rule for this product, or plan-level fallback
-      const specificComm = stats.planCommRules.find((r) => r.combo_kit_id && String(r.combo_kit_id._id || r.combo_kit_id) === idStr);
-      const fallbackComm = stats.planCommRules.find((r) => !r.combo_kit_id);
-      const activeComm = specificComm || fallbackComm || null;
-
       // Find specific PO setting covering this product, or plan-level fallback
       const specificPo = stats.planPoSettings.find((s) => (s.allowed_combo_kit_ids || []).some((k) => String(k._id || k.id || k) === idStr));
       const fallbackPo = stats.planPoSettings.find((s) => !s.allowed_combo_kit_ids || s.allowed_combo_kit_ids.length === 0);
@@ -375,9 +349,6 @@ export default function FranchiseeSettings() {
         moq: activeMoq,
         isMoqConfigured: Boolean(activeMoq),
 
-        commission: activeComm,
-        isCommissionConfigured: Boolean(activeComm),
-
         po: activePo,
         isPoConfigured: Boolean(specificPo),
       });
@@ -392,11 +363,9 @@ export default function FranchiseeSettings() {
       // Status Filter
       if (statusFilter === "configured") {
         if (activeTab === "moq" && !item.isMoqConfigured) return false;
-        if (activeTab === "commission" && !item.isCommissionConfigured) return false;
         if (activeTab === "po" && !item.isPoConfigured) return false;
       } else if (statusFilter === "pending") {
         if (activeTab === "moq" && item.isMoqConfigured) return false;
-        if (activeTab === "commission" && item.isCommissionConfigured) return false;
         if (activeTab === "po" && item.isPoConfigured) return false;
       }
 
@@ -438,22 +407,6 @@ export default function FranchiseeSettings() {
       priority: 10,
       valid_from: new Date().toISOString().slice(0, 10),
       valid_until: "",
-    });
-  };
-
-  const handleOpenCommissionModal = (product = null, existingRule = null) => {
-    setModalType("commission");
-    setModalTargetProduct(product);
-    setModalInitialData(existingRule || {
-      commission_method: "PERCENTAGE",
-      commission_percentage: 8,
-      fixed_amount_per_kit_paise: 500,
-      min_eligible_quantity: 0,
-      max_commission_paise: "",
-      calculation_stage: "RETURN_PERIOD_COMPLETED",
-      settlement_rule: "MONTHLY_BATCH",
-      effective_from: new Date().toISOString().slice(0, 10),
-      effective_until: "",
     });
   };
 
@@ -531,50 +484,7 @@ export default function FranchiseeSettings() {
     }
   };
 
-  // Submit Commission Rule
-  const handleSaveCommission = async (formData) => {
-    setSavingModal(true);
-    try {
-      const isEdit = Boolean(formData.id || modalInitialData?._id);
-      const ruleId = formData.id || modalInitialData?._id;
-      const endpoint = isEdit ? "/update" : "/add";
 
-      const payload = {
-        ...(isEdit && { id: ruleId }),
-        plan_id: selectedPlan.id,
-        combo_kit_id: modalTargetProduct ? modalTargetProduct.id : null,
-        commission_method: formData.commission_method,
-        commission_percentage: formData.commission_method === "PERCENTAGE" ? Number(formData.commission_percentage || 0) : null,
-        fixed_amount_per_kit_paise: formData.commission_method === "FIXED_PER_KIT" ? Math.round(Number(formData.fixed_amount_per_kit_paise || 0) * 100) : null,
-        min_eligible_quantity: Number(formData.min_eligible_quantity || 0),
-        max_commission_paise: formData.max_commission_paise ? Math.round(Number(formData.max_commission_paise) * 100) : null,
-        calculation_stage: formData.calculation_stage || "RETURN_PERIOD_COMPLETED",
-        settlement_rule: formData.settlement_rule || "MONTHLY_BATCH",
-        effective_from: formData.effective_from || new Date().toISOString().slice(0, 10),
-        effective_until: formData.effective_until || null,
-      };
-
-      const res = await axios({
-        method: isEdit ? "put" : "post",
-        url: `${API_BASE}/franchisee/commission-rules${endpoint}`,
-        headers: authHeaderObj(),
-        params: { req_for: isEdit ? "edit" : "add", unique_id: "FPO_COMM" },
-        data: payload,
-      });
-
-      if (res.data?.status === "success") {
-        dispatch(setAlert({ type: "success", message: `Commission rule saved for ${modalTargetProduct ? modalTargetProduct.name : selectedPlan.name}` }));
-        setModalType(null);
-        fetchAllData();
-      } else {
-        dispatch(setAlert({ type: "error", message: res.data?.message || "Failed to save Commission rule" }));
-      }
-    } catch (err) {
-      dispatch(setAlert({ type: "error", message: err.response?.data?.message || "Operation failed" }));
-    } finally {
-      setSavingModal(false);
-    }
-  };
 
   // Submit PO Settings
   const handleSavePo = async (formData) => {
@@ -713,7 +623,7 @@ export default function FranchiseeSettings() {
                 Franchisee Settings
               </h1>
               <p className="text-sm text-text-muted mt-1">
-                Configure dedicated product-wise MOQ rules, Commission models, and PO ordering parameters for each Franchisee Plan
+                Configure dedicated product-wise MOQ rules and PO ordering parameters for each Franchisee Plan
               </p>
             </div>
 
@@ -763,13 +673,13 @@ export default function FranchiseeSettings() {
             </div>
 
             <div className="p-4 rounded-2xl bg-surface border border-border flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-success/10 text-success flex items-center justify-center font-bold">
-                <FiPercent size={18} />
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center font-bold">
+                <FiPackage size={18} />
               </div>
               <div>
-                <div className="text-xs font-semibold text-text-muted">Commission Configured</div>
+                <div className="text-xs font-semibold text-text-muted">PO Ordering Ready</div>
                 <div className="text-xl font-bold text-text-primary">
-                  {globalSummary.totalCommConfigured} / {globalSummary.totalAssignedProducts}
+                  {globalSummary.totalPoConfigured} / {globalSummary.totalAssignedProducts}
                 </div>
               </div>
             </div>
@@ -792,11 +702,10 @@ export default function FranchiseeSettings() {
                 <button
                   key={lvl}
                   onClick={() => setTerritoryFilter(lvl)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all capitalize ${
-                    territoryFilter === lvl
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all capitalize ${territoryFilter === lvl
                       ? "bg-primary text-white shadow-sm"
                       : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
-                  }`}
+                    }`}
                 >
                   {lvl}
                 </button>
@@ -856,13 +765,12 @@ export default function FranchiseeSettings() {
                     <div className="p-5 space-y-3.5 flex-1">
                       <div className="text-xs font-black uppercase tracking-wider text-text-muted flex items-center justify-between">
                         <span>Configuration Status</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          stats.readinessPct === 100
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${stats.readinessPct === 100
                             ? "bg-success-soft text-success border border-success/20"
                             : stats.readinessPct > 0
-                            ? "bg-warning-soft text-warning border border-warning/20"
-                            : "bg-surface-hover text-text-muted border border-border"
-                        }`}>
+                              ? "bg-warning-soft text-warning border border-warning/20"
+                              : "bg-surface-hover text-text-muted border border-border"
+                          }`}>
                           {stats.readinessPct}% Configured
                         </span>
                       </div>
@@ -882,22 +790,7 @@ export default function FranchiseeSettings() {
                         </div>
                       </div>
 
-                      {/* 2. Commission Status */}
-                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-bg/80 border border-border text-xs">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold shrink-0">
-                            <FiPercent size={13} />
-                          </div>
-                          <span className="font-semibold text-text-primary">Commission Settings</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-success">{stats.commConfiguredCount} Set</span>
-                          <span className="text-text-muted">•</span>
-                          <span className="font-bold text-amber-600">{stats.commPendingCount} Pending</span>
-                        </div>
-                      </div>
-
-                      {/* 3. PO Ordering Status */}
+                      {/* 2. PO Ordering Status */}
                       <div className="flex items-center justify-between p-2.5 rounded-xl bg-bg/80 border border-border text-xs">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-lg bg-purple-500/10 text-purple-600 flex items-center justify-center font-bold shrink-0">
@@ -912,7 +805,7 @@ export default function FranchiseeSettings() {
                         </div>
                       </div>
 
-                      {/* 4. Kit Targets & Goals Status */}
+                      {/* 3. Kit Targets & Goals Status */}
                       <div className="flex items-center justify-between p-2.5 rounded-xl bg-bg/80 border border-border text-xs">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold shrink-0">
@@ -968,7 +861,7 @@ export default function FranchiseeSettings() {
                   <OrderTypeBadge orderType={selectedPlan.order_type_allowed} />
                 </div>
                 <p className="text-xs text-text-muted mt-0.5">
-                  Configure product-level parameters, commissions, and monthly kit goals for this plan
+                  Configure product-level parameters, PO rules, and monthly kit goals for this plan
                 </p>
               </div>
             </div>
@@ -985,7 +878,7 @@ export default function FranchiseeSettings() {
           {(() => {
             const stats = getPlanStats(selectedPlan);
             return (
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3.5 rounded-2xl bg-surface border border-border">
                   <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Assigned Products</div>
                   <div className="text-xl font-bold text-text-primary mt-1">{stats.totalProducts}</div>
@@ -1000,16 +893,6 @@ export default function FranchiseeSettings() {
                     {stats.moqConfiguredCount} <span className="text-xs font-normal text-text-muted">/ {stats.totalProducts}</span>
                   </div>
                   <div className="text-[10px] text-amber-600 mt-0.5">{stats.moqPendingCount} Pending Setup</div>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-surface border border-border">
-                  <div className="text-[11px] font-bold text-success uppercase tracking-wider flex items-center gap-1">
-                    <FiPercent size={12} /> Commission
-                  </div>
-                  <div className="text-xl font-bold text-text-primary mt-1">
-                    {stats.commConfiguredCount} <span className="text-xs font-normal text-text-muted">/ {stats.totalProducts}</span>
-                  </div>
-                  <div className="text-[10px] text-amber-600 mt-0.5">{stats.commPendingCount} Pending Setup</div>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-surface border border-border">
@@ -1037,11 +920,10 @@ export default function FranchiseeSettings() {
             );
           })()}
 
-          {/* 4 HORIZONTAL TABS */}
+          {/* 3 HORIZONTAL TABS */}
           <div className="flex items-center gap-2 border-b border-border pb-1 overflow-x-auto">
             {[
               { id: "moq", label: "MOQ Settings", icon: FiZap, color: "text-warning" },
-              { id: "commission", label: "Commission Settings", icon: FiPercent, color: "text-success" },
               { id: "po", label: "PO Settings", icon: FiPackage, color: "text-purple-600" },
               { id: "target", label: "Kit Targets & Goals", icon: FiTarget, color: "text-blue-600" },
             ].map((tab) => {
@@ -1051,11 +933,10 @@ export default function FranchiseeSettings() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all border-b-2 -mb-1 whitespace-nowrap ${
-                    active
+                  className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all border-b-2 -mb-1 whitespace-nowrap ${active
                       ? "border-primary bg-primary text-white shadow-md shadow-primary/20"
                       : "border-transparent text-text-secondary hover:text-text-primary hover:bg-surface-hover"
-                  }`}
+                    }`}
                 >
                   <Icon size={16} className={active ? "text-white" : tab.color} />
                   {tab.label}
@@ -1079,11 +960,10 @@ export default function FranchiseeSettings() {
                         <div>
                           <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
                             Monthly Kit Target & Goal Settings
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              stats.targetConfigured
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${stats.targetConfigured
                                 ? "bg-success-soft text-success border border-success/20"
                                 : "bg-warning-soft text-warning border border-warning/20"
-                            }`}>
+                              }`}>
                               {stats.targetConfigured ? "Active Target Configured" : "Target Pending Setup"}
                             </span>
                           </h3>
@@ -1196,11 +1076,10 @@ export default function FranchiseeSettings() {
                       <button
                         key={st.value}
                         onClick={() => setStatusFilter(st.value)}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                          statusFilter === st.value
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${statusFilter === st.value
                             ? "bg-surface shadow-sm text-primary font-bold"
                             : "text-text-muted hover:text-text-primary"
-                        }`}
+                          }`}
                       >
                         {st.label}
                       </button>
@@ -1229,18 +1108,16 @@ export default function FranchiseeSettings() {
                   <div className="flex items-center bg-bg border border-border rounded-xl p-1">
                     <button
                       onClick={() => setViewMode("grid")}
-                      className={`p-1.5 rounded-lg text-xs transition-all ${
-                        viewMode === "grid" ? "bg-surface text-primary shadow-sm" : "text-text-muted hover:text-text-primary"
-                      }`}
+                      className={`p-1.5 rounded-lg text-xs transition-all ${viewMode === "grid" ? "bg-surface text-primary shadow-sm" : "text-text-muted hover:text-text-primary"
+                        }`}
                       title="Grid View"
                     >
                       <FiGrid size={15} />
                     </button>
                     <button
                       onClick={() => setViewMode("table")}
-                      className={`p-1.5 rounded-lg text-xs transition-all ${
-                        viewMode === "table" ? "bg-surface text-primary shadow-sm" : "text-text-muted hover:text-text-primary"
-                      }`}
+                      className={`p-1.5 rounded-lg text-xs transition-all ${viewMode === "table" ? "bg-surface text-primary shadow-sm" : "text-text-muted hover:text-text-primary"
+                        }`}
                       title="Table View"
                     >
                       <FiList size={15} />
@@ -1250,7 +1127,6 @@ export default function FranchiseeSettings() {
                   <button
                     onClick={() => {
                       if (activeTab === "moq") handleOpenMoqModal(null, getPlanStats(selectedPlan).planMoqRules.find((r) => !r.combo_kit_id));
-                      else if (activeTab === "commission") handleOpenCommissionModal(null, getPlanStats(selectedPlan).planCommRules.find((r) => !r.combo_kit_id));
                       else handleOpenPoModal(null, getPlanStats(selectedPlan).planPoSettings.find((s) => !s.allowed_combo_kit_ids || s.allowed_combo_kit_ids.length === 0));
                     }}
                     className="px-3 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition-all flex items-center gap-1.5 shadow-sm"
@@ -1261,293 +1137,244 @@ export default function FranchiseeSettings() {
                 </div>
               </div>
 
-          {/* ───────────────────────────────────────────────────────────────────
+              {/* ───────────────────────────────────────────────────────────────────
               TAB CONTENT (PRODUCTS LIST / GRID WITH DEDICATED SETTINGS)
               ─────────────────────────────────────────────────────────────────── */}
-          {filteredProductsForTab.length === 0 ? (
-            <div className="py-16 text-center text-xs text-text-muted bg-surface rounded-2xl border border-dashed border-border p-6">
-              <div className="w-12 h-12 rounded-full bg-surface-hover flex items-center justify-center mx-auto mb-2 text-text-muted">
-                <FiBox size={22} />
-              </div>
-              <p className="font-semibold text-text-primary">
-                {selectedPlanProducts.length === 0
-                  ? "No products assigned to this plan yet. Please assign products in Franchisee Plans > Settings first."
-                  : "No products match the selected filters."}
-              </p>
-            </div>
-          ) : viewMode === "grid" ? (
-            /* ────────────────────────────────── GRID VIEW ────────────────────────────────── */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredProductsForTab.map((prod) => {
-                const isConfigured =
-                  activeTab === "moq"
-                    ? prod.isMoqConfigured
-                    : activeTab === "commission"
-                    ? prod.isCommissionConfigured
-                    : prod.isPoConfigured;
+              {filteredProductsForTab.length === 0 ? (
+                <div className="py-16 text-center text-xs text-text-muted bg-surface rounded-2xl border border-dashed border-border p-6">
+                  <div className="w-12 h-12 rounded-full bg-surface-hover flex items-center justify-center mx-auto mb-2 text-text-muted">
+                    <FiBox size={22} />
+                  </div>
+                  <p className="font-semibold text-text-primary">
+                    {selectedPlanProducts.length === 0
+                      ? "No products assigned to this plan yet. Please assign products in Franchisee Plans > Settings first."
+                      : "No products match the selected filters."}
+                  </p>
+                </div>
+              ) : viewMode === "grid" ? (
+                /* ────────────────────────────────── GRID VIEW ────────────────────────────────── */
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredProductsForTab.map((prod) => {
+                    const isConfigured =
+                      activeTab === "moq"
+                        ? prod.isMoqConfigured
+                        : prod.isPoConfigured;
 
-                return (
-                  <motion.div
-                    key={prod.id}
-                    whileHover={{ y: -2 }}
-                    className={`p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${
-                      isConfigured
-                        ? "bg-surface border-border hover:border-primary/40 shadow-sm"
-                        : "bg-surface/60 border-dashed border-amber-300 dark:border-amber-800"
-                    }`}
-                  >
-                    {/* Top: Product Name, Code, Badges */}
-                    <div>
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex-1 truncate">
-                          <div className="font-bold text-xs text-text-primary truncate" title={prod.name}>
-                            {prod.name}
+                    return (
+                      <motion.div
+                        key={prod.id}
+                        whileHover={{ y: -2 }}
+                        className={`p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${isConfigured
+                            ? "bg-surface border-border hover:border-primary/40 shadow-sm"
+                            : "bg-surface/60 border-dashed border-amber-300 dark:border-amber-800"
+                          }`}
+                      >
+                        {/* Top: Product Name, Code, Badges */}
+                        <div>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex-1 truncate">
+                              <div className="font-bold text-xs text-text-primary truncate" title={prod.name}>
+                                {prod.name}
+                              </div>
+                              <div className="text-[10px] text-text-muted font-mono mt-0.5">{prod.kit_code || "SKU-AUTO"}</div>
+                            </div>
+
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${isConfigured
+                                ? "bg-success-soft text-success border border-success/20"
+                                : "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
+                              }`}>
+                              {isConfigured ? "✓ Configured" : "⏳ Pending"}
+                            </span>
                           </div>
-                          <div className="text-[10px] text-text-muted font-mono mt-0.5">{prod.kit_code || "SKU-AUTO"}</div>
+
+                          <div className="flex flex-wrap items-center gap-1.5 my-2">
+                            {prod.capacity_kw > 0 && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-warning-soft text-warning border border-warning/20">
+                                ⚡ {prod.capacity_kw} kW
+                              </span>
+                            )}
+                            {prod.category_name && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-bg text-text-muted border border-border truncate max-w-[130px]" title={prod.category_name}>
+                                {prod.category_name}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                          isConfigured
-                            ? "bg-success-soft text-success border border-success/20"
-                            : "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
-                        }`}>
-                          {isConfigured ? "✓ Configured" : "⏳ Pending"}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-1.5 my-2">
-                        {prod.capacity_kw > 0 && (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-warning-soft text-warning border border-warning/20">
-                            ⚡ {prod.capacity_kw} kW
-                          </span>
-                        )}
-                        {prod.category_name && (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-bg text-text-muted border border-border truncate max-w-[130px]" title={prod.category_name}>
-                            {prod.category_name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Middle: Tab Specific Values */}
-                    <div className="my-3 p-3 rounded-xl bg-bg/80 border border-border text-xs space-y-1.5">
-                      {activeTab === "moq" && (
-                        prod.moq ? (
-                          <>
-                            <div className="flex justify-between">
-                              <span className="text-text-muted">MOQ:</span>
-                              <strong className="text-text-primary">{prod.moq.moq} Kit(s)</strong>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-text-muted">Increment:</span>
-                              <strong className="text-text-primary">+{prod.moq.increment_quantity || 1}</strong>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-text-muted">Max Limit:</span>
-                              <strong className="text-text-primary">{prod.moq.max_quantity ? `${prod.moq.max_quantity} Kits` : "Unlimited"}</strong>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-center text-text-muted py-2">
-                            <FiAlertTriangle className="inline mr-1 text-amber-500" /> Default MOQ Rule applies
-                          </div>
-                        )
-                      )}
-
-                      {activeTab === "commission" && (
-                        prod.commission ? (
-                          <>
-                            <div className="flex justify-between">
-                              <span className="text-text-muted">Method:</span>
-                              <strong className="text-text-primary">{prod.commission.commission_method}</strong>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-text-muted">Rate / Amount:</span>
-                              <strong className="text-success font-bold">
-                                {prod.commission.commission_method === "PERCENTAGE"
-                                  ? `${prod.commission.commission_percentage}%`
-                                  : `₹${((prod.commission.fixed_amount_per_kit_paise || 0) / 100).toLocaleString("en-IN")} / kit`}
-                              </strong>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-text-muted">Min Qty:</span>
-                              <strong className="text-text-primary">{prod.commission.min_eligible_quantity || 0} Kits</strong>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-center text-text-muted py-2">
-                            <FiAlertTriangle className="inline mr-1 text-amber-500" /> Default Commission applies
-                          </div>
-                        )
-                      )}
-
-                      {activeTab === "po" && (
-                        prod.po ? (
-                          <>
-                            <div className="flex justify-between">
-                              <span className="text-text-muted">PO Ordering:</span>
-                              <strong className={prod.po.po_enabled ? "text-success" : "text-danger"}>
-                                {prod.po.po_enabled ? "Enabled" : "Disabled"}
-                              </strong>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-text-muted">Min / Max PO:</span>
-                              <strong className="text-text-primary">
-                                {prod.po.min_po_quantity} - {prod.po.max_po_quantity || "∞"} Kits
-                              </strong>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-text-muted">Validity:</span>
-                              <strong className="text-text-primary">{prod.po.po_validity_days || 30} Days</strong>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-text-muted">Token Booking:</span>
-                              <strong className={prod.po.token_booking_enabled ? "text-emerald-600 dark:text-emerald-400" : "text-text-muted"}>
-                                {prod.po.token_booking_enabled
-                                  ? (prod.po.token_type === "PERCENTAGE" ? `${prod.po.token_value || 0}%` : `₹${Number(prod.po.token_value || 0).toLocaleString("en-IN")}`)
-                                  : "Disabled"}
-                              </strong>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-center text-text-muted py-2">
-                            <FiAlertTriangle className="inline mr-1 text-amber-500" /> Default PO Setting applies
-                          </div>
-                        )
-                      )}
-                    </div>
-
-                    {/* Bottom Action */}
-                    <button
-                      onClick={() => {
-                        if (activeTab === "moq") handleOpenMoqModal(prod, prod.moq);
-                        else if (activeTab === "commission") handleOpenCommissionModal(prod, prod.commission);
-                        else handleOpenPoModal(prod, prod.po);
-                      }}
-                      className={`w-full py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                        isConfigured
-                          ? "bg-bg hover:bg-primary hover:text-white border border-border text-text-primary"
-                          : "bg-primary text-white hover:bg-primary-hover shadow-sm"
-                      }`}
-                    >
-                      {isConfigured ? <FiEdit2 size={13} /> : <FiPlus size={13} />}
-                      {isConfigured
-                        ? activeTab === "moq" ? "Edit MOQ" : activeTab === "commission" ? "Edit Commission" : "Edit PO Rules"
-                        : activeTab === "moq" ? "Set MOQ Rule" : activeTab === "commission" ? "Set Commission" : "Set PO Rules"}
-                    </button>
-                  </motion.div>
-                );
-              })}
-            </div>
-          ) : (
-            /* ────────────────────────────────── TABLE VIEW ────────────────────────────────── */
-            <div className="bg-surface rounded-2xl border border-border overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-bg border-b border-border text-text-muted font-bold">
-                    <tr>
-                      <th className="text-left px-4 py-3.5">Product Name</th>
-                      <th className="text-left px-3 py-3.5">Capacity</th>
-                      <th className="text-left px-3 py-3.5">Category</th>
-                      <th className="text-left px-4 py-3.5">
-                        {activeTab === "moq" ? "MOQ & Increments" : activeTab === "commission" ? "Commission Rule" : "PO Specifications"}
-                      </th>
-                      <th className="text-center px-3 py-3.5">Status</th>
-                      <th className="text-right px-4 py-3.5">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {filteredProductsForTab.map((prod) => {
-                      const isConfigured =
-                        activeTab === "moq"
-                          ? prod.isMoqConfigured
-                          : activeTab === "commission"
-                          ? prod.isCommissionConfigured
-                          : prod.isPoConfigured;
-
-                      return (
-                        <tr key={prod.id} className="hover:bg-surface-hover/60 transition-colors">
-                          <td className="px-4 py-3 font-bold text-text-primary">
-                            <div>{prod.name}</div>
-                            <div className="text-[10px] text-text-muted font-mono">{prod.kit_code || "SKU-AUTO"}</div>
-                          </td>
-                          <td className="px-3 py-3 font-semibold text-warning">
-                            {prod.capacity_kw ? `${prod.capacity_kw} kW` : "-"}
-                          </td>
-                          <td className="px-3 py-3 text-text-muted">{prod.category_name || "-"}</td>
-
-                          {/* Tab details */}
-                          <td className="px-4 py-3">
-                            {activeTab === "moq" && (
-                              prod.moq ? (
-                                <span className="font-bold text-text-primary">
-                                  MOQ: {prod.moq.moq} (Inc: +{prod.moq.increment_quantity || 1})
-                                </span>
-                              ) : (
-                                <span className="text-text-muted">Default Plan MOQ</span>
-                              )
-                            )}
-
-                            {activeTab === "commission" && (
-                              prod.commission ? (
-                                <span className="font-bold text-success">
-                                  {prod.commission.commission_method === "PERCENTAGE"
-                                    ? `${prod.commission.commission_percentage}% Commission`
-                                    : `₹${((prod.commission.fixed_amount_per_kit_paise || 0) / 100).toLocaleString("en-IN")} / kit`}
-                                </span>
-                              ) : (
-                                <span className="text-text-muted">Default Plan Commission</span>
-                              )
-                            )}
-
-                            {activeTab === "po" && (
-                              prod.po ? (
-                                <div className="space-y-0.5">
-                                  <span className="font-bold text-purple-600 block">
-                                    {prod.po.po_enabled ? `Min: ${prod.po.min_po_quantity} • ${prod.po.po_validity_days || 30}d` : "Disabled"}
-                                  </span>
-                                  {prod.po.token_booking_enabled && (
-                                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold block">
-                                      Token: {prod.po.token_type === "PERCENTAGE" ? `${prod.po.token_value || 0}%` : `₹${Number(prod.po.token_value || 0).toLocaleString("en-IN")}`}
-                                    </span>
-                                  )}
+                        {/* Middle: Tab Specific Values */}
+                        <div className="my-3 p-3 rounded-xl bg-bg/80 border border-border text-xs space-y-1.5">
+                          {activeTab === "moq" && (
+                            prod.moq ? (
+                              <>
+                                <div className="flex justify-between">
+                                  <span className="text-text-muted">MOQ:</span>
+                                  <strong className="text-text-primary">{prod.moq.moq} Kit(s)</strong>
                                 </div>
-                              ) : (
-                                <span className="text-text-muted">Default Plan PO Settings</span>
-                              )
-                            )}
-                          </td>
+                                <div className="flex justify-between">
+                                  <span className="text-text-muted">Increment:</span>
+                                  <strong className="text-text-primary">+{prod.moq.increment_quantity || 1}</strong>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-text-muted">Max Limit:</span>
+                                  <strong className="text-text-primary">{prod.moq.max_quantity ? `${prod.moq.max_quantity} Kits` : "Unlimited"}</strong>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-center text-text-muted py-2">
+                                <FiAlertTriangle className="inline mr-1 text-amber-500" /> Default MOQ Rule applies
+                              </div>
+                            )
+                          )}
 
-                          <td className="px-3 py-3 text-center">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              isConfigured
-                                ? "bg-success-soft text-success border border-success/20"
-                                : "bg-amber-100 text-amber-700 border border-amber-300"
-                            }`}>
-                              {isConfigured ? "Configured" : "Pending"}
-                            </span>
-                          </td>
+                          {activeTab === "po" && (
+                            prod.po ? (
+                              <>
+                                <div className="flex justify-between">
+                                  <span className="text-text-muted">PO Ordering:</span>
+                                  <strong className={prod.po.po_enabled ? "text-success" : "text-danger"}>
+                                    {prod.po.po_enabled ? "Enabled" : "Disabled"}
+                                  </strong>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-text-muted">Min / Max PO:</span>
+                                  <strong className="text-text-primary">
+                                    {prod.po.min_po_quantity} - {prod.po.max_po_quantity || "∞"} Kits
+                                  </strong>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-text-muted">Validity:</span>
+                                  <strong className="text-text-primary">{prod.po.po_validity_days || 30} Days</strong>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-text-muted">Token Booking:</span>
+                                  <strong className={prod.po.token_booking_enabled ? "text-emerald-600 dark:text-emerald-400" : "text-text-muted"}>
+                                    {prod.po.token_booking_enabled
+                                      ? (prod.po.token_type === "PERCENTAGE" ? `${prod.po.token_value || 0}%` : `₹${Number(prod.po.token_value || 0).toLocaleString("en-IN")}`)
+                                      : "Disabled"}
+                                  </strong>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-center text-text-muted py-2">
+                                <FiAlertTriangle className="inline mr-1 text-amber-500" /> Default PO Setting applies
+                              </div>
+                            )
+                          )}
+                        </div>
 
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => {
-                                if (activeTab === "moq") handleOpenMoqModal(prod, prod.moq);
-                                else if (activeTab === "commission") handleOpenCommissionModal(prod, prod.commission);
-                                else handleOpenPoModal(prod, prod.po);
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary hover:text-white text-primary text-xs font-bold transition-all"
-                            >
-                              {isConfigured ? "Edit" : "Configure"}
-                            </button>
-                          </td>
+                        {/* Bottom Action */}
+                        <button
+                          onClick={() => {
+                            if (activeTab === "moq") handleOpenMoqModal(prod, prod.moq);
+                            else handleOpenPoModal(prod, prod.po);
+                          }}
+                          className={`w-full py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${isConfigured
+                              ? "bg-bg hover:bg-primary hover:text-white border border-border text-text-primary"
+                              : "bg-primary text-white hover:bg-primary-hover shadow-sm"
+                            }`}
+                        >
+                          {isConfigured ? <FiEdit2 size={13} /> : <FiPlus size={13} />}
+                          {isConfigured
+                            ? activeTab === "moq" ? "Edit MOQ" : "Edit PO Rules"
+                            : activeTab === "moq" ? "Set MOQ Rule" : "Set PO Rules"}
+                        </button>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* ────────────────────────────────── TABLE VIEW ────────────────────────────────── */
+                <div className="bg-surface rounded-2xl border border-border overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-bg border-b border-border text-text-muted font-bold">
+                        <tr>
+                          <th className="text-left px-4 py-3.5">Product Name</th>
+                          <th className="text-left px-3 py-3.5">Capacity</th>
+                          <th className="text-left px-3 py-3.5">Category</th>
+                          <th className="text-left px-4 py-3.5">
+                            {activeTab === "moq" ? "MOQ & Increments" : "PO Specifications"}
+                          </th>
+                          <th className="text-center px-3 py-3.5">Status</th>
+                          <th className="text-right px-4 py-3.5">Actions</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {filteredProductsForTab.map((prod) => {
+                          const isConfigured =
+                            activeTab === "moq"
+                              ? prod.isMoqConfigured
+                              : prod.isPoConfigured;
+
+                          return (
+                            <tr key={prod.id} className="hover:bg-surface-hover/60 transition-colors">
+                              <td className="px-4 py-3 font-bold text-text-primary">
+                                <div>{prod.name}</div>
+                                <div className="text-[10px] text-text-muted font-mono">{prod.kit_code || "SKU-AUTO"}</div>
+                              </td>
+                              <td className="px-3 py-3 font-semibold text-warning">
+                                {prod.capacity_kw ? `${prod.capacity_kw} kW` : "-"}
+                              </td>
+                              <td className="px-3 py-3 text-text-muted">{prod.category_name || "-"}</td>
+
+                              {/* Tab details */}
+                              <td className="px-4 py-3">
+                                {activeTab === "moq" && (
+                                  prod.moq ? (
+                                    <span className="font-bold text-text-primary">
+                                      MOQ: {prod.moq.moq} (Inc: +{prod.moq.increment_quantity || 1})
+                                    </span>
+                                  ) : (
+                                    <span className="text-text-muted">Default Plan MOQ</span>
+                                  )
+                                )}
+
+                                {activeTab === "po" && (
+                                  prod.po ? (
+                                    <div className="space-y-0.5">
+                                      <span className="font-bold text-purple-600 block">
+                                        {prod.po.po_enabled ? `Min: ${prod.po.min_po_quantity} • ${prod.po.po_validity_days || 30}d` : "Disabled"}
+                                      </span>
+                                      {prod.po.token_booking_enabled && (
+                                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold block">
+                                          Token: {prod.po.token_type === "PERCENTAGE" ? `${prod.po.token_value || 0}%` : `₹${Number(prod.po.token_value || 0).toLocaleString("en-IN")}`}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-text-muted">Default Plan PO Settings</span>
+                                  )
+                                )}
+                              </td>
+
+                              <td className="px-3 py-3 text-center">
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${isConfigured
+                                    ? "bg-success-soft text-success border border-success/20"
+                                    : "bg-amber-100 text-amber-700 border border-amber-300"
+                                  }`}>
+                                  {isConfigured ? "Configured" : "Pending"}
+                                </span>
+                              </td>
+
+                              <td className="px-4 py-3 text-right">
+                                <button
+                                  onClick={() => {
+                                    if (activeTab === "moq") handleOpenMoqModal(prod, prod.moq);
+                                    else handleOpenPoModal(prod, prod.po);
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary hover:text-white text-primary text-xs font-bold transition-all"
+                                >
+                                  {isConfigured ? "Edit" : "Configure"}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -1565,16 +1392,6 @@ export default function FranchiseeSettings() {
             saving={savingModal}
             onClose={() => setModalType(null)}
             onSave={handleSaveMoq}
-          />
-        )}
-        {modalType === "commission" && (
-          <CommissionRuleModal
-            targetProduct={modalTargetProduct}
-            plan={selectedPlan}
-            initialData={modalInitialData}
-            saving={savingModal}
-            onClose={() => setModalType(null)}
-            onSave={handleSaveCommission}
           />
         )}
         {modalType === "po" && (
@@ -1685,119 +1502,7 @@ function MoqRuleModal({ targetProduct, plan, initialData, saving, onClose, onSav
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. COMMISSION RULE MODAL COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
-function CommissionRuleModal({ targetProduct, plan, initialData, saving, onClose, onSave }) {
-  const [form, setForm] = useState({
-    id: initialData?._id || initialData?.id || null,
-    commission_method: initialData?.commission_method || "PERCENTAGE",
-    commission_percentage: initialData?.commission_percentage ?? 8,
-    fixed_amount_per_kit_paise: initialData?.fixed_amount_per_kit_paise != null ? initialData.fixed_amount_per_kit_paise / 100 : 500,
-    min_eligible_quantity: initialData?.min_eligible_quantity ?? 0,
-    max_commission_paise: initialData?.max_commission_paise != null ? initialData.max_commission_paise / 100 : "",
-    calculation_stage: initialData?.calculation_stage || "RETURN_PERIOD_COMPLETED",
-    settlement_rule: initialData?.settlement_rule || "MONTHLY_BATCH",
-    effective_from: initialData?.effective_from ? new Date(initialData.effective_from).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-    effective_until: initialData?.effective_until ? new Date(initialData.effective_until).toISOString().slice(0, 10) : "",
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave(form);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-lg overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-bg/50">
-          <div>
-            <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
-              <FiPercent className="text-success" size={18} />
-              Configure Commission Rule
-            </h3>
-            <p className="text-xs text-text-muted mt-0.5">
-              {targetProduct ? `Product: ${targetProduct.name}` : `Plan: ${plan.name} (Global Plan Rule)`}
-            </p>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-hover text-text-muted"><FiX size={18} /></button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Method Choice */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setForm({ ...form, commission_method: "PERCENTAGE" })}
-              className={`p-3 rounded-xl border-2 text-left transition-all ${form.commission_method === "PERCENTAGE" ? "border-primary bg-info-soft text-primary font-bold shadow-sm" : "border-border bg-bg text-text-secondary"}`}
-            >
-              <div className="text-xs font-bold">Percentage (%)</div>
-              <div className="text-[10px] text-text-muted">Order Value × Rate%</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setForm({ ...form, commission_method: "FIXED_PER_KIT" })}
-              className={`p-3 rounded-xl border-2 text-left transition-all ${form.commission_method === "FIXED_PER_KIT" ? "border-success bg-success-soft text-success font-bold shadow-sm" : "border-border bg-bg text-text-secondary"}`}
-            >
-              <div className="text-xs font-bold">Fixed ₹ per Kit</div>
-              <div className="text-[10px] text-text-muted">Delivered Kits × Fixed ₹</div>
-            </button>
-          </div>
-
-          {form.commission_method === "PERCENTAGE" ? (
-            <div>
-              <label className="block text-xs font-bold text-text-secondary mb-1">Commission Rate (%) <span className="text-danger">*</span></label>
-              <div className="relative">
-                <input type="number" step="0.1" min={0} max={100} required className="w-full px-3.5 py-2 pr-8 rounded-xl border border-border bg-bg text-text-primary text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary" value={form.commission_percentage} onChange={(e) => setForm({ ...form, commission_percentage: e.target.value })} />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-text-muted">%</span>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-xs font-bold text-text-secondary mb-1">Fixed Amount per Kit (₹) <span className="text-danger">*</span></label>
-              <div className="relative">
-                <input type="number" min={0} required className="w-full px-3.5 py-2 pl-8 rounded-xl border border-border bg-bg text-text-primary text-sm font-bold focus:outline-none focus:ring-2 focus:ring-success" value={form.fixed_amount_per_kit_paise} onChange={(e) => setForm({ ...form, fixed_amount_per_kit_paise: e.target.value })} />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-text-muted">₹</span>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">Min Eligible Quantity (Kits)</label>
-              <input type="number" min={0} className="w-full px-3.5 py-2 rounded-xl border border-border bg-bg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={form.min_eligible_quantity} onChange={(e) => setForm({ ...form, min_eligible_quantity: e.target.value })} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">Max Commission Cap (₹)</label>
-              <input type="number" min={0} placeholder="Leave empty = no cap" className="w-full px-3.5 py-2 rounded-xl border border-border bg-bg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={form.max_commission_paise} onChange={(e) => setForm({ ...form, max_commission_paise: e.target.value })} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">Effective From <span className="text-danger">*</span></label>
-              <input type="date" required className="w-full px-3.5 py-2 rounded-xl border border-border bg-bg text-text-primary text-xs focus:outline-none focus:ring-2 focus:ring-primary" value={form.effective_from} onChange={(e) => setForm({ ...form, effective_from: e.target.value })} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">Effective Until</label>
-              <input type="date" className="w-full px-3.5 py-2 rounded-xl border border-border bg-bg text-text-primary text-xs focus:outline-none focus:ring-2 focus:ring-primary" value={form.effective_until} onChange={(e) => setForm({ ...form, effective_until: e.target.value })} />
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-border">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-border text-text-secondary text-xs font-semibold hover:bg-surface-hover">Cancel</button>
-            <button type="submit" disabled={saving} className="flex-1 px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover flex items-center justify-center gap-2">
-              {saving ? <FiLoader className="animate-spin" size={15} /> : <FiCheck size={15} />}
-              {saving ? "Saving..." : "Save Commission Rule"}
-            </button>
-          </div>
-        </form>
-      </motion.div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. PO SETTINGS MODAL COMPONENT
+// 2. PO SETTINGS MODAL COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 function PoSettingsModal({ targetProduct, plan, initialData, saving, onClose, onSave }) {
   const [form, setForm] = useState({
@@ -1927,11 +1632,10 @@ function PoSettingsModal({ targetProduct, plan, initialData, saving, onClose, on
                       token_type: "FIXED_AMOUNT",
                       token_value: prev.token_type === "PERCENTAGE" && Number(prev.token_value) <= 100 ? "50000" : (prev.token_value || "50000")
                     }))}
-                    className={`py-1.5 px-3 rounded-lg border text-xs font-bold transition-all ${
-                      form.token_type === "FIXED_AMOUNT"
+                    className={`py-1.5 px-3 rounded-lg border text-xs font-bold transition-all ${form.token_type === "FIXED_AMOUNT"
                         ? "bg-white dark:bg-slate-800 border-emerald-500 text-emerald-700 shadow-xs ring-1 ring-emerald-500/20"
                         : "bg-surface/50 border-border text-text-muted"
-                    }`}
+                      }`}
                   >
                     Fixed Amount (₹)
                   </button>
@@ -1942,11 +1646,10 @@ function PoSettingsModal({ targetProduct, plan, initialData, saving, onClose, on
                       token_type: "PERCENTAGE",
                       token_value: prev.token_type === "FIXED_AMOUNT" && Number(prev.token_value) > 100 ? "10" : (prev.token_value || "10")
                     }))}
-                    className={`py-1.5 px-3 rounded-lg border text-xs font-bold transition-all ${
-                      form.token_type === "PERCENTAGE"
+                    className={`py-1.5 px-3 rounded-lg border text-xs font-bold transition-all ${form.token_type === "PERCENTAGE"
                         ? "bg-white dark:bg-slate-800 border-emerald-500 text-emerald-700 shadow-xs ring-1 ring-emerald-500/20"
                         : "bg-surface/50 border-border text-text-muted"
-                    }`}
+                      }`}
                   >
                     Percentage (%)
                   </button>

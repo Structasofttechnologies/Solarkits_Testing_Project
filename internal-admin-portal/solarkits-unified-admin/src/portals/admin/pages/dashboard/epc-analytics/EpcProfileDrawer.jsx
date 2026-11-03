@@ -1,29 +1,22 @@
 /**
  * EpcProfileDrawer.jsx
- * Interactive Slide-Over Drawer for EPC Profile & Behavior Management
- * Enables Admin & BDE to view live telemetry and modify EPC behavioral parameters.
+ * Slide-Over Drawer for EPC Customer Behavior & Telemetry Inspection
+ * Displays real-time store engagement, visit analytics, and cart abandonment history.
  */
 
 import React, { useState, useEffect } from 'react';
 import {
   FiX,
   FiUser,
-  FiCheckCircle,
   FiAlertTriangle,
-  FiSave,
   FiRefreshCw,
   FiPhone,
   FiMail,
   FiMapPin,
   FiShoppingCart,
-  FiRepeat,
+  FiPackage,
+  FiFileText,
   FiClock,
-  FiDollarSign,
-  FiDownload,
-  FiEye,
-  FiPercent,
-  FiTag,
-  FiShield,
 } from 'react-icons/fi';
 import { epcAnalyticsApi } from '../../../api/epcAnalyticsApi';
 
@@ -31,26 +24,11 @@ export default function EpcProfileDrawer({
   isOpen,
   onClose,
   epcId,
-  bdeList = [],
-  onProfileUpdated,
+  dateRange = 'last_30_days',
 }) {
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState(null);
-
   const [profileData, setProfileData] = useState(null);
-
-  // Editable Form State
-  const [form, setForm] = useState({
-    behavior_status: 'active',
-    customer_tier: 'Standard EPC',
-    assigned_bde_id: '',
-    recovery_discount_pct: 0,
-    recovery_followup_status: 'none',
-    credit_limit_inr: 0,
-    behavior_notes: '',
-  });
 
   // Fetch Full Profile Telemetry on open
   useEffect(() => {
@@ -59,27 +37,16 @@ export default function EpcProfileDrawer({
     let isMounted = true;
     setLoading(true);
     setError(null);
-    setSaveSuccess(false);
 
     epcAnalyticsApi
-      .getEpcProfileDetail(epcId)
+      .getEpcProfileDetail(epcId, { dateRange })
       .then((res) => {
         if (!isMounted) return;
         if (res) {
           setProfileData(res);
-          const p = res.profile || {};
-          setForm({
-            behavior_status: p.behaviorStatus || p.behavior_status || 'active',
-            customer_tier: p.customerTier || p.customer_tier || 'Standard EPC',
-            assigned_bde_id: p.assignedBde?.id || '',
-            recovery_discount_pct: p.recoveryDiscountPct || p.recovery_discount_pct || 0,
-            recovery_followup_status: p.recoveryFollowupStatus || p.recovery_followup_status || 'none',
-            credit_limit_inr: p.creditLimitInr || p.credit_limit_inr || 0,
-            behavior_notes: p.behaviorNotes || p.behavior_notes || '',
-          });
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (!isMounted) return;
         setError('Failed to load EPC telemetry detail');
       })
@@ -90,33 +57,14 @@ export default function EpcProfileDrawer({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, epcId]);
+  }, [isOpen, epcId, dateRange]);
 
   if (!isOpen) return null;
-
-  const handleSave = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    setSaveSuccess(false);
-    setError(null);
-
-    try {
-      const res = await epcAnalyticsApi.updateEpcBehavior(epcId, form);
-      setSaveSuccess(true);
-      if (onProfileUpdated) {
-        onProfileUpdated(epcId, form);
-      }
-      setTimeout(() => setSaveSuccess(false), 3500);
-    } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Failed to update EPC behavior');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const p = profileData?.profile || {};
   const t = profileData?.telemetry || {};
   const recentOrders = profileData?.recentOrders || [];
+  const recentQuotes = profileData?.recentQuotes || [];
   const abandonmentHistory = profileData?.abandonmentHistory || [];
 
   return (
@@ -132,14 +80,15 @@ export default function EpcProfileDrawer({
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-black text-text">{p.name || 'EPC Account Profile'}</h3>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${form.behavior_status === 'loyal_repeat'
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                    p.behaviorStatus === 'loyal_repeat'
                       ? 'bg-emerald-500/10 text-emerald-600'
-                      : form.behavior_status === 'at_risk'
+                      : p.behaviorStatus === 'at_risk'
                         ? 'bg-rose-500/10 text-rose-600'
                         : 'bg-blue-500/10 text-blue-600'
-                    }`}
+                  }`}
                 >
-                  {form.behavior_status?.replace('_', ' ')}
+                  {(p.behaviorStatus || 'active').replace('_', ' ')}
                 </span>
               </div>
               <p className="text-xs text-text-muted mt-0.5">
@@ -168,14 +117,6 @@ export default function EpcProfileDrawer({
 
           {!loading && (
             <>
-              {/* Success / Error Banners */}
-              {saveSuccess && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-200 text-emerald-700 flex items-center gap-2">
-                  <FiCheckCircle size={15} />
-                  <span>EPC behavior settings updated successfully in real-time!</span>
-                </div>
-              )}
-
               {error && (
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-200 text-rose-700 flex items-center gap-2">
                   <FiAlertTriangle size={15} />
@@ -192,6 +133,11 @@ export default function EpcProfileDrawer({
                   <div className="bg-surface-subtle/50 p-2.5 rounded-xl border border-border">
                     <span className="text-[10px] text-text-muted block">Store Visits</span>
                     <span className="text-base font-black text-text">{t.storeVisits ?? 0}</span>
+                    {t.allTimeStoreVisits !== undefined && t.allTimeStoreVisits !== t.storeVisits && (
+                      <span className="text-[9px] text-text-muted block mt-0.5">
+                        {t.allTimeStoreVisits} all-time
+                      </span>
+                    )}
                   </div>
                   <div className="bg-surface-subtle/50 p-2.5 rounded-xl border border-border">
                     <span className="text-[10px] text-text-muted block">Datasheet Downloads</span>
@@ -208,7 +154,41 @@ export default function EpcProfileDrawer({
                 </div>
               </div>
 
-              {/* Section 2: Abandoned Carts History */}
+              {/* Section 2: Account Overview (Read-Only) */}
+              <div className="bg-surface-subtle/30 rounded-2xl border border-border p-4 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-border">
+                  <span className="font-bold text-text text-xs uppercase tracking-wider">
+                    Customer Account Overview
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 text-primary font-bold">
+                    {p.customerTier || 'Standard EPC'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-text">
+                    <FiPhone className="text-text-muted shrink-0" size={13} />
+                    <span className="text-text-muted">WhatsApp:</span>
+                    <span className="font-semibold">{p.whatsapp || 'N/A'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-text">
+                    <FiMail className="text-text-muted shrink-0" size={13} />
+                    <span className="text-text-muted">Email:</span>
+                    <span className="font-semibold truncate">{p.email || 'N/A'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-text">
+                    <FiMapPin className="text-text-muted shrink-0" size={13} />
+                    <span className="text-text-muted">Location:</span>
+                    <span className="font-semibold">{p.district}, {p.state}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-text">
+                    <FiUser className="text-text-muted shrink-0" size={13} />
+                    <span className="text-text-muted">Assigned BDE:</span>
+                    <span className="font-semibold">{p.assignedBde?.name || 'Central Pool'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Abandoned Carts History */}
               <div className="space-y-2">
                 <span className="text-[10px] uppercase font-bold text-text-muted tracking-wider">
                   Cart Abandonment Log
@@ -232,9 +212,6 @@ export default function EpcProfileDrawer({
                         </div>
                         <div className="text-right">
                           <span className="font-black text-rose-600 text-xs block">{item.estimatedValue}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 font-bold">
-                            {item.recoveryOfferApplied}
-                          </span>
                         </div>
                       </div>
                     ))
@@ -242,152 +219,67 @@ export default function EpcProfileDrawer({
                 </div>
               </div>
 
-              {/* Section 3: EPC Behavior Management Form (Editable by Admin & BDE) */}
-              <form onSubmit={handleSave} className="bg-surface rounded-2xl border border-primary/20 p-4 space-y-4 shadow-xs">
-                <div className="flex items-center justify-between border-b border-border pb-2">
-                  <div className="flex items-center gap-2">
-                    <FiShield className="text-primary" size={16} />
-                    <span className="font-black text-text text-xs uppercase tracking-wider">
-                      EPC Behavior & Commercial Settings
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-primary font-bold">Admin & BDE Control</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Behavior Status */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-text-muted">
-                      Behavior Status
-                    </label>
-                    <select
-                      value={form.behavior_status}
-                      onChange={(e) => setForm({ ...form, behavior_status: e.target.value })}
-                      className="w-full text-xs font-semibold bg-bg text-text rounded-xl border border-border p-2 focus:outline-none focus:border-primary"
-                    >
-                      <option value="active">Active / Healthy</option>
-                      <option value="at_risk">High Cart Abandonment Risk</option>
-                      <option value="loyal_repeat">Loyal Repeat Buyer</option>
-                      <option value="dormant">Dormant / Needs Re-engagement</option>
-                      <option value="suspended">Suspended / Inactive</option>
-                    </select>
-                  </div>
-
-                  {/* Customer Tier */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-text-muted">
-                      Customer Tier
-                    </label>
-                    <select
-                      value={form.customer_tier}
-                      onChange={(e) => setForm({ ...form, customer_tier: e.target.value })}
-                      className="w-full text-xs font-semibold bg-bg text-text rounded-xl border border-border p-2 focus:outline-none focus:border-primary"
-                    >
-                      <option value="Standard EPC">Standard EPC</option>
-                      <option value="Silver Partner">Silver Partner</option>
-                      <option value="Gold Partner">Gold Partner</option>
-                      <option value="Platinum Partner">Platinum Partner (VIP)</option>
-                    </select>
-                  </div>
-
-                  {/* Assigned BDE */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-text-muted">
-                      Assigned BDE Manager
-                    </label>
-                    <select
-                      value={form.assigned_bde_id}
-                      onChange={(e) => setForm({ ...form, assigned_bde_id: e.target.value })}
-                      className="w-full text-xs font-semibold bg-bg text-text rounded-xl border border-border p-2 focus:outline-none focus:border-primary"
-                    >
-                      <option value="">Central BDE Pool</option>
-                      {bdeList.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name} ({b.employeeCode || 'BDE'})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Recovery Discount % */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-text-muted">
-                      Cart Recovery Incentive Discount (%)
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="0"
-                        max="20"
-                        value={form.recovery_discount_pct}
-                        onChange={(e) => setForm({ ...form, recovery_discount_pct: Number(e.target.value) })}
-                        className="w-full text-xs font-semibold bg-bg text-text rounded-xl border border-border p-2 pr-7 focus:outline-none focus:border-primary"
-                        placeholder="e.g. 5"
-                      />
-                      <FiPercent className="absolute right-2.5 top-2.5 text-text-muted" size={14} />
-                    </div>
-                  </div>
-
-                  {/* Recovery Follow-up Status */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-text-muted">
-                      Follow-up Outreach Status
-                    </label>
-                    <select
-                      value={form.recovery_followup_status}
-                      onChange={(e) => setForm({ ...form, recovery_followup_status: e.target.value })}
-                      className="w-full text-xs font-semibold bg-bg text-text rounded-xl border border-border p-2 focus:outline-none focus:border-primary"
-                    >
-                      <option value="none">None / Pending</option>
-                      <option value="call_scheduled">Follow-up Call Scheduled</option>
-                      <option value="offer_sent">Discount Offer Sent via WhatsApp</option>
-                      <option value="re_engaged">Successfully Re-engaged</option>
-                    </select>
-                  </div>
-
-                  {/* Credit Limit INR */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-text-muted">
-                      Credit Limit (INR)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="50000"
-                      value={form.credit_limit_inr}
-                      onChange={(e) => setForm({ ...form, credit_limit_inr: Number(e.target.value) })}
-                      className="w-full text-xs font-semibold bg-bg text-text rounded-xl border border-border p-2 focus:outline-none focus:border-primary"
-                      placeholder="e.g. 500000"
-                    />
+              {/* Section 4: Recent Orders */}
+              {recentOrders.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[10px] uppercase font-bold text-text-muted tracking-wider flex items-center gap-1.5">
+                    <FiPackage size={13} className="text-primary" />
+                    <span>Recent Confirmed Orders ({recentOrders.length})</span>
+                  </span>
+                  <div className="space-y-2">
+                    {recentOrders.map((ord) => (
+                      <div
+                        key={ord.id}
+                        className="bg-surface-subtle/30 rounded-xl border border-border p-3 flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="font-bold text-text">{ord.orderNumber}</div>
+                          <div className="text-[11px] text-text-muted mt-0.5">
+                            {ord.orderType} • {ord.date}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-emerald-600 block">{ord.amountFormatted}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 font-semibold">
+                            {ord.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
+              )}
 
-                {/* Behavioral Notes & BDE Call Log */}
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-text-muted">
-                    Behavior Notes & BDE Outreach Log
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={form.behavior_notes}
-                    onChange={(e) => setForm({ ...form, behavior_notes: e.target.value })}
-                    className="w-full text-xs bg-bg text-text rounded-xl border border-border p-2.5 focus:outline-none focus:border-primary"
-                    placeholder="Document call notes, reason for cart abandonment, pricing agreements, next steps..."
-                  />
+              {/* Section 5: Recent Quotes */}
+              {recentQuotes.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[10px] uppercase font-bold text-text-muted tracking-wider flex items-center gap-1.5">
+                    <FiFileText size={13} className="text-blue-600" />
+                    <span>Recent Quotes & Inquiries ({recentQuotes.length})</span>
+                  </span>
+                  <div className="space-y-2">
+                    {recentQuotes.map((q) => (
+                      <div
+                        key={q.id}
+                        className="bg-surface-subtle/30 rounded-xl border border-border p-3 flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="font-bold text-text">{q.quoteNumber}</div>
+                          <div className="text-[11px] text-text-muted mt-0.5">
+                            {q.date}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-text block">{q.totalAmount}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 font-semibold uppercase">
+                            {q.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-
-                {/* Submit Action */}
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition-colors shadow-xs cursor-pointer disabled:opacity-50"
-                  >
-                    {saving ? <FiRefreshCw className="animate-spin" size={13} /> : <FiSave size={13} />}
-                    <span>{saving ? 'Updating Behavior...' : 'Save Profile Changes'}</span>
-                  </button>
-                </div>
-              </form>
+              )}
             </>
           )}
         </div>
@@ -395,4 +287,3 @@ export default function EpcProfileDrawer({
     </div>
   );
 }
-

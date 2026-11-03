@@ -41,6 +41,7 @@ import {
   FiZap,
   FiUserCheck,
   FiPackage,
+  FiUpload,
 } from "react-icons/fi";
 import api from "../services/api";
 
@@ -251,6 +252,9 @@ export default function PoOrder() {
   const [reorderSubmitting, setReorderSubmitting] = useState(false);
   const [reorderError, setReorderError] = useState("");
   const [reorderSuccess, setReorderSuccess] = useState(null);
+  const [reorderSlipFile, setReorderSlipFile] = useState(null);
+  const [reorderSlipPreview, setReorderSlipPreview] = useState(null);
+  const [reorderUploadingSlip, setReorderUploadingSlip] = useState(false);
 
   // ── Refund Modal State ──
   const [refundModal, setRefundModal] = useState(false);
@@ -291,13 +295,36 @@ export default function PoOrder() {
   const availableKits = useMemo(() => {
     if (Array.isArray(planData?.combo_kits) && planData.combo_kits.length > 0) {
       return planData.combo_kits.map((k) => {
-        const orderQtys = Array.isArray(k.order_quantities) && k.order_quantities.length > 0
-          ? k.order_quantities.map(Number).filter((n) => n > 0).sort((a, b) => a - b)
-          : [100, 200, 500, 1000];
-        const looseQtys = Array.isArray(k.loose_order_quantities) && k.loose_order_quantities.length > 0
-          ? k.loose_order_quantities.map(Number).filter((n) => n > 0).sort((a, b) => a - b)
-          : [5, 10, 15, 20, 25, 30];
+        const poPricing = Array.isArray(k.po_order_pricing)
+          ? k.po_order_pricing
+          : (Array.isArray(k.poOrderPricing) ? k.poOrderPricing : []);
+        const loosePricing = Array.isArray(k.loose_order_pricing)
+          ? k.loose_order_pricing
+          : (Array.isArray(k.looseOrderPricing) ? k.looseOrderPricing : []);
+
+        const pricingPoQtys = poPricing.map((p) => Number(p.quantity)).filter((n) => !isNaN(n) && n > 0);
+        const pricingLooseQtys = loosePricing.map((p) => Number(p.quantity)).filter((n) => !isNaN(n) && n > 0);
+
+        const rawOrderQtys = Array.isArray(k.order_quantities) && k.order_quantities.length > 0
+          ? k.order_quantities.map(Number).filter((n) => !isNaN(n) && n > 0)
+          : [];
+        const orderQtys = Array.from(new Set([...rawOrderQtys, ...pricingPoQtys])).sort((a, b) => a - b);
+        const finalOrderQtys = orderQtys.length > 0 ? orderQtys : [200, 500];
+
+        const rawLooseQtys = Array.isArray(k.loose_order_quantities) && k.loose_order_quantities.length > 0
+          ? k.loose_order_quantities.map(Number).filter((n) => !isNaN(n) && n > 0)
+          : [];
+        const looseQtys = Array.from(new Set([...rawLooseQtys, ...pricingLooseQtys])).sort((a, b) => a - b);
+        const finalLooseQtys = looseQtys.length > 0 ? looseQtys : [5, 10, 15, 20, 25, 30];
+
         const price = k.dealer_price || k.selling_price_cached || k.unit_price || k.price || 0;
+        const gstRate = k.gst_rate != null && !isNaN(Number(k.gst_rate))
+          ? Number(k.gst_rate)
+          : (k.tax_pct != null && !isNaN(Number(k.tax_pct))
+            ? Number(k.tax_pct)
+            : (k.gst_pct != null && !isNaN(Number(k.gst_pct))
+              ? Number(k.gst_pct)
+              : (k.common_gst_rate != null && !isNaN(Number(k.common_gst_rate)) ? Number(k.common_gst_rate) : 0)));
 
         return {
           _id: (k._id || k.id)?.toString(),
@@ -322,13 +349,28 @@ export default function PoOrder() {
           unit_price: price,
           price: price,
           base_price_paise: Math.round(price * 100),
+          token_booking_enabled: k.token_booking_enabled !== false,
+          token_type: k.token_type || 'FIXED_AMOUNT',
+          token_value: k.token_value != null && Number(k.token_value) > 0 ? Number(k.token_value) : 35000,
           token_rate_per_kit_paise: k.token_rate_per_kit_paise || 0,
           trial_kit_quantity: k.trial_kit_quantity || 10,
           is_trial_allowed: k.is_trial_allowed !== false,
-          order_quantities: orderQtys,
-          loose_order_quantities: looseQtys,
-          min_po_quantity: orderQtys[0] || 100,
+          order_quantities: finalOrderQtys,
+          loose_order_quantities: finalLooseQtys,
+          min_po_quantity: k.min_po_quantity || finalOrderQtys[0] || 200,
+          max_po_quantity: k.max_po_quantity || null,
+          po_validity_days: k.po_validity_days || 30,
+          po_lock_days: k.po_lock_days || 30,
+          po_setting_id: k.po_setting_id || null,
           specifications: k.description || k.specifications || "High performance solar kit featuring top-tier string inverter and heavy-duty GI mounting structure.",
+          po_order_pricing: poPricing,
+          poOrderPricing: poPricing,
+          loose_order_pricing: loosePricing,
+          looseOrderPricing: loosePricing,
+          gst_rate: gstRate,
+          tax_pct: gstRate,
+          gst_pct: gstRate,
+          common_gst_rate: gstRate,
         };
       });
     }
@@ -352,12 +394,23 @@ export default function PoOrder() {
     const list = [];
     const seen = new Set();
 
+    const getCount = (name, id) => {
+      const targetName = (name || "").toLowerCase();
+      const targetId = id ? String(id) : null;
+      return availableKits.filter((k) => {
+        const kName = (k.industry_type_name || "").toLowerCase();
+        const kId = k.industry_type_id ? String(k.industry_type_id) : null;
+        return (kName && (kName === targetName || kName.includes(targetName))) || (targetId && kId && kId === targetId);
+      }).length;
+    };
+
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       shopHierarchy.forEach((ind) => {
         const name = ind.name;
         if (name && !seen.has(name.toLowerCase())) {
           seen.add(name.toLowerCase());
-          list.push({ value: name, label: name, id: ind.id || ind._id });
+          const count = getCount(name, ind.id || ind._id);
+          list.push({ value: name, label: `${name} (${count})`, rawLabel: name, id: ind.id || ind._id, count });
         }
       });
     }
@@ -366,16 +419,36 @@ export default function PoOrder() {
       const name = kit.industry_type_name;
       if (name && !seen.has(name.toLowerCase())) {
         seen.add(name.toLowerCase());
-        list.push({ value: name, label: name, id: kit.industry_type_id });
+        const count = getCount(name, kit.industry_type_id);
+        list.push({ value: name, label: `${name} (${count})`, rawLabel: name, id: kit.industry_type_id, count });
       }
     });
 
-    return [{ value: "all", label: "All Industry Types" }, ...list];
+    return [{ value: "all", label: `All Industry Types (${availableKits.length})`, count: availableKits.length }, ...list];
   }, [shopHierarchy, availableKits]);
 
   const categoryOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    // Kits matching current industry filter
+    const kitsInCurrentIndustry = availableKits.filter((k) => {
+      if (quickFilters.industryType === "all") return true;
+      const indVal = quickFilters.industryType.toLowerCase();
+      const kInd = (k.industry_type_name || "").toLowerCase();
+      const kIndId = String(k.industry_type_id || "");
+      return kInd === indVal || kIndId === indVal || kInd.includes(indVal);
+    });
+
+    const getCount = (name, id) => {
+      const targetName = (name || "").toLowerCase();
+      const targetId = id ? String(id) : null;
+      return kitsInCurrentIndustry.filter((k) => {
+        const kName = (k.category_name || "").toLowerCase();
+        const kId = k.category_id ? String(k.category_id) : null;
+        return (kName && (kName === targetName || kName.includes(targetName))) || (targetId && kId && kId === targetId);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -390,7 +463,8 @@ export default function PoOrder() {
         (ind.categories || []).forEach((cat) => {
           if (cat.name && !seen.has(cat.name.toLowerCase())) {
             seen.add(cat.name.toLowerCase());
-            list.push({ value: cat.name, label: cat.name, id: cat.id || cat._id });
+            const count = getCount(cat.name, cat.id || cat._id);
+            list.push({ value: cat.name, label: `${cat.name} (${count})`, rawLabel: cat.name, id: cat.id || cat._id, count });
           }
         });
       });
@@ -399,19 +473,47 @@ export default function PoOrder() {
     availableKits.forEach((kit) => {
       const indOk =
         quickFilters.industryType === "all" ||
-        kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase();
+        kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+        String(kit.industry_type_id || "") === String(quickFilters.industryType);
       if (indOk && kit.category_name && !seen.has(kit.category_name.toLowerCase())) {
         seen.add(kit.category_name.toLowerCase());
-        list.push({ value: kit.category_name, label: kit.category_name, id: kit.category_id });
+        const count = getCount(kit.category_name, kit.category_id);
+        list.push({ value: kit.category_name, label: `${kit.category_name} (${count})`, rawLabel: kit.category_name, id: kit.category_id, count });
       }
     });
 
-    return [{ value: "all", label: "All Categories" }, ...list];
+    return [{ value: "all", label: `All Categories (${kitsInCurrentIndustry.length})`, count: kitsInCurrentIndustry.length }, ...list];
   }, [shopHierarchy, availableKits, quickFilters.industryType]);
 
   const subCategoryOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    const kitsInCurrentCat = availableKits.filter((k) => {
+      if (quickFilters.industryType !== "all") {
+        const indVal = quickFilters.industryType.toLowerCase();
+        const kInd = (k.industry_type_name || "").toLowerCase();
+        const kIndId = String(k.industry_type_id || "");
+        if (kInd !== indVal && kIndId !== indVal && !kInd.includes(indVal)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const catVal = quickFilters.category.toLowerCase();
+        const kCat = (k.category_name || "").toLowerCase();
+        const kCatId = String(k.category_id || "");
+        if (kCat !== catVal && kCatId !== catVal && !kCat.includes(catVal)) return false;
+      }
+      return true;
+    });
+
+    const getCount = (name, id) => {
+      const targetName = (name || "").toLowerCase();
+      const targetId = id ? String(id) : null;
+      return kitsInCurrentCat.filter((k) => {
+        const kName = (k.subcategory_name || "").toLowerCase();
+        const kId = k.subcategory_id ? String(k.subcategory_id) : null;
+        return (kName && (kName === targetName || kName.includes(targetName))) || (targetId && kId && kId === targetId);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -432,7 +534,8 @@ export default function PoOrder() {
             (cat.subcategories || []).forEach((sub) => {
               if (sub.name && !seen.has(sub.name.toLowerCase())) {
                 seen.add(sub.name.toLowerCase());
-                list.push({ value: sub.name, label: sub.name, id: sub.id || sub._id });
+                const count = getCount(sub.name, sub.id || sub._id);
+                list.push({ value: sub.name, label: `${sub.name} (${count})`, rawLabel: sub.name, id: sub.id || sub._id, count });
               }
             });
           }
@@ -443,22 +546,56 @@ export default function PoOrder() {
     availableKits.forEach((kit) => {
       const indOk =
         quickFilters.industryType === "all" ||
-        kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase();
+        kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+        String(kit.industry_type_id || "") === String(quickFilters.industryType);
       const catOk =
         quickFilters.category === "all" ||
-        kit.category_name?.toLowerCase() === quickFilters.category.toLowerCase();
+        kit.category_name?.toLowerCase() === quickFilters.category.toLowerCase() ||
+        String(kit.category_id || "") === String(quickFilters.category);
       if (indOk && catOk && kit.subcategory_name && !seen.has(kit.subcategory_name.toLowerCase())) {
         seen.add(kit.subcategory_name.toLowerCase());
-        list.push({ value: kit.subcategory_name, label: kit.subcategory_name, id: kit.subcategory_id });
+        const count = getCount(kit.subcategory_name, kit.subcategory_id);
+        list.push({ value: kit.subcategory_name, label: `${kit.subcategory_name} (${count})`, rawLabel: kit.subcategory_name, id: kit.subcategory_id, count });
       }
     });
 
-    return [{ value: "all", label: "All Sub-Categories" }, ...list];
+    return [{ value: "all", label: `All Sub-Categories (${kitsInCurrentCat.length})`, count: kitsInCurrentCat.length }, ...list];
   }, [shopHierarchy, availableKits, quickFilters.industryType, quickFilters.category]);
 
   const systemTypeOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    const kitsInCurrentSub = availableKits.filter((k) => {
+      if (quickFilters.industryType !== "all") {
+        const indVal = quickFilters.industryType.toLowerCase();
+        const kInd = (k.industry_type_name || "").toLowerCase();
+        const kIndId = String(k.industry_type_id || "");
+        if (kInd !== indVal && kIndId !== indVal && !kInd.includes(indVal)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const catVal = quickFilters.category.toLowerCase();
+        const kCat = (k.category_name || "").toLowerCase();
+        const kCatId = String(k.category_id || "");
+        if (kCat !== catVal && kCatId !== catVal && !kCat.includes(catVal)) return false;
+      }
+      if (quickFilters.subCategory !== "all") {
+        const subVal = quickFilters.subCategory.toLowerCase();
+        const kSub = (k.subcategory_name || "").toLowerCase();
+        const kSubId = String(k.subcategory_id || "");
+        if (kSub !== subVal && kSubId !== subVal && !kSub.includes(subVal)) return false;
+      }
+      return true;
+    });
+
+    const getCount = (sysName) => {
+      const targetSys = (sysName || "").toLowerCase();
+      return kitsInCurrentSub.filter((k) => {
+        const kSys = (k.system_type || "").toLowerCase();
+        const kProjType = (k.project_type_name || "").toLowerCase();
+        return kSys === targetSys || kSys.includes(targetSys) || kProjType.includes(targetSys);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -483,7 +620,8 @@ export default function PoOrder() {
                 (sub.mappedTypes || []).forEach((mt) => {
                   if (mt.name && !seen.has(mt.name.toLowerCase())) {
                     seen.add(mt.name.toLowerCase());
-                    list.push({ value: mt.name, label: mt.name, id: mt.id || mt.type_id });
+                    const count = getCount(mt.name);
+                    list.push({ value: mt.name, label: `${mt.name} (${count})`, rawLabel: mt.name, id: mt.id || mt.type_id, count });
                   }
                 });
               }
@@ -507,17 +645,59 @@ export default function PoOrder() {
         const sys = kit.system_type || "On-Grid";
         if (sys && !seen.has(sys.toLowerCase())) {
           seen.add(sys.toLowerCase());
-          list.push({ value: sys, label: sys, id: sys });
+          const count = getCount(sys);
+          list.push({ value: sys, label: `${sys} (${count})`, rawLabel: sys, id: sys, count });
         }
       }
     });
 
-    return [{ value: "all", label: "All System Types" }, ...list];
+    return [{ value: "all", label: `All System Types (${kitsInCurrentSub.length})`, count: kitsInCurrentSub.length }, ...list];
   }, [shopHierarchy, availableKits, quickFilters.industryType, quickFilters.category, quickFilters.subCategory]);
 
   const projectRangeOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    const kitsInCurrentSys = availableKits.filter((k) => {
+      if (quickFilters.industryType !== "all") {
+        const indVal = quickFilters.industryType.toLowerCase();
+        const kInd = (k.industry_type_name || "").toLowerCase();
+        const kIndId = String(k.industry_type_id || "");
+        if (kInd !== indVal && kIndId !== indVal && !kInd.includes(indVal)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const catVal = quickFilters.category.toLowerCase();
+        const kCat = (k.category_name || "").toLowerCase();
+        const kCatId = String(k.category_id || "");
+        if (kCat !== catVal && kCatId !== catVal && !kCat.includes(catVal)) return false;
+      }
+      if (quickFilters.subCategory !== "all") {
+        const subVal = quickFilters.subCategory.toLowerCase();
+        const kSub = (k.subcategory_name || "").toLowerCase();
+        const kSubId = String(k.subcategory_id || "");
+        if (kSub !== subVal && kSubId !== subVal && !kSub.includes(subVal)) return false;
+      }
+      if (quickFilters.systemType !== "all") {
+        const sysVal = quickFilters.systemType.toLowerCase();
+        const kSys = (k.system_type || "").toLowerCase();
+        const kProjType = (k.project_type_name || "").toLowerCase();
+        if (kSys !== sysVal && !kSys.includes(sysVal) && !kProjType.includes(sysVal)) return false;
+      }
+      return true;
+    });
+
+    const getCount = (label, min, max) => {
+      const targetLabel = (label || "").toLowerCase();
+      return kitsInCurrentSys.filter((k) => {
+        const kRange = (k.project_range_label || "").toLowerCase();
+        if (kRange === targetLabel || kRange.includes(targetLabel)) return true;
+        if (min != null && max != null) {
+          const cap = Number(k.capacity_kw || 0);
+          return cap >= min && cap <= max;
+        }
+        return false;
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -549,7 +729,8 @@ export default function PoOrder() {
                       const label = r.range_label || `${r.min_value} - ${r.max_value} ${r.unit_symbol || 'kW'}`;
                       if (label && !seen.has(label.toLowerCase())) {
                         seen.add(label.toLowerCase());
-                        list.push({ value: label, label: label, id: r.id || r._id, min: r.min_value, max: r.max_value });
+                        const count = getCount(label, r.min_value, r.max_value);
+                        list.push({ value: label, label: `${label} (${count})`, rawLabel: label, id: r.id || r._id, min: r.min_value, max: r.max_value, count });
                       }
                     });
                   }
@@ -565,11 +746,12 @@ export default function PoOrder() {
       const label = kit.project_range_label || (kit.capacity_kw ? `${kit.capacity_kw} kW System` : null);
       if (label && !seen.has(label.toLowerCase())) {
         seen.add(label.toLowerCase());
-        list.push({ value: label, label: label, id: kit.project_range_id, min: kit.min_kw, max: kit.max_kw });
+        const count = getCount(label, kit.min_kw, kit.max_kw);
+        list.push({ value: label, label: `${label} (${count})`, rawLabel: label, id: kit.project_range_id, min: kit.min_kw, max: kit.max_kw, count });
       }
     });
 
-    return [{ value: "all", label: "All Project Ranges" }, ...list];
+    return [{ value: "all", label: `All Project Ranges (${kitsInCurrentSys.length})`, count: kitsInCurrentSys.length }, ...list];
   }, [shopHierarchy, availableKits, quickFilters.industryType, quickFilters.category, quickFilters.subCategory, quickFilters.systemType]);
 
   const handleClearMainFilters = () => {
@@ -764,33 +946,74 @@ export default function PoOrder() {
   // Calculation for Create Modal
   const targetQuantity = Math.max(1, parseInt(selectedPoQty, 10) || selectedKit?.min_po_quantity || 200);
 
-  // Dynamic Unit Price using PO Order Tier Pricing
-  const kitUnitPrice = useMemo(() => {
+  // Dynamic GST Rate for Selected Kit (from Admin Company Margin or Kit)
+  const kitGstRate = useMemo(() => {
     if (!selectedKit) return 0;
+    const rawRate = selectedKit.gst_rate ?? selectedKit.tax_pct ?? selectedKit.gst_pct ?? selectedKit.common_gst_rate;
+    if (rawRate !== undefined && rawRate !== null && !isNaN(Number(rawRate))) {
+      return Number(rawRate);
+    }
+    return 0;
+  }, [selectedKit]);
+
+  // Find Matched PO Tier for selected targetQuantity from Admin configured po_order_pricing
+  const matchedPoTier = useMemo(() => {
+    if (!selectedKit) return null;
     const poPricing = selectedKit.po_order_pricing || selectedKit.poOrderPricing;
     if (Array.isArray(poPricing) && poPricing.length > 0) {
-      const matchedTier = poPricing.find(
+      const exactMatch = poPricing.find(
         (t) => Number(t.quantity) === Number(targetQuantity)
       );
-      if (matchedTier && matchedTier.price_per_kit > 0) {
-        return matchedTier.price_per_kit;
+      if (exactMatch && Number(exactMatch.price_per_kit) > 0) {
+        return exactMatch;
       }
-      // If not an exact match, find highest tier where quantity <= targetQuantity
       const lowerTiers = poPricing
-        .filter((t) => Number(t.quantity) <= Number(targetQuantity) && t.price_per_kit > 0)
+        .filter((t) => Number(t.quantity) <= Number(targetQuantity) && Number(t.price_per_kit) > 0)
         .sort((a, b) => Number(b.quantity) - Number(a.quantity));
       if (lowerTiers.length > 0) {
-        return lowerTiers[0].price_per_kit;
+        return lowerTiers[0];
       }
     }
-    return selectedKit.dealer_price || selectedKit.unit_price || selectedKit.selling_price_cached || 0;
+    return null;
   }, [selectedKit, targetQuantity]);
 
-  const tokenRatePerKit = selectedKit?.token_rate_per_kit_paise ? Math.round(selectedKit.token_rate_per_kit_paise / 100) : 0;
-  const estimatedSubtotal = targetQuantity * kitUnitPrice;
-  const estimatedGst = Math.round((estimatedSubtotal * 12) / 100);
-  const estimatedGrandTotal = estimatedSubtotal + estimatedGst;
-  const estimatedTokenDeposit = targetQuantity * tokenRatePerKit;
+  // Unit Price without GST (Base cost + company margin)
+  const tierPriceExclGst = useMemo(() => {
+    if (matchedPoTier) {
+      if (
+        matchedPoTier.base_price !== undefined &&
+        matchedPoTier.margin_amount !== undefined &&
+        matchedPoTier.margin_amount !== "" &&
+        !isNaN(Number(matchedPoTier.margin_amount))
+      ) {
+        return Number(matchedPoTier.base_price) + Number(matchedPoTier.margin_amount);
+      }
+      if (Number(matchedPoTier.price_per_kit) > 0) {
+        return kitGstRate > 0
+          ? Math.round(Number(matchedPoTier.price_per_kit) / (1 + kitGstRate / 100))
+          : Number(matchedPoTier.price_per_kit);
+      }
+    }
+    return Number(selectedKit?.dealer_price || selectedKit?.unit_price || selectedKit?.selling_price_cached || 0);
+  }, [matchedPoTier, selectedKit, kitGstRate]);
+
+  // Final Per-Kit Price (inclusive of GST)
+  const tierPriceWithGst = useMemo(() => {
+    if (matchedPoTier && Number(matchedPoTier.price_per_kit) > 0) {
+      return Number(matchedPoTier.price_per_kit);
+    }
+    return Math.round(tierPriceExclGst * (1 + kitGstRate / 100));
+  }, [matchedPoTier, tierPriceExclGst, kitGstRate]);
+
+  // kitUnitPrice is the active per-kit price for the selected quota
+  const kitUnitPrice = tierPriceWithGst;
+
+  // Flat Token Amount for entire PO Order (Standard ₹35,000 flat, not per kit)
+  const poFixedTokenAmount = Number(selectedKit?.token_value || planData?.po_settings?.token_value || 35000);
+  const estimatedGrandTotal = targetQuantity * tierPriceWithGst;
+  const estimatedSubtotal = targetQuantity * tierPriceExclGst;
+  const estimatedGst = Math.max(0, estimatedGrandTotal - estimatedSubtotal);
+  const estimatedTokenDeposit = poFixedTokenAmount;
 
   // ── Open Create PO Modal ──
   const handleOpenCreateModal = () => {
@@ -798,6 +1021,7 @@ export default function PoOrder() {
       return;
     }
     setFormError("");
+    fetchPlanSettings(true); // Always fetch fresh tier pricing & plan settings
     fetchBuyers();
     fetchHierarchy();
     if (allowsCombinePo && !allowsPo) {
@@ -820,16 +1044,18 @@ export default function PoOrder() {
 
     setSubmitting(true);
     try {
+      const unitPricePaise = Math.round(tierPriceExclGst * 100);
+
       const itemPayload = {
         combo_kit_id: selectedKit._id || selectedKit.id,
         kit_id: selectedKit._id || selectedKit.id,
         item_name: selectedKit.name || selectedKit.kit_name,
         quantity: targetQuantity,
-        unit_price_paise: selectedKit.base_price_paise || Math.round(kitUnitPrice * 100),
-        token_rate_paise: selectedKit.token_rate_per_kit_paise || 0,
-        total_price_paise: targetQuantity * (selectedKit.base_price_paise || Math.round(kitUnitPrice * 100)),
-        subtotal_paise: targetQuantity * (selectedKit.base_price_paise || Math.round(kitUnitPrice * 100)),
-        gst_rate: 12,
+        unit_price_paise: unitPricePaise,
+        token_rate_paise: 0,
+        total_price_paise: Math.round(estimatedGrandTotal * 100),
+        subtotal_paise: Math.round(estimatedSubtotal * 100),
+        gst_rate: kitGstRate,
         epc_allocations: [],
       };
 
@@ -838,6 +1064,7 @@ export default function PoOrder() {
         po_category: poCategory,
         target_committed_quantity: targetQuantity,
         is_token_booking: true,
+        token_amount_paise: poFixedTokenAmount * 100,
         items: [itemPayload],
       };
 
@@ -944,7 +1171,7 @@ export default function PoOrder() {
             gstin: buyer?.gstin || null,
             allocated_quantity: allocQ,
             token_amount_paise: allocTokenPaise,
-            payment_status: (allocatingOrder.token_paid_paise >= allocTokenPaise && allocTokenPaise > 0) ? "PAID" : "PENDING",
+            payment_status: (allocatingOrder.token_paid_paise > 0 && allocatingOrder.token_paid_paise >= allocTokenPaise && allocTokenPaise > 0) ? "PAID" : "PENDING",
           };
         });
     } else {
@@ -962,7 +1189,7 @@ export default function PoOrder() {
             gstin: buyer?.gstin || null,
             allocated_quantity: totalCommitted,
             token_amount_paise: poTotalTokenPaise,
-            payment_status: (allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? "PAID" : "PENDING",
+            payment_status: (allocatingOrder.token_paid_paise > 0 && allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? "PAID" : "PENDING",
           },
         ];
       } else {
@@ -974,7 +1201,7 @@ export default function PoOrder() {
             gstin: null,
             allocated_quantity: totalCommitted,
             token_amount_paise: poTotalTokenPaise,
-            payment_status: (allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? "PAID" : "PENDING",
+            payment_status: (allocatingOrder.token_paid_paise > 0 && allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? "PAID" : "PENDING",
           },
         ];
       }
@@ -1013,6 +1240,10 @@ export default function PoOrder() {
           sessionStorage.removeItem(CACHE_KEYS.ORDERS);
         } catch { }
         await fetchData(true);
+        const updated = res.data.data;
+        if (updated && (updated.status === "AWAITING_TOKEN_PAYMENT" || updated.token_payment_status !== "PAID")) {
+          handleOpenTokenModal(updated);
+        }
       } else {
         setAllocateError(res.data?.message || "Failed to allocate products to PO.");
       }
@@ -1118,6 +1349,9 @@ export default function PoOrder() {
     setReorderDate(new Date().toISOString().slice(0, 10));
     setReorderError("");
     setReorderSuccess(null);
+    setReorderSlipFile(null);
+    setReorderSlipPreview(null);
+    setReorderUploadingSlip(false);
     setReorderModal(true);
   };
 
@@ -1156,6 +1390,26 @@ export default function PoOrder() {
 
     setReorderSubmitting(true);
     try {
+      let uploadedSlipUrl = null;
+      if (reorderSlipFile) {
+        setReorderUploadingSlip(true);
+        try {
+          const formData = new FormData();
+          formData.append("file", reorderSlipFile);
+          formData.append("files", reorderSlipFile);
+          const upRes = await api.post("/india/v1/reseller/po/upload-receipt", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          if (upRes.data?.data?.receipt_url) {
+            uploadedSlipUrl = upRes.data.data.receipt_url;
+          }
+        } catch (upErr) {
+          console.error("Slip upload error:", upErr);
+        } finally {
+          setReorderUploadingSlip(false);
+        }
+      }
+
       const payload = {
         quantity: reorderQty,
         kit_id: item.kit_id || item.product_id,
@@ -1165,6 +1419,8 @@ export default function PoOrder() {
           amount_paid: netPayable,
           payment_date: reorderDate,
           sender_bank_name: reorderBank || "Bank Transfer",
+          receipt_url: uploadedSlipUrl || null,
+          payment_receipt_url: uploadedSlipUrl || null,
         },
       };
 
@@ -1515,7 +1771,10 @@ export default function PoOrder() {
                   const remaining = order.remaining_quantity != null ? order.remaining_quantity : Math.max(0, booked - fulfilled);
                   const progressPct = booked > 0 ? Math.min(100, Math.round((fulfilled / booked) * 100)) : 0;
 
-                  const tokenPaidINR = Math.round((order.token_amount_paise || order.token_paid_paise || 0) / 100);
+                  const tokenReqINR = Math.round((order.token_amount_paise || 0) / 100);
+                  const tokenPaidINR = Math.round((order.token_paid_paise || 0) / 100);
+                  const isTokenPaid = order.token_payment_status === "PAID" || (tokenPaidINR > 0 && tokenReqINR > 0 && tokenPaidINR >= tokenReqINR);
+                  const isTokenPartial = !isTokenPaid && tokenPaidINR > 0;
                   const tokenAdjustedINR = Math.round((order.token_adjusted_total_paise || 0) / 100);
                   const tokenBalanceINR = order.token_balance_paise != null
                     ? Math.round(order.token_balance_paise / 100)
@@ -1666,11 +1925,19 @@ export default function PoOrder() {
                           <div className="flex flex-col gap-0.5 min-w-[90px]">
                             <div className="flex items-center gap-1">
                               <span className="font-mono font-bold text-text-primary text-[11px]">
-                                ₹{tokenPaidINR.toLocaleString("en-IN")}
+                                ₹{tokenReqINR.toLocaleString("en-IN")}
                               </span>
-                              {tokenPaidINR > 0 && (
+                              {isTokenPaid ? (
                                 <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1 rounded border border-emerald-200/60">
                                   Paid
+                                </span>
+                              ) : isTokenPartial ? (
+                                <span className="text-[8px] font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-1 rounded border border-teal-200/60">
+                                  Partial
+                                </span>
+                              ) : (
+                                <span className="text-[8px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-200/60">
+                                  Pending
                                 </span>
                               )}
                             </div>
@@ -1708,9 +1975,22 @@ export default function PoOrder() {
                               <button
                                 onClick={() => handleOpenAllocateModal(order)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-all cursor-pointer"
+                                title="Allocate Quota to EPC Partners"
                               >
                                 <FiBox size={11} />
                                 <span>Allocate</span>
+                              </button>
+                            )}
+
+                            {/* Stage 3: Pay Token Button when Awaiting Token Payment */}
+                            {isAwaitingToken && !isTokenPaid && (
+                              <button
+                                onClick={() => handleOpenTokenModal(order)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-2xs transition-all cursor-pointer"
+                                title="Deposit Escrow Token to Start PO"
+                              >
+                                <FiDollarSign size={11} />
+                                <span>Pay Token</span>
                               </button>
                             )}
 
@@ -2095,7 +2375,7 @@ export default function PoOrder() {
                     {/* 1. Industry Type */}
                     <div>
                       <label className="block text-xs font-semibold text-text-muted mb-1">
-                        Industry Type
+                        1. Industry Type
                       </label>
                       <div className="relative">
                         <select
@@ -2125,7 +2405,7 @@ export default function PoOrder() {
                     {/* 2. Category */}
                     <div>
                       <label className="block text-xs font-semibold text-text-muted mb-1">
-                        Category
+                        2. Category
                       </label>
                       <div className="relative">
                         <select
@@ -2154,7 +2434,7 @@ export default function PoOrder() {
                     {/* 3. Sub Category */}
                     <div>
                       <label className="block text-xs font-semibold text-text-muted mb-1">
-                        Sub Category
+                        3. Sub Category
                       </label>
                       <div className="relative">
                         <select
@@ -2180,7 +2460,7 @@ export default function PoOrder() {
                     {/* 4. System Type */}
                     <div>
                       <label className="block text-xs font-semibold text-text-muted mb-1">
-                        System Type
+                        4. System Type
                       </label>
                       <div className="relative">
                         <select
@@ -2206,7 +2486,7 @@ export default function PoOrder() {
                     {/* 5. Project Range */}
                     <div>
                       <label className="block text-xs font-semibold text-text-muted mb-1">
-                        Project Range
+                        5. Project Range
                       </label>
                       <div className="relative">
                         <select
@@ -2231,7 +2511,7 @@ export default function PoOrder() {
                   </div>
                 </div>
 
-                {/* ── 1. CHOOSE AUTHORIZED SOLAR COMBOKIT (Screenshot 2 Match) ── */}
+                {/* ── 1. CHOOSE AUTHORIZED SOLAR COMBOKIT (Dropdown & Overview Card) ── */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold uppercase tracking-wider text-text-muted">
@@ -2256,67 +2536,78 @@ export default function PoOrder() {
                       </button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-2.5 max-h-72 overflow-y-auto pr-1">
-                      {filteredComboKits.map((kit) => {
-                        const isSelected = String(selectedKitId) === String(kit._id);
-                        const priceINR = kit.dealer_price || kit.unit_price || kit.selling_price_cached || 0;
-                        const tokenINR = kit.token_rate_per_kit_paise ? Math.round(kit.token_rate_per_kit_paise / 100) : 0;
-
-                        return (
-                          <div
-                            key={kit._id}
-                            onClick={() => {
-                              setSelectedKitId(kit._id);
+                    <div className="space-y-3">
+                      {/* ComboKit Dropdown Selection */}
+                      <div className="relative">
+                        <select
+                          value={selectedKitId || ""}
+                          onChange={(e) => {
+                            const newId = e.target.value;
+                            setSelectedKitId(newId);
+                            const kit = availableKits.find((k) => String(k._id) === String(newId));
+                            if (kit) {
                               const firstQty = kit.order_quantities?.[0] || kit.min_po_quantity || 200;
                               setSelectedPoQty(firstQty);
-                            }}
-                            className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isSelected
-                              ? "border-primary bg-primary/5 shadow-xs"
-                              : "border-border hover:border-primary/40 bg-surface"
-                              }`}
-                          >
-                            <div className="space-y-1 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 ${isSelected ? "bg-primary text-white" : "border border-border text-transparent"
-                                  }`}>
-                                  <FiCheck size={12} />
-                                </div>
-                                <span className="font-black text-xs text-text-primary">{kit.name}</span>
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-500/10 text-blue-600 shrink-0">
-                                  {kit.capacity_kw} kW • {kit.system_type}
-                                </span>
-                                {kit.category_name && (
-                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-surface-hover text-text-muted border border-border/80 shrink-0">
-                                    {kit.category_name}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-text-muted leading-tight pl-7">
-                                {kit.specifications}
-                              </p>
-                            </div>
+                            }
+                          }}
+                          className="w-full appearance-none px-4 py-3 text-xs font-bold bg-surface border-2 border-border hover:border-primary/50 focus:border-primary rounded-xl text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 pr-10 cursor-pointer shadow-xs transition"
+                        >
+                          {filteredComboKits.map((kit) => {
+                            const priceINR = Math.round(Number(kit.dealer_price || kit.unit_price || kit.selling_price_cached || 0));
+                            const poPricing = Array.isArray(kit.po_order_pricing) ? kit.po_order_pricing : [];
+                            const minPoPrice = poPricing.length > 0 ? Math.min(...poPricing.map((t) => Number(t.price_per_kit)).filter((p) => p > 0)) : null;
+                            const priceLabel = minPoPrice && minPoPrice !== Infinity
+                              ? `₹${minPoPrice.toLocaleString("en-IN")}/kit`
+                              : (priceINR > 0 ? `₹${priceINR.toLocaleString("en-IN")}/kit` : "");
+                            return (
+                              <option key={kit._id} value={kit._id}>
+                                {kit.name} — {kit.capacity_kw} kW • {kit.system_type}{kit.category_name ? ` • ${kit.category_name}` : ""}{priceLabel ? ` (${priceLabel})` : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <FiChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" size={16} />
+                      </div>
 
-                            <div className="sm:text-right pl-7 sm:pl-0 shrink-0">
-                              <div className="text-sm font-black text-text-primary">
-                                {priceINR > 0 ? (
-                                  <>₹{priceINR.toLocaleString("en-IN")}<span className="text-[10px] font-normal text-text-muted">/kit</span></>
-                                ) : (
-                                  <span className="text-xs text-amber-600 font-semibold">Price Pending</span>
-                                )}
+                      {/* Selected Kit Detailed Overview Card */}
+                      {selectedKit && (
+                        <div className="p-4 rounded-2xl border-2 border-primary/40 bg-primary/5 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                          <div className="space-y-1.5 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 bg-primary text-white">
+                                <FiCheck size={12} />
                               </div>
-                              {tokenINR > 0 ? (
-                                <div className="text-[10px] font-bold text-emerald-600">
-                                  Token: ₹{tokenINR.toLocaleString("en-IN")}/kit
-                                </div>
-                              ) : (
-                                <div className="text-[10px] font-medium text-text-muted">
-                                  Token: Not Configured
-                                </div>
+                              <span className="font-black text-xs text-text-primary">{selectedKit.name}</span>
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-500/10 text-blue-600 shrink-0">
+                                {selectedKit.capacity_kw} kW • {selectedKit.system_type}
+                              </span>
+                              {selectedKit.category_name && (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-surface text-text-muted border border-border/80 shrink-0">
+                                  {selectedKit.category_name}
+                                </span>
                               )}
                             </div>
+                            {selectedKit.specifications && (
+                              <p className="text-[11px] text-text-muted leading-tight pl-7">
+                                {selectedKit.specifications}
+                              </p>
+                            )}
                           </div>
-                        );
-                      })}
+
+                          <div className="sm:text-right pl-7 sm:pl-0 shrink-0">
+                            <div className="text-sm font-black text-text-primary">
+                              {kitUnitPrice > 0 ? (
+                                <>₹{kitUnitPrice.toLocaleString("en-IN")}<span className="text-[10px] font-normal text-text-muted">/kit</span></>
+                              ) : (
+                                <span className="text-xs text-amber-600 font-semibold">Price Pending</span>
+                              )}
+                            </div>
+                            <div className="text-[10px] font-semibold text-text-muted mt-0.5">
+                              {matchedPoTier ? `Tier Price (${targetQuantity} Kits)` : "Dealer Unit Price"}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2345,19 +2636,28 @@ export default function PoOrder() {
                           {(selectedKit?.order_quantities && selectedKit.order_quantities.length > 0
                             ? selectedKit.order_quantities
                             : [selectedKit?.min_po_quantity || 200]
-                          ).map((qty) => (
-                            <button
-                              key={qty}
-                              type="button"
-                              onClick={() => setSelectedPoQty(qty)}
-                              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border ${selectedPoQty === qty
-                                ? "bg-amber-500 text-white border-amber-500 shadow-xs scale-105"
-                                : "bg-amber-500/10 text-amber-800 hover:bg-amber-500/20 border-amber-500/20"
-                                }`}
-                            >
-                              {qty} KITS
-                            </button>
-                          ))}
+                          ).map((qty) => {
+                            const tierMatch = (selectedKit?.po_order_pricing || []).find((t) => Number(t.quantity) === Number(qty));
+                            const tierPrice = tierMatch?.price_per_kit > 0 ? tierMatch.price_per_kit : null;
+                            return (
+                              <button
+                                key={qty}
+                                type="button"
+                                onClick={() => setSelectedPoQty(qty)}
+                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border flex flex-col items-center justify-center ${selectedPoQty === qty
+                                  ? "bg-amber-500 text-white border-amber-500 shadow-xs scale-105"
+                                  : "bg-amber-500/10 text-amber-800 hover:bg-amber-500/20 border-amber-500/20"
+                                  }`}
+                              >
+                                <span>{qty} KITS</span>
+                                {tierPrice && (
+                                  <span className={`text-[9px] font-bold ${selectedPoQty === qty ? "text-amber-100" : "text-amber-700"}`}>
+                                    ₹{tierPrice.toLocaleString("en-IN")}/kit
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -2483,9 +2783,45 @@ export default function PoOrder() {
                         </span>
                       </div>
 
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-text-muted uppercase tracking-wider text-[10px] font-bold">Kit Unit Price:</span>
+                        <div className="text-right">
+                          <span className="font-bold text-text-primary">
+                            ₹{kitUnitPrice.toLocaleString("en-IN")}/kit
+                          </span>
+                          {matchedPoTier && (
+                            <span className="block text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                              Tier Price ({targetQuantity} Kits)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
                       <div className="flex justify-between items-center text-xs border-t border-border/50 pt-2">
-                        <span className="text-text-muted">Total Value (incl. 12% GST):</span>
+                        <span className="text-text-muted">Total Value (incl. {kitGstRate}% GST):</span>
                         <span className="font-black text-base text-text-primary">₹{estimatedGrandTotal.toLocaleString("en-IN")}</span>
+                      </div>
+
+                      {/* Highlighted PO Token Booking Deposit Card */}
+                      <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 space-y-1.5 mt-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                            <FiDollarSign className="text-emerald-600 dark:text-emerald-400" size={14} />
+                            PO Token Booking Deposit:
+                          </span>
+                          <span className="font-black text-sm text-emerald-700 dark:text-emerald-200">
+                            ₹{poFixedTokenAmount.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-emerald-700/90 dark:text-emerald-400/90 flex flex-col gap-0.5 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/60">
+                          <div className="flex justify-between items-center font-medium">
+                            <span>Flat Deposit for entire {targetQuantity} Kits PO</span>
+                            {/* <span className="font-bold text-emerald-800 dark:text-emerald-300">Not per kit</span> */}
+                          </div>
+                          {/* <div className="text-[9px] text-text-muted">
+                            Adjustable against loose orders at ₹{targetQuantity > 0 ? Math.round(poFixedTokenAmount / targetQuantity).toLocaleString("en-IN") : 0}/kit upon dispatch.
+                          </div> */}
+                        </div>
                       </div>
                     </div>
 
@@ -2493,7 +2829,7 @@ export default function PoOrder() {
                     <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/25 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
                       <FiInfo size={16} className="text-blue-600 shrink-0 mt-0.5" />
                       <p className="text-[11px] leading-relaxed">
-                        Once created, the <strong>PO Card</strong> will appear on your dashboard with this configured product and quota. You can then allocate loose orders to EPC partners and record the token payment.
+                        Once created, the <strong>PO Card</strong> will appear on your dashboard with this configured product and quota. You can then allocate loose orders to EPC partners and record the flat ₹{poFixedTokenAmount.toLocaleString("en-IN")} token payment.
                       </p>
                     </div>
                   </div>
@@ -3125,7 +3461,7 @@ export default function PoOrder() {
                     const subtotal = reorderQty * unitPrice;
                     const tax = Math.round(subtotal * 0.12);
                     const grossTotal = subtotal + tax;
-                    const tokenPaid = Math.round((reorderOrder.token_amount_paise || reorderOrder.token_paid_paise || 0) / 100);
+                    const tokenPaid = Math.round((reorderOrder.token_paid_paise || reorderOrder.token_amount_paise || 0) / 100);
                     const tokenPerKit = committed > 0 ? Math.floor(tokenPaid / committed) : 0;
                     const tokenToDeduct = Math.min(reorderQty * tokenPerKit, grossTotal);
                     const netPayable = Math.max(0, grossTotal - tokenToDeduct);
@@ -3257,6 +3593,56 @@ export default function PoOrder() {
                           </div>
                         </div>
 
+                        {/* Payment Slip Upload */}
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-bold text-text-muted">
+                            Upload Bank Transfer Slip / Payment Screenshot <span className="text-text-muted font-normal">(Receipt / JPG / PNG / PDF)</span>
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-border hover:border-primary/50 bg-surface text-xs font-bold text-text-secondary cursor-pointer transition">
+                              <FiUpload size={14} className="text-primary" />
+                              <span className="truncate">{reorderSlipFile ? reorderSlipFile.name : "Attach Payment Transfer Receipt..."}</span>
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    setReorderSlipFile(file);
+                                    if (file.type.startsWith("image/")) {
+                                      const reader = new FileReader();
+                                      reader.onload = (ev) => setReorderSlipPreview(ev.target.result);
+                                      reader.readAsDataURL(file);
+                                    } else {
+                                      setReorderSlipPreview(null);
+                                    }
+                                  }
+                                }}
+                              />
+                            </label>
+                            {reorderSlipPreview && (
+                              <img
+                                src={reorderSlipPreview}
+                                alt="Slip Preview"
+                                className="w-10 h-10 object-cover rounded-lg border border-border shadow-xs shrink-0"
+                              />
+                            )}
+                            {reorderSlipFile && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReorderSlipFile(null);
+                                  setReorderSlipPreview(null);
+                                }}
+                                className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
                         <div className="pt-3 border-t border-border flex items-center justify-end gap-3">
                           <button
                             type="button"
@@ -3369,8 +3755,11 @@ export default function PoOrder() {
                     </div>
                     <div className="p-2.5 rounded-xl bg-surface border border-border">
                       <div className="text-[10px] text-text-muted">Token Paid</div>
-                      <div className="text-sm font-black text-emerald-600">
-                        ₹{Math.round((selectedOrder.token_amount_paise || selectedOrder.token_paid_paise || 0) / 100).toLocaleString("en-IN")}
+                      <div className={`text-sm font-black ${(selectedOrder.token_paid_paise || 0) > 0 ? "text-emerald-600" : "text-amber-600"}`}>
+                        ₹{Math.round((selectedOrder.token_paid_paise || 0) / 100).toLocaleString("en-IN")}
+                        <span className="text-[10px] text-text-muted block font-normal">
+                          of ₹{Math.round((selectedOrder.token_amount_paise || 0) / 100).toLocaleString("en-IN")} Req
+                        </span>
                       </div>
                     </div>
                   </div>

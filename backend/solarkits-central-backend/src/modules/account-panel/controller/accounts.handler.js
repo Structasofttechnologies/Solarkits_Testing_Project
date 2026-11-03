@@ -3566,14 +3566,14 @@ const get_eligible_new_orders = async (req, res) => {
       const isGrouped = groupedOrderIds.has(idStr);
       let calculatedStatus = 'New Order';
       if (isGrouped) calculatedStatus = 'Sent to Procurement';
-      else if (['APPROVED', 'CONFIRMED', 'PROCESSING'].includes(o.status)) calculatedStatus = 'New Order';
+      else if (['APPROVED', 'CONFIRMED', 'PROCESSING', 'PAID', 'VALIDATED'].includes(o.status) || o.payment_status === 'paid' || o.offline_payment?.verification_status === 'approved') calculatedStatus = 'New Order';
       else calculatedStatus = 'Pending Account Processing';
 
       standardizedOrders.push({
         id: idStr,
         order_number: o.order_number || `FPO-${String(idx + 1).padStart(4, '0')}`,
-        order_origin: 'Franchisee Store',
-        order_origin_code: 'franchisee',
+        order_origin: (o.created_by_role === 'SOLAR_EPC' || Boolean(o.epc_id)) ? 'Solar EPC' : 'Franchisee Store',
+        order_origin_code: (o.created_by_role === 'SOLAR_EPC' || Boolean(o.epc_id)) ? 'epc' : 'franchisee',
         order_mode: isOffline ? 'Offline Orders' : 'Online Orders',
         order_mode_code: isOffline ? 'offline' : 'online',
         order_category: isGovtTender ? 'Govt. Tenders Order' : 'Industry Kits',
@@ -3585,7 +3585,7 @@ const get_eligible_new_orders = async (req, res) => {
         project_type: project,
         kit_type: primaryKit,
         kits: kitCount,
-        customer_name: o.franchisee_id?.business_name || o.franchisee_id?.company_name || 'Franchise Partner',
+        customer_name: (o.created_by_role === 'SOLAR_EPC' || Boolean(o.epc_id)) ? (o.epc_id?.company_name || o.epc_id?.name || o.customer_details?.buyer_name || o.customer_details?.name || 'Solar EPC Partner') : (o.franchisee_id?.business_name || o.franchisee_id?.company_name || 'Franchise Partner'),
         customer_contact: o.franchisee_id?.mobile || o.franchisee_id?.email || '-',
         customer_gstin: o.franchisee_id?.gst_number || '-',
         state_id: stId ? stId.toString() : null,

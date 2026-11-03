@@ -38,8 +38,9 @@ export const epcAnalyticsApi = {
   /**
    * Fetch Single EPC Behavioral Profile and Telemetry Detail
    */
-  getEpcProfileDetail: async (id) => {
-    const res = await axios.get(`${ADMIN_API}/epc-analytics/epc-profile/${id}`, headers());
+  getEpcProfileDetail: async (id, params = {}) => {
+    const q = buildQuery(params);
+    const res = await axios.get(`${ADMIN_API}/epc-analytics/epc-profile/${id}?${q}`, headers());
     return res.data?.data;
   },
 
@@ -59,5 +60,21 @@ export const epcAnalyticsApi = {
       throw err;
     }
   },
-};
 
+  /**
+   * Fetch 5-Level Shop Hierarchy for Quick Filters
+   */
+  getHierarchyOptions: async () => {
+    try {
+      const res = await axios.get(`${ADMIN_API}/estimator/project-boms/hierarchy-options`, headers());
+      return res.data?.data;
+    } catch {
+      try {
+        const fallbackRes = await axios.get(`${ADMIN_API}/delivery-management/hierarchy-options`, headers());
+        return fallbackRes.data?.data;
+      } catch {
+        return null;
+      }
+    }
+  },
+};

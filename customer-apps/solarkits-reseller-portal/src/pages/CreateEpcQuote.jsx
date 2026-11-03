@@ -105,10 +105,10 @@ export default function CreateEpcQuote() {
         const list = Array.isArray(raw)
           ? raw
           : Array.isArray(raw?.epcs)
-          ? raw.epcs
-          : Array.isArray(res.data?.epcs)
-          ? res.data.epcs
-          : [];
+            ? raw.epcs
+            : Array.isArray(res.data?.epcs)
+              ? res.data.epcs
+              : [];
         setEpcList(list);
       } else {
         setEpcList([]);
@@ -129,10 +129,10 @@ export default function CreateEpcQuote() {
         const list = Array.isArray(raw)
           ? raw
           : Array.isArray(raw?.kits)
-          ? raw.kits
-          : Array.isArray(res.data?.kits)
-          ? res.data.kits
-          : [];
+            ? raw.kits
+            : Array.isArray(res.data?.kits)
+              ? res.data.kits
+              : [];
         setKitList(list);
       } else {
         setKitList([]);
@@ -168,10 +168,10 @@ export default function CreateEpcQuote() {
         const list = Array.isArray(raw)
           ? raw
           : Array.isArray(raw?.warranties)
-          ? raw.warranties
-          : Array.isArray(res.data?.warranties)
-          ? res.data.warranties
-          : [];
+            ? raw.warranties
+            : Array.isArray(res.data?.warranties)
+              ? res.data.warranties
+              : [];
         setWarrantyList(list);
       } else {
         setWarrantyList([]);
@@ -191,10 +191,10 @@ export default function CreateEpcQuote() {
         const list = Array.isArray(raw)
           ? raw
           : Array.isArray(raw?.warehouses)
-          ? raw.warehouses
-          : Array.isArray(res.data?.warehouses)
-          ? res.data.warehouses
-          : [];
+            ? raw.warehouses
+            : Array.isArray(res.data?.warehouses)
+              ? res.data.warehouses
+              : [];
         setWarehouses(list);
         if (list.length > 0 && !selectedWarehouseId) {
           setSelectedWarehouseId(list[0]._id);
@@ -395,12 +395,23 @@ export default function CreateEpcQuote() {
     const list = [];
     const seen = new Set();
 
+    const getCount = (name, id) => {
+      const targetName = (name || "").toLowerCase();
+      const targetId = id ? String(id) : null;
+      return safeKitList.filter((k) => {
+        const kName = (k.industry_type_name || "").toLowerCase();
+        const kId = k.industry_type_id ? String(k.industry_type_id) : null;
+        return (kName && (kName === targetName || kName.includes(targetName))) || (targetId && kId && kId === targetId);
+      }).length;
+    };
+
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       shopHierarchy.forEach((ind) => {
         const name = ind.name;
         if (name && !seen.has(name.toLowerCase())) {
           seen.add(name.toLowerCase());
-          list.push({ value: name, label: name, id: ind.id || ind._id });
+          const count = getCount(name, ind.id || ind._id);
+          list.push({ value: name, label: `${name} (${count})`, rawLabel: name, id: ind.id || ind._id, count });
         }
       });
     }
@@ -409,16 +420,35 @@ export default function CreateEpcQuote() {
       const name = kit.industry_type_name;
       if (name && !seen.has(name.toLowerCase())) {
         seen.add(name.toLowerCase());
-        list.push({ value: name, label: name, id: kit.industry_type_id });
+        const count = getCount(name, kit.industry_type_id);
+        list.push({ value: name, label: `${name} (${count})`, rawLabel: name, id: kit.industry_type_id, count });
       }
     });
 
-    return [{ value: "all", label: "All Industry Types" }, ...list];
+    return [{ value: "all", label: `All Industry Types (${safeKitList.length})`, count: safeKitList.length }, ...list];
   }, [shopHierarchy, safeKitList]);
 
   const categoryOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    const kitsInCurrentIndustry = safeKitList.filter((k) => {
+      if (quickFilters.industryType === "all") return true;
+      const indVal = quickFilters.industryType.toLowerCase();
+      const kInd = (k.industry_type_name || "").toLowerCase();
+      const kIndId = String(k.industry_type_id || "");
+      return kInd === indVal || kIndId === indVal || kInd.includes(indVal);
+    });
+
+    const getCount = (name, id) => {
+      const targetName = (name || "").toLowerCase();
+      const targetId = id ? String(id) : null;
+      return kitsInCurrentIndustry.filter((k) => {
+        const kName = (k.category_name || "").toLowerCase();
+        const kId = k.category_id ? String(k.category_id) : null;
+        return (kName && (kName === targetName || kName.includes(targetName))) || (targetId && kId && kId === targetId);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -433,7 +463,8 @@ export default function CreateEpcQuote() {
         (ind.categories || []).forEach((cat) => {
           if (cat.name && !seen.has(cat.name.toLowerCase())) {
             seen.add(cat.name.toLowerCase());
-            list.push({ value: cat.name, label: cat.name, id: cat.id || cat._id });
+            const count = getCount(cat.name, cat.id || cat._id);
+            list.push({ value: cat.name, label: `${cat.name} (${count})`, rawLabel: cat.name, id: cat.id || cat._id, count });
           }
         });
       });
@@ -442,19 +473,47 @@ export default function CreateEpcQuote() {
     safeKitList.forEach((kit) => {
       const indOk =
         quickFilters.industryType === "all" ||
-        kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase();
+        kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+        String(kit.industry_type_id || "") === String(quickFilters.industryType);
       if (indOk && kit.category_name && !seen.has(kit.category_name.toLowerCase())) {
         seen.add(kit.category_name.toLowerCase());
-        list.push({ value: kit.category_name, label: kit.category_name, id: kit.category_id });
+        const count = getCount(kit.category_name, kit.category_id);
+        list.push({ value: kit.category_name, label: `${kit.category_name} (${count})`, rawLabel: kit.category_name, id: kit.category_id, count });
       }
     });
 
-    return [{ value: "all", label: "All Categories" }, ...list];
+    return [{ value: "all", label: `All Categories (${kitsInCurrentIndustry.length})`, count: kitsInCurrentIndustry.length }, ...list];
   }, [shopHierarchy, safeKitList, quickFilters.industryType]);
 
   const subCategoryOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    const kitsInCurrentCat = safeKitList.filter((k) => {
+      if (quickFilters.industryType !== "all") {
+        const indVal = quickFilters.industryType.toLowerCase();
+        const kInd = (k.industry_type_name || "").toLowerCase();
+        const kIndId = String(k.industry_type_id || "");
+        if (kInd !== indVal && kIndId !== indVal && !kInd.includes(indVal)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const catVal = quickFilters.category.toLowerCase();
+        const kCat = (k.category_name || "").toLowerCase();
+        const kCatId = String(k.category_id || "");
+        if (kCat !== catVal && kCatId !== catVal && !kCat.includes(catVal)) return false;
+      }
+      return true;
+    });
+
+    const getCount = (name, id) => {
+      const targetName = (name || "").toLowerCase();
+      const targetId = id ? String(id) : null;
+      return kitsInCurrentCat.filter((k) => {
+        const kName = (k.subcategory_name || "").toLowerCase();
+        const kId = k.subcategory_id ? String(k.subcategory_id) : null;
+        return (kName && (kName === targetName || kName.includes(targetName))) || (targetId && kId && kId === targetId);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -475,7 +534,8 @@ export default function CreateEpcQuote() {
             (cat.subcategories || []).forEach((sub) => {
               if (sub.name && !seen.has(sub.name.toLowerCase())) {
                 seen.add(sub.name.toLowerCase());
-                list.push({ value: sub.name, label: sub.name, id: sub.id || sub._id });
+                const count = getCount(sub.name, sub.id || sub._id);
+                list.push({ value: sub.name, label: `${sub.name} (${count})`, rawLabel: sub.name, id: sub.id || sub._id, count });
               }
             });
           }
@@ -486,22 +546,56 @@ export default function CreateEpcQuote() {
     safeKitList.forEach((kit) => {
       const indOk =
         quickFilters.industryType === "all" ||
-        kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase();
+        kit.industry_type_name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+        String(kit.industry_type_id || "") === String(quickFilters.industryType);
       const catOk =
         quickFilters.category === "all" ||
-        kit.category_name?.toLowerCase() === quickFilters.category.toLowerCase();
+        kit.category_name?.toLowerCase() === quickFilters.category.toLowerCase() ||
+        String(kit.category_id || "") === String(quickFilters.category);
       if (indOk && catOk && kit.subcategory_name && !seen.has(kit.subcategory_name.toLowerCase())) {
         seen.add(kit.subcategory_name.toLowerCase());
-        list.push({ value: kit.subcategory_name, label: kit.subcategory_name, id: kit.subcategory_id });
+        const count = getCount(kit.subcategory_name, kit.subcategory_id);
+        list.push({ value: kit.subcategory_name, label: `${kit.subcategory_name} (${count})`, rawLabel: kit.subcategory_name, id: kit.subcategory_id, count });
       }
     });
 
-    return [{ value: "all", label: "All Sub-Categories" }, ...list];
+    return [{ value: "all", label: `All Sub-Categories (${kitsInCurrentCat.length})`, count: kitsInCurrentCat.length }, ...list];
   }, [shopHierarchy, safeKitList, quickFilters.industryType, quickFilters.category]);
 
   const systemTypeOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    const kitsInCurrentSub = safeKitList.filter((k) => {
+      if (quickFilters.industryType !== "all") {
+        const indVal = quickFilters.industryType.toLowerCase();
+        const kInd = (k.industry_type_name || "").toLowerCase();
+        const kIndId = String(k.industry_type_id || "");
+        if (kInd !== indVal && kIndId !== indVal && !kInd.includes(indVal)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const catVal = quickFilters.category.toLowerCase();
+        const kCat = (k.category_name || "").toLowerCase();
+        const kCatId = String(k.category_id || "");
+        if (kCat !== catVal && kCatId !== catVal && !kCat.includes(catVal)) return false;
+      }
+      if (quickFilters.subCategory !== "all") {
+        const subVal = quickFilters.subCategory.toLowerCase();
+        const kSub = (k.subcategory_name || "").toLowerCase();
+        const kSubId = String(k.subcategory_id || "");
+        if (kSub !== subVal && kSubId !== subVal && !kSub.includes(subVal)) return false;
+      }
+      return true;
+    });
+
+    const getCount = (sysName) => {
+      const targetSys = (sysName || "").toLowerCase();
+      return kitsInCurrentSub.filter((k) => {
+        const kSys = (k.system_type || "").toLowerCase();
+        const kProjType = (k.project_type_name || "").toLowerCase();
+        return kSys === targetSys || kSys.includes(targetSys) || kProjType.includes(targetSys);
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -526,7 +620,8 @@ export default function CreateEpcQuote() {
                 (sub.mappedTypes || []).forEach((mt) => {
                   if (mt.name && !seen.has(mt.name.toLowerCase())) {
                     seen.add(mt.name.toLowerCase());
-                    list.push({ value: mt.name, label: mt.name, id: mt.id || mt.type_id });
+                    const count = getCount(mt.name);
+                    list.push({ value: mt.name, label: `${mt.name} (${count})`, rawLabel: mt.name, id: mt.id || mt.type_id, count });
                   }
                 });
               }
@@ -552,17 +647,59 @@ export default function CreateEpcQuote() {
           : kit.project_type_name.trim();
         if (cleanType && !seen.has(cleanType.toLowerCase())) {
           seen.add(cleanType.toLowerCase());
-          list.push({ value: cleanType, label: cleanType, id: kit.project_type_id });
+          const count = getCount(cleanType);
+          list.push({ value: cleanType, label: `${cleanType} (${count})`, rawLabel: cleanType, id: kit.project_type_id, count });
         }
       }
     });
 
-    return [{ value: "all", label: "All System Types" }, ...list];
+    return [{ value: "all", label: `All System Types (${kitsInCurrentSub.length})`, count: kitsInCurrentSub.length }, ...list];
   }, [shopHierarchy, safeKitList, quickFilters.industryType, quickFilters.category, quickFilters.subCategory]);
 
   const projectRangeOptions = useMemo(() => {
     const list = [];
     const seen = new Set();
+
+    const kitsInCurrentSys = safeKitList.filter((k) => {
+      if (quickFilters.industryType !== "all") {
+        const indVal = quickFilters.industryType.toLowerCase();
+        const kInd = (k.industry_type_name || "").toLowerCase();
+        const kIndId = String(k.industry_type_id || "");
+        if (kInd !== indVal && kIndId !== indVal && !kInd.includes(indVal)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const catVal = quickFilters.category.toLowerCase();
+        const kCat = (k.category_name || "").toLowerCase();
+        const kCatId = String(k.category_id || "");
+        if (kCat !== catVal && kCatId !== catVal && !kCat.includes(catVal)) return false;
+      }
+      if (quickFilters.subCategory !== "all") {
+        const subVal = quickFilters.subCategory.toLowerCase();
+        const kSub = (k.subcategory_name || "").toLowerCase();
+        const kSubId = String(k.subcategory_id || "");
+        if (kSub !== subVal && kSubId !== subVal && !kSub.includes(subVal)) return false;
+      }
+      if (quickFilters.systemType !== "all") {
+        const sysVal = quickFilters.systemType.toLowerCase();
+        const kSys = (k.system_type || "").toLowerCase();
+        const kProjType = (k.project_type_name || "").toLowerCase();
+        if (kSys !== sysVal && !kSys.includes(sysVal) && !kProjType.includes(sysVal)) return false;
+      }
+      return true;
+    });
+
+    const getCount = (label, min, max) => {
+      const targetLabel = (label || "").toLowerCase();
+      return kitsInCurrentSys.filter((k) => {
+        const kRange = (k.project_range_label || "").toLowerCase();
+        if (kRange === targetLabel || kRange.includes(targetLabel)) return true;
+        if (min != null && max != null) {
+          const cap = Number(k.capacity || k.capacity_kw || 0);
+          return cap >= min && cap <= max;
+        }
+        return false;
+      }).length;
+    };
 
     if (Array.isArray(shopHierarchy) && shopHierarchy.length > 0) {
       let relevantInds = shopHierarchy;
@@ -594,7 +731,8 @@ export default function CreateEpcQuote() {
                       const label = r.range_label || `${r.min_value} - ${r.max_value} ${r.unit_symbol || 'kW'}`;
                       if (label && !seen.has(label.toLowerCase())) {
                         seen.add(label.toLowerCase());
-                        list.push({ value: label, label: label, id: r.id || r._id, min: r.min_value, max: r.max_value });
+                        const count = getCount(label, r.min_value, r.max_value);
+                        list.push({ value: label, label: `${label} (${count})`, rawLabel: label, id: r.id || r._id, min: r.min_value, max: r.max_value, count });
                       }
                     });
                   }
@@ -610,11 +748,12 @@ export default function CreateEpcQuote() {
       const label = kit.project_range_label || (kit.capacity ? `${kit.capacity} kW System` : null);
       if (label && !seen.has(label.toLowerCase())) {
         seen.add(label.toLowerCase());
-        list.push({ value: label, label: label, id: kit.project_range_id, min: kit.min_kw, max: kit.max_kw });
+        const count = getCount(label, kit.min_kw, kit.max_kw);
+        list.push({ value: label, label: `${label} (${count})`, rawLabel: label, id: kit.project_range_id, min: kit.min_kw, max: kit.max_kw, count });
       }
     });
 
-    return [{ value: "all", label: "All Project Ranges" }, ...list];
+    return [{ value: "all", label: `All Project Ranges (${kitsInCurrentSys.length})`, count: kitsInCurrentSys.length }, ...list];
   }, [shopHierarchy, safeKitList, quickFilters.industryType, quickFilters.category, quickFilters.subCategory, quickFilters.systemType]);
 
   const handleClearMainFilters = () => {
@@ -734,22 +873,20 @@ export default function CreateEpcQuote() {
               return (
                 <div
                   key={s.num}
-                  className={`flex flex-col items-center text-center p-2 rounded-xl transition ${
-                    isCurr
+                  className={`flex flex-col items-center text-center p-2 rounded-xl transition ${isCurr
                       ? "bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
                       : isDone
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-slate-400 opacity-60"
-                  }`}
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-slate-400 opacity-60"
+                    }`}
                 >
                   <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs mb-1.5 transition ${
-                      isCurr
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs mb-1.5 transition ${isCurr
                         ? "bg-amber-500 text-white shadow-md shadow-amber-500/30"
                         : isDone
-                        ? "bg-emerald-500 text-white"
-                        : "bg-slate-100 dark:bg-slate-700 text-slate-500"
-                    }`}
+                          ? "bg-emerald-500 text-white"
+                          : "bg-slate-100 dark:bg-slate-700 text-slate-500"
+                      }`}
                   >
                     {isDone ? <FiCheck size={16} /> : <Icon size={16} />}
                   </div>
@@ -807,11 +944,10 @@ export default function CreateEpcQuote() {
                       <div
                         key={epc._id}
                         onClick={() => handleSelectEpc(epc)}
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition text-left relative flex flex-col justify-between ${
-                          isSel
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition text-left relative flex flex-col justify-between ${isSel
                             ? "border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm"
                             : "border-slate-200 dark:border-slate-700 hover:border-slate-300 bg-slate-50/50 dark:bg-slate-900/30"
-                        }`}
+                          }`}
                       >
                         <div>
                           <div className="flex items-start justify-between gap-2">
@@ -879,11 +1015,10 @@ export default function CreateEpcQuote() {
                     <div
                       key={mode.id}
                       onClick={() => handleDeliveryModeSelect(mode.id)}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition ${
-                        isSel
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition ${isSel
                           ? "border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm"
                           : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-bold text-sm text-slate-900 dark:text-white">{mode.title}</span>
@@ -1187,11 +1322,10 @@ export default function CreateEpcQuote() {
                       <div
                         key={kit._id}
                         onClick={() => setSelectedKit(kit)}
-                        className={`p-4 rounded-2xl border-2 cursor-pointer transition flex flex-col justify-between hover:shadow-md ${
-                          isSel
+                        className={`p-4 rounded-2xl border-2 cursor-pointer transition flex flex-col justify-between hover:shadow-md ${isSel
                             ? "border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-md ring-2 ring-amber-500/20"
                             : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300"
-                        }`}
+                          }`}
                       >
                         <div>
                           {/* Tags: Industry Type & Project Type badges */}
@@ -1278,11 +1412,10 @@ export default function CreateEpcQuote() {
                                   setQuantity((prev) => Math.max(1, Number(prev) - 1));
                                 }}
                                 disabled={quantity <= 1}
-                                className={`w-7 h-7 flex items-center justify-center rounded-lg transition ${
-                                  quantity <= 1
+                                className={`w-7 h-7 flex items-center justify-center rounded-lg transition ${quantity <= 1
                                     ? "opacity-50 cursor-not-allowed"
                                     : "hover:bg-amber-600 active:scale-90 cursor-pointer"
-                                }`}
+                                  }`}
                                 title="Decrease quantity"
                               >
                                 <FiMinus size={13} />
@@ -1374,11 +1507,10 @@ export default function CreateEpcQuote() {
                   {/* Default Standard Warranty */}
                   <div
                     onClick={() => setSelectedWarranty(null)}
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition ${
-                      selectedWarranty === null
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition ${selectedWarranty === null
                         ? "border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm"
                         : "border-slate-200 dark:border-slate-700"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-bold text-xs text-slate-900 dark:text-white">
@@ -1403,11 +1535,10 @@ export default function CreateEpcQuote() {
                       <div
                         key={war._id}
                         onClick={() => setSelectedWarranty(war)}
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition ${
-                          isSel
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition ${isSel
                             ? "border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm"
                             : "border-slate-200 dark:border-slate-700"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-bold text-xs text-slate-900 dark:text-white">{war.name}</span>

@@ -2,9 +2,10 @@
  * BdeEpcAnalytics.jsx
  * BDE Customer Store Behavior & EPC Profile Management Dashboard
  * Route: /epc-analytics
+ * Strictly Scoped to Onboarded EPCs under the authenticated BDE
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   RotateCw,
   ShoppingCart,
@@ -37,6 +38,7 @@ export default function BdeEpcAnalytics() {
   const [filters, setFilters] = useState({
     dateRange: 'last_30_days',
     state: 'all',
+    district: 'all',
     kitType: 'all',
     orderType: 'all',
     customerType: 'all',
@@ -51,8 +53,9 @@ export default function BdeEpcAnalytics() {
   const [cartAbandonment, setCartAbandonment] = useState({});
   const [repeatOrders, setRepeatOrders] = useState({});
   const [epcDirectory, setEpcDirectory] = useState([]);
-  const [bdeList, setBdeList] = useState([]);
   const [states, setStates] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [stateDistrictsMap, setStateDistrictsMap] = useState({});
   const [kitTypes, setKitTypes] = useState([]);
 
   // Active view tab
@@ -65,30 +68,26 @@ export default function BdeEpcAnalytics() {
   const [selectedEpcId, setSelectedEpcId] = useState(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [profileData, setProfileData] = useState(null);
-  const [savingBehavior, setSavingBehavior] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
-  // Profile Form state
-  const [form, setForm] = useState({
-    behavior_status: 'active',
-    customer_tier: 'Standard EPC',
-    assigned_bde_id: '',
-    recovery_discount_pct: 0,
-    recovery_followup_status: 'none',
-    credit_limit_inr: 0,
-    behavior_notes: '',
-  });
 
   const setFilter = (k, v) => setFilters((prev) => ({ ...prev, [k]: v }));
   const resetFilters = () =>
     setFilters({
       dateRange: 'last_30_days',
       state: 'all',
+      district: 'all',
       kitType: 'all',
       orderType: 'all',
       customerType: 'all',
       search: '',
     });
+
+  // Cascading districts based on selected state ("VAHI STATE AND DISTRICT ME")
+  const availableDistricts = useMemo(() => {
+    if (filters.state && filters.state !== 'all') {
+      return stateDistrictsMap[filters.state] || [];
+    }
+    return districts || [];
+  }, [filters.state, stateDistrictsMap, districts]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -106,8 +105,9 @@ export default function BdeEpcAnalytics() {
         setCartAbandonment(d.cartAbandonmentSection || {});
         setRepeatOrders(d.repeatOrderSection || {});
         setEpcDirectory(d.epcDirectory || []);
-        setBdeList(d.bdeList || []);
         setStates(d.states || []);
+        setDistricts(d.districts || []);
+        setStateDistrictsMap(d.stateDistrictsMap || {});
         setKitTypes(d.kitTypes || []);
       }
     } catch (err) {
@@ -127,22 +127,11 @@ export default function BdeEpcAnalytics() {
     setSelectedEpcId(id);
     setDrawerOpen(true);
     setDrawerLoading(true);
-    setSaveSuccess(false);
 
     try {
-      const res = await api.get(`/epc-analytics/epc-profile/${id}`);
+      const res = await api.get(`/epc-analytics/epc-profile/${id}?dateRange=${filters.dateRange || 'last_30_days'}`);
       if (res.data?.data) {
         setProfileData(res.data.data);
-        const p = res.data.data.profile || {};
-        setForm({
-          behavior_status: p.behaviorStatus || 'active',
-          customer_tier: p.customerTier || 'Standard EPC',
-          assigned_bde_id: p.assignedBde?.id || '',
-          recovery_discount_pct: p.recoveryDiscountPct || 0,
-          recovery_followup_status: p.recoveryFollowupStatus || 'none',
-          credit_limit_inr: p.creditLimitInr || 0,
-          behavior_notes: p.behaviorNotes || '',
-        });
       }
     } catch (err) {
       console.error('Failed to load EPC profile:', err);
@@ -151,43 +140,11 @@ export default function BdeEpcAnalytics() {
     }
   };
 
-  const handleSaveBehavior = async (e) => {
-    e.preventDefault();
-    if (!selectedEpcId) return;
-    setSavingBehavior(true);
-    setSaveSuccess(false);
-
-    try {
-      await api.put(`/epc-analytics/epc-profile/${selectedEpcId}/behavior`, form);
-      setSaveSuccess(true);
-      // Update local directory
-      setEpcDirectory((prev) =>
-        prev.map((item) =>
-          item.id === selectedEpcId
-            ? {
-              ...item,
-              behaviorStatus: form.behavior_status,
-              customerTier: form.customer_tier,
-              recoveryDiscountPct: form.recovery_discount_pct,
-              recoveryFollowupStatus: form.recovery_followup_status,
-              behaviorNotes: form.behavior_notes,
-            }
-            : item
-        )
-      );
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error('Save error:', err);
-    } finally {
-      setSavingBehavior(false);
-    }
-  };
-
   // 10 Core Store Metrics Cards
   const coreMetricsCards = [
     { label: 'Store Visits', val: metrics.totalStoreVisits ?? 0, sub: 'All traffic sessions', icon: Activity, col: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Unique Visitors', val: metrics.uniqueVisitors ?? 0, sub: 'Unique device IDs', icon: Users, col: 'text-sky-600', bg: 'bg-sky-50' },
-    { label: 'Logged-in Users', val: metrics.loggedInUsers ?? 0, sub: 'EPCs & partners', icon: Users, col: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { label: 'Unique Visitors', val: metrics.uniqueVisitors ?? 0, sub: 'Unique device sessions', icon: Users, col: 'text-sky-600', bg: 'bg-sky-50' },
+    { label: 'Logged-in Users', val: metrics.loggedInUsers ?? 0, sub: 'Active onboarded EPCs', icon: Users, col: 'text-indigo-600', bg: 'bg-indigo-50' },
     { label: 'Kit Views', val: metrics.kitCardViews ?? 0, sub: 'Kit configurations', icon: Eye, col: 'text-teal-600', bg: 'bg-teal-50' },
     { label: 'Datasheets', val: metrics.datasheetDownloads ?? 0, sub: 'Intent downloads', icon: Download, col: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'Add-to-Carts', val: metrics.addToCartEvents ?? 0, sub: 'Carts created', icon: ShoppingCart, col: 'text-purple-600', bg: 'bg-purple-50' },
@@ -209,7 +166,7 @@ export default function BdeEpcAnalytics() {
             EPC Store Behavior Analytics
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Analyze customer visits, kit drop-offs, cart abandonment ratios, and adjust EPC behavioral parameters
+            Analyze customer visits, kit drop-offs, and cart behavior for EPCs onboarded under your account
           </p>
         </div>
 
@@ -222,6 +179,12 @@ export default function BdeEpcAnalytics() {
           <span>{loading ? 'Refreshing...' : 'Refresh Telemetry'}</span>
         </button>
       </div>
+
+      {error && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-700 font-medium">
+          {error}
+        </div>
+      )}
 
       {/* Navigation Filter Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 text-xs">
@@ -282,13 +245,13 @@ export default function BdeEpcAnalytics() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
           <div>
             <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Time Horizon</label>
             <select
               value={filters.dateRange}
               onChange={(e) => setFilter('dateRange', e.target.value)}
-              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none"
+              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none cursor-pointer"
             >
               <option value="today">Today</option>
               <option value="yesterday">Yesterday</option>
@@ -304,12 +267,33 @@ export default function BdeEpcAnalytics() {
             <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">State Territory</label>
             <select
               value={filters.state}
-              onChange={(e) => setFilter('state', e.target.value)}
-              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none"
+              onChange={(e) => {
+                setFilter('state', e.target.value);
+                setFilter('district', 'all');
+              }}
+              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none cursor-pointer"
             >
-              <option value="all">All States</option>
+              <option value="all">All States ({states.length})</option>
               {states.map((st) => (
                 <option key={st} value={st}>{st}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">District Territory</label>
+            <select
+              value={filters.district || 'all'}
+              onChange={(e) => setFilter('district', e.target.value)}
+              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none cursor-pointer"
+            >
+              <option value="all">
+                {filters.state && filters.state !== 'all'
+                  ? `All ${filters.state} Districts (${availableDistricts.length})`
+                  : 'All Districts'}
+              </option>
+              {availableDistricts.map((dt) => (
+                <option key={dt} value={dt}>{dt}</option>
               ))}
             </select>
           </div>
@@ -321,7 +305,7 @@ export default function BdeEpcAnalytics() {
               onChange={(e) => setFilter('kitType', e.target.value)}
               className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none"
             >
-              <option value="all">All Kit Capacities</option>
+              <option value="all">All Kit Capacities ({kitTypes.length})</option>
               {kitTypes.map((k) => (
                 <option key={k} value={k}>{k}</option>
               ))}
@@ -363,7 +347,7 @@ export default function BdeEpcAnalytics() {
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px]">Store Activity Metrics (Live Telemetry)</span>
-            <span>Comprehensive buyer engagement strip</span>
+            <span>Metrics for EPCs onboarded under your account</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2.5">
             {coreMetricsCards.map((c) => {
@@ -415,7 +399,7 @@ export default function BdeEpcAnalytics() {
           </div>
 
           {/* Top Drop-Off Detection Banner */}
-          {cartAbandonment.detectionAlert && (
+          {cartAbandonment.detectionAlert ? (
             <div className="bg-rose-50/60 border border-rose-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
               <div className="flex items-start gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
@@ -437,6 +421,23 @@ export default function BdeEpcAnalytics() {
                   {cartAbandonment.totalAbandoned || 0} of {cartAbandonment.totalCreated || 0}
                 </span>
               </div>
+            </div>
+          ) : (
+            <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div>
+                  <span className="font-black text-emerald-900 uppercase tracking-wide text-[10px]">
+                    Pipeline Healthy — Zero Drop-offs Detected:
+                  </span>
+                  <div className="text-slate-700 mt-0.5">
+                    All carts created by your onboarded EPCs in this period are either active or successfully completed.
+                  </div>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-lg text-[10px]">
+                0 Abandoned
+              </span>
             </div>
           )}
 
@@ -477,15 +478,23 @@ export default function BdeEpcAnalytics() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(cartAbandonment.byKitType || []).map((k) => (
-                    <tr key={k.kit} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-bold text-slate-800">{k.kit}</td>
-                      <td className="py-2.5 px-3 text-right text-slate-600">{k.cartsCreated}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-rose-600">{k.cartsAbandoned}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{k.converted}</td>
-                      <td className="py-2.5 px-3 text-right font-black text-rose-600">{k.ratio}</td>
+                  {(cartAbandonment.byKitType || []).length > 0 ? (
+                    (cartAbandonment.byKitType || []).map((k) => (
+                      <tr key={k.kit} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-bold text-slate-800">{k.kit}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-600">{k.cartsCreated}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-rose-600">{k.cartsAbandoned}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{k.converted}</td>
+                        <td className="py-2.5 px-3 text-right font-black text-rose-600">{k.ratio}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        No kit cart activity recorded for your onboarded EPCs in this period.
+                      </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -494,13 +503,19 @@ export default function BdeEpcAnalytics() {
           {/* Table content for Order Type */}
           {abandonmentSubTab === 'byOrder' && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {(cartAbandonment.byOrderType || []).map((o) => (
-                <div key={o.orderType} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">{o.orderType}</span>
-                  <div className="text-xl font-black text-rose-600">{o.ratio}</div>
-                  <span className="text-[11px] text-slate-500">{o.cartsAbandoned} dropped of {o.cartsCreated} created</span>
+              {(cartAbandonment.byOrderType || []).length > 0 ? (
+                (cartAbandonment.byOrderType || []).map((o) => (
+                  <div key={o.orderType} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">{o.orderType}</span>
+                    <div className="text-xl font-black text-rose-600">{o.ratio}</div>
+                    <span className="text-[11px] text-slate-500">{o.cartsAbandoned} dropped of {o.cartsCreated} created</span>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-3 py-8 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-100">
+                  No order type drop-off data available for your onboarded EPCs.
                 </div>
-              ))}
+              )}
             </div>
           )}
 
@@ -517,14 +532,22 @@ export default function BdeEpcAnalytics() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(cartAbandonment.byGeo || []).map((g) => (
-                    <tr key={g.area} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-bold text-slate-800">{g.area}</td>
-                      <td className="py-2.5 px-3 text-right text-slate-600">{g.cartsCreated}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-rose-600">{g.cartsAbandoned}</td>
-                      <td className="py-2.5 px-3 text-right font-black text-rose-600">{g.ratio}</td>
+                  {(cartAbandonment.byGeo || []).length > 0 ? (
+                    (cartAbandonment.byGeo || []).map((g) => (
+                      <tr key={g.area} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-bold text-slate-800">{g.area}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-600">{g.cartsCreated}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-rose-600">{g.cartsAbandoned}</td>
+                        <td className="py-2.5 px-3 text-right font-black text-rose-600">{g.ratio}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-slate-400">
+                        No geographic drop-off data for current filters.
+                      </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -544,15 +567,23 @@ export default function BdeEpcAnalytics() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(cartAbandonment.byCustomerType || []).map((c) => (
-                    <tr key={c.customerType} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-bold text-slate-800">{c.customerType}</td>
-                      <td className="py-2.5 px-3 text-right text-slate-600">{c.cartsCreated}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-rose-600">{c.cartsAbandoned}</td>
-                      <td className="py-2.5 px-3 text-right font-black text-rose-600">{c.ratio}</td>
-                      <td className="py-2.5 px-3 text-slate-500 italic">{c.primaryDropReason}</td>
+                  {(cartAbandonment.byCustomerType || []).length > 0 ? (
+                    (cartAbandonment.byCustomerType || []).map((c) => (
+                      <tr key={c.customerType} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-bold text-slate-800">{c.customerType}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-600">{c.cartsCreated}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-rose-600">{c.cartsAbandoned}</td>
+                        <td className="py-2.5 px-3 text-right font-black text-rose-600">{c.ratio}</td>
+                        <td className="py-2.5 px-3 text-slate-500 italic">{c.primaryDropReason}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        No customer tier drop-off data available.
+                      </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -572,15 +603,23 @@ export default function BdeEpcAnalytics() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(cartAbandonment.byPartnerStore || []).map((s, idx) => (
-                    <tr key={s.name + idx} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-bold text-slate-800">{s.name}</td>
-                      <td className="py-2.5 px-3 text-slate-500">{s.district}, {s.state}</td>
-                      <td className="py-2.5 px-3 text-right text-slate-600">{s.cartsCreated}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-rose-600">{s.cartsAbandoned}</td>
-                      <td className="py-2.5 px-3 text-right font-black text-rose-600">{s.ratio}</td>
+                  {(cartAbandonment.byPartnerStore || []).length > 0 ? (
+                    (cartAbandonment.byPartnerStore || []).map((s, idx) => (
+                      <tr key={s.name + idx} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-bold text-slate-800">{s.name}</td>
+                        <td className="py-2.5 px-3 text-slate-500">{s.district}, {s.state}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-600">{s.cartsCreated}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-rose-600">{s.cartsAbandoned}</td>
+                        <td className="py-2.5 px-3 text-right font-black text-rose-600">{s.ratio}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        No partner store cart data for your onboarded EPCs.
+                      </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -684,17 +723,46 @@ export default function BdeEpcAnalytics() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(repeatOrders.byKitType || []).map((k) => (
-                    <tr key={k.kit} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-bold text-slate-800">{k.kit}</td>
-                      <td className="py-2.5 px-3 text-right text-slate-500">{k.totalFirstBuyers}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{k.repeatCustomers}</td>
-                      <td className="py-2.5 px-3 text-right font-black text-emerald-600">{k.repeatRate}</td>
-                      <td className="py-2.5 px-3 text-right text-slate-500">{k.avgCadenceDays}d</td>
+                  {(repeatOrders.byKitType || []).length > 0 ? (
+                    (repeatOrders.byKitType || []).map((k) => (
+                      <tr key={k.kit} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-bold text-slate-800">{k.kit}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-500">{k.totalFirstBuyers}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-emerald-600">{k.repeatCustomers}</td>
+                        <td className="py-2.5 px-3 text-right font-black text-emerald-600">{k.repeatRate}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-500">{k.avgCadenceDays}d</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        No repeat order history by kit type recorded yet.
+                      </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Repeat by Order Type */}
+          {repeatSubTab === 'byOrder' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(repeatOrders.byOrderType || []).length > 0 ? (
+                (repeatOrders.byOrderType || []).map((o) => (
+                  <div key={o.orderType} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">{o.orderType}</span>
+                    <div className="text-xl font-black text-emerald-600">{o.repeatRate}</div>
+                    <div className="text-[11px] text-slate-500">
+                      {o.repeatCount} repeat of {o.firstOrderCount} buyers • Avg: {o.avgValue}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-2 py-8 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-100">
+                  No repeat orders by order type recorded yet.
+                </div>
+              )}
             </div>
           )}
 
@@ -713,20 +781,94 @@ export default function BdeEpcAnalytics() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(repeatOrders.topRepeatEpcs || []).map((e) => (
-                    <tr key={e.id} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-bold text-slate-800">{e.name}</td>
-                      <td className="py-2.5 px-3 text-slate-500">{e.district}, {e.state}</td>
-                      <td className="py-2.5 px-3">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700">
-                          {e.tier}
-                        </span>
+                  {(repeatOrders.topRepeatEpcs || []).length > 0 ? (
+                    (repeatOrders.topRepeatEpcs || []).map((e) => (
+                      <tr key={e.id} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-bold text-slate-800">{e.name}</td>
+                        <td className="py-2.5 px-3 text-slate-500">{e.district}, {e.state}</td>
+                        <td className="py-2.5 px-3">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700">
+                            {e.tier}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-black text-emerald-600">{e.repeatOrdersCount}</td>
+                        <td className="py-2.5 px-3 text-right font-semibold text-slate-800">{e.totalKwPurchased}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-blue-600">{e.totalSpendFormatted}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        No repeat purchasing EPCs recorded under your account yet.
                       </td>
-                      <td className="py-2.5 px-3 text-right font-black text-emerald-600">{e.repeatOrdersCount}</td>
-                      <td className="py-2.5 px-3 text-right font-semibold text-slate-800">{e.totalKwPurchased}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-blue-600">{e.totalSpendFormatted}</td>
                     </tr>
-                  ))}
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Repeat by Franchisee */}
+          {repeatSubTab === 'byFranchisee' && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 text-[10px] uppercase font-bold text-slate-400">
+                    <th className="py-2.5 px-3">Franchisee Partner</th>
+                    <th className="py-2.5 px-3">Territory</th>
+                    <th className="py-2.5 px-3 text-right">Carts Tracked</th>
+                    <th className="py-2.5 px-3 text-right">Abandonment Ratio</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(repeatOrders.byFranchisee || []).length > 0 ? (
+                    (repeatOrders.byFranchisee || []).map((s, idx) => (
+                      <tr key={s.name + idx} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-bold text-slate-800">{s.name}</td>
+                        <td className="py-2.5 px-3 text-slate-500">{s.district}, {s.state}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-600">{s.cartsCreated}</td>
+                        <td className="py-2.5 px-3 text-right font-black text-emerald-600">{s.ratio}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-slate-400">
+                        No franchisee repeat order data available.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Repeat by Geo */}
+          {repeatSubTab === 'byGeo' && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 text-[10px] uppercase font-bold text-slate-400">
+                    <th className="py-2.5 px-3">Territory</th>
+                    <th className="py-2.5 px-3 text-right">Buyers</th>
+                    <th className="py-2.5 px-3 text-right">Repeat Rate</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(repeatOrders.byGeo || []).length > 0 ? (
+                    (repeatOrders.byGeo || []).map((g, idx) => (
+                      <tr key={(g.area || '') + idx} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-bold text-slate-800">{g.area}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-600">{g.totalBuyers || 0}</td>
+                        <td className="py-2.5 px-3 text-right font-black text-emerald-600">{g.repeatRate || '0.0%'}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={3} className="py-8 text-center text-slate-400">
+                        No geographic repeat order data recorded yet.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -746,15 +888,23 @@ export default function BdeEpcAnalytics() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(repeatOrders.cohorts || []).map((c) => (
-                    <tr key={c.period} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-3 font-bold text-slate-800">{c.period}</td>
-                      <td className="py-2.5 px-3 text-right text-slate-500">{c.cohortSize}</td>
-                      <td className="py-2.5 px-3 text-right text-slate-700">{c.repeatedIn30d}</td>
-                      <td className="py-2.5 px-3 text-right text-slate-700">{c.repeatedIn60d}</td>
-                      <td className="py-2.5 px-3 text-right font-black text-emerald-600">{c.totalRepeatRate}</td>
+                  {(repeatOrders.cohorts || []).length > 0 ? (
+                    (repeatOrders.cohorts || []).map((c) => (
+                      <tr key={c.period} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-bold text-slate-800">{c.period}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-500">{c.cohortSize}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-700">{c.repeatedIn30d}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-700">{c.repeatedIn60d}</td>
+                        <td className="py-2.5 px-3 text-right font-black text-emerald-600">{c.totalRepeatRate}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        No acquisition cohort data recorded for this time range.
+                      </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -769,11 +919,11 @@ export default function BdeEpcAnalytics() {
             <div>
               <h2 className="text-base font-black text-slate-900">EPC Behavioral Profile Directory</h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Click &quot;Manage&quot; to review live telemetry and modify EPC behavioral parameters
+                Live behavioral telemetry for EPCs onboarded under your account
               </p>
             </div>
             <span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold">
-              {epcDirectory.length} Total Accounts
+              {epcDirectory.length} Onboarded Accounts
             </span>
           </div>
 
@@ -794,45 +944,54 @@ export default function BdeEpcAnalytics() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {epcDirectory.map((e) => (
-                  <tr key={e.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-3">
-                      <div className="font-bold text-slate-800">{e.name}</div>
-                      <div className="text-[10px] text-slate-400">{e.contactPerson} • {e.whatsapp}</div>
-                    </td>
-                    <td className="py-3 px-3 text-slate-500">{e.district}, {e.state}</td>
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                        {e.customerTier}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${e.behaviorStatus === 'loyal_repeat'
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : e.behaviorStatus === 'at_risk'
-                            ? 'bg-rose-50 text-rose-700'
-                            : 'bg-blue-50 text-blue-700'
-                          }`}
-                      >
-                        {e.behaviorStatus?.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-right text-slate-700 font-medium">{e.storeVisits}</td>
-                    <td className="py-3 px-3 text-right text-blue-600 font-bold">{e.datasheetDownloads}</td>
-                    <td className="py-3 px-3 text-right text-slate-700">{e.cartsCreated}</td>
-                    <td className="py-3 px-3 text-right font-black text-rose-600">{e.abandonmentRatio}</td>
-                    <td className="py-3 px-3 text-right font-bold text-emerald-600">{e.ordersCount}</td>
-                    <td className="py-3 px-3 text-right">
-                      <button
-                        onClick={() => handleOpenDrawer(e.id)}
-                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-[11px] shadow-2xs transition cursor-pointer"
-                      >
-                        Manage
-                      </button>
+                {epcDirectory.length > 0 ? (
+                  epcDirectory.map((e) => (
+                    <tr key={e.id} className="hover:bg-slate-50">
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-slate-800">{e.name}</div>
+                        <div className="text-[10px] text-slate-400">{e.contactPerson} • {e.whatsapp}</div>
+                      </td>
+                      <td className="py-3 px-3 text-slate-500">{e.district}, {e.state}</td>
+                      <td className="py-3 px-3">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                          {e.customerTier}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${e.behaviorStatus === 'loyal_repeat'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : e.behaviorStatus === 'at_risk'
+                              ? 'bg-rose-50 text-rose-700'
+                              : 'bg-blue-50 text-blue-700'
+                            }`}
+                        >
+                          {e.behaviorStatus?.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-700 font-medium">{e.storeVisits}</td>
+                      <td className="py-3 px-3 text-right text-blue-600 font-bold">{e.datasheetDownloads}</td>
+                      <td className="py-3 px-3 text-right text-slate-700">{e.cartsCreated}</td>
+                      <td className="py-3 px-3 text-right font-black text-rose-600">{e.abandonmentRatio}</td>
+                      <td className="py-3 px-3 text-right font-bold text-emerald-600">{e.ordersCount}</td>
+                      <td className="py-3 px-3 text-right">
+                        <button
+                          onClick={() => handleOpenDrawer(e.id)}
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-[11px] shadow-2xs transition cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Profile</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={10} className="py-10 text-center text-slate-400">
+                      No EPCs onboarded under your account matching the current filters.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -865,18 +1024,16 @@ export default function BdeEpcAnalytics() {
                 <div className="py-12 text-center text-slate-400">Loading EPC behavioral data...</div>
               ) : (
                 <>
-                  {saveSuccess && (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>EPC behavior updated successfully in real-time!</span>
-                    </div>
-                  )}
-
                   {/* Telemetry Strip */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                     <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">Store Visits</span>
                       <span className="text-base font-black text-slate-800">{profileData?.telemetry?.storeVisits ?? 0}</span>
+                      {profileData?.telemetry?.allTimeStoreVisits !== undefined && profileData?.telemetry?.allTimeStoreVisits !== profileData?.telemetry?.storeVisits && (
+                        <span className="text-[9px] text-slate-400 block mt-0.5">
+                          {profileData?.telemetry?.allTimeStoreVisits} all-time
+                        </span>
+                      )}
                     </div>
                     <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">Downloads</span>
@@ -897,110 +1054,109 @@ export default function BdeEpcAnalytics() {
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                       Recent Abandoned Carts Log
                     </span>
-                    {(profileData?.abandonmentHistory || []).map((item, idx) => (
-                      <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
-                        <div>
-                          <div className="font-bold text-slate-800">{item.kit}</div>
-                          <div className="text-[11px] text-slate-400 mt-0.5">{item.reason} • {item.abandonedDate}</div>
+                    {(profileData?.abandonmentHistory || []).length > 0 ? (
+                      (profileData?.abandonmentHistory || []).map((item, idx) => (
+                        <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-slate-800">{item.kit}</div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">{item.reason} • {item.abandonedDate}</div>
+                          </div>
+                          <span className="font-black text-rose-600">{item.estimatedValue}</span>
                         </div>
-                        <span className="font-black text-rose-600">{item.estimatedValue}</span>
+                      ))
+                    ) : (
+                      <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center text-slate-400">
+                        No abandoned carts recorded for this EPC.
                       </div>
-                    ))}
+                    )}
                   </div>
 
-                  {/* Behavior Editor Form */}
-                  <form onSubmit={handleSaveBehavior} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                  {/* Customer Overview (Read-Only) */}
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                      <span className="text-xs font-bold text-slate-800 uppercase">Change EPC Behavior Settings</span>
-                      <span className="text-[10px] text-blue-600 font-bold">BDE Control</span>
+                      <span className="text-xs font-bold text-slate-800 uppercase">Customer Profile Overview</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold">
+                        {profileData?.profile?.customerTier || 'Standard EPC'}
+                      </span>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Behavior Status</label>
-                        <select
-                          value={form.behavior_status}
-                          onChange={(e) => setForm({ ...form, behavior_status: e.target.value })}
-                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-800 font-medium"
-                        >
-                          <option value="active">Active / Healthy</option>
-                          <option value="at_risk">High Cart Abandonment Risk</option>
-                          <option value="loyal_repeat">Loyal Repeat Buyer</option>
-                          <option value="dormant">Dormant / Needs Outreach</option>
-                          <option value="suspended">Suspended / Inactive</option>
-                        </select>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Contact Person / Phone</span>
+                        <span className="font-semibold text-slate-800">
+                          {profileData?.profile?.contactPerson} ({profileData?.profile?.whatsapp || 'N/A'})
+                        </span>
                       </div>
-
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Customer Tier</label>
-                        <select
-                          value={form.customer_tier}
-                          onChange={(e) => setForm({ ...form, customer_tier: e.target.value })}
-                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-800 font-medium"
-                        >
-                          <option value="Standard EPC">Standard EPC</option>
-                          <option value="Silver Partner">Silver Partner</option>
-                          <option value="Gold Partner">Gold Partner</option>
-                          <option value="Platinum Partner">Platinum Partner (VIP)</option>
-                        </select>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Email</span>
+                        <span className="font-semibold text-slate-800 truncate block">
+                          {profileData?.profile?.email || 'N/A'}
+                        </span>
                       </div>
-
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
-                          Recovery Incentive Discount (%)
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="20"
-                          value={form.recovery_discount_pct}
-                          onChange={(e) => setForm({ ...form, recovery_discount_pct: Number(e.target.value) })}
-                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-800 font-medium"
-                          placeholder="e.g. 5"
-                        />
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Territory</span>
+                        <span className="font-semibold text-slate-800">
+                          {profileData?.profile?.district}, {profileData?.profile?.state}
+                        </span>
                       </div>
-
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
-                          Follow-up Outreach Status
-                        </label>
-                        <select
-                          value={form.recovery_followup_status}
-                          onChange={(e) => setForm({ ...form, recovery_followup_status: e.target.value })}
-                          className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-800 font-medium"
-                        >
-                          <option value="none">None / Pending</option>
-                          <option value="call_scheduled">Follow-up Call Scheduled</option>
-                          <option value="offer_sent">Discount Offer Sent via WhatsApp</option>
-                          <option value="re_engaged">Successfully Re-engaged</option>
-                        </select>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Assigned BDE</span>
+                        <span className="font-semibold text-slate-800">
+                          {profileData?.profile?.assignedBde?.name || 'Assigned to Your Account'}
+                        </span>
                       </div>
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
-                        Behavior Notes & Interaction Log
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={form.behavior_notes}
-                        onChange={(e) => setForm({ ...form, behavior_notes: e.target.value })}
-                        className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-800 text-xs"
-                        placeholder="Log customer objection, cart recovery attempt, price quote discount notes..."
-                      />
-                    </div>
+                  {/* Recent Orders Log */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                      Recent Confirmed Orders ({(profileData?.recentOrders || []).length})
+                    </span>
+                    {(profileData?.recentOrders || []).length > 0 ? (
+                      (profileData?.recentOrders || []).map((ord) => (
+                        <div key={ord.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-slate-800">{ord.orderNumber}</div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">{ord.orderType} • {ord.date}</div>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-bold text-emerald-600 block">{ord.amountFormatted}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">
+                              {ord.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center text-slate-400">
+                        No confirmed orders recorded yet for this EPC.
+                      </div>
+                    )}
+                  </div>
 
-                    <div className="flex justify-end pt-2">
-                      <button
-                        type="submit"
-                        disabled={savingBehavior}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition cursor-pointer text-xs disabled:opacity-50"
-                      >
-                        <Save className="w-3.5 h-3.5" />
-                        <span>{savingBehavior ? 'Saving...' : 'Save Profile Changes'}</span>
-                      </button>
-                    </div>
-                  </form>
+                  {/* Recent Quotes Log */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                      Recent Quotations ({(profileData?.recentQuotes || []).length})
+                    </span>
+                    {(profileData?.recentQuotes || []).length > 0 ? (
+                      (profileData?.recentQuotes || []).map((quo) => (
+                        <div key={quo.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-slate-800">{quo.quoteNumber}</div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">{quo.status} • {quo.date}</div>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-bold text-blue-600 block">{quo.totalAmount}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center text-slate-400">
+                        No quotations created yet for this EPC.
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -1010,4 +1166,3 @@ export default function BdeEpcAnalytics() {
     </div>
   );
 }
-

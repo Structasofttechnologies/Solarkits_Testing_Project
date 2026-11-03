@@ -4844,7 +4844,39 @@ const reorder_against_epc_po = async (req, res) => {
   }
 };
 
+const upload_epc_po_receipt = async (req, res) => {
+  try {
+    let receiptUrl = "";
+    let filename = "";
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      const file = req.files[0];
+      receiptUrl = file.path || file.secure_url || file.url || (file.filename ? "/uploads/epc_receipts/" + file.filename : "");
+      filename = file.originalname || file.filename;
+    } else if (req.file) {
+      receiptUrl = req.file.path || req.file.secure_url || req.file.url || (req.file.filename ? "/uploads/epc_receipts/" + req.file.filename : "");
+      filename = req.file.originalname || req.file.filename;
+    }
+    if (receiptUrl && receiptUrl.startsWith("public/")) {
+      receiptUrl = "/" + receiptUrl.substring(7);
+    }
+    if (!receiptUrl) {
+      return res.status(400).json({ status: "error", message: "No receipt file uploaded" });
+    }
+    return res.status(200).json({
+      status: "success",
+      data: {
+        receipt_url: receiptUrl,
+        filename,
+      },
+    });
+  } catch (error) {
+    console.error("upload_epc_po_receipt error:", error);
+    return res.status(500).json({ status: "error", message: error.message || "Failed to upload receipt" });
+  }
+};
+
 module.exports = {
+  upload_epc_po_receipt,
   get_combo_kits_by_district,
   get_best_seller_kits,
   get_inventory_status,
