@@ -6,6 +6,7 @@ const { Cluster, GeoLevel2, GeoLevel0, GeoLevel1 } = require('../models/geolocat
 const { Supplier } = require('../models/supplier_db');
 const { CountrySaaSProduct, CmsRole, CmsUserScope } = require('../models/user_db');
 const estimatorAdminHandler = require('../../admin-panel/controller/estimator.admin.handler');
+const { sendAdminNotification } = require('../../admin-panel/services/admin.notification.service');
 const { performGstVerification } = require('../../admin-panel/services/gst.verification.service');
 const { isValidGstinFormat } = require('../../admin-panel/utils/gst.adapter');
 
@@ -1371,6 +1372,23 @@ const create_purchase_order = async (req, res) => {
       });
     }
 
+        const dueTimelineStr = newPO.timeline ? new Date(newPO.timeline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
+    sendAdminNotification({
+      title: `📦 Purchase Order Issued: ${newPO.po_number}`,
+      message: `Accounts team ne ₹${Number(newPO.total_amount || 0).toLocaleString('en-IN')} ka PO ${newPO.po_number} issue kar diya hai (${(newPO.items || []).length} items). Expected delivery: ${dueTimelineStr}. Supplier payment ke baad dispatch hoga.`,
+      category: 'orders',
+      priority: 'high',
+      action_url: `/warehouse-panel/material-inward?source=boskit&po=${newPO.po_number}`,
+      metadata: {
+        po_number: newPO.po_number,
+        po_id: newPO._id,
+        warehouse_id: newPO.warehouse_id,
+        timeline: newPO.timeline,
+        total_amount: newPO.total_amount,
+        event: 'po_created'
+      }
+    }).catch(err => console.warn('[PO Create Notification Error]:', err.message));
+
     return res.status(201).json({ status: "success", message: "Purchase order created successfully with proforma invoice.", data: newPO });
   } catch (err) {
     console.error("Error in create_purchase_order:", err);
@@ -1417,6 +1435,21 @@ const pay_purchase_order = async (req, res) => {
 
     await po.save();
 
+        sendAdminNotification({
+      title: `💳 Supplier Payment Done: ${po.po_number}`,
+      message: `Accounts team ne PO ${po.po_number} ke liye ₹${Number(amount).toLocaleString('en-IN')} payment mark kar di hai (Ref: ${reference_no}). Supplier dispatch karega aur material warehouse dock par arrive hone ke liye in-transit hai.`,
+      category: 'payments',
+      priority: 'urgent',
+      action_url: `/warehouse-panel/material-inward?source=boskit&po=${po.po_number}`,
+      metadata: {
+        po_number: po.po_number,
+        po_id: po._id,
+        amount: Number(amount),
+        reference_no,
+        event: 'po_paid'
+      }
+    }).catch(err => console.warn('[PO Pay Notification Error]:', err.message));
+
     return res.status(200).json({ status: "success", message: "Payment details added successfully. Purchase order marked as paid.", data: po });
   } catch (err) {
     console.error("Error in pay_purchase_order:", err);
@@ -1447,6 +1480,21 @@ const update_purchase_order_timeline = async (req, res) => {
 
     po.timeline = new Date(timeline);
     await po.save();
+
+        const formattedTimelineDate = new Date(timeline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    sendAdminNotification({
+      title: `📅 Delivery Timeline Fixed: ${po.po_number}`,
+      message: `PO ${po.po_number} ki expected delivery date ${formattedTimelineDate} fix ki gayi hai. Accounts aur Warehouse dono teams receiving dock prepare rakhein.`,
+      category: 'orders',
+      priority: 'normal',
+      action_url: `/warehouse-panel/material-inward?source=boskit&po=${po.po_number}`,
+      metadata: {
+        po_number: po.po_number,
+        po_id: po._id,
+        new_timeline: po.timeline,
+        event: 'timeline_updated'
+      }
+    }).catch(err => console.warn('[PO Timeline Notification Error]:', err.message));
 
     return res.status(200).json({ status: "success", message: "Timeline updated successfully.", data: po });
   } catch (err) {
@@ -2142,7 +2190,18 @@ const get_po_requests = async (req, res) => {
     const clusters = await Cluster.find({ _id: { $in: allClusterIds } }).select('_id name').lean();
     const clusterMap = Object.fromEntries(clusters.map(c => [String(c._id), c.name]));
 
-    const list = await PoRequest.find({ warehouse_id: { $in: matchingWarehouseIds } })
+    const query = (matchingWarehouseIds && matchingWarehouseIds.length > 0 && clusterId && clusterId !== 'all')
+      ? { 
+          $or: [
+            { warehouse_id: { $in: matchingWarehouseIds } }, 
+            { request_number: { $regex: 'BUFFER', $options: 'i' } },
+            { request_number: { $regex: 'BOS', $options: 'i' } },
+            { request_number: { $regex: 'REQ', $options: 'i' } }
+          ] 
+        }
+      : {};
+
+    const list = await PoRequest.find(query)
       .populate('warehouse_id')
       .sort({ created_at: -1 })
       .lean();

@@ -73,7 +73,7 @@ const deactivation_otp = async (req, res) => {
 
     return res.status(200).json({ status: "success", message: "OTP sent successfully." });
   } catch (err) {
-    console.error("❌ deactivation_otp error:", err);
+    console.error("Γ¥î deactivation_otp error:", err);
     return res.status(500).json({
       status: "error",
       message: "Failed to send OTP",
@@ -88,7 +88,7 @@ const deactivation_otp = async (req, res) => {
  */
 const get_countries = async (req, res) => {
   try {
-    // ── 1. Fetch countries & boundary metadata in parallel ─────────────────────
+    // ΓöÇΓöÇ 1. Fetch countries & boundary metadata in parallel ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     const [countries_raw, boundaries] = await Promise.all([
       GeoLevel0.find(
         { $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }] },
@@ -103,7 +103,7 @@ const get_countries = async (req, res) => {
 
     const countryIds = countries_raw.map(c => c._id);
 
-    // ── 2. Active states per country ──────────────────────────────────────────
+    // ΓöÇΓöÇ 2. Active states per country ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     const stateGroups = await GeoLevel1.aggregate([
       { $match: { level_0: { $in: countryIds }, is_active: true, $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }] } },
       { $project: { level_0: 1 } },
@@ -116,13 +116,13 @@ const get_countries = async (req, res) => {
       allStateIds.push(...sg.stateIds);
     }
 
-    // ── 3. Active districts & clusters in parallel ────────────────────────────
+    // ΓöÇΓöÇ 3. Active districts & clusters in parallel ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     const [districtGroups, clusterGroups] = await Promise.all([
       allStateIds.length > 0 
         ? GeoLevel2.aggregate([
             { $match: { level_1: { $in: allStateIds }, is_active: true, $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }] } },
-            { $project: { level_1: 1 } },
-            { $group: { _id: '$level_1', count: { $sum: 1 } } }
+            { $project: { level_1: 1, pincodes_count: { $size: { $ifNull: ['$pincodes', []] } } } },
+            { $group: { _id: '$level_1', count: { $sum: 1 }, pincodes_count: { $sum: '$pincodes_count' } } }
           ])
         : Promise.resolve([]),
       allStateIds.length > 0
@@ -135,7 +135,11 @@ const get_countries = async (req, res) => {
     ]);
 
     const districtByState = {};
-    for (const d of districtGroups) districtByState[d._id.toString()] = d.count;
+    const pincodesByState = {};
+    for (const d of districtGroups) {
+      districtByState[d._id.toString()] = d.count;
+      pincodesByState[d._id.toString()] = d.pincodes_count || 0;
+    }
 
     const clusterByState = {};
     const allClusterIds = [];
@@ -144,7 +148,7 @@ const get_countries = async (req, res) => {
       allClusterIds.push(...cg.clusterIds);
     }
 
-    // ── 4. Zone counts per cluster ────────────────────────────────────────────
+    // ΓöÇΓöÇ 4. Zone counts per cluster ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     const zoneByCluster = {};
     if (allClusterIds.length > 0) {
       const zoneGroups = await Zone.aggregate([
@@ -155,16 +159,17 @@ const get_countries = async (req, res) => {
       for (const z of zoneGroups) zoneByCluster[z._id.toString()] = z.count;
     }
 
-    // ── 5. Build final response ───────────────────────────────────────────────
+    // ΓöÇΓöÇ 5. Build final response ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     const bMap = boundaries.reduce((acc, b) => { acc[b.iso2] = b; return acc; }, {});
 
     const countries = countries_raw.map(country => {
       const cId = country._id.toString();
       const sg = stateMap[cId] || { count: 0, stateIds: [] };
-      let districtCount = 0, clusterCount = 0, zoneCount = 0;
+      let districtCount = 0, clusterCount = 0, zoneCount = 0, totalPincodesCount = 0;
       for (const sId of sg.stateIds) {
         const sIdStr = sId.toString();
         districtCount += districtByState[sIdStr] || 0;
+        totalPincodesCount += pincodesByState[sIdStr] || 0;
         const cg = clusterByState[sIdStr] || { count: 0, clusterIds: [] };
         clusterCount += cg.count;
         for (const clId of (cg.clusterIds || [])) {
@@ -183,6 +188,7 @@ const get_countries = async (req, res) => {
         is_active: country.is_active,
         active_states_count: sg.count,
         active_districts_count: districtCount,
+        total_pincodes_count: totalPincodesCount,
         active_clusters_count: clusterCount,
         active_zones_count: zoneCount,
         lat: b.lat || 0,
@@ -199,7 +205,7 @@ const get_countries = async (req, res) => {
       data: countries,
     });
   } catch (err) {
-    console.error("❌ get_countries error:", err);
+    console.error("Γ¥î get_countries error:", err);
     return res.status(500).json({
       message: "Internal server error.",
       status: "error",
@@ -225,7 +231,7 @@ const get_active_countries = async (req, res) => {
       data: formatted,
     });
   } catch (err) {
-    console.error("❌ get_active_countries error:", err);
+    console.error("Γ¥î get_active_countries error:", err);
     return res.status(500).json({
       message: "Internal server error.",
       status: "error",
@@ -276,7 +282,7 @@ const get_country = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ get_country error:", err);
+    console.error("Γ¥î get_country error:", err);
     res.status(500).json({ message: "Internal server error.", error: err.message });
   }
 };
@@ -319,7 +325,7 @@ const activate_country = async (req, res) => {
       country_id: country_id.toString(),
     });
   } catch (err) {
-    console.error("❌ activate country error:", err);
+    console.error("Γ¥î activate country error:", err);
     return res.status(500).json({
       message: "Internal server error.",
       status: "error",
@@ -366,7 +372,7 @@ const deactivate_country = async (req, res) => {
       country_id: result.data.id.toString() 
     });
   } catch (err) {
-    console.error("❌ deactivate_country error:", err);
+    console.error("Γ¥î deactivate_country error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   }
 };
@@ -503,6 +509,15 @@ const get_states = async (req, res) => {
           name: 1,
           is_active: 1,
           active_districts_count: { $size: { $ifNull: ['$active_districts', []] } },
+          total_pincodes_count: {
+            $sum: {
+              $map: {
+                input: { $ifNull: ['$active_districts', []] },
+                as: 'd',
+                in: { $size: { $ifNull: ['$$d.pincodes', []] } }
+              }
+            }
+          },
           active_clusters_count: { $size: { $ifNull: ['$active_clusters', []] } },
           active_zones_count: { $size: { $ifNull: ['$active_zones', []] } }
         }
@@ -539,7 +554,7 @@ const get_states = async (req, res) => {
       data: states,
     });
   } catch (err) {
-    console.error("❌ get_states error:", err);
+    console.error("Γ¥î get_states error:", err);
     return res.status(500).json({
       message: "Internal server error.",
       status: "error",
@@ -570,7 +585,7 @@ const get_active_states = async (req, res) => {
       data: formatted,
     });
   } catch (err) {
-    console.error("❌ get_active_states error:", err);
+    console.error("Γ¥î get_active_states error:", err);
     return res.status(500).json({
       message: "Internal server error.",
       status: "error",
@@ -638,7 +653,7 @@ const get_state = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ get_state error:", err);
+    console.error("Γ¥î get_state error:", err);
     res.status(500).json({
       message: "Internal server error.",
       status: "error",
@@ -692,7 +707,7 @@ const activate_state = async (req, res) => {
       state_id: state_id.toString(),
     });
   } catch (err) {
-    console.error("❌ activate_state error:", err);
+    console.error("Γ¥î activate_state error:", err);
     return res.status(500).json({
       message: "Internal server error.",
       status: "error",
@@ -739,7 +754,7 @@ const deactivate_state = async (req, res) => {
       state_id: result.data.id.toString() 
     });
   } catch (err) {
-    console.error("❌ deactivate_state error:", err);
+    console.error("Γ¥î deactivate_state error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   }
 };
@@ -830,7 +845,11 @@ const get_districts = async (req, res) => {
           name: 1,
           is_active: 1,
           urban_cities_count: { $size: { $ifNull: ['$urban_cities', []] } },
-          rural_cities_count: { $size: { $ifNull: ['$rural_cities', []] } }
+          rural_cities_count: { $size: { $ifNull: ['$rural_cities', []] } },
+          pincodes_count: { $size: { $ifNull: ['$pincodes', []] } },
+          pincodes: { $ifNull: ['$pincodes', []] },
+          lat: 1,
+          lng: 1
         }
       },
       { $sort: { name: 1 } }
@@ -851,8 +870,10 @@ const get_districts = async (req, res) => {
       const b = bMap[d.name.toLowerCase()] || {};
       return {
         ...d,
-        lat: b.lat || 0,
-        lng: b.lng || 0,
+        lat: d.lat || b.lat || 0,
+        lng: d.lng || b.lng || 0,
+        pincodes_count: d.pincodes_count || (d.pincodes ? d.pincodes.length : 0),
+        pincodes: d.pincodes || [],
         geometry: {
           type: b.geometry_type || 'Point',
           coordinates: []
@@ -868,7 +889,7 @@ const get_districts = async (req, res) => {
       data: districts,
     });
   } catch (err) {
-    console.error("❌ get_districts error:", err);
+    console.error("Γ¥î get_districts error:", err);
     return res.status(500).json({
       message: "Internal server error.",
       status: "error",
@@ -899,7 +920,7 @@ const get_active_districts = async (req, res) => {
       data: formatted,
     });
   } catch (err) {
-    console.error("❌ get_active_districts error:", err);
+    console.error("Γ¥î get_active_districts error:", err);
     return res.status(500).json({
       message: "Internal server error.",
       status: "error",
@@ -975,7 +996,7 @@ const get_district = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ get_district error:", err);
+    console.error("Γ¥î get_district error:", err);
     return res.status(500).json({
       message: "Internal server error.",
       status: "error",
@@ -1040,7 +1061,7 @@ const activate_district = async (req, res) => {
       district_id: district_id.toString(),
     });
   } catch (err) {
-    console.error("❌ activate_district error:", err);
+    console.error("Γ¥î activate_district error:", err);
     return res.status(500).json({
       message: "Internal server error.",
       status: "error",
@@ -1087,7 +1108,7 @@ const deactivate_district = async (req, res) => {
       district_id: result.data.id.toString() 
     });
   } catch (err) {
-    console.error("❌ deactivate_district error:", err);
+    console.error("Γ¥î deactivate_district error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   }
 };
@@ -1130,7 +1151,7 @@ const get_urban_cities = async (req, res) => {
       urban_cities: urban_cities.map(u => ({ ...u.toObject({ virtuals: true }), id: u._id.toString(), district_id: u.level_2 ? u.level_2.toString() : null })),
     });
   } catch (err) {
-    console.error("❌ get_urban_cities error:", err);
+    console.error("Γ¥î get_urban_cities error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   }
 };
@@ -1199,7 +1220,7 @@ const add_urban_cities = async (req, res) => {
     return res.status(201).json({ message: "Urban cities added successfully.", status: "success" });
   } catch (err) {
     await session.abortTransaction();
-    console.error("❌ add_urban_cities error:", err);
+    console.error("Γ¥î add_urban_cities error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   } finally {
     session.endSession();
@@ -1279,7 +1300,7 @@ const exclude_urban_city = async (req, res) => {
     return res.status(201).json({ status: "success", message: "Urban city and its associated rural cities have been excluded successfully." });
   } catch (err) {
     await session.abortTransaction();
-    console.error("❌ exclude_urban_city error:", err);
+    console.error("Γ¥î exclude_urban_city error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   } finally {
     session.endSession();
@@ -1293,7 +1314,7 @@ const delete_excluded_urban_city = async (req, res) => {
     await ExcludedUrbanCity.findByIdAndDelete(city_id);
     return res.status(200).json({ message: "Excluded urban city deleted successfully.", status: "success" });
   } catch (err) {
-    console.error("❌ delete_excluded_urban_city error:", err);
+    console.error("Γ¥î delete_excluded_urban_city error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   }
 };
@@ -1310,7 +1331,7 @@ const get_excluded_urban_cities = async (req, res) => {
       excluded_cities: excluded_cities.map(c => ({ ...c.toObject({ virtuals: true }), id: c._id.toString() })) 
     });
   } catch (err) {
-    console.error("❌ get_excluded_urban_cities error:", err);
+    console.error("Γ¥î get_excluded_urban_cities error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   }
 };
@@ -1330,7 +1351,7 @@ const get_rural_cities = async (req, res) => {
       rural_cities: rural_cities.map(r => ({ ...r.toObject({ virtuals: true }), id: r._id.toString(), urban_city_id: r.level_3 ? r.level_3.toString() : null })),
     });
   } catch (err) {
-    console.error("❌ get_rural_cities error:", err);
+    console.error("Γ¥î get_rural_cities error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   }
 };
@@ -1399,7 +1420,7 @@ const add_rural_cities = async (req, res) => {
     return res.status(201).json({ message: "Rural cities added successfully.", status: "success" });
   } catch (err) {
     await session.abortTransaction();
-    console.error("❌ add_rural_cities error:", err);
+    console.error("Γ¥î add_rural_cities error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   } finally {
     session.endSession();
@@ -1463,7 +1484,7 @@ const exclude_rural_city = async (req, res) => {
     return res.status(201).json({ status: "success", message: "Rural city excluded successfully." });
   } catch (err) {
     await session.abortTransaction();
-    console.error("❌ exclude_rural_city error:", err);
+    console.error("Γ¥î exclude_rural_city error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   } finally {
     session.endSession();
@@ -1480,7 +1501,7 @@ const delete_excluded_rural_city = async (req, res) => {
     await ExcludedRuralCity.findByIdAndDelete(city_id);
     return res.status(200).json({ message: "Excluded rural city deleted successfully.", status: "success" });
   } catch (err) {
-    console.error("❌ delete_excluded_rural_city error:", err);
+    console.error("Γ¥î delete_excluded_rural_city error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   }
 };
@@ -1497,7 +1518,7 @@ const get_excluded_rural_cities = async (req, res) => {
       excluded_cities: excluded_cities.map(c => ({ ...c.toObject({ virtuals: true }), id: c._id.toString() })) 
     });
   } catch (err) {
-    console.error("❌ get_excluded_rural_cities error:", err);
+    console.error("Γ¥î get_excluded_rural_cities error:", err);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: err.message });
   }
 };
@@ -1544,7 +1565,7 @@ const add_cluster = async (req, res) => {
     });
   } catch (error) {
     await session.abortTransaction();
-    console.error("❌ add_cluster error:", error);
+    console.error("Γ¥î add_cluster error:", error);
     return res.status(500).json({ status: "error", message: "Internal server error.", error: error.message });
   } finally {
     session.endSession();
@@ -1622,7 +1643,7 @@ const get_clusters = async (req, res) => {
 
     return res.status(200).json({ message: "Fetched clusters successfully.", status: "success", clusters });
   } catch (error) {
-    console.error("❌ get_clusters error:", error);
+    console.error("Γ¥î get_clusters error:", error);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: error.message });
   }
 };
@@ -1653,7 +1674,7 @@ const assign_district_to_cluster = async (req, res) => {
     await GeoLevel2.updateOne({ _id: district_id }, { $set: { cluster: cluster_id } });
     return res.status(200).json({ status: "success", message: "Cluster assigned to district successfully." });
   } catch (error) {
-    console.error("❌ assign_district_to_cluster error:", error);
+    console.error("Γ¥î assign_district_to_cluster error:", error);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: error.message });
   }
 };
@@ -1694,7 +1715,7 @@ const reassign_district_to_another_cluster_otp = async (req, res) => {
 
     return res.status(200).json({ message: "OTP sent to registered email. Please verify to proceed.", status: "success" });
   } catch (error) {
-    console.error("❌ reassign_district_to_another_cluster_otp error:", error);
+    console.error("Γ¥î reassign_district_to_another_cluster_otp error:", error);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: error.message });
   }
 };
@@ -1781,7 +1802,7 @@ const reassign_district_to_another_cluster = async (req, res) => {
     await GeoLevel2.updateOne({ _id: district_id }, { $set: { cluster: cluster_id } });
     return res.status(200).json({ status: "success", message: "District reassigned to another cluster successfully." });
   } catch (error) {
-    console.error("❌ reassign_district_to_another_cluster error:", error);
+    console.error("Γ¥î reassign_district_to_another_cluster error:", error);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: error.message });
   }
 };
@@ -1819,7 +1840,7 @@ const delete_cluster_otp = async (req, res) => {
 
     return res.status(200).json({ status: 'success', message: 'OTP sent to registered email. Please verify to proceed.' });
   } catch (error) {
-    console.error("❌ delete_cluster_otp error:", error);
+    console.error("Γ¥î delete_cluster_otp error:", error);
     return res.status(500).json({ message: "Internal server error.", status: "error", error: error.message });
   }
 };
@@ -1857,7 +1878,7 @@ const delete_cluster = async (req, res) => {
     return res.status(200).json({ status: 'success', message: 'Cluster deleted successfully.' });
   } catch (error) {
     await session.abortTransaction();
-    console.error("❌ delete_cluster error:", error);
+    console.error("Γ¥î delete_cluster error:", error);
     return res.status(500).json({ status: 'error', message: "Internal server error.", error: error.message });
   } finally {
     session.endSession();
@@ -1903,7 +1924,7 @@ const edit_cluster_name = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("❌ edit_cluster_name error:", error);
+    console.error("Γ¥î edit_cluster_name error:", error);
     return res.status(500).json({ status: "error", message: "Internal server error.", error: error.message });
   }
 };
@@ -1964,7 +1985,248 @@ const delete_zone = async (req, res) => {
   }
 };
 
+/**
+ * Bulk upload / import locations (State, District, Pincode, Lat, Lng)
+ * Body: { country_id, country_name, locations: [...] }
+ */
+const bulk_upload_locations = async (req, res) => {
+  try {
+    const { country_id, country_name, locations } = req.body;
+
+    if (!Array.isArray(locations) || locations.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "No locations data provided. Please provide an array of location records."
+      });
+    }
+
+    // 1. Resolve Country
+    let targetCountry = null;
+    if (country_id && mongoose.Types.ObjectId.isValid(country_id)) {
+      targetCountry = await GeoLevel0.findById(country_id);
+    }
+    if (!targetCountry && country_name) {
+      targetCountry = await GeoLevel0.findOne({
+        name: { $regex: new RegExp('^' + country_name.trim() + '$', 'i') },
+        $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }]
+      });
+    }
+    if (!targetCountry) {
+      targetCountry = await GeoLevel0.findOne({
+        is_active: true,
+        $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }]
+      }).sort({ name: 1 });
+    }
+    if (!targetCountry) {
+      targetCountry = await GeoLevel0.create({
+        name: "India",
+        iso2: "IN",
+        phone_code: "+91",
+        currency_name: "Indian Rupee",
+        currency_code: "INR",
+        is_active: true
+      });
+    }
+
+    // 2. Parse & Normalize rows
+    const groupedData = new Map();
+
+    for (const raw of locations) {
+      if (!raw || typeof raw !== 'object') continue;
+
+      const stateName = (raw.state || raw.State || raw.STATE || raw.state_name || raw['State Name'] || raw.StateName || '').toString().trim();
+      const districtName = (raw.district || raw.District || raw.DISTRICT || raw.district_name || raw['District Name'] || raw.DistrictName || '').toString().trim();
+      const pincodeRaw = (raw.pincode || raw.Pincode || raw.PINCODE || raw.pin || raw.PIN || raw['Pin Code'] || raw['Postal Code'] || raw.zip || raw.zipcode || '').toString().trim();
+
+      const latVal = raw.latitude !== undefined ? raw.latitude : (raw.Latitude !== undefined ? raw.Latitude : (raw.lat !== undefined ? raw.lat : raw.Lat));
+      const lat = (latVal !== undefined && latVal !== null && latVal !== '' && !isNaN(Number(latVal))) ? Number(latVal) : 0;
+
+      const lngVal = raw.longitude !== undefined ? raw.longitude : (raw.Longitude !== undefined ? raw.Longitude : (raw.lng !== undefined ? raw.lng : (raw.Lng !== undefined ? raw.Lng : raw.long)));
+      const lng = (lngVal !== undefined && lngVal !== null && lngVal !== '' && !isNaN(Number(lngVal))) ? Number(lngVal) : 0;
+
+      const locality = (raw.locality || raw.Locality || raw.area || raw.Area || raw.city || raw.City || raw.taluk || raw.Taluk || '').toString().trim();
+
+      if (!stateName || !districtName) continue;
+
+      const stateKey = stateName.toLowerCase();
+      const districtKey = districtName.toLowerCase();
+
+      if (!groupedData.has(stateKey)) {
+        groupedData.set(stateKey, {
+          stateName: stateName,
+          districts: new Map()
+        });
+      }
+
+      const stateGroup = groupedData.get(stateKey);
+      if (!stateGroup.districts.has(districtKey)) {
+        stateGroup.districts.set(districtKey, {
+          districtName: districtName,
+          lat: lat !== 0 ? lat : 0,
+          lng: lng !== 0 ? lng : 0,
+          pincodesMap: new Map()
+        });
+      }
+
+      const distGroup = stateGroup.districts.get(districtKey);
+      if (distGroup.lat === 0 && lat !== 0) distGroup.lat = lat;
+      if (distGroup.lng === 0 && lng !== 0) distGroup.lng = lng;
+
+      if (pincodeRaw) {
+        const cleanPin = pincodeRaw.replace(/\s+/g, '');
+        distGroup.pincodesMap.set(cleanPin, {
+          pincode: cleanPin,
+          lat: lat !== 0 ? lat : (distGroup.lat || 0),
+          lng: lng !== 0 ? lng : (distGroup.lng || 0),
+          locality: locality || '',
+          is_active: true
+        });
+      }
+    }
+
+    if (groupedData.size === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "No valid State and District pairs found in uploaded data. Please check column headers (State, District, Pincode, Lat, Lng)."
+      });
+    }
+
+    let statesCount = 0;
+    let districtsCount = 0;
+    let pincodesCount = 0;
+
+    // 3. Process database upserts
+    for (const [stateKey, stateObj] of groupedData.entries()) {
+      const stateEscaped = stateObj.stateName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      let stateDoc = await GeoLevel1.findOne({
+        level_0: targetCountry._id,
+        name: { $regex: new RegExp('^' + stateEscaped + '$', 'i') },
+        $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }]
+      });
+
+      if (!stateDoc) {
+        stateDoc = await GeoLevel1.create({
+          name: stateObj.stateName,
+          level_0: targetCountry._id,
+          is_active: true
+        });
+        statesCount++;
+      } else {
+        if (!stateDoc.is_active) {
+          stateDoc.is_active = true;
+          await stateDoc.save();
+        }
+        statesCount++;
+      }
+
+      // Process districts
+      for (const [distKey, distObj] of stateObj.districts.entries()) {
+        const distEscaped = distObj.districtName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        let distDoc = await GeoLevel2.findOne({
+          level_1: stateDoc._id,
+          name: { $regex: new RegExp('^' + distEscaped + '$', 'i') },
+          $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }]
+        });
+
+        const newPincodes = Array.from(distObj.pincodesMap.values());
+
+        if (!distDoc) {
+          distDoc = await GeoLevel2.create({
+            name: distObj.districtName,
+            level_1: stateDoc._id,
+            is_active: true,
+            lat: distObj.lat || 0,
+            lng: distObj.lng || 0,
+            pincodes: newPincodes
+          });
+          districtsCount++;
+          pincodesCount += newPincodes.length;
+        } else {
+          const existingPins = distDoc.pincodes || [];
+          const pinMap = new Map();
+          for (const p of existingPins) {
+            if (p && p.pincode) pinMap.set(p.pincode.toString().trim(), p);
+          }
+          for (const np of newPincodes) {
+            const key = np.pincode.toString().trim();
+            if (pinMap.has(key)) {
+              const curr = pinMap.get(key);
+              if (np.lat && (!curr.lat || curr.lat === 0)) curr.lat = np.lat;
+              if (np.lng && (!curr.lng || curr.lng === 0)) curr.lng = np.lng;
+              if (np.locality && !curr.locality) curr.locality = np.locality;
+            } else {
+              pinMap.set(key, np);
+              pincodesCount++;
+            }
+          }
+
+          distDoc.pincodes = Array.from(pinMap.values());
+          if ((!distDoc.lat || distDoc.lat === 0) && distObj.lat) distDoc.lat = distObj.lat;
+          if ((!distDoc.lng || distDoc.lng === 0) && distObj.lng) distDoc.lng = distObj.lng;
+          if (!distDoc.is_active) distDoc.is_active = true;
+
+          await distDoc.save();
+          districtsCount++;
+        }
+      }
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: `Successfully processed ${locations.length} records. Updated ${statesCount} states, ${districtsCount} districts, and ${pincodesCount} pincodes.`,
+      stats: {
+        total_rows: locations.length,
+        states_count: statesCount,
+        districts_count: districtsCount,
+        pincodes_count: pincodesCount
+      }
+    });
+  } catch (error) {
+    console.error("bulk_upload_locations error:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to process location bulk upload.",
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get all pincodes for a specific district
+ */
+const get_district_pincodes = async (req, res) => {
+  try {
+    const { district_id } = req.params;
+    if (!district_id || !mongoose.Types.ObjectId.isValid(district_id)) {
+      return res.status(400).json({ status: "error", message: "Valid district_id is required." });
+    }
+
+    const district = await GeoLevel2.findById(district_id).lean();
+    if (!district) {
+      return res.status(404).json({ status: "error", message: "District not found." });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      district: {
+        id: district._id,
+        name: district.name,
+        lat: district.lat || 0,
+        lng: district.lng || 0,
+        pincodes_count: (district.pincodes || []).length,
+        pincodes: district.pincodes || []
+      }
+    });
+  } catch (error) {
+    console.error("get_district_pincodes error:", error);
+    return res.status(500).json({ status: "error", message: "Internal server error.", error: error.message });
+  }
+};
+
+
 module.exports = {
+  bulk_upload_locations,
+  get_district_pincodes,
   deactivation_otp,
   get_countries,
   get_active_countries,

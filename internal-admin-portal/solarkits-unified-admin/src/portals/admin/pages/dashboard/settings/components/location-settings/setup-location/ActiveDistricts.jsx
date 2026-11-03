@@ -10,7 +10,12 @@ import {
   FaHome,
   FaGlobeAmericas,
   FaBan,
-  FaChartLine
+  FaChartLine,
+  FaMapPin,
+  FaTimes,
+  FaSearch,
+  FaCompass,
+  FaCity
 } from "react-icons/fa";
 import DropdownWithSearchInput from "@/components/DropdownWithSearchInput";
 import SearchInputWithDropdown from "@/components/SearchInputWithDropdown";
@@ -21,11 +26,10 @@ import { setAlert } from "@/features/alert.slice";
 import { useLocation, useNavigate } from "react-router-dom";
 import Loader from "@/components/Loader";
 import Button from "@/components/Button";
-import {  FiChevronRight, FiClock } from "react-icons/fi";
+import { FiChevronRight, FiClock } from "react-icons/fi";
 import RenderIfPermission from "@/components/PermissionCheck";
 import PageHeader from "@/components/PageHeader";
 import Pagination from "@/components/Pagination";
-
 
 export default function ActiveDistricts({ moduleUniqueId }) {
   const [districts, setDistricts] = useState([]);
@@ -40,6 +44,12 @@ export default function ActiveDistricts({ moduleUniqueId }) {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Pincode View Modal state
+  const [selectedDistrictForPincodes, setSelectedDistrictForPincodes] = useState(null);
+  const [pincodeSearchQuery, setPincodeSearchQuery] = useState("");
+  const [districtPincodesLoading, setDistrictPincodesLoading] = useState(false);
+  const [activeDistrictPincodes, setActiveDistrictPincodes] = useState([]);
 
   // Confirmation Popup state
   const [confirmationPopup, setConfirmationPopup] = useState({
@@ -139,6 +149,37 @@ export default function ActiveDistricts({ moduleUniqueId }) {
     }
   };
 
+  // Open Pincodes Viewer Modal
+  const handleOpenPincodesModal = async (district) => {
+    setSelectedDistrictForPincodes(district);
+    setPincodeSearchQuery("");
+
+    // If district already has pincodes, use them immediately
+    if (district.pincodes && district.pincodes.length > 0) {
+      setActiveDistrictPincodes(district.pincodes);
+      return;
+    }
+
+    // Otherwise fetch from endpoint
+    try {
+      setDistrictPincodesLoading(true);
+      const res = await axios.get(
+        `${API_URL}/geolocation/district-pincodes/${district.id}`,
+        { headers: { ...authHeaderObj() } }
+      );
+      if (res.data?.district?.pincodes) {
+        setActiveDistrictPincodes(res.data.district.pincodes);
+      } else {
+        setActiveDistrictPincodes([]);
+      }
+    } catch (err) {
+      console.warn("Could not fetch remote pincodes, fallback to local:", err);
+      setActiveDistrictPincodes(district.pincodes || []);
+    } finally {
+      setDistrictPincodesLoading(false);
+    }
+  };
+
   // Activate selected district
   const handleActivate = async () => {
     if (!districtItem) {
@@ -148,205 +189,278 @@ export default function ActiveDistricts({ moduleUniqueId }) {
 
     try {
       setActivating(true);
-
-      const districtId = districtItem.id ?? districtItem.value ?? districtItem;
-
       const res = await axios.post(
         `${API_URL}/geolocation/activate-district?unique_id=${moduleUniqueId}&req_for=edit`,
-        { district_id: districtId },
+        { district_id: districtItem },
         { headers: { ...authHeaderObj() } }
       );
 
-      const updated = districts.map((d) =>
-        d.id === districtId ? { ...d, is_active: true } : d
-      );
-      setDistricts(updated);
-
-      dispatch(
-        setAlert({
-          message: res.data?.message || `${districts.find(d => d.id === districtId)?.name} activated successfully!`,
-          type: "success",
-        })
-      );
+      if (res.data.status === "success") {
+        dispatch(setAlert({ message: res.data.message, type: "success" }));
+        setDistrictItem(null);
+        await refreshDistricts();
+      } else {
+        dispatch(setAlert({ message: res.data.message || "Failed to activate district.", type: "error" }));
+      }
     } catch (err) {
-      console.error("❌ Activation failed:", err);
-      dispatch(
-        setAlert({
-          message: err.response?.data?.message || "Failed to activate district.",
-          type: "error",
-        })
-      );
+      console.error("❌ Activation Error:", err);
+      const msg = err.response?.data?.message || "Something went wrong while activating district.";
+      dispatch(setAlert({ message: msg, type: "error" }));
     } finally {
       setActivating(false);
     }
   };
 
-  const activeDistricts = districts.filter((d) => d.is_active == true);
+  // Deactivate district with OTP
+  const handleDeactivate = (district) => {
+    setConfirmationPopup({
+      isOpen: true,
+      title: "Deactivate District",
+      message: `Are you sure you want to deactivate "${district.name}"? This action will disable all associated cities and zones.`,
+      mode: "text",
+      variant: "danger",
+      confirmText: "Send OTP & Proceed",
+      onConfirm: async () => {
+        try {
+          const res = await axios.post(
+            `${API_URL}/geolocation/request-deactivation-otp?unique_id=${moduleUniqueId}&req_for=add`,
+            {
+              type: "district",
+              country: country.name,
+              state: stateData.name,
+              district: district.name,
+            },
+            { headers: { ...authHeaderObj() } }
+          );
+
+          if (res.data.status === "success") {
+            dispatch(setAlert({ message: "OTP sent successfully to your registered email.", type: "success" }));
+
+            setConfirmationPopup({
+              isOpen: true,
+              title: "Verify OTP for District Deactivation",
+              message: `Please enter the 6-digit OTP sent to your email to confirm the deactivation of "${district.name}".`,
+              mode: "otp",
+              variant: "danger",
+              confirmText: "Verify & Deactivate",
+              onConfirm: async (otp) => {
+                try {
+                  const verifyRes = await axios.post(
+                    `${API_URL}/geolocation/deactivate-district?unique_id=${moduleUniqueId}&req_for=edit`,
+                    {
+                      district_id: district.id,
+                      otp: otp,
+                    },
+                    { headers: { ...authHeaderObj() } }
+                  );
+
+                  if (verifyRes.data.status === "success") {
+                    dispatch(setAlert({ message: verifyRes.data.message, type: "success" }));
+                    setConfirmationPopup((prev) => ({ ...prev, isOpen: false }));
+                    await refreshDistricts();
+                  } else {
+                    dispatch(setAlert({ message: verifyRes.data.message || "Failed to deactivate district.", type: "error" }));
+                  }
+                } catch (verifyErr) {
+                  console.error("❌ OTP Verification Error:", verifyErr);
+                  const msg = verifyErr.response?.data?.message || "Invalid or expired OTP.";
+                  dispatch(setAlert({ message: msg, type: "error" }));
+                }
+              },
+            });
+          } else {
+            dispatch(setAlert({ message: res.data.message || "Failed to send OTP.", type: "error" }));
+          }
+        } catch (otpErr) {
+          console.error("❌ Send OTP Error:", otpErr);
+          const msg = otpErr.response?.data?.message || "Failed to send OTP. Try again.";
+          dispatch(setAlert({ message: msg, type: "error" }));
+        }
+      },
+    });
+  };
+
+  const activeDistricts = districts.filter((d) => d.is_active);
   const inactiveDistricts = districts.filter((d) => !d.is_active);
 
-  // Filter active districts based on search query
-  const filteredActiveDistricts = activeDistricts.filter(district =>
-    district.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredActiveDistricts = activeDistricts.filter((d) =>
+    d.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Pagination logic
   const totalPages = Math.ceil(filteredActiveDistricts.length / itemsPerPage);
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentActiveDistricts = filteredActiveDistricts.slice(indexOfFirstItem, indexOfLastItem);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentActiveDistricts = filteredActiveDistricts.slice(startIndex, startIndex + itemsPerPage);
 
-  const handlePageChange = (pageNumber) => {
-    if (pageNumber < 1 || pageNumber > totalPages) return;
-    setCurrentPage(pageNumber);
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
   };
 
-  const handleItemsPerPageChange = (value) => {
-    setItemsPerPage(value);
-    setCurrentPage(1);
-  };
-
-  // Items per page options for dropdown
-  const itemsPerPageOptions = [
-    { text: "4 per page", value: 4 },
-    { text: "8 per page", value: 8 },
-    { text: "12 per page", value: 12 },
-    { text: "16 per page", value: 16 },
-    { text: "20 per page", value: 20 },
-  ];
-
-  if (loading) {
-    return (
-      <Loader text="Loading districts..." />
-    );
-  }
-
-  // Error UI
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-start justify-center">
-        <div className="card border-danger p-8 text-center w-full">
-          <div className="w-20 h-20 rounded-xl bg-linear-to-br from-red-500 to-red-600 flex items-center justify-center mx-auto mb-4">
-            <FaGlobeAmericas className="text-white text-3xl" />
-          </div>
-          <h3 className="text-xl font-bold text-danger mb-2">Failed to load districts</h3>
-          <p className="text-text-secondary mb-4">{error}</p>
-          <Button
-            onClick={refreshDistricts}
-            variant="danger"
-          >
-            Try Again
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  // Filter pincodes inside modal
+  const filteredModalPincodes = activeDistrictPincodes.filter((p) => {
+    if (!pincodeSearchQuery) return true;
+    const query = pincodeSearchQuery.toLowerCase();
+    const pinStr = (p.pincode || "").toString().toLowerCase();
+    const locStr = (p.locality || "").toLowerCase();
+    return pinStr.includes(query) || locStr.includes(query);
+  });
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={stateData?.name || "Active Districts"}
-        subtitle={`Manage districts and administrative areas under ${stateData?.name || 'the selected state'}.`}
-        icon={FaMapMarkerAlt}
-        showBackButton={true}
-        onBackClick={() =>
-          navigate(location.pathname.replace("/active-districts", "/active-states"), {
-            state: { country },
-          })
-        }
-        stats={[
-          { label: "Total Districts", value: districts.length, description: "In state" },
-          { label: "Active", value: activeDistricts.length, description: "Managing" },
-          { label: "Inactive", value: inactiveDistricts.length, description: "Available" }
-        ]}
-      />
-
-      {/* ✅ Activation Section */}
-      <RenderIfPermission
-        requiredUniqueId={moduleUniqueId}
-        permission="edit"
-        fallback={
-          <div className="card p-8 text-center">
-            <div className="w-20 h-20 rounded-xl bg-linear-to-br from-primary to-primary-end flex items-center justify-center mx-auto mb-4">
-              <FaBan className="text-white text-3xl" />
-            </div>
-            <h3 className="text-xl font-bold text-text-primary mb-2">Access Restricted</h3>
-            <p className="text-text-secondary mb-4">You don't have permission to manage districts.</p>
-          </div>
-        }
-      >
-        <div className="card hover:shadow-xl transition-all duration-300 ">
-          <div className="p-5">
-            {/* Last updated badge */}
-            <div className="flex justify-end mb-4">
-              <span className="text-xs bg-linear-120 from-primary/5 to-primary/15 text-text-secondary px-2 py-1 rounded-full flex items-center gap-1">
-                <FiClock size={10} />
-                Activate district
+      <div className="flex flex-col gap-2">
+        <PageHeader
+          icon={FaMapMarkerAlt}
+          title={
+            <div className="flex items-center gap-3">
+              <span className="text-xl font-bold text-text-primary">
+                Setup Locations
+              </span>
+              <span className="text-sm font-semibold text-text-secondary bg-primary/10 px-2 py-0.5 rounded-full">
+                Active Districts
               </span>
             </div>
+          }
+          description="Manage districts, pincodes coverage, and geographical coordinates for your selected state."
+          backButton={{
+            label: "Back to States",
+            onClick: () => navigate(location.pathname.replace("/active-districts", "/active-states"), {
+              state: { country }
+            }),
+          }}
+        />
+      </div>
 
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-to-br from-primary to-primary-end text-white">
-                <FaPlus className="w-5 h-5" />
+      <div className="card hover:shadow-xl transition-all duration-300">
+        <div className="p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-linear-to-br from-primary/10 to-primary/20 text-primary shadow-inner">
+                <FaGlobeAmericas className="text-2xl" />
               </div>
               <div>
-                <h3 className="font-bold text-text-primary">Activate New District</h3>
-                <p className="text-text-secondary text-sm">Select a district to activate and start managing zones & clusters</p>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-text-primary">
+                    {stateData?.name || "State"}
+                  </h2>
+                  <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700">
+                    Active
+                  </span>
+                </div>
+                <p className="text-text-secondary text-sm">
+                  {country?.name} • State ID: {stateData?.id}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-text-secondary">Districts Active</p>
+              <p className="text-sm font-bold text-primary">{activeDistricts.length} Districts</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ✅ Add/Activate District */}
+      <RenderIfPermission 
+        requiredUniqueId={moduleUniqueId}
+        permission="edit"
+      >
+        <div className="card hover:shadow-xl transition-all duration-300">
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-to-br from-primary to-primary-end text-text-inverse">
+                  <FaMapMarkerAlt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-text-primary">Activate District</h3>
+                  <p className="text-text-secondary text-sm">Choose an inactive district to enable it</p>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-end">
-              <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-text-secondary mb-2">
-                  Select District
-                </label>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="flex-1">
+                <DropdownWithSearchInput
+                  options={inactiveDistricts}
+                  value={districtItem}
+                  onChange={(val) => setDistrictItem(val)}
+                  placeholder="Select district to activate..."
+                  className="w-full"
+                />
+              </div>
+              <Button
+                variant="primary"
+                onClick={handleActivate}
+                disabled={!districtItem || activating}
+                icon={FaPlus}
+                iconPosition="left"
+                isLoading={activating}
+                loadingText="Activating..."
+                className="whitespace-nowrap"
+              >
+                Activate District
+              </Button>
+            </div>
 
-                {inactiveDistricts.length > 0 ? (
-                  <DropdownWithSearchInput
-                    value={districtItem}
-                    onChange={setDistrictItem}
-                    options={inactiveDistricts}
+            {inactiveDistricts.length === 0 && (
+              <p className="text-xs text-text-secondary mt-2">
+                All available districts for this state are currently active.
+              </p>
+            )}
+          </div>
+        </div>
+      </RenderIfPermission>
+
+      {/* ✅ Deactivate District */}
+      <RenderIfPermission 
+        requiredUniqueId={moduleUniqueId}
+        permission="edit"
+      >
+        <div className="card hover:shadow-xl transition-all duration-300">
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-to-br from-danger to-danger/80 text-text-inverse">
+                  <FaBan className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-text-primary">Deactivate District</h3>
+                  <p className="text-text-secondary text-sm">Disable an active district and its components</p>
+                </div>
+              </div>
+            </div>
+
+            {activeDistricts.length > 0 ? (
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="flex-1">
+                  <Dropdown
+                    options={activeDistricts.map((d) => ({ text: d.name, value: d.id, ...d }))}
+                    value={deactivateOTP}
+                    onChange={(val) => setDeactivateOTP(val)}
+                    placeholder="Select active district to deactivate..."
                     className="w-full"
-                    placeholder="Choose a district to activate..."
                   />
-                ) : (
-                  <div className="p-3 bg-green-50 text-green-700 rounded-lg border border-green-200 text-sm">
-                    All districts are already active!
-                  </div>
-                )}
+                </div>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    const dist = activeDistricts.find((d) => d.id === deactivateOTP);
+                    if (dist) handleDeactivate(dist);
+                  }}
+                  disabled={!deactivateOTP}
+                  icon={FaBan}
+                  iconPosition="left"
+                  className="whitespace-nowrap"
+                >
+                  Deactivate District
+                </Button>
               </div>
-
-              <div>
-                {districtItem && !districts.find(d => d.id === districtItem)?.is_active && (
-                  <Button
-                    onClick={handleActivate}
-                    disabled={activating}
-                    className="w-full bg-linear-120 from-primary to-primary-end"
-                    leftIcon={activating ? <FaSpinner className="animate-spin mr-2" /> : <FaCheckCircle className="mr-2" />}
-                    loading={activating}
-                  >
-                    {activating ? 'Activating...' : 'Activate District'}
-                  </Button>
-                )}
-
-                {districtItem && districts.find(d => d.id === districtItem)?.is_active ? (
-                  <div className="w-full bg-green-50 text-green-700 py-3 px-6 rounded-xl text-center font-semibold flex items-center justify-center border border-green-200">
-                    <FaCheckCircle className="mr-3" />
-                    Already Active
-                  </div>
-                ) : ""}
-              </div>
-            </div>
-
-            {districtItem && (
-              <div className="mt-6 p-4 bg-primary/5 rounded-xl border border-primary/20">
-                <div className="flex items-center gap-4">
-                  <FaMapMarkerAlt className="text-primary text-2xl" />
-                  <div>
-                    <h4 className="font-semibold text-text-primary">{districts.find(d => d.id === districtItem)?.name}</h4>
-                    <p className="text-sm text-text-secondary">
-                      {districts.find(d => d.id === districtItem)?.is_active ? "Active • Managing regions" : "Ready to activate"}
-                    </p>
-                  </div>
+            ) : (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                  <p className="text-xs text-yellow-800">
+                    No active districts found. Activate a district first to enable deactivation.
+                  </p>
                 </div>
               </div>
             )}
@@ -355,11 +469,11 @@ export default function ActiveDistricts({ moduleUniqueId }) {
       </RenderIfPermission>
 
       {/* ✅ Active Districts Grid */}
-      <RenderIfPermission
+      <RenderIfPermission 
         requiredUniqueId={moduleUniqueId}
         permission="view"
       >
-        <div className="card hover:shadow-xl transition-all duration-300 ">
+        <div className="card hover:shadow-xl transition-all duration-300">
           <div className="p-5">
             <div className="flex justify-end mb-4">
               <span className="text-xs bg-linear-120 from-primary/5 to-primary/15 text-text-secondary px-2 py-1 rounded-full flex items-center gap-1">
@@ -375,7 +489,7 @@ export default function ActiveDistricts({ moduleUniqueId }) {
                 </div>
                 <div>
                   <h3 className="font-bold text-text-primary">Active Districts</h3>
-                  <p className="text-text-secondary text-sm">Manage your active districts</p>
+                  <p className="text-text-secondary text-sm">View districts, pincodes coverage, and geographical coordinates</p>
                 </div>
               </div>
               <div className="px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-semibold">
@@ -383,7 +497,7 @@ export default function ActiveDistricts({ moduleUniqueId }) {
               </div>
             </div>
 
-            <div className="">
+            <div>
               <SearchInputWithDropdown
                 options={currentActiveDistricts}
                 value={null}
@@ -408,6 +522,7 @@ export default function ActiveDistricts({ moduleUniqueId }) {
             </div>
           </div>
         </div>
+
         {activeDistricts.length === 0 ? (
           <div className="card hover:shadow-xl transition-all duration-300 ">
             <div className="p-5">
@@ -416,7 +531,7 @@ export default function ActiveDistricts({ moduleUniqueId }) {
                   <FaMapMarkerAlt className="text-primary text-3xl" />
                 </div>
                 <h3 className="text-xl font-semibold text-text-primary mb-2">No Active Districts</h3>
-                <p className="text-text-secondary max-w-md mx-auto text-sm">Activate a district to start managing its zones and clusters.</p>
+                <p className="text-text-secondary max-w-md mx-auto text-sm">Activate a district to start managing its pincodes, urban, and rural areas.</p>
               </div>
             </div>
           </div>
@@ -424,63 +539,103 @@ export default function ActiveDistricts({ moduleUniqueId }) {
           <>
             {/* Active Districts Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {currentActiveDistricts.map((d, index) => (
-                <div
-                  key={d.id || index}
-                  className="card hover:shadow-lg transition-all duration-300 cursor-pointer transform hover:-translate-y-1 group"
-                  onClick={() =>
-                    navigate(location.pathname.replace("/active-districts", "/urban-cities"), {
-                      state: {
-                        district: {
-                          id: d.id,
-                          name: d.name,
-                        },
-                        state: stateData,
-                        country,
-                      },
-                    })
-                  }
-                >
-                  <div className="p-5">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-linear-to-br from-primary to-primary-end flex items-center justify-center">
-                          <FaMapMarkerAlt className="text-text-inverse text-lg" />
+              {currentActiveDistricts.map((d, index) => {
+                const pincodesCount = d.pincodes_count || (d.pincodes ? d.pincodes.length : 0);
+                const hasCoords = (d.lat && Number(d.lat) !== 0) || (d.lng && Number(d.lng) !== 0);
+
+                return (
+                  <div
+                    key={d.id || index}
+                    className="card hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 group border border-slate-200/80 hover:border-primary/40 flex flex-col justify-between"
+                  >
+                    <div className="p-5">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-linear-to-br from-primary to-primary-end flex items-center justify-center shadow-sm">
+                            <FaMapMarkerAlt className="text-white text-lg" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-text-primary group-hover:text-primary transition-colors">
+                              {d.name}
+                            </h3>
+                            <p className="text-xs text-text-secondary flex items-center mt-0.5">
+                              <FaCheckCircle className="text-success mr-1 w-3 h-3" />
+                              Active
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-text-primary group-hover:text-primary transition-colors">
-                            {d.name}
-                          </h3>
-                          <p className="text-xs text-text-secondary flex items-center mt-1">
-                            <FaCheckCircle className="text-success mr-1 w-3 h-3" />
-                            Active
+                      </div>
+
+                      {/* Coordinates Pill */}
+                      <div className="mb-3.5 bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500 font-medium flex items-center gap-1">
+                          <FaCompass className="text-primary text-xs" /> Coordinates
+                        </span>
+                        <span className="font-mono text-slate-800 font-semibold">
+                          {hasCoords ? `${Number(d.lat).toFixed(4)}, ${Number(d.lng).toFixed(4)}` : "Lat/Lng not set"}
+                        </span>
+                      </div>
+
+                      {/* Stats Grid: Pincodes & Urban/Rural */}
+                      <div className="grid grid-cols-2 gap-2 mb-4">
+                        <div className="bg-emerald-50/80 border border-emerald-100 rounded-lg p-2 text-center">
+                          <div className="flex items-center justify-center gap-1 mb-1">
+                            <FaMapPin className="text-emerald-600 text-xs" />
+                            <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Pincodes</span>
+                          </div>
+                          <p className="text-base font-black text-emerald-950">{pincodesCount}</p>
+                        </div>
+                        <div className="bg-blue-50/80 border border-blue-100 rounded-lg p-2 text-center">
+                          <div className="flex items-center justify-center gap-1 mb-1">
+                            <FaBuilding className="text-blue-600 text-xs" />
+                            <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">Cities</span>
+                          </div>
+                          <p className="text-xs font-bold text-blue-900 mt-1">
+                            {d.urban_cities_count || 0}U • {d.rural_cities_count || 0}R
                           </p>
                         </div>
                       </div>
-                      <FiChevronRight className="text-text-secondary group-hover:text-primary transform group-hover:translate-x-1 transition-all" />
-                    </div>
 
-                    {/* Stats */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-primary/5 rounded-lg p-2 text-center">
-                        <div className="flex items-center justify-center gap-1 mb-1">
-                          <FaBuilding className="text-primary text-xs" />
-                          <span className="text-[10px] font-semibold text-primary">Urban</span>
-                        </div>
-                        <p className="text-lg font-bold text-text-primary">{d.urban_cities_count || 0}</p>
-                      </div>
-                      <div className="bg-primary/5 rounded-lg p-2 text-center">
-                        <div className="flex items-center justify-center gap-1 mb-1">
-                          <FaHome className="text-primary text-xs" />
-                          <span className="text-[10px] font-semibold text-primary">Rural</span>
-                        </div>
-                        <p className="text-lg font-bold text-text-primary">{d.rural_cities_count || 0}</p>
+                      {/* Action Buttons */}
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        {/* View Pincodes & Coordinates button */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPincodesModal(d)}
+                          className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 text-xs font-bold rounded-lg border border-emerald-200 transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <FaMapPin className="text-xs" />
+                          <span>View Pincodes & Coordinates</span>
+                        </button>
+
+                        {/* Explore Cities Navigation */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(location.pathname.replace("/active-districts", "/urban-cities"), {
+                              state: {
+                                district: {
+                                  id: d.id,
+                                  name: d.name,
+                                },
+                                state: stateData,
+                                country,
+                              },
+                            })
+                          }
+                          className="w-full py-1.5 px-3 text-slate-500 hover:text-primary text-[11px] font-medium transition-colors flex items-center justify-center gap-1"
+                        >
+                          <span>Explore Urban & Rural Cities</span>
+                          <FiChevronRight className="text-xs" />
+                        </button>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+
             <div className="mt-6">
               <Pagination
                 currentPage={currentPage}
@@ -494,8 +649,147 @@ export default function ActiveDistricts({ moduleUniqueId }) {
           </>
         )}
 
+        {/* ✅ Pincodes & Coordinates Viewer Modal */}
+        {selectedDistrictForPincodes && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              {/* Modal Header */}
+              <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white shadow-md">
+                    <FaMapPin className="text-base" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base flex items-center gap-2">
+                      <span>{selectedDistrictForPincodes.name}</span>
+                      <span className="text-xs font-normal text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800">
+                        {stateData?.name}
+                      </span>
+                    </h3>
+                    <p className="text-slate-400 text-xs mt-0.5">
+                      Pincodes List & Geographic Coordinates (Latitude / Longitude)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDistrictForPincodes(null)}
+                  className="text-slate-400 hover:text-white p-1 rounded-md transition-colors"
+                >
+                  <FaTimes className="text-base" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-4">
+                {/* District Overview Card */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-500">District Center Coordinates</p>
+                      <p className="font-mono font-bold text-sm text-slate-800 mt-0.5">
+                        {selectedDistrictForPincodes.lat || selectedDistrictForPincodes.lng
+                          ? `Lat: ${Number(selectedDistrictForPincodes.lat).toFixed(4)} • Lng: ${Number(selectedDistrictForPincodes.lng).toFixed(4)}`
+                          : "Not calibrated"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="px-3.5 py-1.5 bg-emerald-100 text-emerald-800 rounded-full font-bold text-xs">
+                    {activeDistrictPincodes.length} Pincodes Covered
+                  </div>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative">
+                  <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+                  <input
+                    type="text"
+                    value={pincodeSearchQuery}
+                    onChange={(e) => setPincodeSearchQuery(e.target.value)}
+                    placeholder="Search by 6-digit pincode, locality, or area name..."
+                    className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-xs focus:outline-hidden focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
+                {/* Table */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="max-h-72 overflow-y-auto">
+                    {districtPincodesLoading ? (
+                      <div className="p-8 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
+                        <FaSpinner className="animate-spin text-primary" />
+                        <span>Loading district pincodes...</span>
+                      </div>
+                    ) : filteredModalPincodes.length === 0 ? (
+                      <div className="p-10 text-center text-slate-500">
+                        <FaMapPin className="text-3xl text-slate-300 mx-auto mb-2" />
+                        <p className="font-semibold text-sm text-slate-700">No Pincodes Found</p>
+                        <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                          {pincodeSearchQuery
+                            ? `No pincode matching "${pincodeSearchQuery}".`
+                            : "No pincodes have been uploaded for this district yet. You can upload pincodes using the Bulk Upload feature in Active States."}
+                        </p>
+                      </div>
+                    ) : (
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100 text-[10px] font-bold text-slate-600 uppercase border-b border-slate-200 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-2.5">#</th>
+                            <th className="px-4 py-2.5">Pincode</th>
+                            <th className="px-4 py-2.5">Locality / Area</th>
+                            <th className="px-4 py-2.5">Latitude</th>
+                            <th className="px-4 py-2.5">Longitude</th>
+                            <th className="px-4 py-2.5 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {filteredModalPincodes.map((pin, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/80">
+                              <td className="px-4 py-2 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                              <td className="px-4 py-2 font-mono font-bold text-primary text-xs">
+                                {pin.pincode}
+                              </td>
+                              <td className="px-4 py-2 font-medium">
+                                {pin.locality || selectedDistrictForPincodes.name}
+                              </td>
+                              <td className="px-4 py-2 font-mono text-slate-600 text-[11px]">
+                                {pin.lat ? Number(pin.lat).toFixed(4) : "-"}
+                              </td>
+                              <td className="px-4 py-2 font-mono text-slate-600 text-[11px]">
+                                {pin.lng ? Number(pin.lng).toFixed(4) : "-"}
+                              </td>
+                              <td className="px-4 py-2 text-center">
+                                <span className="px-2 py-0.5 bg-green-100 text-green-700 font-bold text-[10px] rounded-full">
+                                  Active
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="bg-slate-50 px-6 py-3.5 border-t border-slate-200 flex items-center justify-between">
+                <p className="text-xs text-slate-500">
+                  Showing {filteredModalPincodes.length} of {activeDistrictPincodes.length} pincodes
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDistrictForPincodes(null)}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Confirmation Popup */}
-        < ConfirmationPopup
+        <ConfirmationPopup
           isOpen={confirmationPopup.isOpen}
           title={confirmationPopup.title}
           message={confirmationPopup.message}
@@ -503,11 +797,10 @@ export default function ActiveDistricts({ moduleUniqueId }) {
           variant={confirmationPopup.variant}
           confirmText={confirmationPopup.confirmText}
           onConfirm={confirmationPopup.onConfirm}
-          onCancel={() => setConfirmationPopup(prev => ({ ...prev, isOpen: false }))
-          }
+          onCancel={() => setConfirmationPopup((prev) => ({ ...prev, isOpen: false }))}
           isLoading={loading}
         />
-      </RenderIfPermission >
-    </div >
+      </RenderIfPermission>
+    </div>
   );
 }

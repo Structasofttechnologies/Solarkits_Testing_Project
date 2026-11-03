@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
   FaWarehouse, FaBoxes, FaFileInvoice,
   FaPlus, FaTrash, FaCheckCircle, FaSpinner, FaSearch, FaArrowLeft, FaExclamationTriangle,
   FaInfoCircle, FaFilePdf, FaEye, FaTags, FaTag, FaBuilding, FaMapMarkerAlt,
-  FaClipboardList, FaTimesCircle, FaCheckDouble
+  FaClipboardList, FaTimesCircle, FaCheckDouble, FaCreditCard
 } from "react-icons/fa";
 import {
   getWarehouses, getWarehouseSkus, getWarehouseSuppliers, getSupplierWarehousePrices,
@@ -245,12 +246,23 @@ function ProformaInvoiceModal({ isOpen, onClose, po, initialTab = "po", onApprov
 }
 
 export default function PurchaseOrders() {
+  const navigate = useNavigate();
   const { selectedScope, user } = useSelector((state) => state.user_slice);
   const activeClusterId = selectedScope?.cluster;
   const activeClusterName = selectedScope?.clusterName || "Selected Cluster";
 
   // Navigation & View state
-  const [view, setView] = useState("list"); // "list" or "create"
+  const [view, setView] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    return (p.get('tab') === 'requests' || p.get('view') === 'requests') ? 'requests' : 'list';
+  });
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('tab') === 'requests' || p.get('view') === 'requests') {
+      setView('requests');
+    }
+  }, []);
 
   // Timeline editing states
   const [editingTimelinePoId, setEditingTimelinePoId] = useState(null);
@@ -428,9 +440,36 @@ export default function PurchaseOrders() {
     setLoadingRequests(true);
     try {
       const res = await getPoRequests(activeClusterId || "");
-      if (res && res.status === "success") {
-        setPoRequests(res.data || []);
-      }
+      let requests = res && res.status === "success" ? (res.data || []) : [];
+
+      // Also merge any buffer requisitions from localStorage
+      try {
+        const localBufferReqs = JSON.parse(localStorage.getItem('solarkits_buffer_requisitions') || '{}');
+        Object.entries(localBufferReqs).forEach(([modelId, bReq]) => {
+          if (bReq && bReq.req_number && !requests.some(r => r.request_number === bReq.req_number)) {
+            requests.unshift({
+              _id: `local-${bReq.req_number}`,
+              request_number: bReq.req_number,
+              status: bReq.status || 'pending',
+              created_at: bReq.date || new Date().toISOString(),
+              warehouse_id: {
+                name: 'Main Assembly Warehouse (WH-IND-GJ-001)',
+                code: 'WH-IND-GJ-001'
+              },
+              items: [
+                {
+                  sku_code: `BOS-KIT-${modelId.toUpperCase()}`,
+                  qty: bReq.qty || 5,
+                  product_name: bReq.model_name || `${bReq.capacity || 'BOS'} Kit Assembly Package`
+                }
+              ],
+              notes: `Warehouse requisition for ${bReq.qty || 5} x ${bReq.model_name || modelId} Kits.`
+            });
+          }
+        });
+      } catch (_) {}
+
+      setPoRequests(requests);
     } catch (err) {
       console.error("Failed to fetch PO requests:", err);
     } finally {
@@ -987,6 +1026,16 @@ export default function PurchaseOrders() {
         if (fulfillingRequestId) {
           try {
             await updatePoRequestStatus(fulfillingRequestId, 'ordered');
+            try {
+              const placedPoNum = res.po_number || res.data?.po_number || `PO-BUF-${Date.now().toString().slice(-4)}`;
+              const buf = JSON.parse(localStorage.getItem('solarkits_buffer_requisitions') || '{}');
+              Object.keys(buf).forEach(k => {
+                buf[k].status = 'ordered';
+                buf[k].po_number = placedPoNum;
+                buf[k].po_placed_at = new Date().toISOString();
+              });
+              localStorage.setItem('solarkits_buffer_requisitions', JSON.stringify(buf));
+            } catch (_) {}
             fetchRequests();
           } catch (e) {
             console.error("Failed to update PO request status:", e);
@@ -1184,6 +1233,40 @@ export default function PurchaseOrders() {
               </div>
             }
           />
+
+          {/* Main Top Segmented Tab Switcher: PO Portfolio vs Warehouse Requests */}
+          <div className="flex bg-surface border border-border p-1.5 rounded-2xl gap-2 shadow-xs mb-2">
+            <button
+              type="button"
+              onClick={() => setView("list")}
+              className={`flex-1 py-3 px-5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+                view === "list"
+                  ? "gradient-primary text-white shadow-md shadow-primary/20 scale-[1.01]"
+                  : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+              }`}
+            >
+              <FaFileInvoice className="text-sm" />
+              <span>Purchase Orders Portfolio ({purchaseOrders.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setView("requests")}
+              className={`flex-1 py-3 px-5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all cursor-pointer relative ${
+                view === "requests"
+                  ? "gradient-primary text-white shadow-md shadow-primary/20 scale-[1.01]"
+                  : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+              }`}
+            >
+              <FaBoxes className="text-sm" />
+              <span>Warehouse Material Requisitions ({poRequests.length})</span>
+              {pendingRequestsCount > 0 && (
+                <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
+                  {pendingRequestsCount} Pending
+                </span>
+              )}
+            </button>
+          </div>
 
           {/* PO Status Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1513,16 +1596,27 @@ export default function PurchaseOrders() {
                               Re-Submit
                             </button>
                           ) : (
-                            <button
-                              onClick={() => {
-                                setProformaPO(po);
-                                setProformaInitialTab("approval");
-                                setProformaModalOpen(true);
-                              }}
-                              className="px-2.5 py-1 bg-surface-hover hover:bg-primary/10 text-text-secondary hover:text-primary rounded-lg text-[10px] font-bold uppercase border border-border transition-all cursor-pointer"
-                            >
-                              View Audit
-                            </button>
+                            <>
+                              <button
+                                onClick={() => {
+                                  setProformaPO(po);
+                                  setProformaInitialTab("approval");
+                                  setProformaModalOpen(true);
+                                }}
+                                className="px-2.5 py-1 bg-surface-hover hover:bg-primary/10 text-text-secondary hover:text-primary rounded-lg text-[10px] font-bold uppercase border border-border transition-all cursor-pointer"
+                              >
+                                View Audit
+                              </button>
+                              {(po.approval_status === "approved" || !po.approval_status) && (po.status === "pending" || po.status === "invoiced") && (
+                                <button
+                                  onClick={() => navigate("/account-panel/supplier-payments")}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase border border-emerald-600 shadow-sm transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                                  title="Go to Supplier Payments to pay advance"
+                                >
+                                  <FaCreditCard size={10} /> Pay Supplier
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
@@ -1562,6 +1656,40 @@ export default function PurchaseOrders() {
               </Button>
             }
           />
+
+          {/* Main Top Segmented Tab Switcher: PO Portfolio vs Warehouse Requests */}
+          <div className="flex bg-surface border border-border p-1.5 rounded-2xl gap-2 shadow-xs mb-2">
+            <button
+              type="button"
+              onClick={() => setView("list")}
+              className={`flex-1 py-3 px-5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all cursor-pointer ${
+                view === "list"
+                  ? "gradient-primary text-white shadow-md shadow-primary/20 scale-[1.01]"
+                  : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+              }`}
+            >
+              <FaFileInvoice className="text-sm" />
+              <span>Purchase Orders Portfolio ({purchaseOrders.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setView("requests")}
+              className={`flex-1 py-3 px-5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all cursor-pointer relative ${
+                view === "requests"
+                  ? "gradient-primary text-white shadow-md shadow-primary/20 scale-[1.01]"
+                  : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+              }`}
+            >
+              <FaBoxes className="text-sm" />
+              <span>Warehouse Material Requisitions ({poRequests.length})</span>
+              {pendingRequestsCount > 0 && (
+                <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
+                  {pendingRequestsCount} Pending
+                </span>
+              )}
+            </button>
+          </div>
 
           {/* Stats Bar */}
           <div className="grid grid-cols-3 gap-4">

@@ -4,6 +4,7 @@ import { useSelector, shallowEqual } from "react-redux";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { getDeliveryOrders } from "../api/deliveryOrders";
+import { getWarehousePurchaseOrders } from "../api/inward";
 
 import Header from "../components/Header";
 import Drawer from "../components/Drawer";
@@ -79,7 +80,8 @@ const getMenusForMode = (mode, prefix = "/warehouse-management-panel", badgeCoun
         name: "Material Inward",
         icon: <HiCube />,
         path: `${prefix}/material-inward`,
-        unique_id: "WH_MAT_INWARD"
+        unique_id: "WH_MAT_INWARD",
+        badge: badgeCounts.material_inward || 0
       },
       {
         name: "Out for Delivery",
@@ -313,16 +315,24 @@ export default function Dashboard() {
 
   const fetchBadgeCounts = async () => {
     try {
-      const res = await getDeliveryOrders({ limit: 1 });
-      if (res && res.summary) {
-        setSidebarBadges({
-          new_orders: res.summary.new_orders || 0,
-          bos_kit_assembly: res.summary.bos_kit_assembly || 0,
-          material_inward: 0,
-          out_for_delivery: res.summary.out_for_delivery || 0,
-          track_delivery: res.summary.track_delivery || 0
-        });
+      const [res, poRes] = await Promise.allSettled([
+        getDeliveryOrders({ limit: 1 }),
+        getWarehousePurchaseOrders("WH_MAT_INWARD")
+      ]);
+
+      const deliverySummary = res.status === 'fulfilled' && res.value?.summary ? res.value.summary : {};
+      let inwardCount = 0;
+      if (poRes.status === 'fulfilled' && poRes.value?.data) {
+        inwardCount = (poRes.value.data || []).filter(p => p.status !== 'delivered' && p.status !== 'cancelled').length;
       }
+
+      setSidebarBadges({
+        new_orders: deliverySummary.new_orders || 0,
+        bos_kit_assembly: deliverySummary.bos_kit_assembly || 0,
+        material_inward: inwardCount,
+        out_for_delivery: deliverySummary.out_for_delivery || 0,
+        track_delivery: deliverySummary.track_delivery || 0
+      });
     } catch (err) {
       // In case session expired or network error
       console.warn('Unable to fetch sidebar badges:', err?.message || err);

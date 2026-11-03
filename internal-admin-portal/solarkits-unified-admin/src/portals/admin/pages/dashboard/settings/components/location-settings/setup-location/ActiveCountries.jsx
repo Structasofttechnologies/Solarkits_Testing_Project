@@ -4,6 +4,8 @@ import { authHeaderObj } from "@/app/authHeader";
 import {
   FaGlobeAmericas,
   FaMapMarkerAlt,
+  FaMap,
+  FaMapPin,
   FaLayerGroup,
   FaDrawPolygon,
   FaSpinner,
@@ -379,7 +381,7 @@ export default function ActiveCountries({ moduleUniqueId }) {
               </div>
               <h3 className="text-xl font-semibold text-text-primary mb-2">No Active Countries</h3>
               <p className="text-text-secondary max-w-md mx-auto text-sm">
-                Activate your first country to start managing states, districts, zones, and clusters.
+                Activate your first country to start managing states, districts, and regions.
               </p>
             </div>
           </div>
@@ -427,35 +429,28 @@ export default function ActiveCountries({ moduleUniqueId }) {
                       <FiChevronRight className="text-text-secondary group-hover:text-primary transform group-hover:translate-x-1 transition-all" />
                     </div>
 
-                    {/* Stats */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-primary/5 rounded-lg p-2 text-center">
+                    {/* Stats: States, Districts & Total Pincodes */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-blue-50/80 border border-blue-100 rounded-xl p-2 text-center">
                         <div className="flex items-center justify-center gap-1 mb-1">
-                          <FaMapMarkerAlt className="text-primary text-xs" />
-                          <span className="text-[10px] font-semibold text-primary">States</span>
+                          <FaMap className="text-blue-600 text-xs" />
+                          <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">States</span>
                         </div>
-                        <p className="text-lg font-bold text-text-primary">{country.active_states_count || 0}</p>
+                        <p className="text-base font-black text-blue-950">{country.active_states_count || 0}</p>
                       </div>
-                      <div className="bg-primary/5 rounded-lg p-2 text-center">
+                      <div className="bg-purple-50/80 border border-purple-100 rounded-xl p-2 text-center">
                         <div className="flex items-center justify-center gap-1 mb-1">
-                          <FaLayerGroup className="text-primary text-xs" />
-                          <span className="text-[10px] font-semibold text-primary">Clusters</span>
+                          <FaMapMarkerAlt className="text-purple-600 text-xs" />
+                          <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Districts</span>
                         </div>
-                        <p className="text-lg font-bold text-text-primary">{country.active_clusters_count || 0}</p>
+                        <p className="text-base font-black text-purple-950">{country.active_districts_count || 0}</p>
                       </div>
-                      <div className="bg-primary/5 rounded-lg p-2 text-center">
+                      <div className="bg-emerald-50/80 border border-emerald-100 rounded-xl p-2 text-center">
                         <div className="flex items-center justify-center gap-1 mb-1">
-                          <FaDrawPolygon className="text-primary text-xs" />
-                          <span className="text-[10px] font-semibold text-primary">Zones</span>
+                          <FaMapPin className="text-emerald-600 text-xs" />
+                          <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Pincodes</span>
                         </div>
-                        <p className="text-lg font-bold text-text-primary">{country.active_zones_count || 0}</p>
-                      </div>
-                      <div className="bg-primary/5 rounded-lg p-2 text-center">
-                        <div className="flex items-center justify-center gap-1 mb-1">
-                          <FaMapMarkerAlt className="text-primary text-xs" />
-                          <span className="text-[10px] font-semibold text-primary">Districts</span>
-                        </div>
-                        <p className="text-lg font-bold text-text-primary">{country.active_districts_count || 0}</p>
+                        <p className="text-base font-black text-emerald-950">{country.total_pincodes_count || 0}</p>
                       </div>
                     </div>
                   </div>
