@@ -17,7 +17,7 @@ import {
   MdDoneAll,
   MdOutlineAccessTime
 } from "react-icons/md";
-import { FaRupeeSign, FaShieldAlt, FaSolarPanel, FaBolt, FaBoxOpen, FaTools } from "react-icons/fa";
+import { FaRupeeSign, FaShieldAlt, FaSolarPanel, FaBolt, FaBoxOpen, FaTools, FaShoppingCart } from "react-icons/fa";
 import { getTransactionDetails, verifyEpcOrderPayment, dispatchEpcOrder } from "../api/solarshopAccounts";
 import Button from "./Button";
 
@@ -832,6 +832,53 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                       </div>
                     )}
                   </div>
+
+                                    {/* Linked Repeat Orders & Drawdowns (For Master PO) */}
+                  {(() => {
+                    const drawdowns = details?.linked_repeat_orders || transaction?.linked_repeat_orders || [];
+                    if (!drawdowns || drawdowns.length === 0) return null;
+                    return (
+                      <div className="p-4 rounded-xl bg-surface border border-primary/20 space-y-3">
+                        <div className="flex items-center justify-between pb-1 border-b border-border/50">
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                            <FaShoppingCart className="text-primary" />
+                            Drawdowns Placed Under PO ({drawdowns.length})
+                          </h3>
+                          <span className="text-[10px] text-text-muted font-mono">
+                            {details?.fulfilled_quantity || transaction?.fulfilled_quantity || 0} of {details?.total_booked_quantity || transaction?.total_booked_quantity || 0} Kits Fulfilled
+                          </span>
+                        </div>
+                        <div className="border border-border/50 rounded-lg overflow-hidden">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-surface-hover/30 text-text-muted font-semibold border-b border-border">
+                              <tr>
+                                <th className="px-3 py-2">Order #</th>
+                                <th className="px-3 py-2">Date</th>
+                                <th className="px-3 py-2 text-center">Kits</th>
+                                <th className="px-3 py-2 text-right">Net Paid</th>
+                                <th className="px-3 py-2 text-center">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/50">
+                              {drawdowns.map((d, dIdx) => (
+                                <tr key={dIdx} className="hover:bg-surface-hover/30 transition-colors">
+                                  <td className="px-3 py-2 font-mono font-bold text-primary">{d.order_number || d.po_number}</td>
+                                  <td className="px-3 py-2 text-text-muted">{d.date ? new Date(d.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}</td>
+                                  <td className="px-3 py-2 text-center font-bold text-blue-600">{d.kits}</td>
+                                  <td className="px-3 py-2 text-right font-mono font-bold">{formatCurrency(d.net_paid)}</td>
+                                  <td className="px-3 py-2 text-center">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      {d.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Payment Milestone Plan Card (If Configured) */}
                   {(() => {

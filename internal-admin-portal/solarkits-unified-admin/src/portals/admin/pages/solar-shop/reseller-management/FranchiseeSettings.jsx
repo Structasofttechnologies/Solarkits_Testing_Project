@@ -120,7 +120,54 @@ export default function FranchiseeSettings() {
 
   // Navigation State
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [activeTab, setActiveTab] = useState("moq"); // 'moq' | 'po' | 'target'
+  const [activeTab, setActiveTab] = useState("moq"); // 'moq' | 'po' | 'target' | 'contract'
+
+  // ── PO Order Contract State ──
+  const [contractData, setContractData] = useState({
+    is_contract_required: true,
+    contract_title: "SolarKits EPC Purchase Order & Supply Commitment Agreement",
+    contract_version: "1.0",
+    validity_days: 30,
+    require_mobile_otp: true,
+    terms_introduction: "This Purchase Order Contract is entered into between the Authorized SolarKits Franchise Partner and the Assigned Solar EPC Contractor for supply commitment and token deposit under the terms set forth below.",
+    clauses: [
+      {
+        title: "1. Scope of Supply & Quantity Commitment",
+        body: "The Solar EPC Contractor agrees to procure, lift, and take delivery of the committed quantity of {{quantity}} SolarKits combo kit(s) under Purchase Order {{po_number}}. The Franchise Partner agrees to supply and allocate the agreed specifications strictly in accordance with SolarKits standards.",
+        is_mandatory: true
+      },
+      {
+        title: "2. Token Commitment Deposit",
+        body: "The EPC Contractor agrees to pay a mandatory token commitment deposit of ₹{{token_amount}} to secure and lock the inventory. This deposit shall be verified and credited against final purchase invoices or pro-rata dispatches as per plan policy.",
+        is_mandatory: true
+      },
+      {
+        title: "3. Order Lock-in & Validity Period",
+        body: "This Purchase Order commitment and inventory reservation shall remain firm and valid for a period of {{validity_days}} calendar days from the date of contract execution. Committed kit prices are protected during this validity window.",
+        is_mandatory: true
+      },
+      {
+        title: "4. Penalty for Unpurchased Kits & Forfeiture",
+        body: "In the event that the EPC Contractor fails to lift the committed kits within {{validity_days}} days, the Franchise Partner and SolarKits reserve the right to apply unpurchased kit penalties or adjust the token deposit as per plan rules.",
+        is_mandatory: true
+      },
+      {
+        title: "5. Dispatch, Logistics & Material Handling",
+        body: "Upon payment clearance of the balance amount, materials will be dispatched to the designated delivery destination. Transit insurance and dispatch handover will follow SolarKits operational standard operating procedures.",
+        is_mandatory: true
+      },
+      {
+        title: "6. Electronic Signature & Mobile OTP Verification",
+        body: "This Contract is executed digitally. Mobile OTP verification to the EPC's registered mobile number constitutes an authenticated, legally binding digital signature under the Information Technology Act.",
+        is_mandatory: true
+      }
+    ],
+    penalty_clauses_summary: "Penalty for unpurchased kits applies after validity window expiry as per plan policy.",
+    cancellation_terms: "Order cancellation before payment is permitted without penalty. Cancellation after token deposit requires admin review.",
+  });
+  const [loadingContract, setLoadingContract] = useState(false);
+  const [savingContract, setSavingContract] = useState(false);
+  const [contractCopiedToken, setContractCopiedToken] = useState(null);
 
   // View & Filters (Level 1: Plans View)
   const [searchPlan, setSearchPlan] = useState("");
@@ -545,7 +592,92 @@ export default function FranchiseeSettings() {
   };
 
   // Open & Save Kit Target Modal
-  const handleOpenTargetModal = (existingTarget = null) => {
+    // ── PO Order Contract Handlers ──
+  const fetchPlanContract = useCallback(async (planId) => {
+    if (!planId) return;
+    setLoadingContract(true);
+    try {
+      const res = await axios.get(
+        `${API_BASE}/franchisee/po-settings/contract?plan_id=${planId}&req_for=view&unique_id=FPO_SETTINGS`,
+        { headers: authHeaderObj() }
+      );
+      if (res.data?.status === "success" && res.data.data) {
+        setContractData((prev) => ({
+          ...prev,
+          ...res.data.data,
+          clauses: Array.isArray(res.data.data.clauses) && res.data.data.clauses.length > 0 ? res.data.data.clauses : prev.clauses,
+        }));
+      }
+    } catch (err) {
+      console.warn("[FranchiseeSettings] fetchPlanContract error:", err);
+    } finally {
+      setLoadingContract(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedPlan) {
+      fetchPlanContract(selectedPlan.id || selectedPlan._id);
+    }
+  }, [selectedPlan, fetchPlanContract]);
+
+  const handleSaveContract = async () => {
+    if (!selectedPlan) return;
+    setSavingContract(true);
+    try {
+      const payload = {
+        plan_id: selectedPlan.id || selectedPlan._id,
+        ...contractData,
+      };
+      const res = await axios.post(
+        `${API_BASE}/franchisee/po-settings/contract/save?req_for=edit&unique_id=FPO_SETTINGS`,
+        payload,
+        { headers: authHeaderObj() }
+      );
+      if (res.data?.status === "success") {
+        dispatch(setAlert({ type: "success", message: `PO Order Contract settings saved for ${selectedPlan.name}!` }));
+        fetchPlanContract(selectedPlan.id || selectedPlan._id);
+      } else {
+        dispatch(setAlert({ type: "error", message: res.data?.message || "Failed to save contract settings" }));
+      }
+    } catch (err) {
+      console.error("[FranchiseeSettings] handleSaveContract error:", err);
+      dispatch(setAlert({ type: "error", message: "Error saving contract settings" }));
+    } finally {
+      setSavingContract(false);
+    }
+  };
+
+  const handleAddContractClause = () => {
+    setContractData((prev) => ({
+      ...prev,
+      clauses: [
+        ...prev.clauses,
+        {
+          title: `${prev.clauses.length + 1}. Special Contract Term`,
+          body: "Enter term details. Placeholders like {{po_number}}, {{quantity}}, {{token_amount}} are supported.",
+          is_mandatory: true,
+        }
+      ]
+    }));
+  };
+
+  const handleUpdateContractClause = (index, field, value) => {
+    setContractData((prev) => {
+      const updated = [...prev.clauses];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, clauses: updated };
+    });
+  };
+
+  const handleDeleteContractClause = (index) => {
+    setContractData((prev) => ({
+      ...prev,
+      clauses: prev.clauses.filter((_, i) => i !== index),
+    }));
+  };
+
+const handleOpenTargetModal = (existingTarget = null) => {
     setModalTargetProduct(null);
     setModalInitialData(existingTarget || {
       plan_id: selectedPlan?.id || selectedPlan?._id,
@@ -926,6 +1058,7 @@ export default function FranchiseeSettings() {
               { id: "moq", label: "MOQ Settings", icon: FiZap, color: "text-warning" },
               { id: "po", label: "PO Settings", icon: FiPackage, color: "text-purple-600" },
               { id: "target", label: "Kit Targets & Goals", icon: FiTarget, color: "text-blue-600" },
+              { id: "contract", label: "PO Order Contract", icon: FiFileText, color: "text-emerald-600" },
             ].map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.id;
@@ -1048,6 +1181,314 @@ export default function FranchiseeSettings() {
                   </>
                 );
               })()}
+            </div>
+          ) : activeTab === "contract" ? (
+            /* ───────────────────────────────────────────────────────────────────
+            TAB 4: PO ORDER CONTRACT CONFIGURATION & LIVE PREVIEW
+            ─────────────────────────────────────────────────────────────────── */
+            <div className="space-y-6">
+              {/* Header Banner */}
+              <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-600/10 via-teal-600/5 to-transparent border border-emerald-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold shrink-0">
+                    <FiFileText size={26} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                      PO Order Contract & Mobile OTP Terms
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        contractData.is_contract_required
+                          ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                          : "bg-warning-soft text-warning border border-warning/20"
+                      }`}>
+                        {contractData.is_contract_required ? "Contract & OTP Mandated" : "Optional / Disabled"}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      Define the terms and clauses that assigned EPC contractors must review and electronically sign via registered Mobile OTP before PO starts and token is paid.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleSaveContract}
+                    disabled={savingContract}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 shadow-sm transition-all"
+                  >
+                    {savingContract ? <FiLoader className="animate-spin" size={14} /> : <FiCheck size={14} />}
+                    <span>{savingContract ? "Saving..." : "Save Contract Settings"}</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Grid: 2 Columns - Left: Settings & Clauses Editor, Right: Live Contract Preview */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Left Column: Form & Clause Editor */}
+                <div className="lg:col-span-7 space-y-6">
+                  {/* General Settings Card */}
+                  <div className="p-5 rounded-2xl bg-surface border border-border space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted flex items-center gap-2">
+                      <FiSettings size={13} className="text-primary" /> General Contract Parameters
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Contract Required Toggle */}
+                      <label className="flex items-center justify-between p-3 rounded-xl border border-border bg-bg/50 cursor-pointer">
+                        <div>
+                          <div className="text-xs font-bold text-text-primary">Mandatory Contract</div>
+                          <div className="text-[10px] text-text-muted">Must sign prior to token deposit</div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={contractData.is_contract_required}
+                          onChange={(e) => setContractData((prev) => ({ ...prev, is_contract_required: e.target.checked }))}
+                          className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </label>
+
+                      {/* Mobile OTP Verification Toggle */}
+                      <label className="flex items-center justify-between p-3 rounded-xl border border-border bg-bg/50 cursor-pointer">
+                        <div>
+                          <div className="text-xs font-bold text-text-primary">Mobile OTP Verification</div>
+                          <div className="text-[10px] text-text-muted">6-digit OTP to registered mobile</div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={contractData.require_mobile_otp}
+                          onChange={(e) => setContractData((prev) => ({ ...prev, require_mobile_otp: e.target.checked }))}
+                          className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-bold text-text-secondary mb-1">Contract Title</label>
+                        <input
+                          type="text"
+                          value={contractData.contract_title}
+                          onChange={(e) => setContractData((prev) => ({ ...prev, contract_title: e.target.value }))}
+                          className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-bg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-text-secondary mb-1">Version / Tag</label>
+                        <input
+                          type="text"
+                          value={contractData.contract_version}
+                          onChange={(e) => setContractData((prev) => ({ ...prev, contract_version: e.target.value }))}
+                          className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-bg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-text-secondary mb-1">Preamble / Introduction</label>
+                      <textarea
+                        rows={2}
+                        value={contractData.terms_introduction}
+                        onChange={(e) => setContractData((prev) => ({ ...prev, terms_introduction: e.target.value }))}
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-bg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Dynamic Placeholder Helpers */}
+                  <div className="p-4 rounded-2xl bg-surface border border-border">
+                    <div className="text-[11px] font-bold text-text-secondary mb-1.5 flex items-center justify-between">
+                      <span>Click to Copy Dynamic Placeholders:</span>
+                      {contractCopiedToken && <span className="text-[10px] text-emerald-600 font-bold">Copied {contractCopiedToken}!</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        "{{po_number}}",
+                        "{{quantity}}",
+                        "{{token_amount}}",
+                        "{{validity_days}}",
+                        "{{epc_company_name}}",
+                        "{{epc_buyer_name}}",
+                        "{{franchisee_name}}",
+                        "{{franchisee_mobile}}",
+                      ].map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(tag);
+                            setContractCopiedToken(tag);
+                            setTimeout(() => setContractCopiedToken(null), 1800);
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-bg hover:bg-primary/10 hover:text-primary text-[10px] font-mono text-text-muted border border-border transition-all cursor-pointer"
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Contract Clauses List Editor */}
+                  <div className="p-5 rounded-2xl bg-surface border border-border space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted flex items-center gap-2">
+                        <FiSliders size={13} className="text-emerald-600" /> Contract Clauses & Conditions ({contractData.clauses.length})
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={handleAddContractClause}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20 transition-all cursor-pointer"
+                      >
+                        <FiPlus size={13} /> Add Clause
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {contractData.clauses.map((clause, idx) => (
+                        <div key={idx} className="p-4 rounded-xl border border-border bg-bg/40 space-y-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <input
+                              type="text"
+                              value={clause.title}
+                              onChange={(e) => handleUpdateContractClause(idx, "title", e.target.value)}
+                              className="font-bold text-xs text-text-primary bg-transparent border-b border-border/80 focus:border-primary focus:outline-none flex-1 py-0.5"
+                              placeholder="Clause Title (e.g. 1. Delivery Terms)"
+                            />
+                            <div className="flex items-center gap-2">
+                              <label className="flex items-center gap-1 text-[10px] text-text-muted cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={clause.is_mandatory}
+                                  onChange={(e) => handleUpdateContractClause(idx, "is_mandatory", e.target.checked)}
+                                  className="w-3.5 h-3.5 text-emerald-600 rounded"
+                                />
+                                <span>Mandatory</span>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteContractClause(idx)}
+                                className="p-1 text-text-muted hover:text-rose-600 transition-colors cursor-pointer"
+                                title="Remove Clause"
+                              >
+                                <FiTrash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                          <textarea
+                            rows={3}
+                            value={clause.body}
+                            onChange={(e) => handleUpdateContractClause(idx, "body", e.target.value)}
+                            className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                            placeholder="Clause body terms. Use placeholders where dynamic values are required."
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Live Interactive Preview */}
+                <div className="lg:col-span-5">
+                  <div className="sticky top-6 p-6 rounded-2xl bg-surface border-2 border-emerald-500/30 shadow-lg space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-border">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span className="text-xs font-bold text-text-primary uppercase tracking-wider">Live EPC Contract Preview</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-emerald-600 font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                        {contractData.contract_version}
+                      </span>
+                    </div>
+
+                    {/* Formal Document Render Container */}
+                    <div className="p-5 rounded-xl bg-white text-slate-800 shadow-inner border border-slate-200 text-xs space-y-3.5 max-h-[620px] overflow-y-auto font-serif leading-relaxed">
+                      {/* Document Header with SolarKits Branding */}
+                      <div className="text-center pb-3 border-b border-slate-300">
+                        <div className="text-[11px] font-sans font-black tracking-widest text-emerald-700 uppercase">SOLARKITS INDIA CONTRACT</div>
+                        <div className="text-sm font-sans font-bold text-slate-900 mt-0.5">{contractData.contract_title}</div>
+                        <div className="text-[10px] font-sans text-slate-500 mt-0.5">PO Ref: PO-DEMO2026 • Valid for {contractData.validity_days} Days</div>
+                      </div>
+
+                      {/* Parties Block */}
+                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-sans grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-500 block uppercase">1. Franchise Partner:</span>
+                          <span className="font-bold text-slate-900">{selectedPlan.name} Partner</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-500 block uppercase">2. Solar EPC Contractor:</span>
+                          <span className="font-bold text-slate-900">Assigned Solar EPC Partner</span>
+                        </div>
+                      </div>
+
+                      {/* Introduction */}
+                      <p className="text-[11px] text-slate-700 italic">
+                        {contractData.terms_introduction}
+                      </p>
+
+                      {/* Mock Order Table */}
+                      <div className="p-2.5 rounded-lg bg-emerald-50/60 border border-emerald-200 text-[11px] font-sans space-y-1">
+                        <div className="flex justify-between font-bold text-slate-800">
+                          <span>Committed Quantity:</span>
+                          <span className="text-emerald-700">25 Combo Kits</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-slate-800">
+                          <span>Token Deposit Requirement:</span>
+                          <span className="text-emerald-700">₹50,000</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600 text-[10px]">
+                          <span>Mobile OTP Signature:</span>
+                          <span className="text-emerald-700 font-bold">Mandatory before Token</span>
+                        </div>
+                      </div>
+
+                      {/* Clauses */}
+                      <div className="space-y-2.5 pt-1">
+                        {contractData.clauses.map((c, i) => (
+                          <div key={i} className="space-y-0.5">
+                            <div className="font-sans font-bold text-slate-900 text-[11px] flex items-center justify-between">
+                              <span>{c.title}</span>
+                              {c.is_mandatory && <span className="text-[9px] text-emerald-700 uppercase tracking-wider font-semibold">Mandatory</span>}
+                            </div>
+                            <p className="text-[11px] text-slate-600 leading-normal pl-2 border-l-2 border-slate-200">
+                              {c.body
+                                .replace(/\{\{po_number\}\}/g, "PO-2026DEMO")
+                                .replace(/\{\{quantity\}\}/g, "25")
+                                .replace(/\{\{token_amount\}\}/g, "50,000")
+                                .replace(/\{\{validity_days\}\}/g, String(contractData.validity_days))
+                                .replace(/\{\{epc_company_name\}\}/g, "Solar EPC Contractor")
+                                .replace(/\{\{epc_buyer_name\}\}/g, "Authorized Signatory")
+                                .replace(/\{\{franchisee_name\}\}/g, selectedPlan.name)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Signatory Stamp Placeholder */}
+                      <div className="mt-4 pt-3 border-t border-slate-300 font-sans grid grid-cols-2 gap-3 text-[10px]">
+                        <div className="p-2.5 rounded-lg border border-dashed border-slate-300 text-center">
+                          <div className="font-bold text-slate-700">Franchise Partner</div>
+                          <div className="text-[9px] text-emerald-600 font-bold mt-1">ISSUED & ALLOCATED</div>
+                        </div>
+                        <div className="p-2.5 rounded-lg border border-emerald-400 bg-emerald-50/30 text-center">
+                          <div className="font-bold text-slate-700">EPC Digital Signature</div>
+                          <div className="text-[9px] text-emerald-700 font-bold mt-1">VERIFIED VIA MOBILE OTP</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={handleSaveContract}
+                      disabled={savingContract}
+                      className="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                    >
+                      {savingContract ? <FiLoader className="animate-spin" size={15} /> : <FiCheckCircle size={15} />}
+                      <span>{savingContract ? "Saving..." : "Save PO Order Contract Settings"}</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <>

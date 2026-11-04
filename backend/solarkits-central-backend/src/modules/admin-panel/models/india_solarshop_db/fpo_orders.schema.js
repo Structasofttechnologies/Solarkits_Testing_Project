@@ -76,6 +76,23 @@ const moqSnapshotSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const epcContractSchema = new mongoose.Schema(
+  {
+    contract_number:    { type: String, default: null },
+    status:             { type: String, enum: ['PENDING_SIGNATURE', 'OTP_SENT', 'SIGNED', 'EXPIRED'], default: 'PENDING_SIGNATURE' },
+    contract_snapshot:  { type: Object, default: null },
+    signer_name:        { type: String, default: null },
+    signer_designation: { type: String, default: 'Authorized Signatory' },
+    signer_phone:       { type: String, default: null },
+    signed_at:          { type: Date, default: null },
+    signed_ip:          { type: String, default: null },
+    otp_verified_at:    { type: Date, default: null },
+    otp_reference:      { type: String, default: null },
+    pdf_storage_url:    { type: String, default: null },
+  },
+  { _id: false }
+);
+
 const epcAllocationSchema = new mongoose.Schema(
   {
     epc_buyer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'reseller_epc_buyers', default: null },
@@ -90,6 +107,7 @@ const epcAllocationSchema = new mongoose.Schema(
     payment_receipt_url: { type: String, default: null },
     payment_notes: { type: String, default: null },
     paid_at: { type: Date, default: null },
+    contract: { type: epcContractSchema, default: () => ({}) },
   },
   { _id: true }
 );

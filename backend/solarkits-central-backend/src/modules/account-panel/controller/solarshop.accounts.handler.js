@@ -282,7 +282,7 @@ const get_recent_transactions = async (req, res) => {
 
     // 4. Fetch recent Franchise PO Orders
     if (!type || type === 'all' || type === 'po_order') {
-      const fpoOrders = await FpoOrder.find()
+      const fpoOrders = await FpoOrder.find({ parent_po_id: null })
         .sort({ created_at: -1 })
         .limit(maxLimit)
         .populate('franchisee_id', 'business_name mobile email gst_number contact_person')
@@ -912,14 +912,35 @@ const get_franchise_commissions = async (req, res) => {
       .populate('epc_id', 'name email whatsapp gstin')
       .lean();
 
-    // 2. Fetch FPO Orders with assigned franchisee (excluding DRAFT)
+    // 2. Fetch FPO Orders with assigned franchisee (excluding DRAFT and only Master POs)
     const fpoOrders = await FpoOrder.find({
       franchisee_id: { $ne: null },
-      status: { $ne: 'DRAFT' }
+      status: { $ne: 'DRAFT' },
+      parent_po_id: null
     })
       .sort({ created_at: -1 })
       .populate('franchisee_id', 'business_name mobile email gst_number contact_person pan_number bank_details')
       .lean();
+
+    // Fetch linked repeat drawdowns for Master POs
+    const fpoMasterIds = fpoOrders.map((f) => f._id);
+    const fpoChildOrders = fpoMasterIds.length > 0
+      ? await FpoOrder.find({
+          parent_po_id: { $in: fpoMasterIds },
+          deleted_at: null,
+        })
+          .populate('franchisee_id', 'business_name mobile email contact_person')
+          .populate('epc_id', 'name email whatsapp gstin')
+          .sort({ created_at: -1 })
+          .lean()
+      : [];
+
+    const childDrawdownsMap = new Map();
+    fpoChildOrders.forEach((co) => {
+      const pId = co.parent_po_id?.toString();
+      if (!childDrawdownsMap.has(pId)) childDrawdownsMap.set(pId, []);
+      childDrawdownsMap.get(pId).push(co);
+    });
 
     // 3. Fetch all commission ledgers
     const ledgers = await ResellerWalletLedger.find({
@@ -1024,6 +1045,16 @@ const get_franchise_commissions = async (req, res) => {
       };
     });
 
+    // Fetch variation commission rules for FPO resellers in batch
+    const { FranchiseeVariationCommission } = require('../../admin-panel/models/india_solarshop_db');
+    const fpoResellerIds = fpoOrders.map((f) => f.franchisee_id?._id || f.franchisee_id).filter(Boolean);
+    const poVariationRules = await FranchiseeVariationCommission.find({
+      reseller_id: { $in: fpoResellerIds },
+      order_type: 'po',
+      is_active: true,
+      deleted_at: null,
+    }).lean();
+
     // Process FPO Orders
     const fpoCommissions = fpoOrders.map((f) => {
       const matchedLedger = ledgerMap.get(String(f._id));
@@ -1043,7 +1074,7 @@ const get_franchise_commissions = async (req, res) => {
         if (alloc.gstin) epcGstin = alloc.gstin;
       }
 
-      // Gross margin: from ledger or calculated
+      // Gross margin: from ledger, order snapshot, or Franchisee Commission Settings
       let grossMargin = 0;
       let netCommission = 0;
       let tdsAmount = 0;
@@ -1060,10 +1091,46 @@ const get_franchise_commissions = async (req, res) => {
         tdsAmount = (matchedLedger.tds_amount_paise || 0) / 100;
         tcsAmount = (matchedLedger.tcs_amount_paise || 0) / 100;
         netCommission = (matchedLedger.net_amount_paise || 0) / 100;
+      } else if (f.total_commission_paise && f.total_commission_paise > 0) {
+        grossMargin = f.total_commission_paise / 100;
+        tdsAmount = Math.round(grossMargin * 0.05);
+        netCommission = grossMargin - tdsAmount;
       } else {
-        const snapBps = f.items?.[0]?.commission_snapshot || 200;
-        ratePct = snapBps / 100;
-        grossMargin = Math.round(subtotal * (ratePct / 100));
+        // Resolve from Franchisee Commission Settings
+        const resellerIdStr = String(f.franchisee_id?._id || f.franchisee_id || '');
+        const kitIdStr = String(f.items?.[0]?.kit_id || f.items?.[0]?.combo_kit_id || '');
+        const bookedQty = Number(f.total_booked_quantity || f.total_quantity || f.items?.[0]?.quantity || 1);
+
+        const matchingRules = poVariationRules
+          .filter((r) => String(r.reseller_id) === resellerIdStr && String(r.combo_kit_id) === kitIdStr)
+          .sort((a, b) => b.order_quantity - a.order_quantity);
+
+        let varCommPaise = null;
+        if (matchingRules.length > 0) {
+          const exact = matchingRules.find((r) => r.order_quantity === bookedQty);
+          if (exact) {
+            varCommPaise = exact.commission_amount_paise;
+          } else {
+            const lower = matchingRules.find((r) => r.order_quantity <= bookedQty);
+            varCommPaise = lower ? lower.commission_amount_paise : matchingRules[matchingRules.length - 1].commission_amount_paise;
+          }
+        }
+
+        if (varCommPaise !== null && varCommPaise >= 0) {
+          grossMargin = varCommPaise / 100;
+        } else {
+          // If no specific variation rule, check item snapshot or 0
+          const itemCommSnap = f.items?.[0]?.commission_snapshot || 0;
+          if (itemCommSnap > 0 && f.items?.[0]?.commission_method === 'TIER_FIXED') {
+            grossMargin = itemCommSnap / 100;
+          } else if (itemCommSnap > 0 && f.items?.[0]?.commission_method === 'FIXED_PER_KIT') {
+            grossMargin = (itemCommSnap * bookedQty) / 100;
+          } else if (itemCommSnap > 0) {
+            grossMargin = Math.round(subtotal * (itemCommSnap / 10000));
+          } else {
+            grossMargin = 0;
+          }
+        }
         tdsAmount = Math.round(grossMargin * 0.05);
         netCommission = grossMargin - tdsAmount;
       }
@@ -1141,6 +1208,25 @@ const get_franchise_commissions = async (req, res) => {
           reseller_margin: grossMargin,
           total_price: (it.total_price_paise || 0) / 100,
         })),
+        total_booked_quantity: f.total_booked_quantity || f.total_quantity || f.items?.[0]?.quantity || 0,
+        fulfilled_quantity: f.fulfilled_quantity || 0,
+        remaining_quantity: f.remaining_quantity != null ? f.remaining_quantity : (f.total_booked_quantity || 0),
+        token_amount: Math.round((f.token_amount_paise || 0) / 100),
+        token_paid: Math.round((f.token_paid_paise || f.token_amount_paise || 0) / 100),
+        token_adjusted: Math.round((f.token_adjusted_total_paise || 0) / 100),
+        token_payment_status: f.token_payment_status || 'PENDING',
+        linked_repeat_orders: (childDrawdownsMap.get(f._id.toString()) || []).map((ch) => ({
+          id: ch._id,
+          order_number: ch.po_number || ch.order_number,
+          po_number: ch.po_number,
+          date: ch.created_at,
+          kits: (ch.items || []).reduce((s, it) => s + (Number(it.quantity) || 0), 0) || ch.total_quantity || 1,
+          token_adjusted: Math.round((ch.token_adjusted_paise || 0) / 100),
+          net_paid: Math.round((ch.net_payable_paise || ch.grand_total_paise || 0) / 100),
+          status: ch.status === 'PAID' || ch.payment_status === 'paid' ? 'Paid' : ch.status,
+          payment_reference: ch.payment_reference || ch.payment_utr || 'N/A',
+        })),
+        drawdowns_count: (childDrawdownsMap.get(f._id.toString()) || []).length,
         created_at: f.created_at
       };
     });
@@ -1215,6 +1301,13 @@ const update_commission_status = async (req, res) => {
 
     if (!order) {
       return res.status(404).json({ status: 'error', message: 'Related order record not found' });
+    }
+
+    if (orderType === 'fpo_order' && order.parent_po_id) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot update commission status directly on a child loose order. Commission must be settled on the Master Purchase Order.'
+      });
     }
 
     const effectivePaidDate = paid_date ? new Date(paid_date) : (commission_status === 'Paid' ? new Date() : null);

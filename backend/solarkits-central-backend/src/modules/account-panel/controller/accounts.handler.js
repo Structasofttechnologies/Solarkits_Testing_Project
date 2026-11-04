@@ -5088,85 +5088,42 @@ const get_dashboard_overview = async (req, res) => {
       });
     }
 
-    // B. Add Real Orders from Procurement Groups
+    // B. Enrich Real Orders from Procurement Groups (Zero Fake/Static Data)
     for (const pg of procurementGroups) {
       const groupOrders = pg.order_numbers || [pg.group_id];
       for (const ordNum of groupOrders) {
-        if (allOrders.some(o => o.order_number === ordNum)) continue;
-
-        let currentStatus = 'Procurement In Progress';
-        let prodStatus = 'Not Started';
-        let prodProg = 15;
-        let delStatus = 'Pending Dispatch';
-        let nextAction = 'Procurement Group Processing';
-
-        if (pg.status === 'Sent to Procurement' || pg.status === 'Ready for Procurement') {
-          currentStatus = 'Procurement In Progress';
-          nextAction = 'Supplier Allocation & PO Preparation';
-        } else if (pg.status === 'Awaiting Warehouse Inward') {
-          currentStatus = 'Warehouse Inward Pending';
-          prodStatus = 'Production Completed';
-          prodProg = 100;
-          nextAction = 'Confirm Inward at Warehouse Dock';
-        } else if (pg.status === 'Ready for Kit Preparation') {
-          currentStatus = 'Kit Preparation';
-          prodStatus = 'Production Completed';
-          prodProg = 100;
-          nextAction = 'BOSKIT Assembly & QC Staging';
-        } else if (pg.status === 'Transferred to Delivery') {
-          currentStatus = 'Ready for Dispatch';
-          prodStatus = 'Production Completed';
-          prodProg = 100;
-          nextAction = 'Handed over to Delivery Manager';
+        const existingOrder = allOrders.find(o => o.order_number === ordNum);
+        if (existingOrder) {
+          if (pg.status === 'Sent to Procurement' || pg.status === 'Ready for Procurement') {
+            existingOrder.current_status = 'Procurement In Progress';
+            existingOrder.next_action = 'Supplier Allocation & PO Preparation';
+          } else if (pg.status === 'Awaiting Warehouse Inward') {
+            existingOrder.current_status = 'Warehouse Inward Pending';
+            existingOrder.production_status = 'Production Completed';
+            existingOrder.production_progress = 100;
+            existingOrder.next_action = 'Confirm Inward at Warehouse Dock';
+          } else if (pg.status === 'Ready for Kit Preparation') {
+            existingOrder.current_status = 'Kit Preparation';
+            existingOrder.production_status = 'Production Completed';
+            existingOrder.production_progress = 100;
+            existingOrder.next_action = 'BOSKIT Assembly & QC Staging';
+          } else if (pg.status === 'Transferred to Delivery') {
+            existingOrder.current_status = 'Ready for Dispatch';
+            existingOrder.production_status = 'Production Completed';
+            existingOrder.production_progress = 100;
+            existingOrder.next_action = 'Handed over to Delivery Manager';
+          }
+          if (pg.supplier_groups?.[0]?.supplier_name) {
+            existingOrder.supplier_name = pg.supplier_groups[0].supplier_name;
+          }
         }
-
-        const createdDate = pg.created_at ? new Date(pg.created_at) : new Date();
-        const elapsedDays = Math.max(0, Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24)));
-        const tatLimit = 4;
-        const overdueDays = Math.max(0, elapsedDays - tatLimit);
-        const delayInd = overdueDays > 0 ? 'red' : (elapsedDays >= tatLimit - 1 ? 'orange' : 'green');
-
-        const primarySupplier = pg.supplier_groups?.[0]?.supplier_name || 'Structural Metals Ltd';
-
-        allOrders.push({
-          order_number: ordNum,
-          order_source: 'EPC',
-          customer_name: 'Dwarka Solar EPC Solutions',
-          customer_contact: '+91 98480 12345',
-          location: {
-            city: pg.geographic_summary?.districts?.[0] || 'Rajkot Central',
-            state: pg.geographic_summary?.states?.[0] || 'Gujarat',
-            warehouse: 'Central Warehouse'
-          },
-          kit_type: pg.kit_type_breakdown?.[0]?.kit_type || 'Commercial Rooftop Kit',
-          kit_quantity: pg.total_kits || 25,
-          order_value: (pg.total_kits || 25) * 65000,
-          order_date: pg.created_at ? new Date(pg.created_at).toISOString() : new Date().toISOString(),
-          current_status: currentStatus,
-          production_status: prodStatus,
-          production_progress: prodProg,
-          payment_status: 'Advance Paid',
-          admin_approval_status: 'Approved',
-          actual_payment_status: 'Advance Paid',
-          delivery_status: delStatus,
-          delay_indicator: delayInd,
-          overdue_days: overdueDays,
-          elapsed_days: elapsedDays,
-          expected_date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
-          tat_limit_days: tatLimit,
-          next_action: nextAction,
-          assigned_account: 'Sushil (Accountant)',
-          assigned_team: 'Procurement',
-          supplier_name: primarySupplier,
-          bom_items: pg.supplier_groups?.[0]?.items || []
-        });
       }
     }
 
-    // C. Add Real Purchase Orders
+    // C. Add Real Purchase Orders (Only from valid database documents)
     for (const po of purchaseOrders) {
       const ordNum = po.po_number || `PO-${po._id.toString().slice(-6)}`;
-      const supName = po.supplier_name || (po.supplier_id ? supMap[po.supplier_id.toString()] : 'REDREN ENERGY PRIVATE LIMITED');
+      const supName = po.supplier_name || (po.supplier_id ? supMap[po.supplier_id.toString()] : 'OEM Supplier');
 
       let currentStatus = 'PO Pending';
       if (po.status === 'paid') currentStatus = 'Production In Progress';
@@ -5177,15 +5134,15 @@ const get_dashboard_overview = async (req, res) => {
         order_number: ordNum,
         order_source: 'Company Account',
         customer_name: supName,
-        customer_contact: '+91 97110 44556',
+        customer_contact: po.supplier_contact || po.contact_number || '',
         location: {
-          city: 'Morbi',
-          state: 'Gujarat',
-          warehouse: 'Central Hub'
+          city: po.delivery_city || 'Central Hub',
+          state: po.delivery_state || 'Gujarat',
+          warehouse: po.destination_warehouse_name || 'Central Hub'
         },
-        kit_type: 'Solar Module OEM Purchase Order',
-        kit_quantity: po.total_items_count || 100,
-        order_value: po.total_amount || 850000,
+        kit_type: po.item_description || 'Solar Module OEM Purchase Order',
+        kit_quantity: po.total_items_count || (po.items?.length || 0),
+        order_value: po.total_amount || 0,
         order_date: po.created_at ? new Date(po.created_at).toISOString() : new Date().toISOString(),
         current_status: currentStatus,
         production_status: po.status === 'paid' ? 'In Production' : 'Not Started',
@@ -5197,13 +5154,13 @@ const get_dashboard_overview = async (req, res) => {
         delay_indicator: 'green',
         overdue_days: 0,
         elapsed_days: 1,
-        expected_date: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+        expected_date: po.expected_delivery_date ? new Date(po.expected_delivery_date).toISOString().slice(0, 10) : new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
         tat_limit_days: 7,
         next_action: po.status === 'paid' ? 'Track OEM Production Milestones' : 'Approve PO & Disburse',
-        assigned_account: 'Rahil (Account Manager)',
+        assigned_account: 'Account Manager',
         assigned_team: 'Account',
         supplier_name: supName,
-        bom_items: []
+        bom_items: po.items || []
       });
     }
 

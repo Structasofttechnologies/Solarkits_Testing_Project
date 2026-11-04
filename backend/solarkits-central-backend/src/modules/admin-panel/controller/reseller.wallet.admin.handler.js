@@ -400,7 +400,7 @@ const list_commission_earnings = async (req, res) => {
         .populate('reseller_id', 'business_name name mobile email gst_number contact_person bank_details')
         .sort({ created_at: -1 })
         .lean(),
-      FpoOrder.find({ deleted_at: null, status: { $in: ['PAID', 'DELIVERED', 'COMPLETED'] } })
+      FpoOrder.find({ deleted_at: null, parent_po_id: null, status: { $in: ['PAID', 'DELIVERED', 'COMPLETED'] } })
         .populate('franchisee_id', 'business_name name mobile email gst_number contact_person bank_details')
         .sort({ created_at: -1 })
         .lean(),
@@ -486,7 +486,9 @@ const list_commission_earnings = async (req, res) => {
       const subtotalPaise = f.subtotal_paise || 0;
       const snapBps = f.items?.[0]?.commission_snapshot || 200;
       const ratePct = snapBps / 100;
-      const grossPaise = Math.round(subtotalPaise * (ratePct / 100));
+      const grossPaise = (f.total_commission_paise && f.total_commission_paise > 0)
+        ? f.total_commission_paise
+        : Math.round(subtotalPaise * (ratePct / 100));
       const tdsPaise = Math.round(grossPaise * 0.05);
       const netPaise = grossPaise - tdsPaise;
       const totalKits = f.total_kit_quantity || (f.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0);

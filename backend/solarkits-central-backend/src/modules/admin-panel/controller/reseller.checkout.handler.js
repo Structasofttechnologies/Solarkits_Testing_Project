@@ -187,7 +187,8 @@ const list_reseller_orders = async (req, res) => {
 const list_fpo_orders = async (req, res) => {
   try {
     const { franchisee_id, status, search, page = 1, limit = 50 } = req.query;
-    const query = { deleted_at: null };
+    // Always filter parent_po_id: null so child repeat drawdowns do not appear as independent top-level PO cards
+    const query = { deleted_at: null, parent_po_id: null };
 
     if (franchisee_id && mongoose.Types.ObjectId.isValid(franchisee_id)) {
       query.franchisee_id = franchisee_id;
@@ -217,10 +218,59 @@ const list_fpo_orders = async (req, res) => {
       FpoOrder.countDocuments(query),
     ]);
 
+    // Fetch and link child repeat orders / drawdowns for all Master POs
+    const poIds = orders.map((o) => o._id);
+    let childOrders = [];
+    if (poIds.length > 0) {
+      childOrders = await FpoOrder.find({
+        parent_po_id: { $in: poIds },
+        deleted_at: null,
+      })
+        .populate('franchisee_id', 'business_name name mobile email contact_person')
+        .populate('epc_id', 'name company_name email whatsapp gstin')
+        .sort({ created_at: -1 })
+        .lean();
+    }
+
+    const childMap = new Map();
+    childOrders.forEach((co) => {
+      const pId = co.parent_po_id?.toString();
+      if (!childMap.has(pId)) childMap.set(pId, []);
+      childMap.get(pId).push(co);
+    });
+
     const formatted = orders.map((o) => {
       const partner = o.franchisee_id || {};
       const allocations = (o.items || []).flatMap((it) => it.epc_allocations || []);
       const totalKits = o.total_kit_quantity || (o.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0);
+      const myChildOrders = childMap.get(o._id.toString()) || [];
+
+      const totalBooked = o.total_booked_quantity || totalKits;
+      const fulfilled = o.fulfilled_quantity || 0;
+      const remaining = o.remaining_quantity != null ? o.remaining_quantity : Math.max(0, totalBooked - fulfilled);
+
+      const tokenAmountPaise = o.token_amount_paise || 0;
+      const tokenPaidPaise = o.token_paid_paise || (tokenAmountPaise > 0 && ['PAID', 'VALIDATED', 'COMPLETED', 'PO_STARTED'].includes(o.status) ? tokenAmountPaise : 0);
+      const tokenAdjustedPaise = o.token_adjusted_total_paise || myChildOrders.reduce((acc, c) => acc + (c.token_adjusted_paise || 0), 0);
+      const tokenBalancePaise = Math.max(0, tokenPaidPaise - tokenAdjustedPaise);
+
+      const formattedChildOrders = myChildOrders.map((c) => ({
+        _id: c._id,
+        id: c._id,
+        order_number: c.po_number || `ORD-${String(c._id).slice(-8).toUpperCase()}`,
+        po_number: c.po_number,
+        created_at: c.created_at,
+        quantity: c.total_kit_quantity || (c.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0),
+        item_name: c.items?.[0]?.item_name || 'Solar Kit',
+        token_adjusted_inr: Math.round(c.token_adjusted_paise || 0) / 100,
+        net_payable_inr: Math.round(c.net_payable_paise || c.grand_total_paise || 0) / 100,
+        grand_total_inr: Math.round(c.grand_total_paise || 0) / 100,
+        payment_status: c.payment_status || (c.status === 'PAID' ? 'PAID' : c.status === 'DRAFT' ? 'PENDING' : c.status),
+        payment_utr: c.payment_utr || c.payment_reference || c.offline_payment?.utr_number || '—',
+        status: c.status,
+        epc_name: c.epc_id?.company_name || c.epc_id?.name || o.items?.[0]?.epc_allocations?.[0]?.company_name || 'EPC Contractor',
+        payment_receipt_url: c.payment_receipt_url || c.offline_payment?.receipt_url || null,
+      }));
 
       return {
         _id: o._id,
@@ -241,6 +291,16 @@ const list_fpo_orders = async (req, res) => {
         payment_type: o.payment_type || 'FULL_PAYMENT',
         payment_reference: o.payment_reference || null,
         total_kit_quantity: totalKits,
+        total_booked_quantity: totalBooked,
+        fulfilled_quantity: fulfilled,
+        remaining_quantity: remaining,
+        token_amount_inr: Math.round(tokenAmountPaise) / 100,
+        token_paid_inr: Math.round(tokenPaidPaise) / 100,
+        token_adjusted_inr: Math.round(tokenAdjustedPaise) / 100,
+        token_balance_inr: Math.round(tokenBalancePaise) / 100,
+        token_payment_status: o.token_payment_status || (['PAID', 'VALIDATED', 'COMPLETED', 'PO_STARTED'].includes(o.status) ? 'PAID' : 'PENDING'),
+        linked_repeat_orders: formattedChildOrders,
+        repeat_orders_count: formattedChildOrders.length,
         subtotal_paise: o.subtotal_paise || 0,
         subtotal_inr: Math.round(o.subtotal_paise || 0) / 100,
         tax_total_paise: o.tax_total_paise || o.total_tax_paise || 0,
@@ -261,6 +321,7 @@ const list_fpo_orders = async (req, res) => {
             gstin: a.gstin,
             allocated_quantity: a.allocated_quantity,
             payment_status: a.payment_status || 'PENDING',
+            contract: a.contract || null,
             payment_receipt_url: a.payment_receipt_url || null,
             paid_at: a.paid_at || null,
             payment_notes: a.payment_notes || null,
@@ -481,17 +542,18 @@ const list_loose_orders = async (req, res) => {
 const get_orders_stats = async (req, res) => {
   try {
     const [allFpoOrders, epcOrders] = await Promise.all([
-      FpoOrder.find({ deleted_at: null }).select('status grand_total_paise total_kit_quantity items order_type').lean(),
+      FpoOrder.find({ deleted_at: null }).select('status grand_total_paise total_kit_quantity total_booked_quantity items order_type parent_po_id').lean(),
       EpcOrder.find({}).select('status grand_total_paise routing_source reseller_id items').lean(),
     ]);
 
-    const bulkPoOrders = allFpoOrders.filter(o => o.order_type !== 'loose_kit_order' && o.order_type !== 'loose_order');
-    const fpoLooseOrders = allFpoOrders.filter(o => o.order_type === 'loose_kit_order' || o.order_type === 'loose_order');
+    // Only Master POs (parent_po_id is null/undefined)
+    const bulkPoOrders = allFpoOrders.filter(o => !o.parent_po_id && o.order_type !== 'loose_kit_order' && o.order_type !== 'loose_order');
+    const fpoLooseOrders = allFpoOrders.filter(o => o.parent_po_id != null || o.order_type === 'loose_kit_order' || o.order_type === 'loose_order');
 
     const po_count = bulkPoOrders.length;
     const po_volume_inr = Math.round(bulkPoOrders.reduce((s, o) => s + (o.grand_total_paise || 0), 0)) / 100;
-    const po_kits = bulkPoOrders.reduce((s, o) => s + (o.total_kit_quantity || (o.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0)), 0);
-    const po_paid_count = bulkPoOrders.filter((o) => o.status === 'PAID' || o.status === 'COMPLETED').length;
+    const po_kits = bulkPoOrders.reduce((s, o) => s + (o.total_booked_quantity || o.total_kit_quantity || (o.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0)), 0);
+    const po_paid_count = bulkPoOrders.filter((o) => o.status === 'PAID' || o.status === 'COMPLETED' || o.status === 'VALIDATED').length;
 
     const fpo_loose_kits = fpoLooseOrders.reduce((s, o) => s + (o.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0), 0);
     const epc_loose_kits = epcOrders.reduce((s, o) => s + (o.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0), 0);

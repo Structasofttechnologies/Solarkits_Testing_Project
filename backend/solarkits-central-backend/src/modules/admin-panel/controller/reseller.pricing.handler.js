@@ -15,9 +15,8 @@ async function syncResellerListingsForReseller(resellerId) {
       FranchiseePlanPoSetting,
       ResellerProductAuthorization,
       ResellerListing,
-      FranchiseeCommissionRule,
     } = require('../models/india_solarshop_db');
-    const { SolarKit, WarehouseComboKit } = require('../models/core_db');
+    const { SolarKit, WarehouseComboKit, ProjectCategory } = require('../models/core_db');
 
     // 1. Fetch active plan subscription
     const activeSub = await ResellerPlanSubscription.findOne({
@@ -27,34 +26,72 @@ async function syncResellerListingsForReseller(resellerId) {
 
     const activePlan = activeSub?.plan_id;
     const authorizedKitIds = new Set();
+    const blacklistedKitIds = new Set();
 
     if (activePlan) {
-      // Check commission rules for this plan: only kits with explicit commission configured can be listed
-      const commRules = await FranchiseeCommissionRule.find({
-        plan_id: activePlan._id,
-        is_active: true,
-        deleted_at: null,
-        combo_kit_id: { $ne: null },
-      }).lean();
-      const kitsWithCommission = new Set(commRules.map((r) => r.combo_kit_id.toString()));
-
       // Check PO Settings & Plan allowed kits
       const PlanPoModel = FranchiseePlanPOSetting || FranchiseePlanPoSetting;
-      const poSetting = PlanPoModel ? await PlanPoModel.findOne({
+      const poSettingsList = PlanPoModel ? await PlanPoModel.find({
         plan_id: activePlan._id,
         is_active: true,
-      }).lean() : null;
+        po_enabled: { $ne: false },
+        deleted_at: null,
+      }).lean() : [];
 
-      const poKitIds = (poSetting?.allowed_combo_kit_ids || []).map(String);
+      const poKitIds = poSettingsList.flatMap((s) => (s.allowed_combo_kit_ids || []).map(String));
       const planKitIds = (activePlan.allowed_combo_kit_ids || []).map(String);
-      const combined = [...poKitIds, ...planKitIds];
-
-      // A kit is eligible under the plan ONLY if its commission has been explicitly configured
-      combined.forEach((id) => {
-        if (kitsWithCommission.has(id)) {
+      [...poKitIds, ...planKitIds].forEach((id) => {
+        if (id && mongoose.Types.ObjectId.isValid(id)) {
           authorizedKitIds.add(id);
         }
       });
+
+      // Also collect category allocations from Plan
+      const allIndustryIds = new Set([
+        ...(activePlan.allowed_industry_type_ids || []).map(String),
+        ...poSettingsList.flatMap((s) => (s.allowed_industry_type_ids || []).map(String)),
+      ]);
+      const allCategoryIds = new Set([
+        ...(activePlan.allowed_category_ids || []).map(String),
+        ...poSettingsList.flatMap((s) => (s.allowed_category_ids || []).map(String)),
+      ]);
+      const allSubcatIds = new Set([
+        ...(activePlan.allowed_subcategory_ids || []).map(String),
+        ...poSettingsList.flatMap((s) => (s.allowed_subcategory_ids || []).map(String)),
+      ]);
+      const allProjectTypeIds = new Set([
+        ...(activePlan.allowed_project_type_ids || []).map(String),
+        ...poSettingsList.flatMap((s) => (s.allowed_project_type_ids || []).map(String)),
+      ]);
+
+      if (allIndustryIds.size > 0 && ProjectCategory) {
+        const catsInIndustries = await ProjectCategory.find({
+          industry_type_id: { $in: Array.from(allIndustryIds) },
+          deleted_at: null,
+        }).select('_id').lean();
+        catsInIndustries.forEach((c) => allCategoryIds.add(String(c._id)));
+      }
+
+      const solarKitConditions = [];
+      if (allCategoryIds.size > 0) solarKitConditions.push({ category_id: { $in: Array.from(allCategoryIds) } });
+      if (allSubcatIds.size > 0) solarKitConditions.push({ subcategory_id: { $in: Array.from(allSubcatIds) } });
+      if (allProjectTypeIds.size > 0) solarKitConditions.push({ type_id: { $in: Array.from(allProjectTypeIds) } });
+
+      if (solarKitConditions.length > 0 && SolarKit && WarehouseComboKit) {
+        const matchedDefs = await SolarKit.find({
+          $or: solarKitConditions,
+          deleted_at: null,
+        }).select('_id').lean();
+        const defIds = matchedDefs.map((d) => d._id);
+        if (defIds.length > 0) {
+          const matchingKits = await WarehouseComboKit.find({
+            solar_kit_id: { $in: defIds },
+            is_active: { $ne: false },
+            deleted_at: null,
+          }).select('_id').lean();
+          matchingKits.forEach((k) => authorizedKitIds.add(String(k._id)));
+        }
+      }
     }
 
     // 2. Fetch explicit admin rules (admin overrides can authorize specific kits directly)
@@ -68,11 +105,35 @@ async function syncResellerListingsForReseller(resellerId) {
         const kId = String(r.kit_id._id || r.kit_id);
         if (r.is_authorized === false) {
           authorizedKitIds.delete(kId);
+          blacklistedKitIds.add(kId);
         } else {
           authorizedKitIds.add(kId);
         }
+      } else if (r.scope_type === 'category' && r.category_id && SolarKit && WarehouseComboKit) {
+        const cId = r.category_id._id || r.category_id;
+        const matchingDefs = await SolarKit.find({ category_id: cId, deleted_at: null }).select('_id').lean();
+        const defIds = matchingDefs.map((d) => d._id);
+        if (defIds.length > 0) {
+          const matchingKits = await WarehouseComboKit.find({
+            solar_kit_id: { $in: defIds },
+            is_active: { $ne: false },
+            deleted_at: null,
+          }).select('_id').lean();
+          matchingKits.forEach((k) => {
+            const kId = String(k._id);
+            if (r.is_authorized === false) {
+              authorizedKitIds.delete(kId);
+              blacklistedKitIds.add(kId);
+            } else {
+              authorizedKitIds.add(kId);
+            }
+          });
+        }
       }
     }
+
+    // Final safety: remove blacklisted kits
+    blacklistedKitIds.forEach((bId) => authorizedKitIds.delete(bId));
 
     // 3. Clean up: Delete any existing kit listings that are NOT in authorizedKitIds
     const parsedResellerId = mongoose.Types.ObjectId.isValid(resellerId)
@@ -122,10 +183,17 @@ async function syncResellerListingsForReseller(resellerId) {
             brand_id: kit.brand_id || null,
           });
         }
-      } else if (!existing.image_url) {
-        const kit = await WarehouseComboKit.findById(kitId).lean();
-        if (kit && (kit.kit_image || kit.image)) {
-          await ResellerListing.updateOne({ _id: existing._id }, { $set: { image_url: kit.kit_image || kit.image } });
+      } else {
+        const updateFields = {};
+        if (!existing.image_url) {
+          const kit = await WarehouseComboKit.findById(kitId).lean();
+          if (kit && (kit.kit_image || kit.image)) updateFields.image_url = kit.kit_image || kit.image;
+        }
+        if (!existing.assignment_status || existing.assignment_status !== 'assigned') updateFields.assignment_status = 'assigned';
+        if (existing.is_published === false) updateFields.is_published = true;
+        if (existing.is_active === false) updateFields.is_active = true;
+        if (Object.keys(updateFields).length > 0) {
+          await ResellerListing.updateOne({ _id: existing._id }, { $set: updateFields });
         }
       }
     }
@@ -193,7 +261,7 @@ const list_reseller_listings = async (req, res) => {
 
     const rows = await ResellerListing.find(filter)
       .populate({ path: 'product_id', model: Product, select: 'name sku_code description image base_price_paise min_margin_paise max_margin_paise specifications' })
-      .populate({ path: 'kit_id', model: WarehouseComboKit, select: 'name kit_name kit_code base_price_cached selling_price_cached kit_image description order_quantities loose_order_quantities capacity gst_rate' })
+      .populate({ path: 'kit_id', model: WarehouseComboKit, select: 'name kit_name kit_code base_price_cached selling_price_cached kit_image description order_quantities loose_order_quantities capacity gst_rate tax_pct gst_pct' })
       .populate({ path: 'category_id', model: ProjectCategory, select: 'name' })
       .populate({ path: 'subcategory_id', model: ProjectSubcategory, select: 'name' })
       .populate({ path: 'brand_id', model: Brand, select: 'name logo' })
@@ -302,12 +370,39 @@ const list_reseller_listings = async (req, res) => {
         row.loose_order_quantities = finalLooseQtys;
         row.order_quantities = finalPoQtys;
 
+        // Dynamic kit-wise GST Rate from Admin CompanyMargin or Kit
+        let resolvedGstRate = null;
+        if (margin?.gst_rate != null && !isNaN(Number(margin.gst_rate))) {
+          resolvedGstRate = Number(margin.gst_rate);
+        } else if (row.kit_id?.gst_rate != null && !isNaN(Number(row.kit_id.gst_rate))) {
+          resolvedGstRate = Number(row.kit_id.gst_rate);
+        } else if (row.kit_id?.tax_pct != null && !isNaN(Number(row.kit_id.tax_pct))) {
+          resolvedGstRate = Number(row.kit_id.tax_pct);
+        } else if (row.kit_id?.gst_pct != null && !isNaN(Number(row.kit_id.gst_pct))) {
+          resolvedGstRate = Number(row.kit_id.gst_pct);
+        } else if (row.tax_rate_pct != null && !isNaN(Number(row.tax_rate_pct))) {
+          resolvedGstRate = Number(row.tax_rate_pct);
+        } else {
+          resolvedGstRate = 0;
+        }
+
+        row.gst_rate = resolvedGstRate;
+        row.tax_rate_pct = resolvedGstRate;
+
         if (row.kit_id && typeof row.kit_id === 'object') {
           row.kit_id.loose_order_pricing = rawLooseTiers;
           row.kit_id.po_order_pricing = rawPoTiers;
           row.kit_id.loose_order_quantities = finalLooseQtys;
           row.kit_id.order_quantities = finalPoQtys;
+          row.kit_id.gst_rate = resolvedGstRate;
+          row.kit_id.tax_pct = resolvedGstRate;
         }
+      } else if (row.product_id && typeof row.product_id === 'object') {
+        const prodGst = row.product_id.tax_rate_pct != null
+          ? Number(row.product_id.tax_rate_pct)
+          : (row.product_id.gst_rate != null ? Number(row.product_id.gst_rate) : 0);
+        row.gst_rate = prodGst;
+        row.tax_rate_pct = prodGst;
       }
     });
 
@@ -673,6 +768,7 @@ const delete_pricing_rule = async (req, res) => {
 };
 
 module.exports = {
+  syncResellerListingsForReseller,
   list_reseller_listings,
   purchase_reseller_product,
   update_reseller_margin,

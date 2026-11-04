@@ -12,7 +12,7 @@ import {
   MdPayment,
   MdDoneAll
 } from "react-icons/md";
-import { FaCoins, FaHandshake, FaRupeeSign } from "react-icons/fa";
+import { FaCoins, FaHandshake, FaRupeeSign, FaLayerGroup, FaBoxes, FaTimes, FaShoppingCart } from "react-icons/fa";
 import { getFranchiseCommissions, updateCommissionStatus } from "../../api/solarshopAccounts";
 import TransactionDetailsDrawer from "../../components/TransactionDetailsDrawer";
 import Button from "../../components/Button";
@@ -50,6 +50,7 @@ export default function FranchiseCommissionTracking() {
   const [settleNotes, setSettleNotes] = useState("");
   const [submittingSettle, setSubmittingSettle] = useState(false);
   const [toast, setToast] = useState(null);
+  const [drawdownModalOrder, setDrawdownModalOrder] = useState(null);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -397,9 +398,39 @@ export default function FranchiseCommissionTracking() {
                       {c.epc_name}
                     </td>
 
-                    {/* Related Order ID */}
-                    <td className="px-4 py-3.5 font-mono font-semibold text-primary whitespace-nowrap">
-                      {c.related_order_id}
+                    {/* Related Order ID & Drawdowns */}
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-primary">
+                          {c.related_order_id}
+                        </span>
+                        {c.order_type === "fpo_order" && (
+                          <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                            Master PO
+                          </span>
+                        )}
+                      </div>
+                      {c.order_type === "fpo_order" && c.total_booked_quantity > 0 && (
+                        <div className="mt-0.5 text-[11px] text-text-muted flex items-center gap-1">
+                          <span>{c.total_booked_quantity} Kits</span>
+                          <span>•</span>
+                          <span className={c.fulfilled_quantity > 0 ? "text-emerald-600 font-bold" : ""}>
+                            {c.fulfilled_quantity || 0} Fulfilled
+                          </span>
+                        </div>
+                      )}
+                      {c.order_type === "fpo_order" && (
+                        <button
+                          type="button"
+                          onClick={() => setDrawdownModalOrder(c)}
+                          className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all cursor-pointer"
+                        >
+                          <FaLayerGroup size={11} />
+                          <span>
+                            {(c.linked_repeat_orders || []).length} Drawdown(s)
+                          </span>
+                        </button>
+                      )}
                     </td>
 
                     {/* Order Amount */}
@@ -647,6 +678,181 @@ export default function FranchiseCommissionTracking() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── DRAWDOWN BREAKDOWN MODAL ── */}
+      {drawdownModalOrder && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-surface border border-border rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95">
+            {/* Header */}
+            <div className="p-5 sm:p-6 border-b border-border flex items-center justify-between bg-surface-hover/30">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-black text-text-primary">
+                    PO Breakdown: {drawdownModalOrder.related_order_id}
+                  </h2>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <MdCheckCircle size={13} /> {drawdownModalOrder.order_status || "Validated"}
+                  </span>
+                </div>
+                <p className="text-xs text-text-muted mt-1">
+                  Placed on {formatDate(drawdownModalOrder.created_at)}
+                </p>
+              </div>
+              <button
+                onClick={() => setDrawdownModalOrder(null)}
+                className="p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer"
+              >
+                <FaTimes size={16} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-xs">
+              {/* Quota Lock & Fulfillment */}
+              <div className="p-4 rounded-2xl bg-surface-hover/50 border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-text-primary uppercase tracking-wider text-[11px]">
+                    Quota Lock & Fulfillment
+                  </span>
+                  <span className="text-[11px] font-black text-emerald-600">
+                    {drawdownModalOrder.remaining_quantity != null ? drawdownModalOrder.remaining_quantity : 0} Kits Remaining
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2.5 text-center pt-1">
+                  <div className="p-3 rounded-xl bg-surface border border-border">
+                    <div className="text-[10px] text-text-muted uppercase font-semibold">Booked Quota</div>
+                    <div className="text-sm sm:text-base font-black text-text-primary mt-0.5">
+                      {drawdownModalOrder.total_booked_quantity || 0} Kits
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-surface border border-border">
+                    <div className="text-[10px] text-text-muted uppercase font-semibold">Fulfilled</div>
+                    <div className="text-sm sm:text-base font-black text-blue-600 mt-0.5">
+                      {drawdownModalOrder.fulfilled_quantity || 0} Kits
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-surface border border-border">
+                    <div className="text-[10px] text-text-muted uppercase font-semibold">Token Paid</div>
+                    <div className="text-sm sm:text-base font-black text-emerald-600 mt-0.5">
+                      {formatCurrency(drawdownModalOrder.token_paid || 0)}
+                      <span className="text-[10px] text-text-muted block font-normal mt-0.5">
+                        of {formatCurrency(drawdownModalOrder.token_amount || 0)} Req
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Commission Allocation Info */}
+              <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider block">
+                    Master PO Commission (Counted Single Time)
+                  </span>
+                  <span className="text-xs text-text-muted">
+                    Tied to full {drawdownModalOrder.total_booked_quantity || 0} kits quota. Loose drawdowns do not double-charge.
+                  </span>
+                </div>
+                <div className="text-right">
+                  <div className="text-base font-black font-mono text-emerald-600">
+                    {formatCurrency(drawdownModalOrder.commission_amount)}
+                  </div>
+                  <span className="text-[10px] text-text-muted">
+                    Gross: {formatCurrency(drawdownModalOrder.gross_commission || drawdownModalOrder.commission_amount)}
+                  </span>
+                </div>
+              </div>
+
+              {/* EPC Buyer Info */}
+              <div className="space-y-1.5">
+                <h4 className="font-bold text-text-primary uppercase tracking-wider text-[11px]">
+                  EPC Buyer Allocation
+                </h4>
+                <div className="border border-border rounded-xl p-3 bg-surface flex items-center justify-between">
+                  <div>
+                    <div className="font-bold text-text-primary text-xs">{drawdownModalOrder.epc_name}</div>
+                    <div className="text-[11px] text-text-muted font-mono">GSTIN: {drawdownModalOrder.epc_gstin || "N/A"}</div>
+                  </div>
+                  <div className="text-right font-bold text-primary">
+                    {drawdownModalOrder.total_booked_quantity || 0} Kits Allocated
+                  </div>
+                </div>
+              </div>
+
+              {/* Drawdowns Placed Under PO Table */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-text-primary uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                  <FaShoppingCart size={12} className="text-primary" />
+                  Drawdowns Placed Under This PO ({(drawdownModalOrder.linked_repeat_orders || []).length})
+                </h4>
+
+                {(drawdownModalOrder.linked_repeat_orders || []).length === 0 ? (
+                  <div className="p-4 rounded-xl bg-surface-hover/60 border border-dashed border-border text-center text-text-muted text-xs">
+                    No repeat drawdowns placed against this PO yet.
+                  </div>
+                ) : (
+                  <div className="border border-border rounded-xl overflow-hidden">
+                    <table className="w-full text-left">
+                      <thead className="bg-surface-hover border-b border-border text-[10px] font-black uppercase text-text-muted">
+                        <tr>
+                          <th className="py-2.5 px-3">Order #</th>
+                          <th className="py-2.5 px-3">Date</th>
+                          <th className="py-2.5 px-3 text-center">Kits</th>
+                          <th className="py-2.5 px-3 text-right">Token Adj</th>
+                          <th className="py-2.5 px-3 text-right">Net Paid</th>
+                          <th className="py-2.5 px-3 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border text-[11px]">
+                        {drawdownModalOrder.linked_repeat_orders.map((child, idx) => (
+                          <tr key={idx} className="hover:bg-surface-hover/40 transition-colors">
+                            <td className="py-2.5 px-3 font-mono font-bold text-primary">
+                              {child.order_number || child.po_number}
+                            </td>
+                            <td className="py-2.5 px-3 text-text-muted whitespace-nowrap">
+                              {formatDate(child.date)}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-bold text-blue-600">
+                              {child.kits}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-semibold text-emerald-600">
+                              {child.token_adjusted > 0 ? `-${formatCurrency(child.token_adjusted)}` : "₹0.00"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-text-primary">
+                              {formatCurrency(child.net_paid)}
+                            </td>
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                String(child.status).toLowerCase() === "paid"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200"
+                              }`}>
+                                {child.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-border flex justify-end bg-surface">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDrawdownModalOrder(null)}
+              >
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       )}

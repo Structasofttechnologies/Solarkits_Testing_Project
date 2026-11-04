@@ -32,6 +32,7 @@ import {
 import { authHeaderObj } from "@/app/authHeader";
 import Loader from "@/components/Loader";
 import Product8StageJourneyModal from "../../components/Product8StageJourneyModal";
+import PoContractModal from "@/components/PoContractModal";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -123,6 +124,15 @@ export default function FranchiseePoOrdersAccounts() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [contractModalOpen, setContractModalOpen] = useState(false);
+  const [contractModalPoId, setContractModalPoId] = useState(null);
+  const [contractModalEpcId, setContractModalEpcId] = useState(null);
+
+  const handleOpenContractModal = (poId, epcId) => {
+    setContractModalPoId(poId);
+    setContractModalEpcId(epcId);
+    setContractModalOpen(true);
+  };
   const [modalTab, setModalTab] = useState("overview"); // "overview" | "token" | "epc_pool" | "repeat_orders"
 
   // Parent Payment / Token Confirmation Modal State
@@ -633,6 +643,18 @@ export default function FranchiseePoOrdersAccounts() {
         const grandTotalRs = (selectedOrder.grand_total_paise || 0) / 100;
         const unitPriceRs = orderItem.unit_price_paise ? (orderItem.unit_price_paise / 100) : (subtotalRs / bookedQuota);
 
+        const franchiseeMarginRs = selectedOrder.franchisee_commission_amount != null && Number(selectedOrder.franchisee_commission_amount) > 0
+          ? Number(selectedOrder.franchisee_commission_amount)
+          : (selectedOrder.total_commission_paise != null && Number(selectedOrder.total_commission_paise) > 0
+            ? Number(selectedOrder.total_commission_paise) / 100
+            : (orderItem.commission_method === 'TIER_FIXED' && orderItem.commission_snapshot > 0
+              ? Number(orderItem.commission_snapshot) / 100
+              : null));
+
+        const effectivePerKitMargin = franchiseeMarginRs != null && bookedQuota > 0
+          ? Math.round(franchiseeMarginRs / bookedQuota)
+          : (selectedOrder.commission_per_kit || null);
+
         const tokenRequired = (selectedOrder.token_amount_paise || 0) / 100;
         const tokenPaid = (selectedOrder.token_paid_paise || selectedOrder.token_amount_paise || 0) / 100;
         const tokenAdjusted = (selectedOrder.token_adjusted_total_paise || 0) / 100;
@@ -922,9 +944,26 @@ export default function FranchiseePoOrdersAccounts() {
                             <span>Settlement Rule:</span>
                             <span className="font-bold text-text-primary">{selectedOrder.token_settlement_mode || "PRO_RATA"}</span>
                           </div>
-                          <div className="flex justify-between text-text-secondary">
+                          <div className="flex justify-between text-text-secondary items-center">
                             <span>Franchisee Margin:</span>
-                            <span className="font-bold text-emerald-600">2.0% (₹{((subtotalRs * 0.02)).toLocaleString("en-IN")})</span>
+                            <div className="text-right">
+                              {franchiseeMarginRs != null && franchiseeMarginRs > 0 ? (
+                                <>
+                                  <span className="font-bold text-emerald-600 font-mono text-xs">
+                                    ₹{franchiseeMarginRs.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                  {effectivePerKitMargin != null && (
+                                    <span className="block text-[10px] text-text-muted font-medium mt-0.5">
+                                      ≈ ₹{effectivePerKitMargin.toLocaleString("en-IN")} / Kit ({bookedQuota} Kits Tier)
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="font-semibold text-amber-600 text-xs">
+                                  Configured Rate Pending
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1064,7 +1103,8 @@ export default function FranchiseePoOrdersAccounts() {
                               <th className="py-2.5 px-3">EPC Buyer Company</th>
                               <th className="py-2.5 px-3">GSTIN</th>
                               <th className="py-2.5 px-3 text-center">Allocated Kits</th>
-                              <th className="py-2.5 px-3 text-center">Payment Status</th>
+                              <th className="py-2.5 px-3 text-center">PO Contract</th>
+                            <th className="py-2.5 px-3 text-center">Payment Status</th>
                               <th className="py-2.5 px-3 text-right">Verification Actions</th>
                             </tr>
                           </thead>
@@ -1091,6 +1131,23 @@ export default function FranchiseePoOrdersAccounts() {
                                   <td className="py-2.5 px-3 text-text-muted text-[11px]">{alloc.gstin || "N/A"}</td>
                                   <td className="py-2.5 px-3 text-center font-black text-primary text-xs">
                                     {alloc.allocated_quantity} Kits
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center">
+                                    {alloc.contract?.status === "SIGNED" ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenContractModal(selectedOrder._id, buyerId?.toString())}
+                                        className="px-2 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 transition-all inline-flex items-center gap-1 cursor-pointer"
+                                        title="View Digitally Signed PO Contract & OTP Verification"
+                                      >
+                                        <FaCheckCircle size={10} className="text-emerald-600" />
+                                        <span>Signed ✓</span>
+                                      </button>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                        <FaClock size={9} /> Pending
+                                      </span>
+                                    )}
                                   </td>
                                   <td className="py-2.5 px-3 text-center">
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${statusBadge.cls}`}>
@@ -1496,6 +1553,14 @@ export default function FranchiseePoOrdersAccounts() {
           }}
         />
       )}
+
+      {/* Universal PO Legal Contract Modal */}
+      <PoContractModal
+        isOpen={contractModalOpen}
+        onClose={() => setContractModalOpen(false)}
+        poId={contractModalPoId}
+        epcBuyerId={contractModalEpcId}
+      />
     </div>
   );
 }

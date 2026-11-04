@@ -1507,6 +1507,15 @@ export default function FranchiseeCommissionSettings() {
                                       <span className="bg-sky-500/10 text-sky-700 dark:text-sky-400 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">
                                         Loose: {item.loose_order_quantities.length > 0 ? `${item.loose_order_quantities.length} tiers (${item.loose_order_quantities.join(", ")} kits)` : "None"}
                                       </span>
+                                      {getSavedTiersForKit(item._id, "po").length > 0 ? (
+                                        <span className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1">
+                                          <FiCheck size={9} /> PO Comm Defined ({getSavedTiersForKit(item._id, "po").length} tiers)
+                                        </span>
+                                      ) : (
+                                        <span className="bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1">
+                                          <FiAlertCircle size={9} /> PO Comm Not Defined
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 </div>

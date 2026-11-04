@@ -463,7 +463,148 @@ export default function EpcPoAllocations() {
   const [tokenError, setTokenError] = useState("");
   const [tokenSuccess, setTokenSuccess] = useState(false);
 
-  const handleOpenTokenModal = (order, epcAlloc, item) => {
+  
+  // ── PO Order Contract Signing & Mobile OTP State ──
+  const [contractModalOpen, setContractModalOpen] = useState(false);
+  const [contractLoading, setContractLoading] = useState(false);
+  const [contractOrder, setContractOrder] = useState(null);
+  const [contractAlloc, setContractAlloc] = useState(null);
+  const [contractDetails, setContractDetails] = useState(null);
+  const [contractSignerName, setContractSignerName] = useState("");
+  const [contractSignerDesignation, setContractSignerDesignation] = useState("Authorized Signatory");
+  const [contractAgreed, setContractAgreed] = useState(false);
+  const [contractStep, setContractStep] = useState("review"); // 'review' | 'otp' | 'signed'
+  const [contractOtp, setContractOtp] = useState("");
+  const [contractOtpSending, setContractOtpSending] = useState(false);
+  const [contractOtpVerifying, setContractOtpVerifying] = useState(false);
+  const [contractOtpCountdown, setContractOtpCountdown] = useState(0);
+  const [contractMaskedMobile, setContractMaskedMobile] = useState("");
+  const [contractError, setContractError] = useState("");
+
+  // View Signed Document Modal State
+  const [viewSignedModalOpen, setViewSignedModalOpen] = useState(false);
+  const [viewSignedData, setViewSignedData] = useState(null);
+  const [viewSignedLoading, setViewSignedLoading] = useState(false);
+
+  // Countdown timer effect
+  useEffect(() => {
+    let timer;
+    if (contractOtpCountdown > 0) {
+      timer = setInterval(() => setContractOtpCountdown((c) => c - 1), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [contractOtpCountdown]);
+
+  const handleOpenContractModal = async (order, epcAlloc, item) => {
+    setContractOrder(order);
+    setContractAlloc(epcAlloc);
+    setContractLoading(true);
+    setContractError("");
+    setContractStep("review");
+    setContractOtp("");
+    setContractAgreed(false);
+    setContractModalOpen(true);
+
+    try {
+      const res = await axiosInstance.get(`/india/v1/shop/po-allocations/${order._id}/contract`);
+      if (res.data?.status === "success" && res.data.data) {
+        setContractDetails(res.data.data);
+        setContractSignerName(res.data.data.signer_name || res.data.data.epc?.name || "");
+        setContractSignerDesignation(res.data.data.signer_designation || "Authorized Signatory");
+        setContractMaskedMobile(res.data.data.epc?.masked_mobile || "");
+      }
+    } catch (err) {
+      console.error("Failed to fetch contract details:", err);
+      setContractError(err.response?.data?.message || "Failed to load contract terms. Please try again.");
+    } finally {
+      setContractLoading(false);
+    }
+  };
+
+  const handleSendContractOtp = async () => {
+    if (!contractSignerName.trim()) {
+      setContractError("Please enter the full legal name of the Authorized Signatory.");
+      return;
+    }
+    if (!contractAgreed) {
+      setContractError("You must read and agree to all terms and conditions of this PO contract.");
+      return;
+    }
+
+    setContractError("");
+    setContractOtpSending(true);
+    try {
+      const res = await axiosInstance.post(
+        `/india/v1/shop/po-allocations/${contractOrder._id}/send-contract-otp`,
+        { signer_name: contractSignerName, signer_designation: contractSignerDesignation }
+      );
+      if (res.data?.status === "success") {
+        setContractMaskedMobile(res.data.masked_mobile || contractMaskedMobile);
+        setContractStep("otp");
+        setContractOtpCountdown(60);
+        toast.success(res.data.message || "OTP sent to your registered mobile number!");
+      } else {
+        setContractError(res.data?.message || "Failed to send OTP.");
+      }
+    } catch (err) {
+      console.error("send_epc_contract_otp error:", err);
+      setContractError(err.response?.data?.message || "Failed to dispatch OTP. Please check mobile connection.");
+    } finally {
+      setContractOtpSending(false);
+    }
+  };
+
+  const handleVerifyContractOtp = async (e) => {
+    e.preventDefault();
+    if (!contractOtp.trim() || contractOtp.trim().length < 4) {
+      setContractError("Please enter the complete OTP code sent to your registered mobile.");
+      return;
+    }
+
+    setContractError("");
+    setContractOtpVerifying(true);
+    try {
+      const res = await axiosInstance.post(
+        `/india/v1/shop/po-allocations/${contractOrder._id}/verify-contract-otp`,
+        {
+          otp: contractOtp.trim(),
+          signer_name: contractSignerName,
+          signer_designation: contractSignerDesignation,
+        }
+      );
+      if (res.data?.status === "success") {
+        setContractStep("signed");
+        toast.success("PO Contract Digitally Signed & Verified via Mobile OTP!");
+        // Refresh orders list
+        if (typeof fetchOrders === "function") fetchOrders();
+      } else {
+        setContractError(res.data?.message || "Invalid OTP code.");
+      }
+    } catch (err) {
+      console.error("verify_epc_contract_otp error:", err);
+      setContractError(err.response?.data?.message || "OTP verification failed. Please try again.");
+    } finally {
+      setContractOtpVerifying(false);
+    }
+  };
+
+  const handleViewSignedContract = async (order, epcAlloc) => {
+    setViewSignedLoading(true);
+    setViewSignedModalOpen(true);
+    try {
+      const res = await axiosInstance.get(`/india/v1/shop/po-allocations/${order._id}/signed-contract`);
+      if (res.data?.status === "success") {
+        setViewSignedData(res.data.data);
+      }
+    } catch (err) {
+      console.error("Failed to load signed contract document:", err);
+      toast.error("Failed to fetch signed document");
+    } finally {
+      setViewSignedLoading(false);
+    }
+  };
+
+const handleOpenTokenModal = (order, epcAlloc, item) => {
     setTokenOrder(order);
     setTokenAlloc(epcAlloc);
     const reqPaise = epcAlloc?.token_amount_paise || order.token_amount_paise || 5000000;
@@ -1773,17 +1914,72 @@ export default function EpcPoAllocations() {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        {!isPaid ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenTokenModal(order, epcAlloc, allocatedItem)}
-                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 transition-all shadow-md cursor-pointer transform active:scale-95"
-                          >
-                            <FaRupeeSign size={14} />
-                            <span>💳 Pay Token Deposit (₹{tokenRequiredINR.toLocaleString("en-IN")})</span>
-                          </button>
-                        ) : (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {(() => {
+                          const isContractSigned = epcAlloc?.contract?.status === "SIGNED" || order.contract?.status === "SIGNED";
+
+                          if (!isContractSigned) {
+                            return (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenContractModal(order, epcAlloc, allocatedItem)}
+                                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:opacity-95 transition-all shadow-md cursor-pointer transform active:scale-95 animate-pulse"
+                                >
+                                  <FiFileText size={14} />
+                                  <span>📜 Review & Sign PO Contract (OTP)</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed"
+                                  title="Contract signature via mobile OTP required before token payment"
+                                >
+                                  <FiLock size={12} />
+                                  <span>Token Deposit (Locked)</span>
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          if (!isPaid) {
+                            return (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewSignedContract(order, epcAlloc)}
+                                  className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 transition-all cursor-pointer"
+                                  title="View Digitally Signed Legal Contract"
+                                >
+                                  <FiCheckCircle size={13} className="text-emerald-600" />
+                                  <span>Contract Signed ✓</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenTokenModal(order, epcAlloc, allocatedItem)}
+                                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95 transition-all shadow-md cursor-pointer transform active:scale-95"
+                                >
+                                  <FaRupeeSign size={14} />
+                                  <span>💳 Pay Token Deposit (₹{tokenRequiredINR.toLocaleString("en-IN")})</span>
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleViewSignedContract(order, epcAlloc)}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 transition-all cursor-pointer"
+                              >
+                                <FiCheckCircle size={12} className="text-emerald-600" />
+                                <span>Contract Signed ✓</span>
+                              </button>
+                            </div>
+                          );
+                        })()}
+                        {isPaid && (
                           <div className="flex items-center gap-2">
                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-500/30">
                               <FiCheckCircle size={13} className="text-emerald-600" />
@@ -2869,6 +3065,446 @@ export default function EpcPoAllocations() {
             </motion.div>
           </div>
         )}
+
+      {/* ── 1. PO ORDER CONTRACT & MOBILE OTP SIGNING MODAL ────────────────── */}
+      <AnimatePresence>
+        {contractModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface border border-border rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-gradient-to-r from-blue-600/10 via-indigo-600/5 to-transparent">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/15 text-blue-600 flex items-center justify-center font-bold">
+                    <FiFileText size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-text-primary">
+                      {contractStep === "review" && "Review & Digitally Sign PO Contract"}
+                      {contractStep === "otp" && "Mobile OTP Verification"}
+                      {contractStep === "signed" && "PO Contract Signed & Verified ✓"}
+                    </h3>
+                    <p className="text-[11px] text-text-muted">
+                      PO Reference: <span className="font-mono font-bold text-text-primary">{contractOrder?.po_number}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setContractModalOpen(false)}
+                  className="w-8 h-8 rounded-full hover:bg-surface-hover flex items-center justify-center text-text-muted hover:text-text-primary transition-all cursor-pointer"
+                >
+                  <FiX size={18} />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {contractLoading ? (
+                  <div className="py-20 text-center space-y-3">
+                    <FiLoader className="animate-spin text-primary mx-auto" size={32} />
+                    <p className="text-xs text-text-muted">Loading official PO contract terms...</p>
+                  </div>
+                ) : contractError ? (
+                  <div className="p-4 rounded-xl bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 text-xs flex items-start gap-2.5">
+                    <FiAlertCircle size={16} className="shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="font-bold">Notice:</div>
+                      <div>{contractError}</div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* STEP 1: REVIEW CONTRACT & ENTER SIGNATORY DETAILS */}
+                {contractStep === "review" && contractDetails && (
+                  <div className="space-y-5">
+                    {/* Legal Document Container */}
+                    <div className="p-5 rounded-2xl bg-white text-slate-800 border border-slate-300 shadow-inner text-xs font-serif leading-relaxed space-y-4 max-h-[380px] overflow-y-auto">
+                      <div className="text-center pb-3 border-b border-slate-300">
+                        <div className="text-[10px] font-sans font-black tracking-widest text-emerald-700 uppercase">SOLARKITS OFFICIAL PO AGREEMENT</div>
+                        <div className="text-sm font-sans font-black text-slate-900 mt-0.5">{contractDetails.contract_content?.contract_title}</div>
+                        <div className="text-[10px] font-sans text-slate-500 mt-0.5">PO Ref: {contractOrder?.po_number} • Version {contractDetails.contract_content?.contract_version}</div>
+                      </div>
+
+                      {/* Parties */}
+                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-sans grid grid-cols-2 gap-3">
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-500 block uppercase">Franchise Partner:</span>
+                          <span className="font-bold text-slate-900">{contractDetails.franchisee?.business_name}</span>
+                          <span className="block text-[10px] text-slate-500">{contractDetails.franchisee?.mobile}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-500 block uppercase">Solar EPC Contractor:</span>
+                          <span className="font-bold text-slate-900">{contractDetails.epc?.company_name}</span>
+                          <span className="block text-[10px] text-slate-500">Reg: {contractDetails.epc?.masked_mobile}</span>
+                        </div>
+                      </div>
+
+                      {/* Preamble */}
+                      <p className="text-[11px] text-slate-700 italic border-l-2 border-emerald-600 pl-2.5 py-0.5">
+                        {contractDetails.contract_content?.terms_introduction}
+                      </p>
+
+                      {/* Committed Kits & Token */}
+                      <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-300 font-sans text-xs space-y-1.5">
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Product / Combo Kit:</span>
+                          <span className="font-bold text-slate-900">{contractDetails.item_name}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Allocated Commitment Quantity:</span>
+                          <span className="font-black text-emerald-800">{contractDetails.allocated_quantity} Combo Kit(s)</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Required Token Commitment Deposit:</span>
+                          <span className="font-black text-emerald-800">₹{contractDetails.token_amount_inr?.toLocaleString("en-IN")}</span>
+                        </div>
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-slate-500">Commitment Validity Window:</span>
+                          <span className="font-bold text-slate-700">{contractDetails.contract_content?.validity_days} Days from Execution</span>
+                        </div>
+                      </div>
+
+                      {/* Clauses */}
+                      <div className="space-y-3 pt-1">
+                        {(contractDetails.contract_content?.clauses || []).map((c, i) => (
+                          <div key={i} className="space-y-0.5">
+                            <div className="font-sans font-bold text-slate-900 text-xs flex items-center justify-between">
+                              <span>{c.title}</span>
+                              {c.is_mandatory && <span className="text-[9px] text-emerald-700 font-bold uppercase tracking-wider">Mandatory</span>}
+                            </div>
+                            <p className="text-[11px] text-slate-600 leading-normal pl-2 border-l border-slate-200">
+                              {c.body}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Signatory Inputs Form */}
+                    <div className="p-4 rounded-2xl bg-surface-hover/50 border border-border space-y-3.5">
+                      <div className="text-xs font-bold text-text-primary flex items-center gap-2">
+                        <FiUser size={14} className="text-primary" /> Authorized Signatory Information
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-text-secondary mb-1">
+                            Signatory Full Name <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={contractSignerName}
+                            onChange={(e) => setContractSignerName(e.target.value)}
+                            placeholder="Enter your full legal name"
+                            className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-text-secondary mb-1">Designation</label>
+                          <input
+                            type="text"
+                            value={contractSignerDesignation}
+                            onChange={(e) => setContractSignerDesignation(e.target.value)}
+                            placeholder="e.g. Managing Director / Partner"
+                            className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Registered Mobile Notice */}
+                      <div className="p-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[11px] flex items-center gap-2">
+                        <FiPhone size={14} className="shrink-0 text-blue-600" />
+                        <span>
+                          6-digit OTP will be dispatched to your registered mobile number:{" "}
+                          <strong className="font-mono">{contractDetails.epc?.masked_mobile || "Registered Mobile"}</strong>
+                        </span>
+                      </div>
+
+                      {/* Agreement Checkbox */}
+                      <label className="flex items-start gap-2.5 cursor-pointer pt-1">
+                        <input
+                          type="checkbox"
+                          checked={contractAgreed}
+                          onChange={(e) => setContractAgreed(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span className="text-xs text-text-secondary">
+                          I confirm that I am an authorized representative of <strong>{contractDetails.epc?.company_name}</strong>. I have read, understood, and irrevocably agree to all clauses, token commitments, and terms of this Purchase Order Contract.
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setContractModalOpen(false)}
+                        className="px-4 py-2.5 rounded-xl border border-border text-xs font-bold text-text-secondary hover:bg-surface-hover transition-all cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSendContractOtp}
+                        disabled={contractOtpSending || !contractAgreed || !contractSignerName.trim()}
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-black shadow-lg hover:opacity-95 transition-all cursor-pointer disabled:opacity-40"
+                      >
+                        {contractOtpSending ? <FiLoader className="animate-spin" size={14} /> : <FiShield size={14} />}
+                        <span>{contractOtpSending ? "Dispatching OTP..." : "Proceed to Mobile OTP Verification →"}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 2: ENTER OTP & DIGITALLY VERIFY */}
+                {contractStep === "otp" && (
+                  <form onSubmit={handleVerifyContractOtp} className="space-y-6 py-4 max-w-md mx-auto text-center">
+                    <div className="w-16 h-16 rounded-full bg-blue-500/10 text-blue-600 flex items-center justify-center mx-auto shadow-inner">
+                      <FiShield size={32} />
+                    </div>
+
+                    <div>
+                      <h4 className="text-base font-black text-text-primary">Enter Mobile Verification Code</h4>
+                      <p className="text-xs text-text-muted mt-1">
+                        We have dispatched a 6-digit OTP to your registered mobile number:{" "}
+                        <strong className="text-text-primary font-mono">{contractMaskedMobile}</strong>
+                      </p>
+                    </div>
+
+                    {contractError && (
+                      <div className="p-3 rounded-xl bg-rose-50 text-rose-700 text-xs border border-rose-200">
+                        {contractError}
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={contractOtp}
+                        onChange={(e) => setContractOtp(e.target.value.replace(/\D/g, ''))}
+                        placeholder="••••••"
+                        autoFocus
+                        className="w-48 text-center py-3 text-2xl font-mono tracking-widest rounded-2xl border-2 border-primary/40 bg-surface text-text-primary focus:outline-none focus:border-primary shadow-sm mx-auto block"
+                      />
+                      <div className="text-[11px] text-text-muted">
+                        Code expires in 10 minutes.
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-2 text-xs">
+                      {contractOtpCountdown > 0 ? (
+                        <span className="text-text-muted">Resend OTP in <strong>{contractOtpCountdown}s</strong></span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleSendContractOtp}
+                          disabled={contractOtpSending}
+                          className="font-bold text-primary hover:underline cursor-pointer"
+                        >
+                          Resend Mobile OTP Code
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-center gap-3 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setContractStep("review")}
+                        className="px-4 py-2.5 rounded-xl border border-border text-xs font-bold text-text-secondary hover:bg-surface-hover transition-all cursor-pointer"
+                      >
+                        ← Back to Terms
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={contractOtpVerifying || contractOtp.length < 4}
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-black shadow-lg hover:opacity-95 transition-all cursor-pointer disabled:opacity-40"
+                      >
+                        {contractOtpVerifying ? <FiLoader className="animate-spin" size={14} /> : <FiCheckCircle size={14} />}
+                        <span>{contractOtpVerifying ? "Verifying..." : "Verify & Digitally Sign Contract"}</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* STEP 3: SUCCESS STATE */}
+                {contractStep === "signed" && (
+                  <div className="py-8 text-center space-y-4 max-w-md mx-auto">
+                    <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+                      <FiCheckCircle size={36} />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-black text-emerald-700 dark:text-emerald-400">PO Contract Digitally Signed & Sealed!</h4>
+                      <p className="text-xs text-text-muted mt-1">
+                        Your electronic signature has been verified and permanently bound to Purchase Order <strong>{contractOrder?.po_number}</strong>.
+                      </p>
+                    </div>
+                    <div className="p-3.5 rounded-2xl bg-emerald-50 text-emerald-800 text-xs border border-emerald-200 text-left font-mono space-y-1">
+                      <div>Signer: <strong>{contractSignerName}</strong> ({contractSignerDesignation})</div>
+                      <div>Mobile: <strong>{contractMaskedMobile}</strong> (OTP Verified)</div>
+                      <div>Status: <strong>AUTHENTICATED ✓</strong></div>
+                    </div>
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setContractModalOpen(false);
+                          if (contractOrder && contractAlloc) {
+                            handleOpenTokenModal(contractOrder, contractAlloc);
+                          }
+                        }}
+                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-black shadow-lg hover:opacity-95 transition-all cursor-pointer"
+                      >
+                        💳 Proceed to Pay Token Deposit Now →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── 2. VIEW SIGNED CONTRACT DOCUMENT MODAL ───────────────────────── */}
+      <AnimatePresence>
+        {viewSignedModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface border border-border rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+            >
+              <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-gradient-to-r from-emerald-600/10 via-teal-600/5 to-transparent">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center font-bold">
+                    <FiShield size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-text-primary">Digitally Signed Purchase Order Contract</h3>
+                    <p className="text-[11px] text-text-muted">
+                      Contract Ref: <span className="font-mono font-bold text-emerald-600">{viewSignedData?.contract?.contract_number || "CNT-SOLARKITS"}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewSignedModalOpen(false)}
+                  className="w-8 h-8 rounded-full hover:bg-surface-hover flex items-center justify-center text-text-muted hover:text-text-primary transition-all cursor-pointer"
+                >
+                  <FiX size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {viewSignedLoading ? (
+                  <div className="py-20 text-center">
+                    <FiLoader className="animate-spin text-primary mx-auto" size={32} />
+                    <p className="text-xs text-text-muted mt-2">Loading signed contract document...</p>
+                  </div>
+                ) : viewSignedData ? (
+                  <div className="space-y-4">
+                    {/* Legal Document Container */}
+                    <div className="p-6 rounded-2xl bg-white text-slate-800 border border-slate-300 shadow-inner text-xs font-serif leading-relaxed space-y-4">
+                      <div className="text-center pb-3 border-b border-slate-300">
+                        <div className="text-[10px] font-sans font-black tracking-widest text-emerald-700 uppercase">SOLARKITS EXECUTED PURCHASE ORDER CONTRACT</div>
+                        <div className="text-base font-sans font-black text-slate-900 mt-1">{viewSignedData.rendered_content?.contract_title}</div>
+                        <div className="text-[10px] font-sans text-slate-500 mt-0.5">PO Ref: {viewSignedData.po_number} • Contract No: {viewSignedData.contract?.contract_number}</div>
+                      </div>
+
+                      {/* Parties */}
+                      <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-sans grid grid-cols-2 gap-3">
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-500 block uppercase">Franchise Partner:</span>
+                          <span className="font-bold text-slate-900">{viewSignedData.franchisee?.business_name || "SolarKits Partner"}</span>
+                          <span className="block text-[10px] text-slate-500">{viewSignedData.franchisee?.mobile}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-500 block uppercase">Solar EPC Contractor:</span>
+                          <span className="font-bold text-slate-900">{viewSignedData.epc?.company_name || viewSignedData.epc?.name}</span>
+                          <span className="block text-[10px] text-slate-500">GST: {viewSignedData.epc?.gstin || "N/A"}</span>
+                        </div>
+                      </div>
+
+                      {/* Preamble */}
+                      <p className="text-[11px] text-slate-700 italic border-l-2 border-emerald-600 pl-2.5 py-0.5">
+                        {viewSignedData.rendered_content?.terms_introduction}
+                      </p>
+
+                      {/* Committed Details */}
+                      <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-300 font-sans text-xs space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Product / Combo Kit:</span>
+                          <span className="font-bold text-slate-900">{viewSignedData.item_name}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Committed Quantity:</span>
+                          <span className="font-black text-emerald-800">{viewSignedData.allocated_quantity} Combo Kit(s)</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Committed Token Deposit:</span>
+                          <span className="font-black text-emerald-800">₹{viewSignedData.token_amount_inr?.toLocaleString("en-IN")}</span>
+                        </div>
+                      </div>
+
+                      {/* Clauses */}
+                      <div className="space-y-3 pt-1">
+                        {(viewSignedData.rendered_content?.clauses || []).map((c, i) => (
+                          <div key={i} className="space-y-0.5">
+                            <div className="font-sans font-bold text-slate-900 text-xs flex items-center justify-between">
+                              <span>{c.title}</span>
+                              {c.is_mandatory && <span className="text-[9px] text-emerald-700 font-bold uppercase tracking-wider">Mandatory</span>}
+                            </div>
+                            <p className="text-[11px] text-slate-600 leading-normal pl-2 border-l border-slate-200">
+                              {c.body}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Digital Seal & Stamp Block */}
+                      <div className="mt-6 pt-4 border-t-2 border-slate-300 font-sans grid grid-cols-2 gap-4 text-xs">
+                        <div className="p-3 rounded-xl border border-dashed border-slate-300 text-center space-y-1">
+                          <div className="font-bold text-slate-700">Franchise Partner</div>
+                          <div className="text-[10px] text-slate-500">{viewSignedData.franchisee?.business_name}</div>
+                          <div className="text-[9px] text-emerald-600 font-bold">ALLOCATED & COMMITTED</div>
+                        </div>
+                        <div className="p-3 rounded-xl border-2 border-emerald-500 bg-emerald-50/60 text-center space-y-1">
+                          <div className="font-black text-emerald-900">Digitally Signed & Sealed ✓</div>
+                          <div className="text-[10px] font-bold text-slate-800">{viewSignedData.contract?.signer_name}</div>
+                          <div className="text-[9px] text-slate-500">{viewSignedData.contract?.signer_designation}</div>
+                          <div className="text-[9px] font-mono text-emerald-700 font-bold">
+                            OTP Verified: {viewSignedData.contract?.otp_verified_at ? new Date(viewSignedData.contract.otp_verified_at).toLocaleString("en-IN") : "Verified"}
+                          </div>
+                          <div className="text-[8px] text-slate-400 font-mono">IP: {viewSignedData.contract?.signed_ip || "127.0.0.1"}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="px-6 py-3 border-t border-border flex items-center justify-between bg-surface-hover/30">
+                <span className="text-[10px] text-text-muted">Legally binding under IT Act 2000.</span>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 rounded-xl bg-surface border border-border text-xs font-bold text-text-primary hover:bg-surface-hover transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>🖨️ Print / Save Document</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       </AnimatePresence>
     </div>
   );
