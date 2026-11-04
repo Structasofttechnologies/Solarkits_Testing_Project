@@ -4319,18 +4319,27 @@ const get_epc_po_allocations = async (req, res) => {
     }
 
     const { FpoOrder } = require("../../../admin-panel/models/india_solarshop_db");
+    const accountObjId = mongoose.Types.ObjectId.isValid(accountId) ? new mongoose.Types.ObjectId(accountId) : null;
+    const epcMatches = accountObjId ? [accountId, accountObjId] : [accountId];
 
-    // Find all top-level FPO orders where this account is allocated in any item
+    // Find all top-level FPO orders where this account is allocated or assigned
     const orders = await FpoOrder.find({
-      "items.epc_allocations.epc_buyer_id": accountId,
+      $or: [
+        { epc_id: { $in: epcMatches } },
+        { "items.epc_allocations.epc_buyer_id": { $in: epcMatches } },
+      ],
       parent_po_id: null,
       deleted_at: null,
     }).populate('franchisee_id', 'business_name mobile email contact_person').sort({ created_at: -1 }).lean();
 
+    let childOrders = [];
     if (orders.length > 0) {
       const parentIds = orders.map((o) => o._id);
-      const childOrders = await FpoOrder.find({
-        parent_po_id: { $in: parentIds },
+      childOrders = await FpoOrder.find({
+        $or: [
+          { parent_po_id: { $in: parentIds } },
+          { epc_id: { $in: epcMatches }, parent_po_id: { $ne: null } },
+        ],
         deleted_at: null,
       }).sort({ created_at: -1 }).lean();
 
@@ -4346,10 +4355,15 @@ const get_epc_po_allocations = async (req, res) => {
       });
     }
 
-    // Collect kit IDs to enrich with image, description, capacity
+    // Collect kit IDs to enrich BOTH parent orders and child repeat orders
     const kitIds = [];
     orders.forEach(o => {
-      o.items?.forEach(item => {
+      (o.items || []).forEach(item => {
+        if (item.kit_id) kitIds.push(item.kit_id);
+      });
+    });
+    childOrders.forEach(co => {
+      (co.items || []).forEach(item => {
         if (item.kit_id) kitIds.push(item.kit_id);
       });
     });
@@ -4359,11 +4373,12 @@ const get_epc_po_allocations = async (req, res) => {
       const kitMap = new Map();
       kits.forEach(k => kitMap.set(k._id.toString(), k));
 
-      orders.forEach(o => {
-        o.items?.forEach(item => {
+      const enrichItems = (items) => {
+        (items || []).forEach(item => {
           if (item.kit_id && kitMap.has(item.kit_id.toString())) {
             const k = kitMap.get(item.kit_id.toString());
             item.kit_image = k.kit_image || (k.images && k.images[0]) || null;
+            item.image = item.kit_image;
             item.capacity = k.capacity || k.capacity_kw || null;
             item.description = k.description || null;
             item.brand_name = k.brand_name || null;
@@ -4374,9 +4389,17 @@ const get_epc_po_allocations = async (req, res) => {
             item.loose_order_quantities = validLooseQtys;
           }
         });
+      };
+
+      orders.forEach(o => {
+        enrichItems(o.items);
         if (o.items?.[0]?.loose_order_quantities) {
           o.loose_order_quantities = o.items[0].loose_order_quantities;
         }
+      });
+
+      childOrders.forEach(co => {
+        enrichItems(co.items);
       });
     }
 
@@ -4450,6 +4473,16 @@ const submit_epc_po_receipt = async (req, res) => {
         }
       });
     });
+
+    if (!updated && (String(order.epc_id) === String(accountId) || order.parent_po_id)) {
+      if (!order.offline_payment) order.offline_payment = {};
+      order.offline_payment.receipt_url = receiptUrl;
+      order.offline_payment.verification_status = 'pending';
+      if (order.status === 'DRAFT' || order.status === 'PAYMENT_PENDING') {
+        order.status = 'SUBMITTED';
+      }
+      updated = true;
+    }
 
     if (!updated) {
       return res.status(404).json({ status: "error", message: "Allocation for this EPC not found in the PO." });

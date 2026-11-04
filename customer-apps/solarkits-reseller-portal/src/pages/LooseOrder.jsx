@@ -73,8 +73,8 @@ export default function LooseOrder() {
   const allowedOrderTypes = Array.isArray(rawAllowed)
     ? rawAllowed
     : typeof rawAllowed === "string"
-    ? (rawAllowed === "both" ? ["po_order", "loose_order"] : rawAllowed.split(",").map((s) => s.trim()))
-    : ["po_order"];
+      ? (rawAllowed === "both" ? ["po_order", "loose_order"] : rawAllowed.split(",").map((s) => s.trim()))
+      : ["po_order"];
 
   const allowsLoose = allowedOrderTypes.includes("loose_order");
 
@@ -98,6 +98,7 @@ export default function LooseOrder() {
   const [allocations, setAllocations] = useState({}); // { [epcBuyerId]: quantity }
   const [destinationAddress, setDestinationAddress] = useState("");
   const [destinationPincode, setDestinationPincode] = useState("");
+  const [epcSearch, setEpcSearch] = useState("");
 
   // Payment Form State
   const [utrNumber, setUtrNumber] = useState("");
@@ -191,7 +192,7 @@ export default function LooseOrder() {
     try {
       const saved = localStorage.getItem("reseller_user");
       if (saved) resellerId = JSON.parse(saved)?._id || JSON.parse(saved)?.id;
-    } catch (_e) {}
+    } catch (_e) { }
 
     const streamUrl = `${baseUrl}/api/v1/payments/icici/stream?role=reseller&reseller_id=${resellerId || ""}`;
     const es = new EventSource(streamUrl);
@@ -261,6 +262,20 @@ export default function LooseOrder() {
     }
     return [5, 10, 15, 20, 25, 30, 50];
   }, [selectedKit, parentRemainingQuota]);
+
+  // Filter onboarded EPC buyers for the allocation modal
+  const filteredEpcBuyers = useMemo(() => {
+    if (!epcSearch.trim()) return epcBuyers;
+    const q = epcSearch.toLowerCase().trim();
+    return epcBuyers.filter((b) => {
+      const name = (b.name || "").toLowerCase();
+      const comp = (b.company_name || "").toLowerCase();
+      const gstin = (b.gstin || "").toLowerCase();
+      const mob = (b.mobile || "").toLowerCase();
+      const city = (b.city || "").toLowerCase();
+      return name.includes(q) || comp.includes(q) || gstin.includes(q) || mob.includes(q) || city.includes(q);
+    });
+  }, [epcBuyers, epcSearch]);
 
   // Total Quantity determination based on destination mode
   const totalLooseQuantity = useMemo(() => {
@@ -399,31 +414,36 @@ export default function LooseOrder() {
       }
     }
 
-    if (destinationMode === "epc_allocation" && totalLooseQuantity === 0) {
-      setFormError("Please allocate quantities to at least one onboarded EPC Buyer.");
-      return;
-    }
-    if (!utrNumber.trim()) {
-      setFormError("Please enter the UTR / Transaction Reference Number.");
-      return;
-    }
-    if (netPayableINR > 0 && (!amountPaid || Number(amountPaid) <= 0)) {
-      setFormError("Please enter a valid payment amount.");
-      return;
+    if (destinationMode === "epc_allocation") {
+      if (totalLooseQuantity <= 0) {
+        setFormError("Please allocate quantities to at least one onboarded EPC Buyer.");
+        return;
+      }
+    } else {
+      // Franchise Hub Stock requires franchise payment UTR
+      if (!utrNumber.trim()) {
+        setFormError("Please enter the UTR / Transaction Reference Number.");
+        return;
+      }
+      if (netPayableINR > 0 && (!amountPaid || Number(amountPaid) <= 0)) {
+        setFormError("Please enter a valid payment amount.");
+        return;
+      }
     }
 
     const epcAllocationsList =
       destinationMode === "epc_allocation"
         ? Object.entries(allocations).map(([buyerId, qty]) => {
-            const buyer = epcBuyers.find((b) => (b._id || b.id)?.toString() === buyerId?.toString());
-            return {
-              epc_buyer_id: buyerId,
-              company_name: buyer?.company_name || buyer?.name || "EPC Buyer",
-              buyer_name: buyer?.name || buyer?.company_name || "EPC Buyer",
-              gstin: buyer?.gstin || null,
-              allocated_quantity: qty,
-            };
-          })
+          const buyer = epcBuyers.find((b) => (b._id || b.id)?.toString() === buyerId?.toString());
+          return {
+            epc_buyer_id: buyerId,
+            company_name: buyer?.company_name || buyer?.name || "EPC Buyer",
+            buyer_name: buyer?.name || buyer?.company_name || "EPC Buyer",
+            gstin: buyer?.gstin || null,
+            allocated_quantity: qty,
+            payment_status: "PENDING",
+          };
+        })
         : [];
 
     const itemPayload = {
@@ -442,16 +462,16 @@ export default function LooseOrder() {
         order_type: "loose_kit_order",
         parent_po_id: deductFromPo && selectedParentPoId ? selectedParentPoId : null,
         destination_type: destinationMode,
-        destination_address: destinationAddress || "Franchise Regional Hub Warehouse",
+        destination_address: destinationAddress || (destinationMode === "epc_allocation" ? "Direct Dispatch to Allocated EPC Contractor Site" : "Franchise Regional Hub Warehouse"),
         destination_pincode: destinationPincode || "380001",
         items: [itemPayload],
-        offline_payment: {
+        offline_payment: destinationMode === "hub_stock" ? {
           payment_method: "offline_bank_transfer",
           utr_number: utrNumber.trim().toUpperCase(),
           amount_paid: Number(amountPaid),
           payment_date: paymentDate,
           sender_bank_name: senderBankName || "Bank Transfer",
-        },
+        } : null,
         auto_submit: true,
       };
 
@@ -462,6 +482,9 @@ export default function LooseOrder() {
         setLooseQuantity(10);
         setUtrNumber("");
         setReceiptFile(null);
+        setEpcSearch("");
+        setDestinationAddress("");
+        setDestinationPincode("");
         fetchData();
       } else {
         setFormError(res.data?.message || "Failed to submit Loose Solar Kit Order.");
@@ -651,18 +674,16 @@ export default function LooseOrder() {
           >
             <button
               onClick={() => setViewMode("table")}
-              className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                viewMode === "table" ? "bg-primary text-white shadow-xs" : "text-text-muted hover:text-text-primary"
-              }`}
+              className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${viewMode === "table" ? "bg-primary text-white shadow-xs" : "text-text-muted hover:text-text-primary"
+                }`}
               title="Table View"
             >
               <FiList size={15} />
             </button>
             <button
               onClick={() => setViewMode("card")}
-              className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                viewMode === "card" ? "bg-primary text-white shadow-xs" : "text-text-muted hover:text-text-primary"
-              }`}
+              className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${viewMode === "card" ? "bg-primary text-white shadow-xs" : "text-text-muted hover:text-text-primary"
+                }`}
               title="Card Grid View"
             >
               <FiGrid size={15} />
@@ -719,8 +740,8 @@ export default function LooseOrder() {
                     order.net_payable_paise != null
                       ? order.net_payable_paise / 100
                       : order.grand_total_inr ||
-                        (order.grand_total_paise ? order.grand_total_paise / 100 : order.total_amount) ||
-                        0;
+                      (order.grand_total_paise ? order.grand_total_paise / 100 : order.total_amount) ||
+                      0;
 
                   const parentPo = order.parent_po_id;
 
@@ -822,8 +843,8 @@ export default function LooseOrder() {
               order.net_payable_paise != null
                 ? order.net_payable_paise / 100
                 : order.grand_total_inr ||
-                  (order.grand_total_paise ? order.grand_total_paise / 100 : order.total_amount) ||
-                  0;
+                (order.grand_total_paise ? order.grand_total_paise / 100 : order.total_amount) ||
+                0;
             const parentPo = order.parent_po_id;
 
             return (
@@ -927,22 +948,20 @@ export default function LooseOrder() {
                       <button
                         type="button"
                         onClick={() => setDeductFromPo(true)}
-                        className={`px-3 py-1 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                          deductFromPo
+                        className={`px-3 py-1 rounded-xl text-xs font-black transition-all cursor-pointer ${deductFromPo
                             ? "bg-emerald-600 text-white shadow-xs"
                             : "bg-surface hover:bg-surface-hover text-text-muted border border-border"
-                        }`}
+                          }`}
                       >
                         Yes, Deduct from PO
                       </button>
                       <button
                         type="button"
                         onClick={() => setDeductFromPo(false)}
-                        className={`px-3 py-1 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                          !deductFromPo
+                        className={`px-3 py-1 rounded-xl text-xs font-black transition-all cursor-pointer ${!deductFromPo
                             ? "bg-slate-800 text-white shadow-xs"
                             : "bg-surface hover:bg-surface-hover text-text-muted border border-border"
-                        }`}
+                          }`}
                       >
                         Standalone Order
                       </button>
@@ -961,11 +980,10 @@ export default function LooseOrder() {
                             <div
                               key={po._id}
                               onClick={() => setSelectedParentPoId(po._id)}
-                              className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer space-y-1.5 ${
-                                isSelected
+                              className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer space-y-1.5 ${isSelected
                                   ? "border-emerald-600 bg-emerald-500/10 shadow-xs"
                                   : "border-border bg-surface hover:border-emerald-400"
-                              }`}
+                                }`}
                             >
                               <div className="flex items-center justify-between">
                                 <span className="font-mono font-black text-xs text-text-primary">
@@ -1027,11 +1045,10 @@ export default function LooseOrder() {
                         <div
                           key={kitId}
                           onClick={() => setSelectedKitId(kitId)}
-                          className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                            isSelected
+                          className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${isSelected
                               ? "bg-primary/10 border-primary shadow-sm"
                               : "bg-surface hover:bg-surface-hover border-border"
-                          }`}
+                            }`}
                         >
                           <div className="space-y-1">
                             <div className="flex items-center justify-between">
@@ -1075,7 +1092,7 @@ export default function LooseOrder() {
                     )}
                   </div>
 
-                  {destinationMode === "hub_stock" && (
+                  {destinationMode === "hub_stock" ? (
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -1110,26 +1127,37 @@ export default function LooseOrder() {
                         +
                       </button>
                     </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-text-muted">Total Allocated:</span>
+                      <span className="px-3 py-1 bg-primary/10 text-primary font-black font-mono text-sm rounded-xl border border-primary/20">
+                        {totalLooseQuantity} Kits
+                      </span>
+                    </div>
                   )}
                 </div>
 
-                {destinationMode === "hub_stock" && (
+                {destinationMode === "hub_stock" ? (
                   <div className="flex flex-wrap gap-2 pt-1">
                     {kitLooseQuantities.map((presetQty) => (
                       <button
                         key={presetQty}
                         type="button"
                         onClick={() => setLooseQuantity(presetQty)}
-                        className={`py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                          looseQuantity === presetQty
+                        className={`py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${looseQuantity === presetQty
                             ? "bg-primary text-white shadow-sm"
                             : "bg-surface hover:bg-surface-hover text-text-primary border border-border"
-                        }`}
+                          }`}
                       >
                         {presetQty} Kits {presetQty === parentRemainingQuota && "(Final Settle)"}
                       </button>
                     ))}
                   </div>
+                ) : (
+                  <p className="text-[11px] text-text-muted flex items-center gap-1.5 pt-1 border-t border-border/50">
+                    <FiUsers className="text-primary shrink-0" />
+                    <span>Assign loose quantities across onboarded EPC partners below in <strong>Step 3</strong>.</span>
+                  </p>
                 )}
               </div>
 
@@ -1143,11 +1171,10 @@ export default function LooseOrder() {
                   <button
                     type="button"
                     onClick={() => setDestinationMode("hub_stock")}
-                    className={`p-3.5 rounded-2xl border text-xs font-bold transition-all text-left flex items-center gap-3 cursor-pointer ${
-                      destinationMode === "hub_stock"
+                    className={`p-3.5 rounded-2xl border text-xs font-bold transition-all text-left flex items-center gap-3 cursor-pointer ${destinationMode === "hub_stock"
                         ? "bg-primary/10 border-primary text-primary"
                         : "bg-surface hover:bg-surface-hover border-border text-text-secondary"
-                    }`}
+                      }`}
                   >
                     <FaWarehouse size={20} className="shrink-0" />
                     <div>
@@ -1159,11 +1186,10 @@ export default function LooseOrder() {
                   <button
                     type="button"
                     onClick={() => setDestinationMode("epc_allocation")}
-                    className={`p-3.5 rounded-2xl border text-xs font-bold transition-all text-left flex items-center gap-3 cursor-pointer ${
-                      destinationMode === "epc_allocation"
+                    className={`p-3.5 rounded-2xl border text-xs font-bold transition-all text-left flex items-center gap-3 cursor-pointer ${destinationMode === "epc_allocation"
                         ? "bg-primary/10 border-primary text-primary"
                         : "bg-surface hover:bg-surface-hover border-border text-text-secondary"
-                    }`}
+                      }`}
                   >
                     <FiUsers size={20} className="shrink-0" />
                     <div>
@@ -1172,6 +1198,226 @@ export default function LooseOrder() {
                     </div>
                   </button>
                 </div>
+
+                {/* EPC Allocation Selector Section */}
+                {destinationMode === "epc_allocation" && (
+                  <div className="space-y-3 pt-2">
+                    {/* Header with Search and Quota Tracker */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-surface-hover/70 rounded-2xl border border-border">
+                      <div className="relative flex-1">
+                        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
+                        <input
+                          type="text"
+                          value={epcSearch}
+                          onChange={(e) => setEpcSearch(e.target.value)}
+                          placeholder="Search onboarded EPC by company, name, GSTIN..."
+                          className="w-full pl-8 pr-3 py-1.5 text-xs bg-surface border border-border rounded-xl focus:outline-none focus:border-primary text-text-primary"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 text-xs">
+                        <span className="text-text-muted">
+                          Total Allocated: <strong className="text-primary font-mono">{totalLooseQuantity} Kits</strong>
+                        </span>
+                        {deductFromPo && parentRemainingQuota != null && (
+                          <span
+                            className={`px-2.5 py-0.5 rounded-lg font-bold text-[11px] ${totalLooseQuantity > parentRemainingQuota
+                                ? "bg-red-500/20 text-red-600 border border-red-500/30"
+                                : "bg-emerald-500/15 text-emerald-600 border border-emerald-500/20"
+                              }`}
+                          >
+                            {totalLooseQuantity > parentRemainingQuota
+                              ? `Exceeds Quota by ${totalLooseQuantity - parentRemainingQuota}`
+                              : `${Math.max(0, parentRemainingQuota - totalLooseQuantity)} Kits Left in PO`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Onboarded EPC List */}
+                    {filteredEpcBuyers.length === 0 ? (
+                      <div className="p-6 text-center bg-surface-hover/40 rounded-2xl border border-dashed border-border text-xs text-text-muted space-y-1">
+                        <FiUsers className="mx-auto text-text-muted/60" size={24} />
+                        <p className="font-bold">No Onboarded EPC Partners Found</p>
+                        <p className="text-[11px]">
+                          {epcSearch
+                            ? "No EPC matches your search query."
+                            : "No EPC buyers are currently registered under your franchise."}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                        {filteredEpcBuyers.map((buyer) => {
+                          const bId = (buyer._id || buyer.id)?.toString();
+                          const allocatedQty = allocations[bId] || 0;
+                          const isAllocated = allocatedQty > 0;
+                          const buyerName = buyer.company_name || buyer.name || "EPC Contractor";
+                          const contactPerson =
+                            buyer.name && buyer.name !== buyer.company_name ? buyer.name : buyer.contact_person;
+                          const currentRemaining =
+                            deductFromPo && parentRemainingQuota != null
+                              ? Math.max(0, parentRemainingQuota - (totalLooseQuantity - allocatedQty))
+                              : 999;
+
+                          return (
+                            <div
+                              key={bId}
+                              className={`p-3.5 rounded-2xl border transition-all text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isAllocated
+                                  ? "bg-primary/5 dark:bg-primary/10 border-primary shadow-xs"
+                                  : "bg-surface hover:bg-surface-hover/80 border-border"
+                                }`}
+                            >
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-extrabold text-text-primary text-sm truncate">
+                                    {buyerName}
+                                  </span>
+                                  {buyer.gstin ? (
+                                    <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 text-[10px] font-bold font-mono">
+                                      GSTIN: {buyer.gstin}
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-md bg-slate-500/10 text-text-muted text-[10px] font-semibold">
+                                      Direct Partner
+                                    </span>
+                                  )}
+                                  {buyer.city && (
+                                    <span className="px-2 py-0.5 rounded-md bg-surface text-text-muted text-[10px] flex items-center gap-1 border border-border">
+                                      <FiMapPin size={10} /> {buyer.city}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-text-muted flex items-center gap-3 flex-wrap">
+                                  {contactPerson && (
+                                    <span>
+                                      Contact: <strong>{contactPerson}</strong>
+                                    </span>
+                                  )}
+                                  {buyer.mobile && (
+                                    <span>
+                                      Ph: <strong>{buyer.mobile}</strong>
+                                    </span>
+                                  )}
+                                  {isAllocated && (
+                                    <span className="text-primary font-bold">
+                                      Billed: ₹
+                                      {(
+                                        unitPriceINR *
+                                        allocatedQty *
+                                        (1 + gstRatePercent / 100)
+                                      ).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Stepper & Quick Presets */}
+                              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                                <div className="flex items-center gap-1">
+                                  {[5, 10, 25].map((preset) => (
+                                    <button
+                                      key={preset}
+                                      type="button"
+                                      onClick={() => {
+                                        const newQty = allocatedQty + preset;
+                                        const maxAllowed =
+                                          deductFromPo && parentRemainingQuota != null ? currentRemaining : 999;
+                                        handleQuantityChange(bId, Math.min(newQty, maxAllowed));
+                                      }}
+                                      className="px-2 py-1 rounded-lg text-[10px] font-bold bg-surface-hover hover:bg-surface border border-border text-text-secondary hover:text-text-primary cursor-pointer transition-all"
+                                    >
+                                      +{preset}
+                                    </button>
+                                  ))}
+                                  {deductFromPo && currentRemaining > 0 && (
+                                    <button
+                                      key="max"
+                                      type="button"
+                                      onClick={() => handleQuantityChange(bId, currentRemaining)}
+                                      className="px-2 py-1 rounded-lg text-[10px] font-black bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 border border-blue-500/30 cursor-pointer transition-all"
+                                    >
+                                      Max
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStepQty(bId, -1)}
+                                    disabled={allocatedQty <= 0}
+                                    className="w-7 h-7 rounded-lg bg-surface border border-border font-bold text-xs flex items-center justify-center hover:bg-surface-hover disabled:opacity-30 cursor-pointer"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={deductFromPo && parentRemainingQuota != null ? currentRemaining : undefined}
+                                    value={allocatedQty || ""}
+                                    placeholder="0"
+                                    onChange={(e) => {
+                                      const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                      const maxAllowed =
+                                        deductFromPo && parentRemainingQuota != null ? currentRemaining : 999;
+                                      handleQuantityChange(bId, Math.min(val, maxAllowed));
+                                    }}
+                                    className="w-14 py-1 text-center font-mono font-black text-xs bg-surface border border-border rounded-lg text-primary focus:outline-none focus:border-primary"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (
+                                        deductFromPo &&
+                                        parentRemainingQuota != null &&
+                                        allocatedQty >= currentRemaining
+                                      ) {
+                                        return;
+                                      }
+                                      handleStepQty(bId, 1);
+                                    }}
+                                    disabled={
+                                      deductFromPo &&
+                                      parentRemainingQuota != null &&
+                                      allocatedQty >= currentRemaining
+                                    }
+                                    className="w-7 h-7 rounded-lg bg-surface border border-border font-bold text-xs flex items-center justify-center hover:bg-surface-hover disabled:opacity-30 cursor-pointer"
+                                  >
+                                    +
+                                  </button>
+                                  <span className="text-[10px] font-bold text-text-muted">Kits</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Site Delivery Address & Destination Details */}
+                    <div className="p-3.5 rounded-2xl bg-surface-hover/50 border border-border space-y-2 text-xs">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-text-primary">
+                        EPC Site Dispatch / Delivery Address (Optional)
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <input
+                          type="text"
+                          value={destinationAddress}
+                          onChange={(e) => setDestinationAddress(e.target.value)}
+                          placeholder="e.g. Site Plot #42, Industrial Area / EPC Warehouse"
+                          className="sm:col-span-2 p-2 text-xs bg-surface border border-border rounded-xl focus:outline-none focus:border-primary text-text-primary"
+                        />
+                        <input
+                          type="text"
+                          maxLength={6}
+                          value={destinationPincode}
+                          onChange={(e) => setDestinationPincode(e.target.value)}
+                          placeholder="Pincode (e.g. 380001)"
+                          className="p-2 text-xs bg-surface border border-border rounded-xl font-mono focus:outline-none focus:border-primary text-text-primary"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Step 4: Live Invoice Breakdown & Final Settlement Token Adjustment */}
@@ -1237,95 +1483,146 @@ export default function LooseOrder() {
                     </div>
                   )}
 
-                  <div className="flex justify-between items-baseline pt-2 border-t border-border text-base">
-                    <span className="font-black text-text-primary">Net Payable to Pay Now:</span>
-                    <span className="text-2xl font-black text-primary">
-                      ₹{netPayableINR.toLocaleString("en-IN")}
-                    </span>
-                  </div>
+                  {/* Payment Responsibility Split Banner */}
+                  {destinationMode === "epc_allocation" ? (
+                    <div className="pt-2 border-t border-border space-y-2">
+                      <div className="flex justify-between items-center p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                        <span className="font-bold flex items-center gap-1.5 text-xs">
+                          <FiCheckCircle size={16} /> Franchise Payable Now:
+                        </span>
+                        <span className="text-xl font-black font-mono">₹0</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs text-text-muted px-1">
+                        <span>Allocated EPC Billed Total:</span>
+                        <span className="font-black text-text-primary font-mono text-sm">
+                          ₹{netPayableINR.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-text-muted">
+                        Invoiced and collected directly from allocated EPC Contractor(s).
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between items-baseline pt-2 border-t border-border text-base">
+                      <span className="font-black text-text-primary">Net Payable to Pay Now:</span>
+                      <span className="text-2xl font-black text-primary">
+                        ₹{netPayableINR.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Escrow Bank Account Details Card */}
-                <div className="p-4 bg-blue-500/10 rounded-2xl border border-blue-500/20 text-xs space-y-2 text-text-primary">
-                  <div className="flex justify-between items-center">
-                    <span className="font-black text-blue-700 dark:text-blue-300 uppercase tracking-wider text-[11px]">
-                      Deposit Net Amount to Official Escrow Account
-                    </span>
-                    <span className="text-[10px] bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold px-2 py-0.5 rounded">
-                      RTGS / NEFT / IMPS
-                    </span>
-                  </div>
+                {/* Escrow Bank Account Details Card (Hub stock only) */}
+                {destinationMode === "hub_stock" && (
+                  <div className="p-4 bg-blue-500/10 rounded-2xl border border-blue-500/20 text-xs space-y-2 text-text-primary">
+                    <div className="flex justify-between items-center">
+                      <span className="font-black text-blue-700 dark:text-blue-300 uppercase tracking-wider text-[11px]">
+                        Deposit Net Amount to Official Escrow Account
+                      </span>
+                      <span className="text-[10px] bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold px-2 py-0.5 rounded">
+                        RTGS / NEFT / IMPS
+                      </span>
+                    </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div>
-                      <span className="text-text-muted block">Bank</span>
-                      <strong>{bankDetails.bank_name}</strong>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block">Account No.</span>
-                      <strong className="font-mono text-primary">{bankDetails.account_number}</strong>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block">IFSC Code</span>
-                      <strong className="font-mono">{bankDetails.ifsc_code}</strong>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block">UPI ID</span>
-                      <strong className="font-mono text-primary">{bankDetails.upi_id}</strong>
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div>
+                        <span className="text-text-muted block">Bank</span>
+                        <strong>{bankDetails.bank_name}</strong>
+                      </div>
+                      <div>
+                        <span className="text-text-muted block">Account No.</span>
+                        <strong className="font-mono text-primary">{bankDetails.account_number}</strong>
+                      </div>
+                      <div>
+                        <span className="text-text-muted block">IFSC Code</span>
+                        <strong className="font-mono">{bankDetails.ifsc_code}</strong>
+                      </div>
+                      <div>
+                        <span className="text-text-muted block">UPI ID</span>
+                        <strong className="font-mono text-primary">{bankDetails.upi_id}</strong>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* Step 5: Offline Payment UTR & Submission */}
-              <div className="space-y-3 pt-2 border-t border-border">
-                <label className="block text-xs font-black uppercase tracking-wider text-text-primary">
-                  Step 5: Bank Transfer (UTR) &amp; Proof
-                </label>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-text-primary mb-1">
-                      UTR / Transaction Ref No. <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. ICICR24098123456"
-                      value={utrNumber}
-                      onChange={(e) => setUtrNumber(e.target.value.toUpperCase())}
-                      className="w-full p-2.5 text-xs bg-surface border border-border rounded-xl font-mono uppercase font-bold focus:outline-none focus:border-primary"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-text-primary mb-1">
-                      Amount Paid (₹) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      placeholder="Net Payable"
-                      value={amountPaid}
-                      onChange={(e) => setAmountPaid(e.target.value)}
-                      className="w-full p-2.5 text-xs bg-surface border border-border rounded-xl font-mono font-bold focus:outline-none focus:border-primary"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-text-primary mb-1">
-                      Payment Date <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={paymentDate}
-                      onChange={(e) => setPaymentDate(e.target.value)}
-                      className="w-full p-2.5 text-xs bg-surface border border-border rounded-xl focus:outline-none focus:border-primary"
-                    />
+              {/* Step 5: Payment Routing & Submission */}
+              {destinationMode === "epc_allocation" ? (
+                <div className="space-y-3 pt-2 border-t border-border">
+                  <label className="block text-xs font-black uppercase tracking-wider text-text-primary">
+                    Step 5: EPC Direct Billing &amp; Dispatch Routing
+                  </label>
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20 space-y-2">
+                    <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-bold text-xs">
+                      <FiCheckCircle className="text-blue-500 shrink-0" size={16} />
+                      <span>Zero Franchise Payment Required</span>
+                    </div>
+                    <p className="text-xs text-text-secondary leading-relaxed">
+                      Payment for this loose delivery order will be completed directly by the allocated EPC Contractor(s) from their portal or via RTGS/NEFT to SolarKits escrow. This order will be submitted with status <strong>Awaiting EPC Payment</strong> and will be processed for dispatch once verified by SolarKits Accounts.
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1 text-[11px] text-text-muted">
+                      <span className="px-2 py-0.5 rounded bg-surface border border-border">
+                        Allocated EPCs: <strong>{Object.keys(allocations).length}</strong>
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-surface border border-border">
+                        Total Units: <strong>{totalLooseQuantity} Kits</strong>
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-surface border border-border">
+                        EPC Billed Value: <strong>₹{netPayableINR.toLocaleString("en-IN")}</strong>
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-3 pt-2 border-t border-border">
+                  <label className="block text-xs font-black uppercase tracking-wider text-text-primary">
+                    Step 5: Bank Transfer (UTR) &amp; Proof
+                  </label>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-text-primary mb-1">
+                        UTR / Transaction Ref No. <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. ICICR24098123456"
+                        value={utrNumber}
+                        onChange={(e) => setUtrNumber(e.target.value.toUpperCase())}
+                        className="w-full p-2.5 text-xs bg-surface border border-border rounded-xl font-mono uppercase font-bold focus:outline-none focus:border-primary"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-text-primary mb-1">
+                        Amount Paid (₹) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        placeholder="Net Payable"
+                        value={amountPaid}
+                        onChange={(e) => setAmountPaid(e.target.value)}
+                        className="w-full p-2.5 text-xs bg-surface border border-border rounded-xl font-mono font-bold focus:outline-none focus:border-primary"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-text-primary mb-1">
+                        Payment Date <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={paymentDate}
+                        onChange={(e) => setPaymentDate(e.target.value)}
+                        className="w-full p-2.5 text-xs bg-surface border border-border rounded-xl focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {formError && (
                 <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs font-bold text-red-600">
@@ -1346,7 +1643,11 @@ export default function LooseOrder() {
                   disabled={submitting || totalLooseQuantity <= 0}
                   className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer disabled:opacity-50"
                 >
-                  {submitting ? "Submitting Loose Order..." : `Submit Order (Pay ₹${netPayableINR.toLocaleString("en-IN")})`}
+                  {submitting
+                    ? "Submitting Loose Order..."
+                    : destinationMode === "epc_allocation"
+                      ? `Submit & Allocate to EPC(s) (₹0 Franchise Payable)`
+                      : `Submit Order (Pay ₹${netPayableINR.toLocaleString("en-IN")})`}
                 </button>
               </div>
             </form>
@@ -1412,6 +1713,29 @@ export default function LooseOrder() {
               </div>
             </div>
 
+            {/* EPC Contractor Allocations */}
+            {(selectedOrder.items?.[0]?.epc_allocations || []).length > 0 && (
+              <div className="space-y-2">
+                <span className="text-xs font-black uppercase tracking-wider text-text-primary block">
+                  Allocated EPC Contractors
+                </span>
+                <div className="p-3 bg-surface-hover rounded-2xl border border-border space-y-2 text-xs">
+                  {selectedOrder.items[0].epc_allocations.map((alloc, idx) => (
+                    <div key={idx} className="flex justify-between items-center p-2 rounded-xl bg-surface border border-border">
+                      <div>
+                        <div className="font-bold text-text-primary">{alloc.company_name || alloc.buyer_name || "EPC Contractor"}</div>
+                        {alloc.gstin && <div className="text-[10px] text-text-muted font-mono">GSTIN: {alloc.gstin}</div>}
+                      </div>
+                      <div className="text-right">
+                        <span className="font-black text-primary font-mono">{alloc.allocated_quantity} Kits</span>
+                        <div className="text-[10px] text-text-muted font-semibold capitalize">{alloc.payment_status || "Pending Payment"}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Financial Summary */}
             <div className="p-4 bg-surface-hover rounded-2xl border border-border space-y-2 text-xs">
               <div className="flex justify-between">
@@ -1426,26 +1750,55 @@ export default function LooseOrder() {
                   <span>-₹{Math.round(selectedOrder.token_adjusted_paise / 100).toLocaleString("en-IN")}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center pt-2 border-t border-border font-black text-sm">
-                <span>Net Payable:</span>
-                <span className="text-primary">
-                  ₹{Math.round(((selectedOrder.net_payable_paise != null ? selectedOrder.net_payable_paise : selectedOrder.grand_total_paise) || 0) / 100).toLocaleString("en-IN")}
-                </span>
-              </div>
+              {selectedOrder.destination_type === "epc_allocation" ? (
+                <>
+                  <div className="flex justify-between items-center pt-2 border-t border-border font-black text-sm text-emerald-600">
+                    <span>Franchise Payable:</span>
+                    <span>₹0</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-text-muted">
+                    <span>Payable by Allocated EPC(s):</span>
+                    <span className="font-bold text-text-primary">
+                      ₹{Math.round(((selectedOrder.net_payable_paise != null ? selectedOrder.net_payable_paise : selectedOrder.grand_total_paise) || 0) / 100).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between items-center pt-2 border-t border-border font-black text-sm">
+                  <span>Net Payable:</span>
+                  <span className="text-primary">
+                    ₹{Math.round(((selectedOrder.net_payable_paise != null ? selectedOrder.net_payable_paise : selectedOrder.grand_total_paise) || 0) / 100).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Offline Payment Status */}
-            <div className="p-3.5 bg-blue-500/10 rounded-xl border border-blue-500/20 space-y-1 text-xs text-text-primary">
-              <span className="font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider text-[11px] block">
-                Offline Bank Transfer Verification
-              </span>
-              <p className="font-mono">
-                UTR Number: <strong>{selectedOrder.offline_payment?.utr_number || selectedOrder.payment_reference || "N/A"}</strong>
-              </p>
-              <p>
-                Payment Status: <strong className="capitalize">{selectedOrder.payment_status || "In Verification"}</strong>
-              </p>
-            </div>
+            {/* Payment & Settlement Status */}
+            {selectedOrder.destination_type === "epc_allocation" ? (
+              <div className="p-3.5 bg-blue-500/10 rounded-xl border border-blue-500/20 space-y-1 text-xs text-text-primary">
+                <span className="font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider text-[11px] block">
+                  EPC Direct Billing &amp; Collection
+                </span>
+                <p>
+                  Payment responsibility is allocated to the registered EPC Contractor(s).
+                </p>
+                <p>
+                  Payment Status: <strong className="capitalize">{selectedOrder.payment_status || "Awaiting EPC Payment"}</strong>
+                </p>
+              </div>
+            ) : (
+              <div className="p-3.5 bg-blue-500/10 rounded-xl border border-blue-500/20 space-y-1 text-xs text-text-primary">
+                <span className="font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider text-[11px] block">
+                  Offline Bank Transfer Verification
+                </span>
+                <p className="font-mono">
+                  UTR Number: <strong>{selectedOrder.offline_payment?.utr_number || selectedOrder.payment_reference || "N/A"}</strong>
+                </p>
+                <p>
+                  Payment Status: <strong className="capitalize">{selectedOrder.payment_status || "In Verification"}</strong>
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end pt-2">
               <button

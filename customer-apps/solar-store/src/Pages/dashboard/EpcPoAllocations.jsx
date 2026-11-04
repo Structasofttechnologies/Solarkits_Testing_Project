@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axiosInstance from '@/utils/axiosInstance';
 import {
@@ -33,6 +34,7 @@ import {
   FiChevronRight,
   FiGrid,
   FiList,
+  FiTruck,
 } from 'react-icons/fi';
 import { FaRupeeSign } from 'react-icons/fa';
 import toast from 'react-hot-toast';
@@ -398,6 +400,7 @@ function EpcPoCardItem({ order, onSelectOrder, onOpenReorder, onOpenRefund }) {
 }
 
 export default function EpcPoAllocations() {
+  const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth_slice);
 
   // Tab State: "my_pos" vs "franchisee_allocations"
@@ -1495,7 +1498,8 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
                                             <th className="py-2.5 px-3">Token Escrow Adjusted</th>
                                             <th className="py-2.5 px-3">Net Paid</th>
                                             <th className="py-2.5 px-3">Payment UTR</th>
-                                            <th className="py-2.5 px-3 text-right">Status</th>
+                                            <th className="py-2.5 px-3">Status</th>
+                                    <th className="py-2.5 px-3 text-right">Track Live</th>
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border/60 text-[11px]">
@@ -1888,8 +1892,19 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
                                         <td className="py-2 px-3 font-mono text-text-muted text-[10px] select-all">
                                           {child.payment_utr || child.offline_payment?.utr_number || "—"}
                                         </td>
-                                        <td className="py-2 px-3 text-right">
+                                        <td className="py-2 px-3">
                                           <StatusBadge status={child.status} />
+                                        </td>
+                                        <td className="py-2 px-3 text-right">
+                                          <button
+                                            type="button"
+                                            onClick={() => navigate(`/track-status?tab=po_allocations&search=${encodeURIComponent(child.po_number || child._id)}`)}
+                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-primary/10 hover:bg-primary text-primary hover:text-white transition-all cursor-pointer shadow-2xs"
+                                            title="View real-time status & dispatch tracking"
+                                          >
+                                            <FiTruck size={12} />
+                                            <span>Track Order</span>
+                                          </button>
                                         </td>
                                       </tr>
                                     );

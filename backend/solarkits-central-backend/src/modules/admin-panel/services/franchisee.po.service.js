@@ -36,7 +36,7 @@ const { logAudit } = require('../utils/audit.service');
 
 // ── Allowed status transitions ────────────────────────────────────────────────
 const ALLOWED_TRANSITIONS = {
-  DRAFT: ['PENDING_ALLOCATION', 'AWAITING_TOKEN_PAYMENT', 'PO_STARTED', 'VALIDATED', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'CANCELLED', 'EXPIRED'],
+  DRAFT: ['PENDING_ALLOCATION', 'AWAITING_TOKEN_PAYMENT', 'PO_STARTED', 'VALIDATED', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'AWAITING_PAYMENT', 'CANCELLED', 'EXPIRED'],
   PENDING_ALLOCATION: ['AWAITING_TOKEN_PAYMENT', 'PO_STARTED', 'VALIDATED', 'DRAFT', 'CANCELLED', 'EXPIRED'],
   AWAITING_TOKEN_PAYMENT: ['PO_STARTED', 'VALIDATED', 'PAID', 'PENDING_APPROVAL', 'APPROVED', 'CANCELLED', 'EXPIRED'],
   PO_STARTED: ['VALIDATING', 'VALIDATED', 'CONFIRMED', 'AWAITING_PAYMENT', 'PAID', 'PROCESSING', 'COMPLETED', 'CANCELLED'],
@@ -165,8 +165,8 @@ async function createPoDraft({
     const allowedTypes = Array.isArray(rawAllowed)
       ? rawAllowed
       : typeof rawAllowed === 'string'
-      ? (rawAllowed === 'both' ? ['po_order', 'loose_order'] : rawAllowed.split(',').map((s) => s.trim()))
-      : ['po_order'];
+        ? (rawAllowed === 'both' ? ['po_order', 'loose_order'] : rawAllowed.split(',').map((s) => s.trim()))
+        : ['po_order'];
 
     const allowsPo = allowedTypes.includes('po_order');
     const allowsCombinePo = allowedTypes.includes('combine_po_order');
@@ -321,136 +321,136 @@ async function createPoDraft({
     }
   }
 
-    // ── Early Resolution of Linked Parent PO (for Drawdowns / Reorders against PO) ────
-    const isPoOrder = (order_type === 'po_order' || order_type === 'bulk_po');
-    let parentPoDoc = null;
-    let is_final_po_settlement = false;
-    let token_adjusted_paise = 0;
-    let net_payable_paise = 0;
+  // ── Early Resolution of Linked Parent PO (for Drawdowns / Reorders against PO) ────
+  const isPoOrder = (order_type === 'po_order' || order_type === 'bulk_po');
+  let parentPoDoc = null;
+  let is_final_po_settlement = false;
+  let token_adjusted_paise = 0;
+  let net_payable_paise = 0;
 
-    if (!isPoOrder && parent_po_id) {
-      if (franchisee_id) {
-        parentPoDoc = await FpoOrder.findOne({ _id: parent_po_id, franchisee_id, deleted_at: null });
-      } else if (epc_id) {
-        parentPoDoc = await FpoOrder.findOne({
-          _id: parent_po_id,
-          deleted_at: null,
-          $or: [
-            { epc_id: epc_id },
-            { 'items.epc_allocations.epc_buyer_id': epc_id },
-          ],
-        });
-      } else {
-        parentPoDoc = await FpoOrder.findOne({ _id: parent_po_id, deleted_at: null });
-      }
+  if (!isPoOrder && parent_po_id) {
+    if (franchisee_id) {
+      parentPoDoc = await FpoOrder.findOne({ _id: parent_po_id, franchisee_id, deleted_at: null });
+    } else if (epc_id) {
+      parentPoDoc = await FpoOrder.findOne({
+        _id: parent_po_id,
+        deleted_at: null,
+        $or: [
+          { epc_id: epc_id },
+          { 'items.epc_allocations.epc_buyer_id': epc_id },
+        ],
+      });
+    } else {
+      parentPoDoc = await FpoOrder.findOne({ _id: parent_po_id, deleted_at: null });
+    }
 
-      if (!parentPoDoc) {
-        throw new Error('Linked parent PO order not found or unauthorized.');
-      }
+    if (!parentPoDoc) {
+      throw new Error('Linked parent PO order not found or unauthorized.');
+    }
 
-      // 1. Strict Expiry & Status Validations
-      if (parentPoDoc.status === 'EXPIRED') {
-        throw new Error(`Cannot reorder against PO ${parentPoDoc.po_number}: This Purchase Order is already EXPIRED.`);
-      }
-      if (['CANCELLED', 'REJECTED', 'COMPLETED'].includes(parentPoDoc.status)) {
-        throw new Error(`Cannot reorder against PO ${parentPoDoc.po_number}: PO status is ${parentPoDoc.status}.`);
-      }
+    // 1. Strict Expiry & Status Validations
+    if (parentPoDoc.status === 'EXPIRED') {
+      throw new Error(`Cannot reorder against PO ${parentPoDoc.po_number}: This Purchase Order is already EXPIRED.`);
+    }
+    if (['CANCELLED', 'REJECTED', 'COMPLETED'].includes(parentPoDoc.status)) {
+      throw new Error(`Cannot reorder against PO ${parentPoDoc.po_number}: PO status is ${parentPoDoc.status}.`);
+    }
 
-      const now = new Date();
-      const poExpiryDate = parentPoDoc.lock_expires_at || parentPoDoc.expires_at;
-      if (poExpiryDate && now > new Date(poExpiryDate)) {
-        throw new Error(
-          `Cannot reorder against PO ${parentPoDoc.po_number}: The PO validity expired on ${new Date(poExpiryDate).toLocaleDateString('en-IN')}. Please settle or request a refund.`
-        );
+    const now = new Date();
+    const poExpiryDate = parentPoDoc.lock_expires_at || parentPoDoc.expires_at;
+    if (poExpiryDate && now > new Date(poExpiryDate)) {
+      throw new Error(
+        `Cannot reorder against PO ${parentPoDoc.po_number}: The PO validity expired on ${new Date(poExpiryDate).toLocaleDateString('en-IN')}. Please settle or request a refund.`
+      );
+    }
+  }
+
+  const hasItems = Array.isArray(items) && items.length > 0;
+  let subtotal_paise = 0;
+  let tax_total_paise = 0;
+  const builtItems = [];
+  let totalItemQty = 0;
+  let total_commission_paise = 0;
+
+  if (hasItems) {
+    if (authorizedKitIds.size > 0 && created_by_role !== 'BDE') {
+      for (const item of items) {
+        if (item.kit_id && mongoose.Types.ObjectId.isValid(item.kit_id) && !authorizedKitIds.has(String(item.kit_id))) {
+          throw new Error(`The selected product "${item.item_name || 'Solar Kit'}" is not assigned for Purchase Orders under your franchise plan.`);
+        }
       }
     }
 
-    const hasItems = Array.isArray(items) && items.length > 0;
-    let subtotal_paise = 0;
-    let tax_total_paise = 0;
-    const builtItems = [];
-    let totalItemQty = 0;
-    let total_commission_paise = 0;
+    if (po_settings.max_line_items && items.length > po_settings.max_line_items) {
+      throw new Error(`Your plan allows a maximum of ${po_settings.max_line_items} line items per PO.`);
+    }
 
-    if (hasItems) {
-      if (authorizedKitIds.size > 0 && created_by_role !== 'BDE') {
-        for (const item of items) {
-          if (item.kit_id && mongoose.Types.ObjectId.isValid(item.kit_id) && !authorizedKitIds.has(String(item.kit_id))) {
-            throw new Error(`The selected product "${item.item_name || 'Solar Kit'}" is not assigned for Purchase Orders under your franchise plan.`);
+    let validationResults = [];
+    if (!parent_po_id && created_by_role !== 'BDE') {
+      validationResults = await validatePoItems(items, plan_id, po_settings);
+      const failures = validationResults.filter((r) => !r.valid);
+      if (failures.length > 0) {
+        throw new Error(failures.map((f) => `Item "${f.item_name}": ${f.reason}`).join('; '));
+      }
+    }
+
+    // ── Commission Setting Validation for Franchisee PO Orders ──────────────
+    if (franchisee_id && order_type === 'po_order' && !parent_po_id) {
+      const { FranchiseeVariationCommission } = require('../models/india_solarshop_db');
+      for (const item of items) {
+        const kitId = item.combo_kit_id || item.kit_id;
+        if (kitId) {
+          const definedRule = await FranchiseeVariationCommission.findOne({
+            reseller_id: franchisee_id,
+            combo_kit_id: kitId,
+            order_type: 'po',
+            is_active: true,
+            deleted_at: null,
+            commission_amount_paise: { $gt: 0 },
+          }).lean();
+          if (!definedRule) {
+            const kitName = item.item_name || 'Selected Product';
+            throw new Error(`Commission setting is not defined for product "${kitName}". Please configure commission settings in Franchise Commission Settings before creating a Purchase Order.`);
           }
         }
       }
+    }
 
-      if (po_settings.max_line_items && items.length > po_settings.max_line_items) {
-        throw new Error(`Your plan allows a maximum of ${po_settings.max_line_items} line items per PO.`);
+    // Build line items with snapshots
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const moq_rule = validationResults[i]?.moq_rule;
+
+      // ── Strictly Enforce Immutable Locked Price from Parent PO ─────────────
+      let effectiveUnitPricePaise = item.unit_price_paise || 0;
+      let effectiveGstRate = item.gst_rate || 0;
+      let effectiveKitId = (item.kit_id && mongoose.Types.ObjectId.isValid(item.kit_id)) ? item.kit_id : null;
+      let effectiveProductId = (item.product_id && mongoose.Types.ObjectId.isValid(item.product_id)) ? item.product_id : null;
+      let effectiveItemName = item.item_name;
+
+      if (parentPoDoc && Array.isArray(parentPoDoc.items) && parentPoDoc.items.length > 0) {
+        const parentItem = parentPoDoc.items[0];
+        effectiveUnitPricePaise = parentItem.unit_price_paise;
+        if (parentItem.gst_rate != null) effectiveGstRate = parentItem.gst_rate;
+        if (parentItem.kit_id) effectiveKitId = parentItem.kit_id;
+        if (parentItem.product_id) effectiveProductId = parentItem.product_id;
+        if (parentItem.item_name) effectiveItemName = parentItem.item_name;
       }
 
-      let validationResults = [];
-      if (!parent_po_id && created_by_role !== 'BDE') {
-        validationResults = await validatePoItems(items, plan_id, po_settings);
-        const failures = validationResults.filter((r) => !r.valid);
-        if (failures.length > 0) {
-          throw new Error(failures.map((f) => `Item "${f.item_name}": ${f.reason}`).join('; '));
-        }
-      }
+      const tax_paise = Math.round((effectiveUnitPricePaise || 0) * item.quantity * ((effectiveGstRate || 0) / 100));
+      const total_price_paise = (effectiveUnitPricePaise || 0) * item.quantity + tax_paise;
 
-      // ── Commission Setting Validation for Franchisee PO Orders ──────────────
-      if (franchisee_id && order_type === 'po_order' && !parent_po_id) {
-        const { FranchiseeVariationCommission } = require('../models/india_solarshop_db');
-        for (const item of items) {
-          const kitId = item.combo_kit_id || item.kit_id;
-          if (kitId) {
-            const definedRule = await FranchiseeVariationCommission.findOne({
-              reseller_id: franchisee_id,
-              combo_kit_id: kitId,
-              order_type: 'po',
-              is_active: true,
-              deleted_at: null,
-              commission_amount_paise: { $gt: 0 },
-            }).lean();
-            if (!definedRule) {
-              const kitName = item.item_name || 'Selected Product';
-              throw new Error(`Commission setting is not defined for product "${kitName}". Please configure commission settings in Franchise Commission Settings before creating a Purchase Order.`);
-            }
-          }
-        }
-      }
+      subtotal_paise += (effectiveUnitPricePaise || 0) * item.quantity;
+      tax_total_paise += tax_paise;
 
-      // Build line items with snapshots
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const moq_rule = validationResults[i]?.moq_rule;
+      // Commission snapshot
+      let commission_method = null;
+      let commission_snapshot = 0;
+      let item_commission_paise = 0;
 
-        // ── Strictly Enforce Immutable Locked Price from Parent PO ─────────────
-        let effectiveUnitPricePaise = item.unit_price_paise || 0;
-        let effectiveGstRate = item.gst_rate || 0;
-        let effectiveKitId = (item.kit_id && mongoose.Types.ObjectId.isValid(item.kit_id)) ? item.kit_id : null;
-        let effectiveProductId = (item.product_id && mongoose.Types.ObjectId.isValid(item.product_id)) ? item.product_id : null;
-        let effectiveItemName = item.item_name;
-
-        if (parentPoDoc && Array.isArray(parentPoDoc.items) && parentPoDoc.items.length > 0) {
-          const parentItem = parentPoDoc.items[0];
-          effectiveUnitPricePaise = parentItem.unit_price_paise;
-          if (parentItem.gst_rate != null) effectiveGstRate = parentItem.gst_rate;
-          if (parentItem.kit_id) effectiveKitId = parentItem.kit_id;
-          if (parentItem.product_id) effectiveProductId = parentItem.product_id;
-          if (parentItem.item_name) effectiveItemName = parentItem.item_name;
-        }
-
-        const tax_paise = Math.round((effectiveUnitPricePaise || 0) * item.quantity * ((effectiveGstRate || 0) / 100));
-        const total_price_paise = (effectiveUnitPricePaise || 0) * item.quantity + tax_paise;
-
-        subtotal_paise += (effectiveUnitPricePaise || 0) * item.quantity;
-        tax_total_paise += tax_paise;
-
-        // Commission snapshot
-        let commission_method = null;
-        let commission_snapshot = 0;
-        let item_commission_paise = 0;
-
-        // Drawdowns / Repeat orders against a parent PO strictly fulfill Master PO quota and do not generate separate commission
-        if (!parentPoDoc && !parent_po_id) {
-          // 1. First priority: Check individual variation commission configured in Franchisee Commission Settings
+      // Drawdowns / Repeat orders against a parent PO strictly fulfill Master PO quota and do not generate separate commission
+      if (!parentPoDoc && !parent_po_id) {
+        // 1. First priority: Check individual variation commission configured in Franchisee Commission Settings
         if (franchisee_id && effectiveKitId) {
           const varCommPaise = await resolveVariationCommission({
             reseller_id: franchisee_id,
@@ -480,1061 +480,1061 @@ async function createPoDraft({
         }
 
         total_commission_paise += item_commission_paise;
-        }
-
-        const validKitId = (item.kit_id && mongoose.Types.ObjectId.isValid(item.kit_id)) ? item.kit_id : null;
-        const validProjTypeId = (item.project_type_id && mongoose.Types.ObjectId.isValid(item.project_type_id)) ? item.project_type_id : null;
-        const validProductId = (item.product_id && mongoose.Types.ObjectId.isValid(item.product_id)) ? item.product_id : null;
-
-        builtItems.push({
-          project_type_id: validProjTypeId,
-          project_type_name: item.project_type_name || null,
-          kit_id: effectiveKitId,
-          product_id: effectiveProductId,
-          item_name: effectiveItemName,
-          item_code: item.item_code || null,
-          quantity: item.quantity,
-          epc_allocations: Array.isArray(item.epc_allocations) ? item.epc_allocations : [],
-          moq_snapshot: moq_rule ? {
-            moq: moq_rule.moq,
-            increment_quantity: moq_rule.increment_quantity,
-            max_quantity: moq_rule.max_quantity,
-            rule_id: moq_rule._id,
-          } : null,
-          unit_price_paise: effectiveUnitPricePaise,
-          gst_rate: effectiveGstRate,
-          tax_paise,
-          total_price_paise,
-          commission_method,
-          commission_snapshot,
-          contributes_to_target: po_settings.contributes_to_monthly_target !== false,
-          returned_quantity: 0,
-          cancelled_quantity: 0,
-          delivered_quantity: 0,
-        });
       }
-      totalItemQty = builtItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+
+      const validKitId = (item.kit_id && mongoose.Types.ObjectId.isValid(item.kit_id)) ? item.kit_id : null;
+      const validProjTypeId = (item.project_type_id && mongoose.Types.ObjectId.isValid(item.project_type_id)) ? item.project_type_id : null;
+      const validProductId = (item.product_id && mongoose.Types.ObjectId.isValid(item.product_id)) ? item.product_id : null;
+
+      builtItems.push({
+        project_type_id: validProjTypeId,
+        project_type_name: item.project_type_name || null,
+        kit_id: effectiveKitId,
+        product_id: effectiveProductId,
+        item_name: effectiveItemName,
+        item_code: item.item_code || null,
+        quantity: item.quantity,
+        epc_allocations: Array.isArray(item.epc_allocations) ? item.epc_allocations : [],
+        moq_snapshot: moq_rule ? {
+          moq: moq_rule.moq,
+          increment_quantity: moq_rule.increment_quantity,
+          max_quantity: moq_rule.max_quantity,
+          rule_id: moq_rule._id,
+        } : null,
+        unit_price_paise: effectiveUnitPricePaise,
+        gst_rate: effectiveGstRate,
+        tax_paise,
+        total_price_paise,
+        commission_method,
+        commission_snapshot,
+        contributes_to_target: po_settings.contributes_to_monthly_target !== false,
+        returned_quantity: 0,
+        cancelled_quantity: 0,
+        delivered_quantity: 0,
+      });
+    }
+    totalItemQty = builtItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+  } else {
+    totalItemQty = Number(target_committed_quantity) || 0;
+  }
+
+  const grand_total_paise = subtotal_paise + tax_total_paise;
+  const po_number = await generatePoNumber();
+  const ikey = idempotency_key || `${franchisee_id || epc_id || 'PO'}-${Date.now()}`;
+
+  const commissionRule = plan_id ? await resolveCommissionRule(plan_id) : null;
+
+  const po_validity_days = po_settings.po_validity_days || 30;
+  const expires_at = new Date(Date.now() + po_validity_days * 24 * 60 * 60 * 1000);
+
+  // ── Dynamic Token Amount Calculation & Quota Handling ───────────────────────
+  let token_amount_paise = 0;
+  let token_paid_paise = 0;
+  let token_payment_status = 'PENDING';
+  let total_booked_quantity = 0;
+  let remaining_quantity = 0;
+  let lock_expires_at = null;
+
+  if (isPoOrder) {
+    total_booked_quantity = totalItemQty;
+    remaining_quantity = totalItemQty;
+    const lockDays = Number(po_settings.po_lock_days || po_settings.po_validity_days || 30);
+    lock_expires_at = new Date(Date.now() + lockDays * 24 * 60 * 60 * 1000);
+
+    if (custom_token_amount_paise != null && Number(custom_token_amount_paise) >= 0) {
+      token_amount_paise = Number(custom_token_amount_paise);
+    } else if (po_settings.token_booking_enabled !== false) {
+      if (po_settings.token_type === 'PERCENTAGE') {
+        const pct = Number(po_settings.token_value) || 10;
+        token_amount_paise = Math.round(grand_total_paise * (pct / 100));
+      } else {
+        // FIXED_AMOUNT (default)
+        const fixedAmt = Number(po_settings.token_value) || 50000;
+        token_amount_paise = Math.round(fixedAmt * 100);
+      }
+      // Floor/Cap
+      if (token_amount_paise > grand_total_paise) token_amount_paise = grand_total_paise;
     } else {
-      totalItemQty = Number(target_committed_quantity) || 0;
+      token_amount_paise = grand_total_paise;
     }
 
-    const grand_total_paise = subtotal_paise + tax_total_paise;
-    const po_number = await generatePoNumber();
-    const ikey = idempotency_key || `${franchisee_id || epc_id || 'PO'}-${Date.now()}`;
+    if (offline_payment) {
+      token_paid_paise = offline_payment.amount_paid ? Math.round(offline_payment.amount_paid * 100) : token_amount_paise;
+      token_payment_status = token_paid_paise >= token_amount_paise ? 'PAID' : 'PENDING';
+    }
+  }
 
-    const commissionRule = plan_id ? await resolveCommissionRule(plan_id) : null;
+  // ── Loose Order PO Linkage & Admin-Configured Token Settlement ────────────────
+  net_payable_paise = grand_total_paise;
 
-    const po_validity_days = po_settings.po_validity_days || 30;
-    const expires_at = new Date(Date.now() + po_validity_days * 24 * 60 * 60 * 1000);
-
-    // ── Dynamic Token Amount Calculation & Quota Handling ───────────────────────
-    let token_amount_paise = 0;
-    let token_paid_paise = 0;
-    let token_payment_status = 'PENDING';
-    let total_booked_quantity = 0;
-    let remaining_quantity = 0;
-    let lock_expires_at = null;
-
-    if (isPoOrder) {
-      total_booked_quantity = totalItemQty;
-      remaining_quantity = totalItemQty;
-      const lockDays = Number(po_settings.po_lock_days || po_settings.po_validity_days || 30);
-      lock_expires_at = new Date(Date.now() + lockDays * 24 * 60 * 60 * 1000);
-
-      if (custom_token_amount_paise != null && Number(custom_token_amount_paise) >= 0) {
-        token_amount_paise = Number(custom_token_amount_paise);
-      } else if (po_settings.token_booking_enabled !== false) {
-        if (po_settings.token_type === 'PERCENTAGE') {
-          const pct = Number(po_settings.token_value) || 10;
-          token_amount_paise = Math.round(grand_total_paise * (pct / 100));
-        } else {
-          // FIXED_AMOUNT (default)
-          const fixedAmt = Number(po_settings.token_value) || 50000;
-          token_amount_paise = Math.round(fixedAmt * 100);
-        }
-        // Floor/Cap
-        if (token_amount_paise > grand_total_paise) token_amount_paise = grand_total_paise;
-      } else {
-        token_amount_paise = grand_total_paise;
-      }
-
-      if (offline_payment) {
-        token_paid_paise = offline_payment.amount_paid ? Math.round(offline_payment.amount_paid * 100) : token_amount_paise;
-        token_payment_status = token_paid_paise >= token_amount_paise ? 'PAID' : 'PENDING';
-      }
+  if (!isPoOrder && parentPoDoc) {
+    // 2. Quota Availability Check
+    const currentRemaining = parentPoDoc.remaining_quantity != null ? parentPoDoc.remaining_quantity : (parentPoDoc.total_booked_quantity || 0);
+    if (totalItemQty > currentRemaining) {
+      throw new Error(`Insufficient PO quota! Remaining quota in PO ${parentPoDoc.po_number} is ${currentRemaining} kits, but you requested ${totalItemQty} kits.`);
     }
 
-    // ── Loose Order PO Linkage & Admin-Configured Token Settlement ────────────────
-    net_payable_paise = grand_total_paise;
+    // 3. Admin-Configured Token Settlement Modes (Pro-rata vs Final Order vs Upfront)
+    const totalCommitted = Number(parentPoDoc.total_booked_quantity || parentPoDoc.items?.[0]?.quantity || 100);
+    const totalTokenPaid = Number(parentPoDoc.token_amount_paise || parentPoDoc.token_paid_paise || 0);
+    const adjustedSoFar = Number(parentPoDoc.token_adjusted_total_paise || 0);
+    const availableToken = Math.max(0, totalTokenPaid - adjustedSoFar);
+    const settlementMode = parentPoDoc.token_settlement_mode || 'PRO_RATA';
 
-    if (!isPoOrder && parentPoDoc) {
-      // 2. Quota Availability Check
-      const currentRemaining = parentPoDoc.remaining_quantity != null ? parentPoDoc.remaining_quantity : (parentPoDoc.total_booked_quantity || 0);
-      if (totalItemQty > currentRemaining) {
-        throw new Error(`Insufficient PO quota! Remaining quota in PO ${parentPoDoc.po_number} is ${currentRemaining} kits, but you requested ${totalItemQty} kits.`);
-      }
+    let tokenToAdjust = 0;
+    const isClosingOrder = (totalItemQty === currentRemaining);
 
-      // 3. Admin-Configured Token Settlement Modes (Pro-rata vs Final Order vs Upfront)
-      const totalCommitted = Number(parentPoDoc.total_booked_quantity || parentPoDoc.items?.[0]?.quantity || 100);
-      const totalTokenPaid = Number(parentPoDoc.token_amount_paise || parentPoDoc.token_paid_paise || 0);
-      const adjustedSoFar = Number(parentPoDoc.token_adjusted_total_paise || 0);
-      const availableToken = Math.max(0, totalTokenPaid - adjustedSoFar);
-      const settlementMode = parentPoDoc.token_settlement_mode || 'PRO_RATA';
-
-      let tokenToAdjust = 0;
-      const isClosingOrder = (totalItemQty === currentRemaining);
-
-      if (isClosingOrder) {
-        is_final_po_settlement = true;
-        tokenToAdjust = Math.min(availableToken, grand_total_paise);
-      } else if (settlementMode === 'PRO_RATA') {
-        const tokenPerKit = totalCommitted > 0 ? Math.floor(totalTokenPaid / totalCommitted) : 0;
-        tokenToAdjust = Math.min(availableToken, totalItemQty * tokenPerKit, grand_total_paise);
-      } else if (settlementMode === 'UPFRONT') {
-        tokenToAdjust = Math.min(availableToken, grand_total_paise);
-      } else {
-        // FINAL_ORDER only
-        tokenToAdjust = 0;
-      }
-
-      token_adjusted_paise = tokenToAdjust;
-      net_payable_paise = Math.max(0, grand_total_paise - tokenToAdjust);
+    if (isClosingOrder) {
+      is_final_po_settlement = true;
+      tokenToAdjust = Math.min(availableToken, grand_total_paise);
+    } else if (settlementMode === 'PRO_RATA') {
+      const tokenPerKit = totalCommitted > 0 ? Math.floor(totalTokenPaid / totalCommitted) : 0;
+      tokenToAdjust = Math.min(availableToken, totalItemQty * tokenPerKit, grand_total_paise);
+    } else if (settlementMode === 'UPFRONT') {
+      tokenToAdjust = Math.min(availableToken, grand_total_paise);
+    } else {
+      // FINAL_ORDER only
+      tokenToAdjust = 0;
     }
 
-    const penaltyRuleSnapshot = {
-      token_settlement_rule: po_settings.token_settlement_rule || 'PRO_RATA',
-      default_penalty_type: po_settings.default_penalty_type || 'FLAT_PER_UNPURCHASED_KIT',
-      default_penalty_rate: Number(po_settings.default_penalty_rate ?? 500),
-      penalty_rules: po_settings.penalty_rules || [],
-    };
+    token_adjusted_paise = tokenToAdjust;
+    net_payable_paise = Math.max(0, grand_total_paise - tokenToAdjust);
+  }
 
-    const order = await FpoOrder.create({
-      po_number,
-      idempotency_key: ikey,
-      franchisee_id: franchisee_id || parentPoDoc?.franchisee_id || null,
-      epc_id: epc_id || null,
-      customer_type: epc_id ? 'SOLAR_EPC' : 'FRANCHISEE',
-      customer_details: custDetails,
-      created_by_role: created_by_role || (epc_id ? 'SOLAR_EPC' : 'FRANCHISEE'),
-      creator_name: creator_name || custDetails.name || null,
-      creator_code: creator_code || null,
+  const penaltyRuleSnapshot = {
+    token_settlement_rule: po_settings.token_settlement_rule || 'PRO_RATA',
+    default_penalty_type: po_settings.default_penalty_type || 'FLAT_PER_UNPURCHASED_KIT',
+    default_penalty_rate: Number(po_settings.default_penalty_rate ?? 500),
+    penalty_rules: po_settings.penalty_rules || [],
+  };
 
-      plan_id: plan_id || parentPoDoc?.plan_id || null,
-      plan_snapshot: subscription,
-      po_settings_snapshot: po_settings,
-      penalty_rule_snapshot: penaltyRuleSnapshot,
-      token_settlement_mode: po_settings.token_settlement_rule || 'PRO_RATA',
-      industry_type_id: items[0]?.industry_type_id || null,
-      order_type,
-      po_category: po_category || 'SINGLE_PO',
-      destination_type,
-      destination_address,
-      destination_pincode,
-      offline_payment: offline_payment ? {
-        ...offline_payment,
-        receipt_url: offline_payment.receipt_url || offline_payment.payment_receipt_url || null,
-        payment_receipt_url: offline_payment.payment_receipt_url || offline_payment.receipt_url || null,
-      } : null,
-      payment_receipt_url: offline_payment?.receipt_url || offline_payment?.payment_receipt_url || null,
-      payment_reference: offline_payment?.utr_number || null,
-      payment_utr: offline_payment?.utr_number || null,
-      items: builtItems,
-      subtotal_paise,
-      tax_total_paise,
-      grand_total_paise,
-      payment_terms: payment_terms || po_settings.payment_terms || 'FULL_ADVANCE',
-      advance_percentage: po_settings.advance_percentage || 0,
+  const order = await FpoOrder.create({
+    po_number,
+    idempotency_key: ikey,
+    franchisee_id: franchisee_id || parentPoDoc?.franchisee_id || null,
+    epc_id: epc_id || (builtItems[0]?.epc_allocations?.length === 1 ? builtItems[0].epc_allocations[0].epc_buyer_id : null),
+    customer_type: epc_id ? 'SOLAR_EPC' : 'FRANCHISEE',
+    customer_details: custDetails,
+    created_by_role: created_by_role || (epc_id ? 'SOLAR_EPC' : 'FRANCHISEE'),
+    creator_name: creator_name || custDetails.name || null,
+    creator_code: creator_code || null,
 
-      // Token & Quota fields
-      is_token_booking: isPoOrder ? Boolean(is_token_booking || po_settings.token_booking_enabled !== false) : false,
-      token_amount_paise,
-      token_paid_paise,
-      token_payment_status,
-      token_adjusted_total_paise: 0,
-      token_balance_paise: token_paid_paise,
-      total_booked_quantity,
-      remaining_quantity,
-      fulfilled_quantity: 0,
-      lock_expires_at,
+    plan_id: plan_id || parentPoDoc?.plan_id || null,
+    plan_snapshot: subscription,
+    po_settings_snapshot: po_settings,
+    penalty_rule_snapshot: penaltyRuleSnapshot,
+    token_settlement_mode: po_settings.token_settlement_rule || 'PRO_RATA',
+    industry_type_id: items[0]?.industry_type_id || null,
+    order_type,
+    po_category: po_category || 'SINGLE_PO',
+    destination_type,
+    destination_address,
+    destination_pincode,
+    offline_payment: offline_payment ? {
+      ...offline_payment,
+      receipt_url: offline_payment.receipt_url || offline_payment.payment_receipt_url || null,
+      payment_receipt_url: offline_payment.payment_receipt_url || offline_payment.receipt_url || null,
+    } : null,
+    payment_receipt_url: offline_payment?.receipt_url || offline_payment?.payment_receipt_url || null,
+    payment_reference: offline_payment?.utr_number || null,
+    payment_utr: offline_payment?.utr_number || null,
+    items: builtItems,
+    subtotal_paise,
+    tax_total_paise,
+    grand_total_paise,
+    payment_terms: payment_terms || po_settings.payment_terms || 'FULL_ADVANCE',
+    advance_percentage: po_settings.advance_percentage || 0,
 
-      // Loose order linked fields
-      parent_po_id: parentPoDoc ? parentPoDoc._id : null,
-      is_final_po_settlement,
-      token_adjusted_paise,
-      net_payable_paise,
+    // Token & Quota fields
+    is_token_booking: isPoOrder ? Boolean(is_token_booking || po_settings.token_booking_enabled !== false) : false,
+    token_amount_paise,
+    token_paid_paise,
+    token_payment_status,
+    token_adjusted_total_paise: 0,
+    token_balance_paise: token_paid_paise,
+    total_booked_quantity,
+    remaining_quantity,
+    fulfilled_quantity: 0,
+    lock_expires_at,
 
-      settlement_status: 'ACTIVE',
+    // Loose order linked fields
+    parent_po_id: parentPoDoc ? parentPoDoc._id : null,
+    is_final_po_settlement,
+    token_adjusted_paise,
+    net_payable_paise,
+
+    settlement_status: 'ACTIVE',
+    status: !hasItems ? 'PENDING_ALLOCATION' : (isPoOrder ? (token_payment_status === 'PAID' ? 'PO_STARTED' : 'AWAITING_TOKEN_PAYMENT') : 'DRAFT'),
+    status_history: [{
       status: !hasItems ? 'PENDING_ALLOCATION' : (isPoOrder ? (token_payment_status === 'PAID' ? 'PO_STARTED' : 'AWAITING_TOKEN_PAYMENT') : 'DRAFT'),
-      status_history: [{
-        status: !hasItems ? 'PENDING_ALLOCATION' : (isPoOrder ? (token_payment_status === 'PAID' ? 'PO_STARTED' : 'AWAITING_TOKEN_PAYMENT') : 'DRAFT'),
-        changed_by: actor_id,
-        actor_type: actor_id ? (created_by_role === 'ADMIN' ? 'cms_user' : (created_by_role === 'SOLAR_EPC' || epc_id ? 'epc_partner' : (created_by_role === 'BDE' ? 'bde' : 'reseller'))) : 'system',
-        note: !hasItems ? 'PO Order container created. Awaiting product allocation.' : (isPoOrder && token_payment_status === 'PAID' ? 'PO created and token paid. PO Started.' : 'PO Draft Created'),
-        changed_at: new Date()
-      }],
-      requires_approval: po_settings.requires_approval !== false,
-      commission_rule_id: commissionRule?._id || null,
-      commission_rule_snapshot: commissionRule || null,
-      total_commission_paise,
-      expires_at,
-      created_by: actor_id,
-      updated_by: actor_id,
-    });
+      changed_by: actor_id,
+      actor_type: actor_id ? (created_by_role === 'ADMIN' ? 'cms_user' : (created_by_role === 'SOLAR_EPC' || epc_id ? 'epc_partner' : (created_by_role === 'BDE' ? 'bde' : 'reseller'))) : 'system',
+      note: !hasItems ? 'PO Order container created. Awaiting product allocation.' : (isPoOrder && token_payment_status === 'PAID' ? 'PO created and token paid. PO Started.' : 'PO Draft Created'),
+      changed_at: new Date()
+    }],
+    requires_approval: po_settings.requires_approval !== false,
+    commission_rule_id: commissionRule?._id || null,
+    commission_rule_snapshot: commissionRule || null,
+    total_commission_paise,
+    expires_at,
+    created_by: actor_id,
+    updated_by: actor_id,
+  });
 
-    // If a parent PO was consumed by this repeat order, atomically update its quota & token balance
-    if (parentPoDoc) {
-      const prevAdjusted = Number(parentPoDoc.token_adjusted_total_paise || 0);
-      const newAdjusted = prevAdjusted + token_adjusted_paise;
-      const totalToken = Number(parentPoDoc.token_amount_paise || parentPoDoc.token_paid_paise || 0);
+  // If a parent PO was consumed by this repeat order, atomically update its quota & token balance
+  if (parentPoDoc) {
+    const prevAdjusted = Number(parentPoDoc.token_adjusted_total_paise || 0);
+    const newAdjusted = prevAdjusted + token_adjusted_paise;
+    const totalToken = Number(parentPoDoc.token_amount_paise || parentPoDoc.token_paid_paise || 0);
 
-      parentPoDoc.fulfilled_quantity = (parentPoDoc.fulfilled_quantity || 0) + totalItemQty;
-      parentPoDoc.remaining_quantity = Math.max(0, (parentPoDoc.remaining_quantity != null ? parentPoDoc.remaining_quantity : (parentPoDoc.total_booked_quantity || 0)) - totalItemQty);
-      parentPoDoc.token_adjusted_total_paise = newAdjusted;
-      parentPoDoc.token_balance_paise = Math.max(0, totalToken - newAdjusted);
+    parentPoDoc.fulfilled_quantity = (parentPoDoc.fulfilled_quantity || 0) + totalItemQty;
+    parentPoDoc.remaining_quantity = Math.max(0, (parentPoDoc.remaining_quantity != null ? parentPoDoc.remaining_quantity : (parentPoDoc.total_booked_quantity || 0)) - totalItemQty);
+    parentPoDoc.token_adjusted_total_paise = newAdjusted;
+    parentPoDoc.token_balance_paise = Math.max(0, totalToken - newAdjusted);
 
-      if (!Array.isArray(parentPoDoc.linked_loose_order_ids)) {
-        parentPoDoc.linked_loose_order_ids = [];
-      }
-      parentPoDoc.linked_loose_order_ids.push(order._id);
-
-      if (parentPoDoc.remaining_quantity === 0) {
-        parentPoDoc.token_payment_status = 'ADJUSTED';
-        parentPoDoc.status = 'COMPLETED';
-        parentPoDoc.settlement_status = 'SETTLED';
-      }
-      await parentPoDoc.save();
+    if (!Array.isArray(parentPoDoc.linked_loose_order_ids)) {
+      parentPoDoc.linked_loose_order_ids = [];
     }
+    parentPoDoc.linked_loose_order_ids.push(order._id);
 
-    const now = new Date();
-    if (franchisee_id) {
-      recalculateProgress({ franchisee_id, month: now.getMonth() + 1, year: now.getFullYear(), req }).catch(() => { });
+    if (parentPoDoc.remaining_quantity === 0) {
+      parentPoDoc.token_payment_status = 'ADJUSTED';
+      parentPoDoc.status = 'COMPLETED';
+      parentPoDoc.settlement_status = 'SETTLED';
     }
-
-    return { created: true, already_exists: false, order };
+    await parentPoDoc.save();
   }
 
-  // ── 2. TRANSITION STATUS ──────────────────────────────────────────────────────
-  async function _transitionStatus(po_id, targetStatus, { changed_by, actor_type = 'cms_user', note = null, extra_update = {} }) {
-    const order = await FpoOrder.findById(po_id);
-    if (!order) throw new Error(`PO "${po_id}" not found`);
-
-    assertTransition(order.status, targetStatus);
-
-    const now = new Date();
-    order.status = targetStatus;
-    const validChangedBy = (changed_by && mongoose.Types.ObjectId.isValid(changed_by)) ? changed_by : null;
-    order.status_history.push({ status: targetStatus, changed_by: validChangedBy, actor_type, note, changed_at: now });
-    order.updated_by = validChangedBy;
-
-    Object.assign(order, extra_update);
-    await order.save();
-
-    recalculateProgress({ franchisee_id: order.franchisee_id, month: now.getMonth() + 1, year: now.getFullYear() }).catch(() => { });
-
-    return order;
+  const now = new Date();
+  if (franchisee_id) {
+    recalculateProgress({ franchisee_id, month: now.getMonth() + 1, year: now.getFullYear(), req }).catch(() => { });
   }
 
-  // ── 3. SUBMIT PO ─────────────────────────────────────────────────────────────
-  async function submitPo({ po_id, franchisee_id, epc_id, actor_id, req }) {
-    const query = { _id: po_id, deleted_at: null };
-    if (franchisee_id) {
-      query.franchisee_id = franchisee_id;
-    } else if (epc_id) {
-      query.$or = [
-        { epc_id: epc_id },
-        { 'items.epc_allocations.epc_buyer_id': epc_id },
-      ];
-    }
-    const order = await FpoOrder.findOne(query).lean();
-    if (!order) throw new Error('PO not found or access denied.');
+  return { created: true, already_exists: false, order };
+}
 
-    const target = order.requires_approval ? 'PENDING_APPROVAL' : 'APPROVED';
-    const isEpc = order.customer_type === 'SOLAR_EPC' || order.epc_id || epc_id;
-    const actorRole = isEpc ? 'epc_partner' : (order.created_by_role === 'ADMIN' ? 'cms_user' : 'reseller');
-    const noteText = isEpc ? 'PO submitted by EPC buyer' : 'PO submitted by franchisee';
+// ── 2. TRANSITION STATUS ──────────────────────────────────────────────────────
+async function _transitionStatus(po_id, targetStatus, { changed_by, actor_type = 'cms_user', note = null, extra_update = {} }) {
+  const order = await FpoOrder.findById(po_id);
+  if (!order) throw new Error(`PO "${po_id}" not found`);
 
-    const updated = await _transitionStatus(po_id, target, {
-      changed_by: actor_id, actor_type: actorRole, note: noteText,
-    });
+  assertTransition(order.status, targetStatus);
 
-    await logAudit({ actor_type: actorRole, actor_id, action: 'FPO_SUBMITTED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: target }, req });
-    return updated;
+  const now = new Date();
+  order.status = targetStatus;
+  const validChangedBy = (changed_by && mongoose.Types.ObjectId.isValid(changed_by)) ? changed_by : null;
+  order.status_history.push({ status: targetStatus, changed_by: validChangedBy, actor_type, note, changed_at: now });
+  order.updated_by = validChangedBy;
+
+  Object.assign(order, extra_update);
+  await order.save();
+
+  recalculateProgress({ franchisee_id: order.franchisee_id, month: now.getMonth() + 1, year: now.getFullYear() }).catch(() => { });
+
+  return order;
+}
+
+// ── 3. SUBMIT PO ─────────────────────────────────────────────────────────────
+async function submitPo({ po_id, franchisee_id, epc_id, actor_id, req }) {
+  const query = { _id: po_id, deleted_at: null };
+  if (franchisee_id) {
+    query.franchisee_id = franchisee_id;
+  } else if (epc_id) {
+    query.$or = [
+      { epc_id: epc_id },
+      { 'items.epc_allocations.epc_buyer_id': epc_id },
+    ];
   }
+  const order = await FpoOrder.findOne(query).lean();
+  if (!order) throw new Error('PO not found or access denied.');
 
-  // ── 4. APPROVE PO ────────────────────────────────────────────────────────────
-  async function approvePo({ po_id, admin_id, notes, req }) {
-    const updated = await _transitionStatus(po_id, 'APPROVED', {
-      changed_by: admin_id, actor_type: 'cms_user', note: notes || 'Approved by admin',
-      extra_update: { approved_by: admin_id, approved_at: new Date(), approval_notes: notes || null },
-    });
+  const target = order.requires_approval ? 'PENDING_APPROVAL' : (order.destination_type === 'epc_allocation' ? 'AWAITING_PAYMENT' : 'APPROVED');
+  const isEpc = order.customer_type === 'SOLAR_EPC' || order.epc_id || epc_id;
+  const actorRole = isEpc ? 'epc_partner' : (order.created_by_role === 'ADMIN' ? 'cms_user' : 'reseller');
+  const noteText = isEpc ? 'PO submitted by EPC buyer' : 'PO submitted by franchisee';
 
-    const awaiting = await _transitionStatus(po_id, 'AWAITING_PAYMENT', {
-      changed_by: admin_id, actor_type: 'cms_user', note: 'Moved to awaiting payment',
-    });
+  const updated = await _transitionStatus(po_id, target, {
+    changed_by: actor_id, actor_type: actorRole, note: noteText,
+  });
 
-    await logAudit({ actor_type: 'cms_user', actor_id: admin_id, action: 'FPO_APPROVED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: 'AWAITING_PAYMENT' }, req });
-    return awaiting;
-  }
+  await logAudit({ actor_type: actorRole, actor_id, action: 'FPO_SUBMITTED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: target }, req });
+  return updated;
+}
 
-  // ── 5. REJECT PO ─────────────────────────────────────────────────────────────
-  async function rejectPo({ po_id, admin_id, reason, req }) {
-    const updated = await _transitionStatus(po_id, 'REJECTED', {
-      changed_by: admin_id, actor_type: 'cms_user', note: reason,
-      extra_update: { rejected_by: admin_id, rejected_at: new Date(), approval_notes: reason },
-    });
+// ── 4. APPROVE PO ────────────────────────────────────────────────────────────
+async function approvePo({ po_id, admin_id, notes, req }) {
+  const updated = await _transitionStatus(po_id, 'APPROVED', {
+    changed_by: admin_id, actor_type: 'cms_user', note: notes || 'Approved by admin',
+    extra_update: { approved_by: admin_id, approved_at: new Date(), approval_notes: notes || null },
+  });
 
-    await logAudit({ actor_type: 'cms_user', actor_id: admin_id, action: 'FPO_REJECTED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: 'REJECTED', reason }, req });
-    return updated;
-  }
+  const awaiting = await _transitionStatus(po_id, 'AWAITING_PAYMENT', {
+    changed_by: admin_id, actor_type: 'cms_user', note: 'Moved to awaiting payment',
+  });
 
-  // ── 6. CONFIRM PAYMENT ───────────────────────────────────────────────────────
-  async function confirmPayment({ po_id, order_id, payment_reference, razorpay_payment_id, admin_id, req }) {
-    const targetId = po_id || order_id;
-    const orderDoc = await FpoOrder.findById(targetId);
-    if (!orderDoc) throw new Error(`PO "${targetId}" not found`);
+  await logAudit({ actor_type: 'cms_user', actor_id: admin_id, action: 'FPO_APPROVED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: 'AWAITING_PAYMENT' }, req });
+  return awaiting;
+}
 
-    const ref = payment_reference || razorpay_payment_id;
-    const isParentTokenPay = (orderDoc.order_type === 'po_order' || orderDoc.order_type === 'bulk_po') &&
-      ['AWAITING_TOKEN_PAYMENT', 'DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PO_STARTED'].includes(orderDoc.status);
+// ── 5. REJECT PO ─────────────────────────────────────────────────────────────
+async function rejectPo({ po_id, admin_id, reason, req }) {
+  const updated = await _transitionStatus(po_id, 'REJECTED', {
+    changed_by: admin_id, actor_type: 'cms_user', note: reason,
+    extra_update: { rejected_by: admin_id, rejected_at: new Date(), approval_notes: reason },
+  });
 
-    let updated;
-    if (isParentTokenPay) {
-      // Parent PO Token Payment Verification: validates quota lock & activates repeat ordering
-      const tokenPaidAmt = orderDoc.token_amount_paise || orderDoc.token_paid_paise || 0;
-      updated = await _transitionStatus(targetId, 'VALIDATED', {
-        changed_by: admin_id,
-        actor_type: 'cms_user',
-        note: `Token deposit payment verified by Accounts: ${ref || 'Verified'}`,
-        extra_update: {
-          token_payment_status: 'PAID',
-          token_paid_paise: tokenPaidAmt,
-          token_balance_paise: tokenPaidAmt,
-          payment_reference: ref || null,
-          payment_utr: ref || null,
-          payment_confirmed_at: new Date(),
-        },
-      });
-    } else {
-      // Standard / Loose Kit repeat order payment confirmation
-      updated = await _transitionStatus(targetId, 'PAID', {
-        changed_by: admin_id,
-        actor_type: 'cms_user',
-        note: `Payment confirmed by Accounts: ${ref || 'Verified'}`,
-        extra_update: {
-          payment_reference: ref || null,
-          payment_utr: ref || null,
-          payment_status: 'paid',
-          'offline_payment.verification_status': 'approved',
-          'offline_payment.admin_approval_status': 'approved',
-          'offline_payment.verified_by': admin_id,
-          'offline_payment.verified_at': new Date(),
-          razorpay_payment_id: razorpay_payment_id || null,
-          payment_confirmed_at: new Date(),
-        },
-      });
+  await logAudit({ actor_type: 'cms_user', actor_id: admin_id, action: 'FPO_REJECTED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: 'REJECTED', reason }, req });
+  return updated;
+}
 
-      // If this is a child repeat order, atomically sync parent PO quota and token escrow
-      if (orderDoc.parent_po_id) {
-        const parentPo = await FpoOrder.findById(orderDoc.parent_po_id);
-        if (parentPo) {
-          const qtyOrdered = orderDoc.items?.reduce((s, i) => s + (Number(i.quantity) || 0), 0) || orderDoc.total_quantity || 1;
-          const tokenAdj = Number(orderDoc.token_adjusted_paise || 0);
+// ── 6. CONFIRM PAYMENT ───────────────────────────────────────────────────────
+async function confirmPayment({ po_id, order_id, payment_reference, razorpay_payment_id, admin_id, req }) {
+  const targetId = po_id || order_id;
+  const orderDoc = await FpoOrder.findById(targetId);
+  if (!orderDoc) throw new Error(`PO "${targetId}" not found`);
 
-          if (!Array.isArray(parentPo.linked_loose_order_ids)) {
-            parentPo.linked_loose_order_ids = [];
-          }
-          if (!parentPo.linked_loose_order_ids.some((id) => id.toString() === orderDoc._id.toString())) {
-            parentPo.linked_loose_order_ids.push(orderDoc._id);
-            parentPo.fulfilled_quantity = (parentPo.fulfilled_quantity || 0) + qtyOrdered;
-            parentPo.remaining_quantity = Math.max(0, (parentPo.total_booked_quantity || 0) - parentPo.fulfilled_quantity);
-            parentPo.token_adjusted_total_paise = (parentPo.token_adjusted_total_paise || 0) + tokenAdj;
-            const totalToken = Number(parentPo.token_paid_paise || parentPo.token_amount_paise || 0);
-            parentPo.token_balance_paise = Math.max(0, totalToken - parentPo.token_adjusted_total_paise);
-          }
+  const ref = payment_reference || razorpay_payment_id;
+  const isParentTokenPay = (orderDoc.order_type === 'po_order' || orderDoc.order_type === 'bulk_po') &&
+    ['AWAITING_TOKEN_PAYMENT', 'DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PO_STARTED'].includes(orderDoc.status);
 
-          if (parentPo.remaining_quantity === 0) {
-            parentPo.token_payment_status = 'ADJUSTED';
-            parentPo.status = 'COMPLETED';
-            parentPo.settlement_status = 'SETTLED';
-          }
-          await parentPo.save();
-        }
-      }
-    }
-
-    // Post commission immediately upon payment confirmation (credits wallet & updates accounts tracking)
-    if (!orderDoc.parent_po_id) {
-      await postCommission({ fpo_order_id: targetId, actor_id: admin_id, req }).catch((err) => {
-        console.error('[franchisee.po.service] commission post error on confirmPayment (non-fatal):', err.message);
-      });
-    }
-
-    await logAudit({
+  let updated;
+  if (isParentTokenPay) {
+    // Parent PO Token Payment Verification: validates quota lock & activates repeat ordering
+    const tokenPaidAmt = orderDoc.token_amount_paise || orderDoc.token_paid_paise || 0;
+    updated = await _transitionStatus(targetId, 'VALIDATED', {
+      changed_by: admin_id,
       actor_type: 'cms_user',
-      actor_id: admin_id,
-      action: 'FPO_PAYMENT_CONFIRMED',
-      entity_type: 'fpo_orders',
-      entity_id: po_id,
-      after_snapshot: { status: updated.status },
-      req,
+      note: `Token deposit payment verified by Accounts: ${ref || 'Verified'}`,
+      extra_update: {
+        token_payment_status: 'PAID',
+        token_paid_paise: tokenPaidAmt,
+        token_balance_paise: tokenPaidAmt,
+        payment_reference: ref || null,
+        payment_utr: ref || null,
+        payment_confirmed_at: new Date(),
+      },
     });
-    return updated;
-  }
-
-  // ── 7. DISPATCH PO ────────────────────────────────────────────────────────────
-  async function dispatchPo({ po_id, admin_id, req }) {
-    const updated = await _transitionStatus(po_id, 'DISPATCHED', {
-      changed_by: admin_id, actor_type: 'cms_user', note: 'Order dispatched',
-      extra_update: { dispatch_date: new Date() },
+  } else {
+    // Standard / Loose Kit repeat order payment confirmation
+    updated = await _transitionStatus(targetId, 'PAID', {
+      changed_by: admin_id,
+      actor_type: 'cms_user',
+      note: `Payment confirmed by Accounts: ${ref || 'Verified'}`,
+      extra_update: {
+        payment_reference: ref || null,
+        payment_utr: ref || null,
+        payment_status: 'paid',
+        'offline_payment.verification_status': 'approved',
+        'offline_payment.admin_approval_status': 'approved',
+        'offline_payment.verified_by': admin_id,
+        'offline_payment.verified_at': new Date(),
+        razorpay_payment_id: razorpay_payment_id || null,
+        payment_confirmed_at: new Date(),
+      },
     });
 
-    await logAudit({ actor_type: 'cms_user', actor_id: admin_id, action: 'FPO_DISPATCHED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: 'DISPATCHED' }, req });
-    return updated;
-  }
+    // If this is a child repeat order, atomically sync parent PO quota and token escrow
+    if (orderDoc.parent_po_id) {
+      const parentPo = await FpoOrder.findById(orderDoc.parent_po_id);
+      if (parentPo) {
+        const qtyOrdered = orderDoc.items?.reduce((s, i) => s + (Number(i.quantity) || 0), 0) || orderDoc.total_quantity || 1;
+        const tokenAdj = Number(orderDoc.token_adjusted_paise || 0);
 
-  // ── 8. DELIVER PO ─────────────────────────────────────────────────────────────
-  async function deliverPo({ po_id, delivered_items, admin_id, req }) {
-    const order = await FpoOrder.findById(po_id);
-    if (!order) throw new Error(`PO "${po_id}" not found`);
+        if (!Array.isArray(parentPo.linked_loose_order_ids)) {
+          parentPo.linked_loose_order_ids = [];
+        }
+        if (!parentPo.linked_loose_order_ids.some((id) => id.toString() === orderDoc._id.toString())) {
+          parentPo.linked_loose_order_ids.push(orderDoc._id);
+          parentPo.fulfilled_quantity = (parentPo.fulfilled_quantity || 0) + qtyOrdered;
+          parentPo.remaining_quantity = Math.max(0, (parentPo.total_booked_quantity || 0) - parentPo.fulfilled_quantity);
+          parentPo.token_adjusted_total_paise = (parentPo.token_adjusted_total_paise || 0) + tokenAdj;
+          const totalToken = Number(parentPo.token_paid_paise || parentPo.token_amount_paise || 0);
+          parentPo.token_balance_paise = Math.max(0, totalToken - parentPo.token_adjusted_total_paise);
+        }
 
-    // Update delivered quantities per line item
-    if (Array.isArray(delivered_items) && delivered_items.length > 0) {
-      for (const d of delivered_items) {
-        const item = order.items.id(d.item_id);
-        if (item) item.delivered_quantity = Math.min(d.delivered_quantity, item.quantity);
+        if (parentPo.remaining_quantity === 0) {
+          parentPo.token_payment_status = 'ADJUSTED';
+          parentPo.status = 'COMPLETED';
+          parentPo.settlement_status = 'SETTLED';
+        }
+        await parentPo.save();
       }
-    } else {
-      // Full delivery assumed
-      order.items.forEach((item) => { item.delivered_quantity = item.quantity; });
     }
+  }
 
+  // Post commission immediately upon payment confirmation (credits wallet & updates accounts tracking)
+  if (!orderDoc.parent_po_id) {
+    await postCommission({ fpo_order_id: targetId, actor_id: admin_id, req }).catch((err) => {
+      console.error('[franchisee.po.service] commission post error on confirmPayment (non-fatal):', err.message);
+    });
+  }
+
+  await logAudit({
+    actor_type: 'cms_user',
+    actor_id: admin_id,
+    action: 'FPO_PAYMENT_CONFIRMED',
+    entity_type: 'fpo_orders',
+    entity_id: po_id,
+    after_snapshot: { status: updated.status },
+    req,
+  });
+  return updated;
+}
+
+// ── 7. DISPATCH PO ────────────────────────────────────────────────────────────
+async function dispatchPo({ po_id, admin_id, req }) {
+  const updated = await _transitionStatus(po_id, 'DISPATCHED', {
+    changed_by: admin_id, actor_type: 'cms_user', note: 'Order dispatched',
+    extra_update: { dispatch_date: new Date() },
+  });
+
+  await logAudit({ actor_type: 'cms_user', actor_id: admin_id, action: 'FPO_DISPATCHED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: 'DISPATCHED' }, req });
+  return updated;
+}
+
+// ── 8. DELIVER PO ─────────────────────────────────────────────────────────────
+async function deliverPo({ po_id, delivered_items, admin_id, req }) {
+  const order = await FpoOrder.findById(po_id);
+  if (!order) throw new Error(`PO "${po_id}" not found`);
+
+  // Update delivered quantities per line item
+  if (Array.isArray(delivered_items) && delivered_items.length > 0) {
+    for (const d of delivered_items) {
+      const item = order.items.id(d.item_id);
+      if (item) item.delivered_quantity = Math.min(d.delivered_quantity, item.quantity);
+    }
+  } else {
+    // Full delivery assumed
+    order.items.forEach((item) => { item.delivered_quantity = item.quantity; });
+  }
+
+  order.delivery_date = new Date();
+  order.goal_counted = true;
+  order.goal_counted_qty = order.items.reduce((s, i) => s + (i.delivered_quantity || 0), 0);
+  await _transitionStatus(po_id, 'DELIVERED', {
+    changed_by: admin_id, actor_type: 'cms_user', note: 'Order delivered',
+    extra_update: { delivery_date: new Date(), goal_counted: true },
+  });
+  await order.save();
+
+  // Trigger goal progress recalculation
+  const now = new Date();
+  await recalculateProgress({
+    franchisee_id: order.franchisee_id,
+    month: now.getMonth() + 1,
+    year: now.getFullYear(),
+    actor_id: admin_id,
+    req,
+  });
+
+  // Post commission if applicable
+  if (!order.parent_po_id) {
+    await postCommission({ fpo_order_id: po_id, actor_id: admin_id, req }).catch((err) => {
+      console.error('[franchisee.po.service] commission post error (non-fatal):', err.message);
+    });
+  }
+
+  await logAudit({ actor_type: 'cms_user', actor_id: admin_id, action: 'FPO_DELIVERED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: 'DELIVERED' }, req });
+  return order;
+}
+
+// ── 9. CANCEL PO ──────────────────────────────────────────────────────────────
+async function cancelPo({ po_id, reason, cancelled_by, actor_type = 'cms_user', req }) {
+  const order = await FpoOrder.findById(po_id).lean();
+  if (!order) throw new Error(`PO "${po_id}" not found`);
+
+  const updated = await _transitionStatus(po_id, 'CANCELLED', {
+    changed_by: cancelled_by, actor_type, note: reason,
+    extra_update: { cancellation_reason: reason, cancelled_by, cancelled_at: new Date() },
+  });
+
+  // Reverse commission if already posted
+  if (order.commission_posted) {
+    const totalQty = order.items.reduce((s, i) => s + (i.delivered_quantity || i.quantity), 0);
+    await reverseCommission({ fpo_order_id: po_id, returned_kit_quantity: totalQty, reason: `PO Cancelled: ${reason}`, actor_id: cancelled_by, req }).catch(() => { });
+  }
+
+  // Recalculate goal
+  const now = new Date();
+  await recalculateProgress({ franchisee_id: order.franchisee_id, month: now.getMonth() + 1, year: now.getFullYear(), req }).catch(() => { });
+
+  await logAudit({ actor_type, actor_id: cancelled_by, action: 'FPO_CANCELLED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: 'CANCELLED', reason }, req });
+  return updated;
+}
+
+// ── 10. RETURN ITEMS ──────────────────────────────────────────────────────────
+async function returnItems({ po_id, return_items, reason, actor_id, req }) {
+  const order = await FpoOrder.findById(po_id);
+  if (!order) throw new Error(`PO "${po_id}" not found`);
+
+  if (!['DELIVERED', 'COMPLETED'].includes(order.status)) {
+    throw new Error('Returns can only be processed for delivered orders.');
+  }
+
+  let totalReturned = 0;
+  for (const r of return_items) {
+    const item = order.items.id(r.item_id);
+    if (!item) continue;
+    const maxReturnable = (item.delivered_quantity || item.quantity) - (item.returned_quantity || 0);
+    const returnQty = Math.min(r.quantity, maxReturnable);
+    item.returned_quantity = (item.returned_quantity || 0) + returnQty;
+    totalReturned += returnQty;
+  }
+
+  order.updated_by = actor_id;
+  await order.save();
+
+  // Reverse commission proportionally
+  if (order.commission_posted && totalReturned > 0) {
+    await reverseCommission({ fpo_order_id: po_id, returned_kit_quantity: totalReturned, reason, actor_id, req }).catch(() => { });
+  }
+
+  // Recalculate goal
+  const now = new Date();
+  await recalculateProgress({ franchisee_id: order.franchisee_id, month: now.getMonth() + 1, year: now.getFullYear(), req }).catch(() => { });
+
+  await logAudit({ actor_type: 'cms_user', actor_id, action: 'FPO_RETURN_PROCESSED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { return_items, totalReturned, reason }, req });
+  return order;
+}
+
+// ── 10. ADVANCE 8-STAGE LIFECYCLE ─────────────────────────────────────────────
+/**
+ * Advance an FPO order through the 8-stage lifecycle.
+ * Stages:
+ *   CONFIRMED → PROCESSING → VEHICLE_ASSIGNED → READY_FOR_DISPATCH
+ *             → DISPATCHED → IN_TRANSIT → REACHED_DESTINATION → DELIVERED
+ */
+async function advancePoStage({ po_id, new_stage, extra_data = {}, actor_id, req }) {
+  const order = await FpoOrder.findById(po_id);
+  if (!order) throw new Error(`PO "${po_id}" not found`);
+
+  const upperStage = String(new_stage).toUpperCase();
+  assertTransition(order.status, upperStage);
+
+  if (upperStage === 'DISPATCHED' && extra_data.dispatch_data) {
+    order.dispatch_tracking = {
+      courier_name: extra_data.dispatch_data.courier_name || 'Company Fleet',
+      tracking_number: extra_data.dispatch_data.tracking_number || null,
+      tracking_url: extra_data.dispatch_data.tracking_url || null,
+      dispatched_at: new Date(),
+      estimated_delivery: extra_data.dispatch_data.estimated_delivery || null,
+      dispatched_by: actor_id,
+      dispatch_notes: extra_data.dispatch_data.dispatch_notes || null,
+    };
+    order.dispatch_date = new Date();
+  }
+
+  if (upperStage === 'IN_TRANSIT') {
+    const mStatus = extra_data.milestone?.status || extra_data.milestone_status || extra_data.status || 'En Route';
+    const mDesc = extra_data.milestone?.description || extra_data.description || null;
+    order.milestones = order.milestones || [];
+    order.milestones.push({
+      status: mStatus,
+      description: mDesc,
+      recorded_by: actor_id,
+      recorded_at: new Date(),
+    });
+  }
+
+  if (upperStage === 'DELIVERED') {
     order.delivery_date = new Date();
-    order.goal_counted = true;
-    order.goal_counted_qty = order.items.reduce((s, i) => s + (i.delivered_quantity || 0), 0);
-    await _transitionStatus(po_id, 'DELIVERED', {
-      changed_by: admin_id, actor_type: 'cms_user', note: 'Order delivered',
-      extra_update: { delivery_date: new Date(), goal_counted: true },
+    (order.items || []).forEach((it) => {
+      it.delivered_quantity = it.quantity;
     });
-    await order.save();
-
-    // Trigger goal progress recalculation
-    const now = new Date();
-    await recalculateProgress({
-      franchisee_id: order.franchisee_id,
-      month: now.getMonth() + 1,
-      year: now.getFullYear(),
-      actor_id: admin_id,
-      req,
-    });
-
-    // Post commission if applicable
-    if (!order.parent_po_id) {
-      await postCommission({ fpo_order_id: po_id, actor_id: admin_id, req }).catch((err) => {
-        console.error('[franchisee.po.service] commission post error (non-fatal):', err.message);
-      });
+    // Trigger commission and goals if not yet posted
+    if (!order.commission_posted && !order.parent_po_id) {
+      await postCommission({ fpo_order_id: order._id, actor_id, req }).catch(() => { });
     }
-
-    await logAudit({ actor_type: 'cms_user', actor_id: admin_id, action: 'FPO_DELIVERED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: 'DELIVERED' }, req });
-    return order;
-  }
-
-  // ── 9. CANCEL PO ──────────────────────────────────────────────────────────────
-  async function cancelPo({ po_id, reason, cancelled_by, actor_type = 'cms_user', req }) {
-    const order = await FpoOrder.findById(po_id).lean();
-    if (!order) throw new Error(`PO "${po_id}" not found`);
-
-    const updated = await _transitionStatus(po_id, 'CANCELLED', {
-      changed_by: cancelled_by, actor_type, note: reason,
-      extra_update: { cancellation_reason: reason, cancelled_by, cancelled_at: new Date() },
-    });
-
-    // Reverse commission if already posted
-    if (order.commission_posted) {
-      const totalQty = order.items.reduce((s, i) => s + (i.delivered_quantity || i.quantity), 0);
-      await reverseCommission({ fpo_order_id: po_id, returned_kit_quantity: totalQty, reason: `PO Cancelled: ${reason}`, actor_id: cancelled_by, req }).catch(() => { });
-    }
-
-    // Recalculate goal
     const now = new Date();
     await recalculateProgress({ franchisee_id: order.franchisee_id, month: now.getMonth() + 1, year: now.getFullYear(), req }).catch(() => { });
-
-    await logAudit({ actor_type, actor_id: cancelled_by, action: 'FPO_CANCELLED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: 'CANCELLED', reason }, req });
-    return updated;
   }
 
-  // ── 10. RETURN ITEMS ──────────────────────────────────────────────────────────
-  async function returnItems({ po_id, return_items, reason, actor_id, req }) {
-    const order = await FpoOrder.findById(po_id);
-    if (!order) throw new Error(`PO "${po_id}" not found`);
+  order.status = upperStage;
+  order.status_history = order.status_history || [];
+  order.status_history.push({
+    status: upperStage,
+    changed_by: actor_id,
+    actor_type: 'cms_user',
+    note: extra_data.note || `Stage updated to ${upperStage}`,
+    changed_at: new Date(),
+  });
+  order.updated_by = actor_id;
+  await order.save();
 
-    if (!['DELIVERED', 'COMPLETED'].includes(order.status)) {
-      throw new Error('Returns can only be processed for delivered orders.');
-    }
+  await logAudit({
+    actor_type: 'cms_user',
+    actor_id,
+    action: `FPO_STAGE_${upperStage}`,
+    entity_type: 'fpo_orders',
+    entity_id: order._id,
+    after_snapshot: { status: upperStage, order_number: order.po_number },
+    req,
+  });
 
-    let totalReturned = 0;
-    for (const r of return_items) {
-      const item = order.items.id(r.item_id);
-      if (!item) continue;
-      const maxReturnable = (item.delivered_quantity || item.quantity) - (item.returned_quantity || 0);
-      const returnQty = Math.min(r.quantity, maxReturnable);
-      item.returned_quantity = (item.returned_quantity || 0) + returnQty;
-      totalReturned += returnQty;
-    }
+  return order;
+}
 
-    order.updated_by = actor_id;
-    await order.save();
+// ── 11. ASSIGN VEHICLE (STAGE 3) ──────────────────────────────────────────────
+async function assignVehicleToPo({ po_id, vehicle_id, driver, is_recommended, override_reason, actor_id, req }) {
+  const order = await FpoOrder.findById(po_id);
+  if (!order) throw new Error(`PO "${po_id}" not found`);
 
-    // Reverse commission proportionally
-    if (order.commission_posted && totalReturned > 0) {
-      await reverseCommission({ fpo_order_id: po_id, returned_kit_quantity: totalReturned, reason, actor_id, req }).catch(() => { });
-    }
+  const { DeliveryVehicle } = require('../../warehouse-panel/models/company_warehouse_db');
+  const vehicle = await DeliveryVehicle.findById(vehicle_id).populate('assigned_driver_id').lean();
+  if (!vehicle) throw new Error('Vehicle not found');
 
-    // Recalculate goal
-    const now = new Date();
-    await recalculateProgress({ franchisee_id: order.franchisee_id, month: now.getMonth() + 1, year: now.getFullYear(), req }).catch(() => { });
+  order.assigned_vehicle = {
+    vehicle_id: vehicle._id || vehicle.id,
+    vehicle_name: vehicle.name,
+    vehicle_type: vehicle.vehicle_type || 'Commercial Fleet',
+    registration_number: vehicle.registration_number,
+    driver_id: driver?.driver_id || vehicle.assigned_driver_id?._id || null,
+    driver_name: driver?.driver_name || vehicle.assigned_driver_id?.name || null,
+    driver_contact: driver?.driver_contact || vehicle.assigned_driver_id?.contact || null,
+    is_recommended: is_recommended !== false,
+    override_reason: is_recommended === false ? (override_reason || null) : null,
+    assigned_by: actor_id,
+    assigned_at: new Date(),
+  };
 
-    await logAudit({ actor_type: 'cms_user', actor_id, action: 'FPO_RETURN_PROCESSED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { return_items, totalReturned, reason }, req });
-    return order;
-  }
-
-  // ── 10. ADVANCE 8-STAGE LIFECYCLE ─────────────────────────────────────────────
-  /**
-   * Advance an FPO order through the 8-stage lifecycle.
-   * Stages:
-   *   CONFIRMED → PROCESSING → VEHICLE_ASSIGNED → READY_FOR_DISPATCH
-   *             → DISPATCHED → IN_TRANSIT → REACHED_DESTINATION → DELIVERED
-   */
-  async function advancePoStage({ po_id, new_stage, extra_data = {}, actor_id, req }) {
-    const order = await FpoOrder.findById(po_id);
-    if (!order) throw new Error(`PO "${po_id}" not found`);
-
-    const upperStage = String(new_stage).toUpperCase();
-    assertTransition(order.status, upperStage);
-
-    if (upperStage === 'DISPATCHED' && extra_data.dispatch_data) {
-      order.dispatch_tracking = {
-        courier_name: extra_data.dispatch_data.courier_name || 'Company Fleet',
-        tracking_number: extra_data.dispatch_data.tracking_number || null,
-        tracking_url: extra_data.dispatch_data.tracking_url || null,
-        dispatched_at: new Date(),
-        estimated_delivery: extra_data.dispatch_data.estimated_delivery || null,
-        dispatched_by: actor_id,
-        dispatch_notes: extra_data.dispatch_data.dispatch_notes || null,
-      };
-      order.dispatch_date = new Date();
-    }
-
-    if (upperStage === 'IN_TRANSIT') {
-      const mStatus = extra_data.milestone?.status || extra_data.milestone_status || extra_data.status || 'En Route';
-      const mDesc = extra_data.milestone?.description || extra_data.description || null;
-      order.milestones = order.milestones || [];
-      order.milestones.push({
-        status: mStatus,
-        description: mDesc,
-        recorded_by: actor_id,
-        recorded_at: new Date(),
-      });
-    }
-
-    if (upperStage === 'DELIVERED') {
-      order.delivery_date = new Date();
-      (order.items || []).forEach((it) => {
-        it.delivered_quantity = it.quantity;
-      });
-      // Trigger commission and goals if not yet posted
-      if (!order.commission_posted && !order.parent_po_id) {
-        await postCommission({ fpo_order_id: order._id, actor_id, req }).catch(() => { });
-      }
-      const now = new Date();
-      await recalculateProgress({ franchisee_id: order.franchisee_id, month: now.getMonth() + 1, year: now.getFullYear(), req }).catch(() => { });
-    }
-
-    order.status = upperStage;
+  const allowedPrior = ['APPROVED', 'PAID', 'CONFIRMED', 'STOCK_ALLOCATED', 'PROCESSING', 'VEHICLE_ASSIGNED'];
+  if (allowedPrior.includes(order.status)) {
+    order.status = 'VEHICLE_ASSIGNED';
     order.status_history = order.status_history || [];
     order.status_history.push({
-      status: upperStage,
+      status: 'VEHICLE_ASSIGNED',
       changed_by: actor_id,
       actor_type: 'cms_user',
-      note: extra_data.note || `Stage updated to ${upperStage}`,
+      note: `Vehicle "${vehicle.registration_number}" assigned to order`,
       changed_at: new Date(),
     });
-    order.updated_by = actor_id;
-    await order.save();
-
-    await logAudit({
-      actor_type: 'cms_user',
-      actor_id,
-      action: `FPO_STAGE_${upperStage}`,
-      entity_type: 'fpo_orders',
-      entity_id: order._id,
-      after_snapshot: { status: upperStage, order_number: order.po_number },
-      req,
-    });
-
-    return order;
   }
 
-  // ── 11. ASSIGN VEHICLE (STAGE 3) ──────────────────────────────────────────────
-  async function assignVehicleToPo({ po_id, vehicle_id, driver, is_recommended, override_reason, actor_id, req }) {
-    const order = await FpoOrder.findById(po_id);
-    if (!order) throw new Error(`PO "${po_id}" not found`);
+  order.updated_by = actor_id;
+  await order.save();
 
-    const { DeliveryVehicle } = require('../../warehouse-panel/models/company_warehouse_db');
-    const vehicle = await DeliveryVehicle.findById(vehicle_id).populate('assigned_driver_id').lean();
-    if (!vehicle) throw new Error('Vehicle not found');
+  await logAudit({
+    actor_type: 'cms_user',
+    actor_id,
+    action: 'FPO_VEHICLE_ASSIGNED',
+    entity_type: 'fpo_orders',
+    entity_id: order._id,
+    after_snapshot: { status: order.status, assigned_vehicle: order.assigned_vehicle },
+    req,
+  });
 
-    order.assigned_vehicle = {
-      vehicle_id: vehicle._id || vehicle.id,
-      vehicle_name: vehicle.name,
-      vehicle_type: vehicle.vehicle_type || 'Commercial Fleet',
-      registration_number: vehicle.registration_number,
-      driver_id: driver?.driver_id || vehicle.assigned_driver_id?._id || null,
-      driver_name: driver?.driver_name || vehicle.assigned_driver_id?.name || null,
-      driver_contact: driver?.driver_contact || vehicle.assigned_driver_id?.contact || null,
-      is_recommended: is_recommended !== false,
-      override_reason: is_recommended === false ? (override_reason || null) : null,
-      assigned_by: actor_id,
-      assigned_at: new Date(),
-    };
+  return order;
+}
 
-    const allowedPrior = ['APPROVED', 'PAID', 'CONFIRMED', 'STOCK_ALLOCATED', 'PROCESSING', 'VEHICLE_ASSIGNED'];
-    if (allowedPrior.includes(order.status)) {
-      order.status = 'VEHICLE_ASSIGNED';
-      order.status_history = order.status_history || [];
-      order.status_history.push({
-        status: 'VEHICLE_ASSIGNED',
-        changed_by: actor_id,
-        actor_type: 'cms_user',
-        note: `Vehicle "${vehicle.registration_number}" assigned to order`,
-        changed_at: new Date(),
-      });
-    }
+// ── 13. ALLOCATE PRODUCTS & EPC PARTNERS TO PO ──────────────────────────────
+async function allocatePoProducts({
+  po_id,
+  franchisee_id,
+  items,
+  actor_id,
+  req,
+}) {
+  const query = { _id: po_id, deleted_at: null };
+  if (franchisee_id) query.franchisee_id = franchisee_id;
+  const order = await FpoOrder.findOne(query);
+  if (!order) throw new Error('PO Order not found or unauthorized.');
 
-    order.updated_by = actor_id;
-    await order.save();
-
-    await logAudit({
-      actor_type: 'cms_user',
-      actor_id,
-      action: 'FPO_VEHICLE_ASSIGNED',
-      entity_type: 'fpo_orders',
-      entity_id: order._id,
-      after_snapshot: { status: order.status, assigned_vehicle: order.assigned_vehicle },
-      req,
-    });
-
-    return order;
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error('At least one item must be allocated.');
   }
 
-  // ── 13. ALLOCATE PRODUCTS & EPC PARTNERS TO PO ──────────────────────────────
-  async function allocatePoProducts({
-      po_id,
-      franchisee_id,
-      items,
-      actor_id,
-      req,
-    }) {
-      const query = { _id: po_id, deleted_at: null };
-      if (franchisee_id) query.franchisee_id = franchisee_id;
-      const order = await FpoOrder.findOne(query);
-      if (!order) throw new Error('PO Order not found or unauthorized.');
+  // Active plan & settings
+  const fid = franchisee_id || order.franchisee_id;
+  const subscription = await ResellerPlanSubscription.findOne({
+    reseller_id: fid,
+    status: 'active',
+  }).sort({ start_date: -1 }).lean();
 
-      if (!Array.isArray(items) || items.length === 0) {
-        throw new Error('At least one item must be allocated.');
-      }
+  const plan_id = subscription?.plan_id;
+  let allPlanPoSettings = [];
+  if (plan_id) {
+    allPlanPoSettings = await FranchiseePlanPoSetting.find({
+      plan_id,
+      is_active: true,
+      po_enabled: true,
+      deleted_at: null,
+    }).lean();
+  }
+  const allocatedKitId = items[0]?.kit_id || items[0]?.combo_kit_id || order.items?.[0]?.kit_id;
+  let specificPoSetting = null;
+  if (allocatedKitId && allPlanPoSettings.length > 0) {
+    const targetKitStr = String(allocatedKitId);
+    specificPoSetting = allPlanPoSettings.find((s) =>
+      Array.isArray(s.allowed_combo_kit_ids) &&
+      s.allowed_combo_kit_ids.some((id) => String(id._id || id.id || id) === targetKitStr)
+    );
+  }
+  const planDefaultPoSetting = allPlanPoSettings.find((s) =>
+    !s.allowed_combo_kit_ids || s.allowed_combo_kit_ids.length === 0
+  );
+  const po_settings = specificPoSetting || planDefaultPoSetting || (allPlanPoSettings.length > 0 ? allPlanPoSettings[0] : (order.po_settings_snapshot || {}));
 
-      // Active plan & settings
-      const fid = franchisee_id || order.franchisee_id;
-      const subscription = await ResellerPlanSubscription.findOne({
-        reseller_id: fid,
-        status: 'active',
-      }).sort({ start_date: -1 }).lean();
+  const validationResults = await validatePoItems(items, plan_id, po_settings);
+  const failures = validationResults.filter((r) => !r.valid);
+  if (failures.length > 0) {
+    throw new Error(failures.map((f) => `Item "${f.item_name}": ${f.reason}`).join('; '));
+  }
 
-      const plan_id = subscription?.plan_id;
-      let allPlanPoSettings = [];
-      if (plan_id) {
-        allPlanPoSettings = await FranchiseePlanPoSetting.find({
-          plan_id,
+  // ── Commission Setting Validation on Allocated Items ──────────────
+  if (franchisee_id && (!order.parent_po_id)) {
+    const { FranchiseeVariationCommission } = require('../models/india_solarshop_db');
+    for (const item of items) {
+      const kitId = item.combo_kit_id || item.kit_id;
+      if (kitId) {
+        const definedRule = await FranchiseeVariationCommission.findOne({
+          reseller_id: franchisee_id,
+          combo_kit_id: kitId,
+          order_type: 'po',
           is_active: true,
-          po_enabled: true,
           deleted_at: null,
+          commission_amount_paise: { $gt: 0 },
         }).lean();
-      }
-      const allocatedKitId = items[0]?.kit_id || items[0]?.combo_kit_id || order.items?.[0]?.kit_id;
-      let specificPoSetting = null;
-      if (allocatedKitId && allPlanPoSettings.length > 0) {
-        const targetKitStr = String(allocatedKitId);
-        specificPoSetting = allPlanPoSettings.find((s) =>
-          Array.isArray(s.allowed_combo_kit_ids) &&
-          s.allowed_combo_kit_ids.some((id) => String(id._id || id.id || id) === targetKitStr)
-        );
-      }
-      const planDefaultPoSetting = allPlanPoSettings.find((s) =>
-        !s.allowed_combo_kit_ids || s.allowed_combo_kit_ids.length === 0
-      );
-      const po_settings = specificPoSetting || planDefaultPoSetting || (allPlanPoSettings.length > 0 ? allPlanPoSettings[0] : (order.po_settings_snapshot || {}));
-
-      const validationResults = await validatePoItems(items, plan_id, po_settings);
-      const failures = validationResults.filter((r) => !r.valid);
-      if (failures.length > 0) {
-        throw new Error(failures.map((f) => `Item "${f.item_name}": ${f.reason}`).join('; '));
-      }
-
-      // ── Commission Setting Validation on Allocated Items ──────────────
-      if (franchisee_id && (!order.parent_po_id)) {
-        const { FranchiseeVariationCommission } = require('../models/india_solarshop_db');
-        for (const item of items) {
-          const kitId = item.combo_kit_id || item.kit_id;
-          if (kitId) {
-            const definedRule = await FranchiseeVariationCommission.findOne({
-              reseller_id: franchisee_id,
-              combo_kit_id: kitId,
-              order_type: 'po',
-              is_active: true,
-              deleted_at: null,
-              commission_amount_paise: { $gt: 0 },
-            }).lean();
-            if (!definedRule) {
-              const kitName = item.item_name || 'Allocated Product';
-              throw new Error(`Commission setting is not defined for product "${kitName}". Please configure commission settings in Franchise Commission Settings before allocating.`);
-            }
-          }
+        if (!definedRule) {
+          const kitName = item.item_name || 'Allocated Product';
+          throw new Error(`Commission setting is not defined for product "${kitName}". Please configure commission settings in Franchise Commission Settings before allocating.`);
         }
       }
+    }
+  }
 
-      let subtotal_paise = 0;
-      let tax_total_paise = 0;
-      let total_commission_paise = 0;
-      const builtItems = [];
+  let subtotal_paise = 0;
+  let tax_total_paise = 0;
+  let total_commission_paise = 0;
+  const builtItems = [];
 
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const moq_rule = validationResults[i]?.moq_rule;
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const moq_rule = validationResults[i]?.moq_rule;
 
-        // ── Strictly Preserve Locked Unit Price & GST Rate from PO Creation ─────────
-        const existingItem = order.items?.[i] || order.items?.[0];
-        const lockedUnitPricePaise = (existingItem?.unit_price_paise != null && Number(existingItem.unit_price_paise) > 0)
-          ? Number(existingItem.unit_price_paise)
-          : (Number(item.unit_price_paise) || 0);
+    // ── Strictly Preserve Locked Unit Price & GST Rate from PO Creation ─────────
+    const existingItem = order.items?.[i] || order.items?.[0];
+    const lockedUnitPricePaise = (existingItem?.unit_price_paise != null && Number(existingItem.unit_price_paise) > 0)
+      ? Number(existingItem.unit_price_paise)
+      : (Number(item.unit_price_paise) || 0);
 
-        const lockedGstRate = (existingItem?.gst_rate != null)
-          ? Number(existingItem.gst_rate)
-          : (Number(item.gst_rate) || 0);
+    const lockedGstRate = (existingItem?.gst_rate != null)
+      ? Number(existingItem.gst_rate)
+      : (Number(item.gst_rate) || 0);
 
-        const lockedKitId = existingItem?.kit_id || item.kit_id || null;
-        const lockedProductId = existingItem?.product_id || item.product_id || null;
-        const lockedItemName = existingItem?.item_name || item.item_name || 'Solar Kit';
+    const lockedKitId = existingItem?.kit_id || item.kit_id || null;
+    const lockedProductId = existingItem?.product_id || item.product_id || null;
+    const lockedItemName = existingItem?.item_name || item.item_name || 'Solar Kit';
 
-        const tax_paise = Math.round(lockedUnitPricePaise * item.quantity * (lockedGstRate / 100));
-        const total_price_paise = (lockedUnitPricePaise * item.quantity) + tax_paise;
+    const tax_paise = Math.round(lockedUnitPricePaise * item.quantity * (lockedGstRate / 100));
+    const total_price_paise = (lockedUnitPricePaise * item.quantity) + tax_paise;
 
-        subtotal_paise += lockedUnitPricePaise * item.quantity;
-        tax_total_paise += tax_paise;
+    subtotal_paise += lockedUnitPricePaise * item.quantity;
+    tax_total_paise += tax_paise;
 
-        let commission_method = null;
-        let commission_snapshot = 0;
-        let item_commission_paise = 0;
+    let commission_method = null;
+    let commission_snapshot = 0;
+    let item_commission_paise = 0;
 
-        // 1. First priority: Check individual variation commission configured in Franchisee Commission Settings
-        if (franchisee_id && lockedKitId) {
-          const varCommPaise = await resolveVariationCommission({
-            reseller_id: franchisee_id,
-            combo_kit_id: lockedKitId,
-            quantity: item.quantity,
-            order_type: 'po',
-          });
-          if (varCommPaise !== null && varCommPaise >= 0) {
-            commission_method = 'FIXED_PER_KIT';
-            commission_snapshot = varCommPaise;
-            item_commission_paise = varCommPaise;
-          }
-        }
-
-        // 2. Fallback: Plan-level commission rule
-        if (!commission_method && plan_id) {
-          const commissionRule = await resolveCommissionRule(plan_id);
-          if (commissionRule) {
-            commission_method = commissionRule.commission_method;
-            commission_snapshot = commissionRule.commission_method === 'FIXED_PER_KIT'
-              ? (commissionRule.fixed_amount_per_kit_paise || 0)
-              : (commissionRule.commission_percentage || 0) * 100;
-            item_commission_paise = commissionRule.commission_method === 'FIXED_PER_KIT'
-              ? Math.round(item.quantity * (commissionRule.fixed_amount_per_kit_paise || 0))
-              : Math.round((lockedUnitPricePaise * item.quantity) * (commissionRule.commission_percentage / 100));
-          }
-        }
-
-        total_commission_paise += item_commission_paise;
-        builtItems.push({
-          project_type_id: item.project_type_id || null,
-          project_type_name: item.project_type_name || null,
-          kit_id: lockedKitId,
-          product_id: lockedProductId,
-          item_name: lockedItemName,
-          item_code: item.item_code || null,
-          quantity: item.quantity,
-          epc_allocations: Array.isArray(item.epc_allocations) ? item.epc_allocations : [],
-          moq_snapshot: moq_rule ? {
-            moq: moq_rule.moq,
-            increment_quantity: moq_rule.increment_quantity,
-            max_quantity: moq_rule.max_quantity,
-            rule_id: moq_rule._id,
-          } : null,
-          unit_price_paise: lockedUnitPricePaise,
-          gst_rate: lockedGstRate,
-          tax_paise,
-          total_price_paise,
-          commission_method,
-          commission_snapshot,
-          contributes_to_target: po_settings.contributes_to_monthly_target !== false,
-          returned_quantity: 0,
-          cancelled_quantity: 0,
-          delivered_quantity: 0,
-        });
-      }
-
-      const grand_total_paise = subtotal_paise + tax_total_paise;
-      const totalItemQty = builtItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
-
-      // Dynamic Token calculation
-      let token_amount_paise = 0;
-      if (items[0]?.token_rate_paise != null && Number(items[0].token_rate_paise) > 0) {
-        token_amount_paise = Number(items[0].token_rate_paise);
-      } else if (order.token_amount_paise != null && Number(order.token_amount_paise) > 0) {
-        token_amount_paise = Number(order.token_amount_paise);
-      } else if (po_settings.token_booking_enabled !== false) {
-        if (po_settings.token_type === 'PERCENTAGE') {
-          const pct = Number(po_settings.token_value) || 10;
-          token_amount_paise = Math.round(grand_total_paise * (pct / 100));
-        } else {
-          const fixedAmt = Number(po_settings.token_value) || 50000;
-          token_amount_paise = Math.round(fixedAmt * 100);
-        }
-        if (token_amount_paise > grand_total_paise) token_amount_paise = grand_total_paise;
-      } else {
-        token_amount_paise = grand_total_paise;
-      }
-
-      // Allocate per-EPC token amounts proportionally
-      builtItems.forEach((it) => {
-        if (Array.isArray(it.epc_allocations) && it.epc_allocations.length > 0) {
-          it.epc_allocations.forEach((alloc) => {
-            const shareRatio = totalItemQty > 0 ? (alloc.allocated_quantity / totalItemQty) : 0;
-            alloc.token_amount_paise = Math.round(shareRatio * token_amount_paise);
-            alloc.token_payment_status = alloc.token_payment_status || 'PENDING';
-            if (!alloc.contract || !alloc.contract.status) {
-              alloc.contract = {
-                contract_number: "CNT-" + (order.po_number || "PO") + "-" + Math.floor(1000 + Math.random() * 9000),
-                status: 'PENDING_SIGNATURE',
-              };
-            }
-          });
-        }
+    // 1. First priority: Check individual variation commission configured in Franchisee Commission Settings
+    if (franchisee_id && lockedKitId) {
+      const varCommPaise = await resolveVariationCommission({
+        reseller_id: franchisee_id,
+        combo_kit_id: lockedKitId,
+        quantity: item.quantity,
+        order_type: 'po',
       });
-
-      // Preserve existing lock_expires_at if already valid and active, otherwise set from lockDays
-      const lockDays = Number(po_settings.po_lock_days || po_settings.po_validity_days || 30);
-      if (!order.lock_expires_at || new Date(order.lock_expires_at) < new Date()) {
-        order.lock_expires_at = new Date(Date.now() + lockDays * 24 * 60 * 60 * 1000);
+      if (varCommPaise !== null && varCommPaise >= 0) {
+        commission_method = 'FIXED_PER_KIT';
+        commission_snapshot = varCommPaise;
+        item_commission_paise = varCommPaise;
       }
-
-      if (order.po_category === 'SINGLE_PO') {
-        if (builtItems[0]?.epc_allocations?.length === 1) {
-          order.epc_id = builtItems[0].epc_allocations[0].epc_buyer_id;
-        } else {
-          order.epc_id = null;
-        }
-      }
-
-      order.items = builtItems;
-      order.subtotal_paise = subtotal_paise;
-      order.tax_total_paise = tax_total_paise;
-      order.grand_total_paise = grand_total_paise;
-      order.total_booked_quantity = totalItemQty;
-      order.remaining_quantity = totalItemQty;
-      order.token_amount_paise = token_amount_paise;
-      order.total_commission_paise = total_commission_paise;
-
-      // Check if token was already paid (e.g. at PO creation or advance escrow)
-      const isTokenAlreadyPaid = Boolean(order.token_paid_paise && Number(order.token_paid_paise) > 0 && Number(order.token_paid_paise) >= token_amount_paise);
-      order.token_payment_status = isTokenAlreadyPaid ? 'PAID' : (Number(order.token_paid_paise) > 0 ? 'PARTIALLY_PAID' : 'PENDING');
-      order.token_balance_paise = order.token_paid_paise || 0;
-
-      if (isTokenAlreadyPaid) {
-        builtItems.forEach((it) => {
-          if (Array.isArray(it.epc_allocations)) {
-            it.epc_allocations.forEach((alloc) => {
-              alloc.payment_status = 'PAID';
-              alloc.token_paid_paise = alloc.token_amount_paise;
-              alloc.paid_at = alloc.paid_at || new Date();
-            });
-          }
-        });
-      }
-
-      const nextStatus = isTokenAlreadyPaid ? 'PO_STARTED' : 'AWAITING_TOKEN_PAYMENT';
-      order.status = nextStatus;
-      order.status_history.push({
-        status: nextStatus,
-        changed_by: actor_id,
-        actor_type: franchisee_id ? 'reseller' : (order.epc_id ? 'epc_partner' : 'cms_user'),
-        note: isTokenAlreadyPaid
-          ? 'Products and EPC partner allocated. Token already paid — PO Started!'
-          : 'Products and EPC partners allocated. Awaiting token payment.',
-        changed_at: new Date(),
-      });
-      order.updated_by = actor_id;
-      await order.save();
-
-      await logAudit({
-        actor_type: franchisee_id ? 'reseller' : (order.epc_id ? 'epc_partner' : 'cms_user'),
-        actor_id,
-        action: 'FPO_PRODUCTS_ALLOCATED',
-        entity_type: 'fpo_orders',
-        entity_id: order._id,
-        after_snapshot: { status: 'AWAITING_TOKEN_PAYMENT', total_qty: totalItemQty, token_amount_paise },
-        req,
-      });
-
-      return order;
     }
 
-    // ── 14. RECORD EPC TOKEN PAYMENT ─────────────────────────────────────────────
-    async function recordEpcTokenPayment({
-      po_id,
-      franchisee_id,
-      epc_buyer_id,
-      payment_method = 'offline_bank_transfer',
-      utr_number,
-      amount_paid_inr,
-      payment_date,
-      sender_bank_name,
-      payment_receipt_url,
-      actor_id,
-      req,
-    }) {
-      const query = { _id: po_id, deleted_at: null };
-      if (franchisee_id) query.franchisee_id = franchisee_id;
-      const order = await FpoOrder.findOne(query);
-      if (!order) throw new Error('PO Order not found.');
+    // 2. Fallback: Plan-level commission rule
+    if (!commission_method && plan_id) {
+      const commissionRule = await resolveCommissionRule(plan_id);
+      if (commissionRule) {
+        commission_method = commissionRule.commission_method;
+        commission_snapshot = commissionRule.commission_method === 'FIXED_PER_KIT'
+          ? (commissionRule.fixed_amount_per_kit_paise || 0)
+          : (commissionRule.commission_percentage || 0) * 100;
+        item_commission_paise = commissionRule.commission_method === 'FIXED_PER_KIT'
+          ? Math.round(item.quantity * (commissionRule.fixed_amount_per_kit_paise || 0))
+          : Math.round((lockedUnitPricePaise * item.quantity) * (commissionRule.commission_percentage / 100));
+      }
+    }
 
-      const amountPaise = amount_paid_inr ? Math.round(Number(amount_paid_inr) * 100) : (order.token_amount_paise || 5000000);
+    total_commission_paise += item_commission_paise;
+    builtItems.push({
+      project_type_id: item.project_type_id || null,
+      project_type_name: item.project_type_name || null,
+      kit_id: lockedKitId,
+      product_id: lockedProductId,
+      item_name: lockedItemName,
+      item_code: item.item_code || null,
+      quantity: item.quantity,
+      epc_allocations: Array.isArray(item.epc_allocations) ? item.epc_allocations : [],
+      moq_snapshot: moq_rule ? {
+        moq: moq_rule.moq,
+        increment_quantity: moq_rule.increment_quantity,
+        max_quantity: moq_rule.max_quantity,
+        rule_id: moq_rule._id,
+      } : null,
+      unit_price_paise: lockedUnitPricePaise,
+      gst_rate: lockedGstRate,
+      tax_paise,
+      total_price_paise,
+      commission_method,
+      commission_snapshot,
+      contributes_to_target: po_settings.contributes_to_monthly_target !== false,
+      returned_quantity: 0,
+      cancelled_quantity: 0,
+      delivered_quantity: 0,
+    });
+  }
 
-      if (epc_buyer_id && order.items) {
-        order.items.forEach((item) => {
-          if (Array.isArray(item.epc_allocations)) {
-            item.epc_allocations.forEach((alloc) => {
-              const matchesEpc =
-                String(alloc.epc_buyer_id) === String(epc_buyer_id) ||
-                String(alloc._id) === String(epc_buyer_id) ||
-                (alloc.epc_buyer_id && alloc.epc_buyer_id._id && String(alloc.epc_buyer_id._id) === String(epc_buyer_id)) ||
-                (item.epc_allocations.length === 1);
-              if (matchesEpc) {
-                alloc.payment_status = 'PAID';
-                alloc.token_paid_paise = alloc.token_amount_paise || amountPaise;
-                alloc.payment_utr = utr_number || null;
-                alloc.payment_receipt_url = payment_receipt_url || null;
-                alloc.paid_at = new Date();
-              }
-            });
+  const grand_total_paise = subtotal_paise + tax_total_paise;
+  const totalItemQty = builtItems.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+
+  // Dynamic Token calculation
+  let token_amount_paise = 0;
+  if (items[0]?.token_rate_paise != null && Number(items[0].token_rate_paise) > 0) {
+    token_amount_paise = Number(items[0].token_rate_paise);
+  } else if (order.token_amount_paise != null && Number(order.token_amount_paise) > 0) {
+    token_amount_paise = Number(order.token_amount_paise);
+  } else if (po_settings.token_booking_enabled !== false) {
+    if (po_settings.token_type === 'PERCENTAGE') {
+      const pct = Number(po_settings.token_value) || 10;
+      token_amount_paise = Math.round(grand_total_paise * (pct / 100));
+    } else {
+      const fixedAmt = Number(po_settings.token_value) || 50000;
+      token_amount_paise = Math.round(fixedAmt * 100);
+    }
+    if (token_amount_paise > grand_total_paise) token_amount_paise = grand_total_paise;
+  } else {
+    token_amount_paise = grand_total_paise;
+  }
+
+  // Allocate per-EPC token amounts proportionally
+  builtItems.forEach((it) => {
+    if (Array.isArray(it.epc_allocations) && it.epc_allocations.length > 0) {
+      it.epc_allocations.forEach((alloc) => {
+        const shareRatio = totalItemQty > 0 ? (alloc.allocated_quantity / totalItemQty) : 0;
+        alloc.token_amount_paise = Math.round(shareRatio * token_amount_paise);
+        alloc.token_payment_status = alloc.token_payment_status || 'PENDING';
+        if (!alloc.contract || !alloc.contract.status) {
+          alloc.contract = {
+            contract_number: "CNT-" + (order.po_number || "PO") + "-" + Math.floor(1000 + Math.random() * 9000),
+            status: 'PENDING_SIGNATURE',
+          };
+        }
+      });
+    }
+  });
+
+  // Preserve existing lock_expires_at if already valid and active, otherwise set from lockDays
+  const lockDays = Number(po_settings.po_lock_days || po_settings.po_validity_days || 30);
+  if (!order.lock_expires_at || new Date(order.lock_expires_at) < new Date()) {
+    order.lock_expires_at = new Date(Date.now() + lockDays * 24 * 60 * 60 * 1000);
+  }
+
+  if (order.po_category === 'SINGLE_PO') {
+    if (builtItems[0]?.epc_allocations?.length === 1) {
+      order.epc_id = builtItems[0].epc_allocations[0].epc_buyer_id;
+    } else {
+      order.epc_id = null;
+    }
+  }
+
+  order.items = builtItems;
+  order.subtotal_paise = subtotal_paise;
+  order.tax_total_paise = tax_total_paise;
+  order.grand_total_paise = grand_total_paise;
+  order.total_booked_quantity = totalItemQty;
+  order.remaining_quantity = totalItemQty;
+  order.token_amount_paise = token_amount_paise;
+  order.total_commission_paise = total_commission_paise;
+
+  // Check if token was already paid (e.g. at PO creation or advance escrow)
+  const isTokenAlreadyPaid = Boolean(order.token_paid_paise && Number(order.token_paid_paise) > 0 && Number(order.token_paid_paise) >= token_amount_paise);
+  order.token_payment_status = isTokenAlreadyPaid ? 'PAID' : (Number(order.token_paid_paise) > 0 ? 'PARTIALLY_PAID' : 'PENDING');
+  order.token_balance_paise = order.token_paid_paise || 0;
+
+  if (isTokenAlreadyPaid) {
+    builtItems.forEach((it) => {
+      if (Array.isArray(it.epc_allocations)) {
+        it.epc_allocations.forEach((alloc) => {
+          alloc.payment_status = 'PAID';
+          alloc.token_paid_paise = alloc.token_amount_paise;
+          alloc.paid_at = alloc.paid_at || new Date();
+        });
+      }
+    });
+  }
+
+  const nextStatus = isTokenAlreadyPaid ? 'PO_STARTED' : 'AWAITING_TOKEN_PAYMENT';
+  order.status = nextStatus;
+  order.status_history.push({
+    status: nextStatus,
+    changed_by: actor_id,
+    actor_type: franchisee_id ? 'reseller' : (order.epc_id ? 'epc_partner' : 'cms_user'),
+    note: isTokenAlreadyPaid
+      ? 'Products and EPC partner allocated. Token already paid — PO Started!'
+      : 'Products and EPC partners allocated. Awaiting token payment.',
+    changed_at: new Date(),
+  });
+  order.updated_by = actor_id;
+  await order.save();
+
+  await logAudit({
+    actor_type: franchisee_id ? 'reseller' : (order.epc_id ? 'epc_partner' : 'cms_user'),
+    actor_id,
+    action: 'FPO_PRODUCTS_ALLOCATED',
+    entity_type: 'fpo_orders',
+    entity_id: order._id,
+    after_snapshot: { status: 'AWAITING_TOKEN_PAYMENT', total_qty: totalItemQty, token_amount_paise },
+    req,
+  });
+
+  return order;
+}
+
+// ── 14. RECORD EPC TOKEN PAYMENT ─────────────────────────────────────────────
+async function recordEpcTokenPayment({
+  po_id,
+  franchisee_id,
+  epc_buyer_id,
+  payment_method = 'offline_bank_transfer',
+  utr_number,
+  amount_paid_inr,
+  payment_date,
+  sender_bank_name,
+  payment_receipt_url,
+  actor_id,
+  req,
+}) {
+  const query = { _id: po_id, deleted_at: null };
+  if (franchisee_id) query.franchisee_id = franchisee_id;
+  const order = await FpoOrder.findOne(query);
+  if (!order) throw new Error('PO Order not found.');
+
+  const amountPaise = amount_paid_inr ? Math.round(Number(amount_paid_inr) * 100) : (order.token_amount_paise || 5000000);
+
+  if (epc_buyer_id && order.items) {
+    order.items.forEach((item) => {
+      if (Array.isArray(item.epc_allocations)) {
+        item.epc_allocations.forEach((alloc) => {
+          const matchesEpc =
+            String(alloc.epc_buyer_id) === String(epc_buyer_id) ||
+            String(alloc._id) === String(epc_buyer_id) ||
+            (alloc.epc_buyer_id && alloc.epc_buyer_id._id && String(alloc.epc_buyer_id._id) === String(epc_buyer_id)) ||
+            (item.epc_allocations.length === 1);
+          if (matchesEpc) {
+            alloc.payment_status = 'PAID';
+            alloc.token_paid_paise = alloc.token_amount_paise || amountPaise;
+            alloc.payment_utr = utr_number || null;
+            alloc.payment_receipt_url = payment_receipt_url || null;
+            alloc.paid_at = new Date();
           }
         });
       }
+    });
+  }
 
-      order.token_paid_paise = (order.token_paid_paise || 0) + amountPaise;
-      order.token_balance_paise = order.token_paid_paise;
-      order.payment_reference = utr_number || order.payment_reference;
-      order.payment_utr = utr_number || order.payment_utr;
-      order.offline_payment = {
-        payment_method,
-        utr_number: utr_number || 'OFFLINE_VERIFIED',
-        amount_paid: amount_paid_inr || (amountPaise / 100),
-        payment_date: payment_date || new Date().toISOString().slice(0, 10),
-        sender_bank_name: sender_bank_name || 'Bank Transfer',
-      };
+  order.token_paid_paise = (order.token_paid_paise || 0) + amountPaise;
+  order.token_balance_paise = order.token_paid_paise;
+  order.payment_reference = utr_number || order.payment_reference;
+  order.payment_utr = utr_number || order.payment_utr;
+  order.offline_payment = {
+    payment_method,
+    utr_number: utr_number || 'OFFLINE_VERIFIED',
+    amount_paid: amount_paid_inr || (amountPaise / 100),
+    payment_date: payment_date || new Date().toISOString().slice(0, 10),
+    sender_bank_name: sender_bank_name || 'Bank Transfer',
+  };
 
-      const isFullTokenPaid = (order.token_paid_paise >= order.token_amount_paise);
-      if (isFullTokenPaid) {
-        order.token_payment_status = 'PAID';
-      }
+  const isFullTokenPaid = (order.token_paid_paise >= order.token_amount_paise);
+  if (isFullTokenPaid) {
+    order.token_payment_status = 'PAID';
+  }
 
-      // Token payment enables PO start
-      order.status = 'PO_STARTED';
-      order.status_history.push({
-        status: 'PO_STARTED',
-        changed_by: actor_id,
-        actor_type: franchisee_id ? 'reseller' : (order.epc_id ? 'epc_partner' : 'system'),
-        note: `Token payment recorded (${utr_number || 'Confirmed'}). PO Started!`,
-        changed_at: new Date(),
-      });
-      order.updated_by = actor_id;
-      await order.save();
+  // Token payment enables PO start
+  order.status = 'PO_STARTED';
+  order.status_history.push({
+    status: 'PO_STARTED',
+    changed_by: actor_id,
+    actor_type: franchisee_id ? 'reseller' : (order.epc_id ? 'epc_partner' : 'system'),
+    note: `Token payment recorded (${utr_number || 'Confirmed'}). PO Started!`,
+    changed_at: new Date(),
+  });
+  order.updated_by = actor_id;
+  await order.save();
 
-      await logAudit({
-        actor_type: franchisee_id ? 'reseller' : (order.epc_id ? 'epc_partner' : 'system'),
-        actor_id,
-        action: 'FPO_TOKEN_PAID_STARTED',
-        entity_type: 'fpo_orders',
-        entity_id: order._id,
-        after_snapshot: { status: 'PO_STARTED', token_paid_paise: order.token_paid_paise },
-        req,
-      });
+  await logAudit({
+    actor_type: franchisee_id ? 'reseller' : (order.epc_id ? 'epc_partner' : 'system'),
+    actor_id,
+    action: 'FPO_TOKEN_PAID_STARTED',
+    entity_type: 'fpo_orders',
+    entity_id: order._id,
+    after_snapshot: { status: 'PO_STARTED', token_paid_paise: order.token_paid_paise },
+    req,
+  });
 
-      return order;
-    }
+  return order;
+}
 
-    // ── 15. VALIDATE PO ──────────────────────────────────────────────────────────
-    async function validatePo({
-      po_id,
-      franchisee_id,
-      actor_id,
-      notes,
-      req,
-    }) {
-      const query = { _id: po_id, deleted_at: null };
-      if (franchisee_id) query.franchisee_id = franchisee_id;
-      const order = await FpoOrder.findOne(query);
-      if (!order) throw new Error('PO Order not found.');
+// ── 15. VALIDATE PO ──────────────────────────────────────────────────────────
+async function validatePo({
+  po_id,
+  franchisee_id,
+  actor_id,
+  notes,
+  req,
+}) {
+  const query = { _id: po_id, deleted_at: null };
+  if (franchisee_id) query.franchisee_id = franchisee_id;
+  const order = await FpoOrder.findOne(query);
+  if (!order) throw new Error('PO Order not found.');
 
-      order.status = 'VALIDATED';
-      order.status_history.push({
-        status: 'VALIDATED',
-        changed_by: actor_id,
-        actor_type: franchisee_id ? 'reseller' : (order.epc_id ? 'epc_partner' : 'cms_user'),
-        note: notes || 'PO Validated. Quota and price lock active.',
-        changed_at: new Date(),
-      });
-      order.updated_by = actor_id;
-      await order.save();
+  order.status = 'VALIDATED';
+  order.status_history.push({
+    status: 'VALIDATED',
+    changed_by: actor_id,
+    actor_type: franchisee_id ? 'reseller' : (order.epc_id ? 'epc_partner' : 'cms_user'),
+    note: notes || 'PO Validated. Quota and price lock active.',
+    changed_at: new Date(),
+  });
+  order.updated_by = actor_id;
+  await order.save();
 
-      await logAudit({
-        actor_type: franchisee_id ? 'reseller' : (order.epc_id ? 'epc_partner' : 'cms_user'),
-        actor_id,
-        action: 'FPO_VALIDATED',
-        entity_type: 'fpo_orders',
-        entity_id: order._id,
-        after_snapshot: { status: 'VALIDATED' },
-        req,
-      });
+  await logAudit({
+    actor_type: franchisee_id ? 'reseller' : (order.epc_id ? 'epc_partner' : 'cms_user'),
+    actor_id,
+    action: 'FPO_VALIDATED',
+    entity_type: 'fpo_orders',
+    entity_id: order._id,
+    after_snapshot: { status: 'VALIDATED' },
+    req,
+  });
 
-      return order;
-    }
+  return order;
+}
 
-    module.exports = {
-      createPoDraft,
-      submitPo,
-      approvePo,
-      rejectPo,
-      confirmPayment,
-      dispatchPo,
-      deliverPo,
-      cancelPo,
-      returnItems,
-      generatePoNumber,
-      advancePoStage,
-      assignVehicleToPo,
-      allocatePoProducts,
-      recordEpcTokenPayment,
-      validatePo,
-      ALLOWED_TRANSITIONS,
-    }
+module.exports = {
+  createPoDraft,
+  submitPo,
+  approvePo,
+  rejectPo,
+  confirmPayment,
+  dispatchPo,
+  deliverPo,
+  cancelPo,
+  returnItems,
+  generatePoNumber,
+  advancePoStage,
+  assignVehicleToPo,
+  allocatePoProducts,
+  recordEpcTokenPayment,
+  validatePo,
+  ALLOWED_TRANSITIONS,
+}
