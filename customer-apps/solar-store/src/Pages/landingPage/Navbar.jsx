@@ -29,6 +29,7 @@ import {
 } from "react-icons/fi";
 import { MdOutlineAccountBalance } from "react-icons/md";
 import { selectCartTotalItems } from "../../features/slice";
+import PincodeLocationModal from "../../Components/PincodeLocationModal";
 import logo from "../../assets/images/logo.png";
 const getFranchisePortalUrl = () => {
   if (typeof window !== "undefined") {
@@ -81,6 +82,8 @@ export default function Navbar() {
   const location = useLocation();
   const { isAuthenticated } = useSelector((state) => state.auth_slice);
   const totalCartItems = useSelector(selectCartTotalItems);
+  const { selectedState, selectedDistrict, selectedPincode } = useSelector((state) => state.slice);
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 30);
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -476,6 +479,20 @@ export default function Navbar() {
 
             </nav>
             <div className="ml-auto flex items-center gap-1.5 sm:gap-2 xl:gap-2.5 shrink-0 lg:ml-0 lg:justify-self-end">
+              {/* Location / Pincode Selector Pill */}
+              <button
+                type="button"
+                onClick={() => setLocationModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
+                title="Enter Pincode to view local Best Sellers & Stock"
+              >
+                <FiMapPin className="text-amber-600 text-sm shrink-0" />
+                <span className="truncate max-w-[110px] sm:max-w-[150px]">
+                  {selectedDistrict?.name
+                    ? `${selectedPincode ? `${selectedPincode} • ` : ""}${selectedDistrict.name}`
+                    : "Select PIN"}
+                </span>
+              </button>
 
               {isAuthenticated && (
                 <>
@@ -540,6 +557,7 @@ export default function Navbar() {
           </div>
         </div>
       </motion.header>
+      <PincodeLocationModal isOpen={locationModalOpen} onClose={() => setLocationModalOpen(false)} />
       <AnimatePresence>
         {menuOpen && (
           <>

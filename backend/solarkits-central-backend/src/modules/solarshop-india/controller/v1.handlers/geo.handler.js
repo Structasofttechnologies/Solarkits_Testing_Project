@@ -45,11 +45,12 @@ const get_states = async (req, res) => {
         // Map response to match standard format (id instead of _id)
         const formattedStates = states.map(s => ({
             id: s._id.toString(),
+            _id: s._id.toString(),
             name: s.name,
             is_active: s.is_active
         }));
 
-        return res.status(200).json({ states: formattedStates });
+        return res.status(200).json({ states: formattedStates, data: formattedStates });
 
     } catch (error) {
         console.error("get_states error:", error);
@@ -61,27 +62,25 @@ const get_districts_by_state = async (req, res) => {
     try {
         const { state_id } = req.query;
 
-        if (!state_id) {
-            return res.status(400).json({ error: "state_id is required" });
-        }
-
         const query = {
             is_active: true,
             $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }]
         };
 
-        if (mongoose.Types.ObjectId.isValid(state_id)) {
-            query.level_1 = new mongoose.Types.ObjectId(state_id);
-        } else {
-            // Find by state name
-            const stateDoc = await GeoLevel1.findOne({
-                name: { $regex: new RegExp(`^${state_id.trim()}$`, "i") },
-                $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }]
-            });
-            if (stateDoc) {
-                query.level_1 = stateDoc._id;
+        if (state_id && state_id !== 'all') {
+            if (mongoose.Types.ObjectId.isValid(state_id)) {
+                query.level_1 = new mongoose.Types.ObjectId(state_id);
             } else {
-                return res.status(200).json({ districts: [] });
+                // Find by state name
+                const stateDoc = await GeoLevel1.findOne({
+                    name: { $regex: new RegExp(`^${state_id.trim()}$`, "i") },
+                    $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }]
+                });
+                if (stateDoc) {
+                    query.level_1 = stateDoc._id;
+                } else {
+                    return res.status(200).json({ districts: [], data: [] });
+                }
             }
         }
 
@@ -108,18 +107,22 @@ const get_districts_by_state = async (req, res) => {
             }
         }
 
-        // Fetch all active districts for this state as activated from admin panel
-        const districts = await GeoLevel2.find(query).sort({ name: 1 }).select('_id name level_1 is_active');
+        // Fetch active districts (optionally filtered by state)
+        const districts = await GeoLevel2.find(query).populate('level_1', 'name is_active').sort({ name: 1 }).select('_id name level_1 is_active pincodes');
 
         // Map response to match standard format
         const formattedDistricts = districts.map(d => ({
             id: d._id.toString(),
+            _id: d._id.toString(),
             name: d.name,
-            state_id: d.level_1 ? d.level_1.toString() : null,
+            state_id: d.level_1?._id ? d.level_1._id.toString() : (d.level_1 ? d.level_1.toString() : null),
+            state_name: d.level_1?.name || '',
+            pincodes_count: d.pincodes?.length || 0,
+            pincodes: d.pincodes || [],
             is_active: d.is_active
         }));
 
-        return res.status(200).json({ districts: formattedDistricts });
+        return res.status(200).json({ districts: formattedDistricts, data: formattedDistricts });
 
     } catch (error) {
         console.error("get_districts_by_state error:", error);
@@ -211,4 +214,190 @@ const get_district_boundary = async (req, res) => {
     }
 };
 
-module.exports = { get_states, get_districts_by_state, get_district_boundary };
+/**
+ * GET /india/v1/geo/pincode-lookup?pincode=302001
+ * Fast lookup of State and District for any 6-digit Pincode from Setup Location database
+ */
+const lookup_pincode = async (req, res) => {
+    try {
+        const rawPin = (req.query.pincode || req.query.pin || req.query.q || '').toString().trim().replace(/\s+/g, '');
+        if (!rawPin || rawPin.length < 3) {
+            return res.status(400).json({ success: false, message: 'Valid pincode (at least 3 digits) is required.' });
+        }
+
+        const pinNum = parseInt(rawPin, 10);
+
+        // 1. Exact match search in GeoLevel2 pincodes array (supports both string and number)
+        let districtDoc = await GeoLevel2.findOne({
+            $or: [
+                { 'pincodes.pincode': rawPin },
+                ...(isNaN(pinNum) ? [] : [{ 'pincodes.pincode': pinNum }])
+            ],
+            $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }]
+        }).populate('level_1').lean();
+
+        // 2. Prefix match fallback if exact 6-digit not found
+        let matchType = 'exact';
+        if (!districtDoc) {
+            districtDoc = await GeoLevel2.findOne({
+                'pincodes.pincode': new RegExp('^' + rawPin),
+                $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }]
+            }).populate('level_1').lean();
+            matchType = 'prefix';
+        }
+
+        if (!districtDoc) {
+            return res.status(404).json({
+                success: false,
+                message: `Pincode ${rawPin} not found in active serviceable locations.`
+            });
+        }
+
+        const matchedPin = (districtDoc.pincodes || []).find(p => {
+            if (!p || !p.pincode) return false;
+            const pStr = p.pincode.toString().trim();
+            return matchType === 'exact' ? pStr === rawPin : pStr.startsWith(rawPin);
+        });
+
+        const stateObj = districtDoc.level_1 || {};
+        const stateName = stateObj.name || '';
+        const stateId = stateObj._id ? stateObj._id.toString() : '';
+        const districtName = districtDoc.name || '';
+        const districtId = districtDoc._id.toString();
+        const pinCode = matchedPin?.pincode ? String(matchedPin.pincode) : rawPin;
+        const locality = matchedPin?.locality || '';
+
+        const dataPayload = {
+            pincode: pinCode,
+            locality: locality,
+            district_id: districtId,
+            district_name: districtName,
+            state_id: stateId,
+            state_name: stateName,
+            is_active: districtDoc.is_active,
+            lat: matchedPin?.lat || districtDoc.lat || 0,
+            lng: matchedPin?.lng || districtDoc.lng || 0
+        };
+
+        return res.status(200).json({
+            success: true,
+            data: dataPayload,
+            match_type: matchType,
+            pincode: pinCode,
+            district: {
+                id: districtId,
+                _id: districtId,
+                name: districtName,
+                is_active: districtDoc.is_active
+            },
+            state: {
+                id: stateId,
+                _id: stateId,
+                name: stateName,
+                is_active: stateObj.is_active
+            },
+            coordinates: {
+                lat: dataPayload.lat,
+                lng: dataPayload.lng
+            }
+        });
+
+    } catch (error) {
+        console.error('lookup_pincode error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to lookup pincode.' });
+    }
+};
+
+/**
+ * GET /india/v1/geo/pincodes-search?q=360
+ * Autocomplete / live suggestions for Pincodes
+ */
+const search_pincodes = async (req, res) => {
+    try {
+        const q = (req.query.q || req.query.query || '').toString().trim().replace(/\s+/g, '');
+        if (!q || q.length < 2) {
+            return res.status(200).json({ success: true, results: [] });
+        }
+
+        const districts = await GeoLevel2.find({
+            'pincodes.pincode': new RegExp('^' + q),
+            $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }]
+        }).populate('level_1').limit(15).lean();
+
+        const results = [];
+        const seenPins = new Set();
+
+        for (const dist of districts) {
+            const stateObj = dist.level_1 || {};
+            const matchingPins = (dist.pincodes || []).filter(p => p.pincode && p.pincode.toString().startsWith(q));
+
+            for (const p of matchingPins) {
+                const pinStr = p.pincode.toString();
+                if (!seenPins.has(pinStr)) {
+                    seenPins.add(pinStr);
+                    results.push({
+                        pincode: pinStr,
+                        locality: p.locality || '',
+                        district: {
+                            id: dist._id.toString(),
+                            _id: dist._id.toString(),
+                            name: dist.name
+                        },
+                        state: {
+                            id: stateObj._id ? stateObj._id.toString() : '',
+                            _id: stateObj._id ? stateObj._id.toString() : '',
+                            name: stateObj.name || ''
+                        }
+                    });
+                }
+            }
+        }
+
+        return res.status(200).json({ success: true, results });
+
+    } catch (error) {
+        console.error('search_pincodes error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to search pincodes.' });
+    }
+};
+
+/**
+ * GET /india/v1/geo/district-pincodes/:district_id
+ * Returns all pincodes for a specific district
+ */
+const get_district_pincodes = async (req, res) => {
+    try {
+        const districtId = req.params?.district_id || req.query?.district_id;
+        if (!districtId || !mongoose.Types.ObjectId.isValid(districtId)) {
+            return res.status(400).json({ success: false, message: "Valid district_id is required." });
+        }
+
+        const dist = await GeoLevel2.findById(districtId).select('name pincodes level_1 is_active').populate('level_1', 'name').lean();
+        if (!dist) {
+            return res.status(404).json({ success: false, message: "District not found." });
+        }
+
+        return res.status(200).json({
+            success: true,
+            district: {
+                id: dist._id.toString(),
+                name: dist.name,
+                state_name: dist.level_1?.name || '',
+                pincodes: dist.pincodes || []
+            },
+            pincodes: dist.pincodes || []
+        });
+    } catch (error) {
+        console.error('get_district_pincodes error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to fetch district pincodes.' });
+    }
+};
+
+module.exports = {
+    get_states,
+    get_districts_by_state,
+    get_district_boundary,
+    lookup_pincode,
+    search_pincodes,
+    get_district_pincodes
+};

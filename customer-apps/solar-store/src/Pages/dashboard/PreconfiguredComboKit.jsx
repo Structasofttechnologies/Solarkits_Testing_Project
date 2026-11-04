@@ -23,6 +23,8 @@ import {
 import Dropdown from "@/Components/Dropdown";
 import KitComparisonDrawer from "@/Components/storefront/KitComparisonDrawer";
 import OurBestSellerSection from "@/Components/storefront/OurBestSellerSection";
+import PincodeLocationModal from "@/Components/PincodeLocationModal";
+import { FiMapPin, FiNavigation } from "react-icons/fi";
 import { fetchShopHierarchy } from "../../features/slice";
 
 const SYSTEM_CAPACITIES = [
@@ -82,6 +84,9 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
   });
 
   const selectedDistrict = useSelector((state) => state.slice?.selectedDistrict);
+  const selectedState = useSelector((state) => state.slice?.selectedState);
+  const selectedPincode = useSelector((state) => state.slice?.selectedPincode);
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [activeOffers, setActiveOffers] = useState([]);
   const [currentOfferIndex, setCurrentOfferIndex] = useState(0);
 
@@ -1200,6 +1205,47 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
       )}
 
       <div className="">
+        {/* REGIONAL PINCODE & LOCATION FILTER BANNER */}
+        <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white rounded-2xl p-4 sm:p-5 mb-5 shadow-md border border-blue-800/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-400/30">
+              <FiMapPin size={22} className="animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/25 text-amber-300 border border-amber-400/30">
+                  Serviceable Delivery Region
+                </span>
+                {selectedPincode && (
+                  <span className="text-[11px] font-bold text-blue-200">
+                    PIN: {selectedPincode}
+                  </span>
+                )}
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-white mt-0.5">
+                Solar Combo Kits for{" "}
+                <span className="text-amber-400">
+                  {selectedDistrict?.name || "All India"}, {selectedState?.name || ""}
+                </span>
+              </h3>
+              <p className="text-xs text-blue-200/80 mt-0.5">
+                Showing turnkey kits, real-time warehouse inventory, and region-specific Best Seller rankings.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full md:w-auto">
+            <button
+              type="button"
+              onClick={() => setLocationModalOpen(true)}
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow-md transition-all cursor-pointer"
+            >
+              <FiNavigation size={14} />
+              <span>{selectedPincode ? `Change PIN (${selectedPincode})` : "Enter Delivery Pincode"}</span>
+            </button>
+          </div>
+        </div>
+
         {/* Search + Controls */}
         <div className="bg-surface rounded-xl shadow-sm border border-border p-4 mb-6">
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
@@ -1561,6 +1607,7 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
       )}
 
       <MobileFiltersDrawer />
+      <PincodeLocationModal isOpen={locationModalOpen} onClose={() => setLocationModalOpen(false)} />
 
       {/* Floating Bottom Comparison Action Bar */}
       {comparedKits.length > 0 && (
