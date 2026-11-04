@@ -41,6 +41,12 @@ export default function Home() {
   const { user, selectedScope } = useSelector((state) => state.user_slice || {});
   const clusterName = selectedScope?.clusterName || "Coastal Andhra Hub";
   const userRole = user?.role_name || user?.role || "Account Manager";
+  const isSuperAdmin =
+    !user?.name ||
+    /super\s*admin/i.test(user?.name || "") ||
+    /super\s*admin/i.test(userRole || "") ||
+    user?.role === "super_admin";
+  const greetingName = isSuperAdmin ? "Account Manager" : user.name;
 
   // Dashboard Data State
   const [loading, setLoading] = useState(true);
@@ -192,7 +198,7 @@ export default function Home() {
             </div>
 
             <h2 className="text-2xl md:text-3xl font-black tracking-tight mt-1 truncate">
-              Hello, {user?.name || userRole}
+              Hello, {greetingName}
             </h2>
             <p className="text-xs text-white/80 max-w-2xl leading-relaxed">
               Your real-time operational control panel for order lifecycle tracking, procurement grouping, payment approvals, production progress, and daily priority tasks.

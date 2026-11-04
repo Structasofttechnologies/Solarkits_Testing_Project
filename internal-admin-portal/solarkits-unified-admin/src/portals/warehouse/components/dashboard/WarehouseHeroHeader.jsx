@@ -24,6 +24,9 @@ export default function WarehouseHeroHeader({
     ? new Date(meta.synced_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+  const isSuperAdmin = !meta.manager_name || /super\s*admin/i.test(meta.manager_name);
+  const managerDisplayName = isSuperAdmin ? "Delivery Manager" : meta.manager_name;
+
   return (
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1e293b] via-[#243356] to-[#1e3a8a] text-white shadow-xl border border-white/10 p-6 md:p-8">
       {/* Decorative ambient background glows */}
@@ -34,10 +37,6 @@ export default function WarehouseHeroHeader({
         {/* Left: Branding & Manager Details */}
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30 backdrop-blur-md">
-              <FaWarehouse className="w-3.5 h-3.5" />
-              {meta.warehouse_code || "WH-IND-GJ-001"}
-            </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               Live Operations Online
@@ -52,8 +51,7 @@ export default function WarehouseHeroHeader({
               Delivery Manager Dashboard
             </h1>
             <p className="text-sm md:text-base text-slate-300 max-w-2xl mt-1.5 leading-relaxed">
-              Warehouse & Fulfilment Control Panel • Welcome, <span className="text-white font-bold">{meta.manager_name || "Delivery Manager"}</span>
-              <span className="text-slate-400 text-xs ml-2">({meta.warehouse_name || "Ahmedabad Master Hub"})</span>
+              Warehouse & Fulfilment Control Panel • Welcome, <span className="text-white font-bold">{managerDisplayName}</span>
             </p>
           </div>
         </div>
@@ -75,11 +73,10 @@ export default function WarehouseHeroHeader({
           <button
             onClick={onRefresh}
             disabled={refreshing}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 border shadow-md active:scale-95 ${
-              refreshing
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 border shadow-md active:scale-95 ${refreshing
                 ? "bg-white/20 border-white/20 text-slate-300 cursor-not-allowed"
                 : "bg-blue-600 hover:bg-blue-500 text-white border-blue-400/40 hover:shadow-blue-500/25"
-            }`}
+              }`}
             title="Refresh Real-time Data"
           >
             <FiRefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />

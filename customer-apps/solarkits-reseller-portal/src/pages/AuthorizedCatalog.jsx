@@ -95,6 +95,18 @@ export default function AuthorizedCatalog() {
     return Object.keys(commLookup[kitId]).map(Number).sort((a, b) => a - b);
   };
 
+  // Label for a qty tier (e.g. "25 Kits (Loose)", "500 Kits (PO)", "50 Kits (PO & Loose)")
+  const getTierLabel = (kitId, qty) => {
+    const data = commLookup[kitId]?.[qty];
+    if (!data) return `${qty} Kits`;
+    const hasPo = data.po != null && Number(data.po) > 0;
+    const hasLoose = data.loose != null && Number(data.loose) > 0;
+    if (hasPo && hasLoose) return `${qty} Kits (PO & Loose)`;
+    if (hasPo) return `${qty} Kits (PO)`;
+    if (hasLoose) return `${qty} Kits (Loose)`;
+    return `${qty} Kits`;
+  };
+
   // Find kit commission for a given product rule
   const getKitComm = (r) => {
     const kitId = r.kit_id || r.kit?._id || r.kit?.id || (r.scope_type === "kit" ? (r.id || r._id) : null);
@@ -282,13 +294,8 @@ export default function AuthorizedCatalog() {
                             <FiLoader className="animate-spin text-slate-400 mx-auto" size={14} />
                           ) : currentCommData?.po != null && Number(currentCommData.po) > 0 ? (
                             <CommBadge amount={currentCommData.po} type="po" qty={currentQty} />
-                          ) : r.scope_type === "kit" ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20" title="Commission setting is not defined in Franchise Commission Settings">
-                              <FiAlertCircle size={11} className="text-amber-600 shrink-0" />
-                              <span>Not Defined</span>
-                            </span>
                           ) : (
-                            <span className="text-slate-400 text-xs font-bold">—</span>
+                            <span className="text-slate-400 text-sm font-bold" title="Not applicable for this quantity tier">—</span>
                           )}
                         </td>
                       )}
@@ -300,13 +307,8 @@ export default function AuthorizedCatalog() {
                             <FiLoader className="animate-spin text-slate-400 mx-auto" size={14} />
                           ) : currentCommData?.loose != null && Number(currentCommData.loose) > 0 ? (
                             <CommBadge amount={currentCommData.loose} type="loose" qty={currentQty} />
-                          ) : r.scope_type === "kit" ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20" title="Commission setting is not defined in Franchise Commission Settings">
-                              <FiAlertCircle size={11} className="text-amber-600 shrink-0" />
-                              <span>Not Defined</span>
-                            </span>
                           ) : (
-                            <span className="text-slate-400 text-xs font-bold">—</span>
+                            <span className="text-slate-400 text-sm font-bold" title="Not applicable for this quantity tier">—</span>
                           )}
                         </td>
                       )}
@@ -323,10 +325,12 @@ export default function AuthorizedCatalog() {
                                   [kitComm.kitId]: Number(e.target.value),
                                 }))
                               }
-                              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-2xs"
                             >
                               {qtyTiers.map((qty) => (
-                                <option key={qty} value={qty}>{qty} Kits</option>
+                                <option key={qty} value={qty}>
+                                  {getTierLabel(kitComm.kitId, qty)}
+                                </option>
                               ))}
                             </select>
                           ) : (

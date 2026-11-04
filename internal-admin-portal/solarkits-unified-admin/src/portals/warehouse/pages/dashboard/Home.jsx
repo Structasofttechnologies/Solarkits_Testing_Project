@@ -166,7 +166,10 @@ export default function Home() {
       <WarehouseHeroHeader
         meta={{
           ...dashboardData.meta,
-          manager_name: user?.name || dashboardData.meta?.manager_name
+          manager_name:
+            (!user?.name || /super\s*admin/i.test(user?.name) || user?.role === "super_admin" || /super\s*admin/i.test(dashboardData.meta?.manager_name || ""))
+              ? "Delivery Manager"
+              : (user?.name || dashboardData.meta?.manager_name || "Delivery Manager")
         }}
         refreshing={refreshing}
         onRefresh={() => fetchDashboard(false)}

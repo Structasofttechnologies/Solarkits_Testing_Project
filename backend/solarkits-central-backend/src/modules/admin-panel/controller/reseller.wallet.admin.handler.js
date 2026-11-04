@@ -400,7 +400,7 @@ const list_commission_earnings = async (req, res) => {
         .populate('reseller_id', 'business_name name mobile email gst_number contact_person bank_details')
         .sort({ created_at: -1 })
         .lean(),
-      FpoOrder.find({ deleted_at: null, status: { $in: ['PAID', 'DELIVERED', 'COMPLETED'] } })
+      FpoOrder.find({ deleted_at: null, parent_po_id: null, status: { $in: ['PAID', 'DELIVERED', 'COMPLETED'] } })
         .populate('franchisee_id', 'business_name name mobile email gst_number contact_person bank_details')
         .sort({ created_at: -1 })
         .lean(),

@@ -282,7 +282,7 @@ const get_recent_transactions = async (req, res) => {
 
     // 4. Fetch recent Franchise PO Orders
     if (!type || type === 'all' || type === 'po_order') {
-      const fpoOrders = await FpoOrder.find()
+      const fpoOrders = await FpoOrder.find({ parent_po_id: null })
         .sort({ created_at: -1 })
         .limit(maxLimit)
         .populate('franchisee_id', 'business_name mobile email gst_number contact_person')
@@ -912,14 +912,35 @@ const get_franchise_commissions = async (req, res) => {
       .populate('epc_id', 'name email whatsapp gstin')
       .lean();
 
-    // 2. Fetch FPO Orders with assigned franchisee (excluding DRAFT)
+    // 2. Fetch FPO Orders with assigned franchisee (excluding DRAFT and only Master POs)
     const fpoOrders = await FpoOrder.find({
       franchisee_id: { $ne: null },
-      status: { $ne: 'DRAFT' }
+      status: { $ne: 'DRAFT' },
+      parent_po_id: null
     })
       .sort({ created_at: -1 })
       .populate('franchisee_id', 'business_name mobile email gst_number contact_person pan_number bank_details')
       .lean();
+
+    // Fetch linked repeat drawdowns for Master POs
+    const fpoMasterIds = fpoOrders.map((f) => f._id);
+    const fpoChildOrders = fpoMasterIds.length > 0
+      ? await FpoOrder.find({
+          parent_po_id: { $in: fpoMasterIds },
+          deleted_at: null,
+        })
+          .populate('franchisee_id', 'business_name mobile email contact_person')
+          .populate('epc_id', 'name email whatsapp gstin')
+          .sort({ created_at: -1 })
+          .lean()
+      : [];
+
+    const childDrawdownsMap = new Map();
+    fpoChildOrders.forEach((co) => {
+      const pId = co.parent_po_id?.toString();
+      if (!childDrawdownsMap.has(pId)) childDrawdownsMap.set(pId, []);
+      childDrawdownsMap.get(pId).push(co);
+    });
 
     // 3. Fetch all commission ledgers
     const ledgers = await ResellerWalletLedger.find({
@@ -1187,6 +1208,25 @@ const get_franchise_commissions = async (req, res) => {
           reseller_margin: grossMargin,
           total_price: (it.total_price_paise || 0) / 100,
         })),
+        total_booked_quantity: f.total_booked_quantity || f.total_quantity || f.items?.[0]?.quantity || 0,
+        fulfilled_quantity: f.fulfilled_quantity || 0,
+        remaining_quantity: f.remaining_quantity != null ? f.remaining_quantity : (f.total_booked_quantity || 0),
+        token_amount: Math.round((f.token_amount_paise || 0) / 100),
+        token_paid: Math.round((f.token_paid_paise || f.token_amount_paise || 0) / 100),
+        token_adjusted: Math.round((f.token_adjusted_total_paise || 0) / 100),
+        token_payment_status: f.token_payment_status || 'PENDING',
+        linked_repeat_orders: (childDrawdownsMap.get(f._id.toString()) || []).map((ch) => ({
+          id: ch._id,
+          order_number: ch.po_number || ch.order_number,
+          po_number: ch.po_number,
+          date: ch.created_at,
+          kits: (ch.items || []).reduce((s, it) => s + (Number(it.quantity) || 0), 0) || ch.total_quantity || 1,
+          token_adjusted: Math.round((ch.token_adjusted_paise || 0) / 100),
+          net_paid: Math.round((ch.net_payable_paise || ch.grand_total_paise || 0) / 100),
+          status: ch.status === 'PAID' || ch.payment_status === 'paid' ? 'Paid' : ch.status,
+          payment_reference: ch.payment_reference || ch.payment_utr || 'N/A',
+        })),
+        drawdowns_count: (childDrawdownsMap.get(f._id.toString()) || []).length,
         created_at: f.created_at
       };
     });
@@ -1261,6 +1301,13 @@ const update_commission_status = async (req, res) => {
 
     if (!order) {
       return res.status(404).json({ status: 'error', message: 'Related order record not found' });
+    }
+
+    if (orderType === 'fpo_order' && order.parent_po_id) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot update commission status directly on a child loose order. Commission must be settled on the Master Purchase Order.'
+      });
     }
 
     const effectivePaidDate = paid_date ? new Date(paid_date) : (commission_status === 'Paid' ? new Date() : null);

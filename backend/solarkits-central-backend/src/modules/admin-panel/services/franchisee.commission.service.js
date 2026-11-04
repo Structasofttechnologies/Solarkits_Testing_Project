@@ -153,8 +153,17 @@ async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
   const order = await FpoOrder.findById(fpo_order_id).lean();
   if (!order) throw new Error(`FPO order "${fpo_order_id}" not found`);
 
-  if (!['PAID', 'CONFIRMED', 'DELIVERED', 'COMPLETED'].includes(order.status)) {
-    throw new Error(`Commission can only be posted for PAID, CONFIRMED, DELIVERED or COMPLETED orders. Current status: ${order.status}`);
+  // Guard: Loose repeat orders / drawdowns placed against a Master PO inherit commission from the Master PO.
+  // They do not generate separate or duplicate commission credits.
+  if (order.parent_po_id) {
+    return {
+      posted: false,
+      reason: `Child repeat order against parent PO (${order.po_number}) does not generate independent commission. Commission is handled at the Master PO level.`,
+    };
+  }
+
+  if (!['PAID', 'CONFIRMED', 'DELIVERED', 'COMPLETED', 'VALIDATED'].includes(order.status)) {
+    throw new Error(`Commission can only be posted for VALIDATED, PAID, CONFIRMED, DELIVERED or COMPLETED orders. Current status: ${order.status}`);
   }
 
   const commission_rule = order.commission_rule_snapshot
@@ -173,22 +182,22 @@ async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
     for (const item of (order.items || [])) {
       if (item.contributes_to_target === false) continue;
       const delivered = item.delivered_quantity || item.quantity || 0;
-      const returned  = item.returned_quantity  || 0;
+      const returned = item.returned_quantity || 0;
       const cancelled = item.cancelled_quantity || 0;
-      const eligible  = Math.max(0, delivered - returned - cancelled);
+      const eligible = Math.max(0, delivered - returned - cancelled);
       eligible_kit_quantity += eligible;
-      gross_eligible_paise  += Math.round((item.unit_price_paise || 0) * eligible);
+      gross_eligible_paise += Math.round((item.unit_price_paise || 0) * eligible);
     }
   } else {
     for (const item of (order.items || [])) {
       if (item.contributes_to_target === false) continue;
       const delivered = item.delivered_quantity || item.quantity || 0;
-      const returned  = item.returned_quantity  || 0;
+      const returned = item.returned_quantity || 0;
       const cancelled = item.cancelled_quantity || 0;
-      const eligible  = Math.max(0, delivered - returned - cancelled);
+      const eligible = Math.max(0, delivered - returned - cancelled);
       eligible_kit_quantity += eligible;
       const itemSubtotal = Math.round((item.unit_price_paise || 0) * eligible);
-      gross_eligible_paise  += itemSubtotal;
+      gross_eligible_paise += itemSubtotal;
 
       // Check individual variation commission configured in Franchise Commission Settings
       if (order.franchisee_id && (item.combo_kit_id || item.kit_id)) {
@@ -253,30 +262,30 @@ async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
   let ledger = existing;
   if (!ledger) {
     ledger = await FpoCommissionLedger.create({
-      franchisee_id:        order.franchisee_id,
-      fpo_order_id:         order._id,
-      po_number:            order.po_number,
-      commission_method:    commission_rule?.commission_method || 'PERCENTAGE',
+      franchisee_id: order.franchisee_id,
+      fpo_order_id: order._id,
+      po_number: order.po_number,
+      commission_method: commission_rule?.commission_method || 'PERCENTAGE',
       eligible_kit_quantity,
       gross_eligible_paise,
       commission_paise,
       tds_paise,
       tcs_paise,
       net_commission_paise,
-      max_cap_applied:      capped,
-      commission_rule_id:   commission_rule?._id || null,
-      calculation_stage:    commission_rule?.calculation_stage || 'ORDER_CONFIRMED',
-      settlement_status:    'PENDING',
-      idempotency_key:      idempotencyKey,
-      created_by:           actor_id,
+      max_cap_applied: capped,
+      commission_rule_id: commission_rule?._id || null,
+      calculation_stage: commission_rule?.calculation_stage || 'ORDER_CONFIRMED',
+      settlement_status: 'PENDING',
+      idempotency_key: idempotencyKey,
+      created_by: actor_id,
     });
   }
 
   // Update FPO order flags
   await FpoOrder.findByIdAndUpdate(fpo_order_id, {
     $set: {
-      commission_posted:      true,
-      commission_ledger_id:   ledger._id,
+      commission_posted: true,
+      commission_ledger_id: ledger._id,
       total_commission_paise: net_commission_paise,
     },
   });
@@ -289,41 +298,40 @@ async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
     let wallet = await ResellerWallet.findOne({ reseller_id: order.franchisee_id });
     if (!wallet) wallet = await ResellerWallet.create({ reseller_id: order.franchisee_id });
 
-    const newBalancePaise     = (wallet.available_balance_paise || 0) + net_commission_paise;
+    const newBalancePaise = (wallet.available_balance_paise || 0) + net_commission_paise;
     const newGrossEarnedPaise = (wallet.gross_earned_paise || 0) + commission_paise;
     const newTotalEarnedPaise = (wallet.total_earned_paise || 0) + net_commission_paise;
-    const newTdsPaise         = (wallet.tds_deducted_paise || 0) + tds_paise;
-    const newTcsPaise         = (wallet.tcs_deducted_paise || 0) + tcs_paise;
+    const newTdsPaise = (wallet.tds_deducted_paise || 0) + tds_paise;
+    const newTcsPaise = (wallet.tcs_deducted_paise || 0) + tcs_paise;
 
     wallet.available_balance_paise = newBalancePaise;
-    wallet.gross_earned_paise      = newGrossEarnedPaise;
-    wallet.total_earned_paise      = newTotalEarnedPaise;
-    wallet.tds_deducted_paise      = newTdsPaise;
-    wallet.tcs_deducted_paise      = newTcsPaise;
-    wallet.available_balance       = Math.round(newBalancePaise) / 100;
-    wallet.total_earned            = Math.round(newTotalEarnedPaise) / 100;
+    wallet.gross_earned_paise = newGrossEarnedPaise;
+    wallet.total_earned_paise = newTotalEarnedPaise;
+    wallet.tds_deducted_paise = newTdsPaise;
+    wallet.tcs_deducted_paise = newTcsPaise;
+    wallet.available_balance = Math.round(newBalancePaise) / 100;
+    wallet.total_earned = Math.round(newTotalEarnedPaise) / 100;
     await wallet.save();
 
     const walletLedger = await ResellerWalletLedger.create({
-      reseller_id:        order.franchisee_id,
-      transaction_type:   'po_commission_credit',
-      amount:             net_commission_paise / 100,
-      balance_type:       'available',
-      balance_after:      newBalancePaise / 100,
+      reseller_id: order.franchisee_id,
+      transaction_type: 'po_commission_credit',
+      amount: net_commission_paise / 100,
+      balance_type: 'available',
+      balance_after: newBalancePaise / 100,
       gross_amount_paise: commission_paise,
-      tds_amount_paise:   tds_paise,
-      tcs_amount_paise:   tcs_paise,
-      net_amount_paise:   net_commission_paise,
+      tds_amount_paise: tds_paise,
+      tcs_amount_paise: tcs_paise,
+      net_amount_paise: net_commission_paise,
       balance_after_paise: newBalancePaise,
       reference_order_id: order._id,
-      idempotency_key:    walletIdempotencyKey,
-      narration: `FPO Commission (${order.po_number}): ${
-        isVariationMatched || (order.total_commission_paise && order.total_commission_paise > 0)
+      idempotency_key: walletIdempotencyKey,
+      narration: `FPO Commission (${order.po_number}): ${isVariationMatched || (order.total_commission_paise && order.total_commission_paise > 0)
           ? `Tier Rate (${eligible_kit_quantity} Kits)`
           : commission_rule.commission_method === 'FIXED_PER_KIT'
             ? `${eligible_kit_quantity} kits × ₹${(commission_rule.fixed_amount_per_kit_paise / 100).toFixed(2)}`
             : `Tier Margin (${eligible_kit_quantity} Kits)`
-      } = ₹${(net_commission_paise / 100).toFixed(2)} (net)`,
+        } = ₹${(net_commission_paise / 100).toFixed(2)} (net)`,
       created_by: actor_id,
     });
 
@@ -333,14 +341,14 @@ async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
   }
 
   await logAudit({
-    actor_type:     actor_id ? 'cms_user' : 'system',
-    actor_id:       actor_id || order.franchisee_id,
-    action:         'FPO_COMMISSION_POSTED',
-    entity_type:    'fpo_commission_ledgers',
-    entity_id:      ledger._id,
+    actor_type: actor_id ? 'cms_user' : 'system',
+    actor_id: actor_id || order.franchisee_id,
+    action: 'FPO_COMMISSION_POSTED',
+    entity_type: 'fpo_commission_ledgers',
+    entity_id: ledger._id,
     after_snapshot: {
-      order_id:             order._id,
-      po_number:            order.po_number,
+      order_id: order._id,
+      po_number: order.po_number,
       commission_paise,
       net_commission_paise,
       eligible_kit_quantity,
@@ -349,10 +357,10 @@ async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
   });
 
   return {
-    posted:                 true,
-    already_posted:         false,
-    po_number:              order.po_number,
-    commission_method:      commission_rule.commission_method,
+    posted: true,
+    already_posted: false,
+    po_number: order.po_number,
+    commission_method: commission_rule.commission_method,
     eligible_kit_quantity,
     gross_eligible_paise,
     commission_paise,
@@ -392,32 +400,32 @@ async function reverseCommission({ fpo_order_id, returned_kit_quantity, reason, 
   }
 
   const reversalIdempotencyKey = `FPO-REVERSAL-${fpo_order_id}-${Date.now()}`;
-  const originalQty   = originalLedger.eligible_kit_quantity || 1;
-  const proportion    = Math.min(returned_kit_quantity / originalQty, 1);
-  const reversal_commission_paise     = Math.round(originalLedger.commission_paise * proportion);
+  const originalQty = originalLedger.eligible_kit_quantity || 1;
+  const proportion = Math.min(returned_kit_quantity / originalQty, 1);
+  const reversal_commission_paise = Math.round(originalLedger.commission_paise * proportion);
   const reversal_net_commission_paise = Math.round(originalLedger.net_commission_paise * proportion);
   const reversal_tds_paise = Math.round(originalLedger.tds_paise * proportion);
   const reversal_tcs_paise = Math.round(originalLedger.tcs_paise * proportion);
 
   // Create reversal ledger entry
   const reversalLedger = await FpoCommissionLedger.create({
-    franchisee_id:        order.franchisee_id,
-    fpo_order_id:         order._id,
-    po_number:            order.po_number,
-    commission_method:    originalLedger.commission_method,
+    franchisee_id: order.franchisee_id,
+    fpo_order_id: order._id,
+    po_number: order.po_number,
+    commission_method: originalLedger.commission_method,
     eligible_kit_quantity: -returned_kit_quantity,
-    gross_eligible_paise:  -Math.round(originalLedger.gross_eligible_paise * proportion),
-    commission_paise:      -reversal_commission_paise,
-    tds_paise:             -reversal_tds_paise,
-    tcs_paise:             -reversal_tcs_paise,
-    net_commission_paise:  -reversal_net_commission_paise,
-    commission_rule_id:    originalLedger.commission_rule_id,
-    calculation_stage:     originalLedger.calculation_stage,
-    settlement_status:     'REVERSED',
-    reversed_at:           new Date(),
-    reversal_reason:       reason,
-    idempotency_key:       reversalIdempotencyKey,
-    created_by:            actor_id,
+    gross_eligible_paise: -Math.round(originalLedger.gross_eligible_paise * proportion),
+    commission_paise: -reversal_commission_paise,
+    tds_paise: -reversal_tds_paise,
+    tcs_paise: -reversal_tcs_paise,
+    net_commission_paise: -reversal_net_commission_paise,
+    commission_rule_id: originalLedger.commission_rule_id,
+    calculation_stage: originalLedger.calculation_stage,
+    settlement_status: 'REVERSED',
+    reversed_at: new Date(),
+    reversal_reason: reason,
+    idempotency_key: reversalIdempotencyKey,
+    created_by: actor_id,
   });
 
   // Deduct from wallet
@@ -428,34 +436,34 @@ async function reverseCommission({ fpo_order_id, returned_kit_quantity, reason, 
     await wallet.save();
 
     await ResellerWalletLedger.create({
-      reseller_id:        order.franchisee_id,
-      transaction_type:   'po_commission_reversal',
-      amount:             -(reversal_net_commission_paise / 100),
-      balance_type:       'available',
-      balance_after:      wallet.available_balance,
+      reseller_id: order.franchisee_id,
+      transaction_type: 'po_commission_reversal',
+      amount: -(reversal_net_commission_paise / 100),
+      balance_type: 'available',
+      balance_after: wallet.available_balance,
       gross_amount_paise: -reversal_commission_paise,
-      tds_amount_paise:   -reversal_tds_paise,
-      tcs_amount_paise:   -reversal_tcs_paise,
-      net_amount_paise:   -reversal_net_commission_paise,
+      tds_amount_paise: -reversal_tds_paise,
+      tcs_amount_paise: -reversal_tcs_paise,
+      net_amount_paise: -reversal_net_commission_paise,
       balance_after_paise: wallet.available_balance_paise,
       reference_order_id: order._id,
-      idempotency_key:    `FPO-WALLET-REVERSAL-${fpo_order_id}-${Date.now()}`,
+      idempotency_key: `FPO-WALLET-REVERSAL-${fpo_order_id}-${Date.now()}`,
       narration: `FPO Commission Reversal (${order.po_number}): ${returned_kit_quantity} kits returned. Reason: ${reason}`,
       created_by: actor_id,
     });
   }
 
   await logAudit({
-    actor_type:  actor_id ? 'cms_user' : 'system',
-    actor_id:    actor_id || order.franchisee_id,
-    action:      'FPO_COMMISSION_REVERSED',
+    actor_type: actor_id ? 'cms_user' : 'system',
+    actor_id: actor_id || order.franchisee_id,
+    action: 'FPO_COMMISSION_REVERSED',
     entity_type: 'fpo_commission_ledgers',
-    entity_id:   reversalLedger._id,
+    entity_id: reversalLedger._id,
     after_snapshot: {
-      order_id:               order._id,
+      order_id: order._id,
       returned_kit_quantity,
-      reversal_commission:    reversal_commission_paise,
-      reversal_net:           reversal_net_commission_paise,
+      reversal_commission: reversal_commission_paise,
+      reversal_net: reversal_net_commission_paise,
       reason,
     },
     req,

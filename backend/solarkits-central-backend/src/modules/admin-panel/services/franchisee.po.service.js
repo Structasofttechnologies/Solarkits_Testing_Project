@@ -448,7 +448,9 @@ async function createPoDraft({
         let commission_snapshot = 0;
         let item_commission_paise = 0;
 
-        // 1. First priority: Check individual variation commission configured in Franchisee Commission Settings
+        // Drawdowns / Repeat orders against a parent PO strictly fulfill Master PO quota and do not generate separate commission
+        if (!parentPoDoc && !parent_po_id) {
+          // 1. First priority: Check individual variation commission configured in Franchisee Commission Settings
         if (franchisee_id && effectiveKitId) {
           const varCommPaise = await resolveVariationCommission({
             reseller_id: franchisee_id,
@@ -478,6 +480,7 @@ async function createPoDraft({
         }
 
         total_commission_paise += item_commission_paise;
+        }
 
         const validKitId = (item.kit_id && mongoose.Types.ObjectId.isValid(item.kit_id)) ? item.kit_id : null;
         const validProjTypeId = (item.project_type_id && mongoose.Types.ObjectId.isValid(item.project_type_id)) ? item.project_type_id : null;
@@ -860,9 +863,11 @@ async function createPoDraft({
     }
 
     // Post commission immediately upon payment confirmation (credits wallet & updates accounts tracking)
-    await postCommission({ fpo_order_id: targetId, actor_id: admin_id, req }).catch((err) => {
-      console.error('[franchisee.po.service] commission post error on confirmPayment (non-fatal):', err.message);
-    });
+    if (!orderDoc.parent_po_id) {
+      await postCommission({ fpo_order_id: targetId, actor_id: admin_id, req }).catch((err) => {
+        console.error('[franchisee.po.service] commission post error on confirmPayment (non-fatal):', err.message);
+      });
+    }
 
     await logAudit({
       actor_type: 'cms_user',
@@ -923,9 +928,11 @@ async function createPoDraft({
     });
 
     // Post commission if applicable
-    await postCommission({ fpo_order_id: po_id, actor_id: admin_id, req }).catch((err) => {
-      console.error('[franchisee.po.service] commission post error (non-fatal):', err.message);
-    });
+    if (!order.parent_po_id) {
+      await postCommission({ fpo_order_id: po_id, actor_id: admin_id, req }).catch((err) => {
+        console.error('[franchisee.po.service] commission post error (non-fatal):', err.message);
+      });
+    }
 
     await logAudit({ actor_type: 'cms_user', actor_id: admin_id, action: 'FPO_DELIVERED', entity_type: 'fpo_orders', entity_id: po_id, after_snapshot: { status: 'DELIVERED' }, req });
     return order;
@@ -1035,8 +1042,8 @@ async function createPoDraft({
         it.delivered_quantity = it.quantity;
       });
       // Trigger commission and goals if not yet posted
-      if (!order.commission_posted) {
-        await postCommission({ fpo_order: order, actor_id, req }).catch(() => { });
+      if (!order.commission_posted && !order.parent_po_id) {
+        await postCommission({ fpo_order_id: order._id, actor_id, req }).catch(() => { });
       }
       const now = new Date();
       await recalculateProgress({ franchisee_id: order.franchisee_id, month: now.getMonth() + 1, year: now.getFullYear(), req }).catch(() => { });

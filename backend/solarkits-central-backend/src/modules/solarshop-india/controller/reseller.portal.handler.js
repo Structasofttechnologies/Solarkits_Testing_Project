@@ -2083,6 +2083,7 @@ const list_my_epc_orders = async (req, res) => {
 
     // 2. Fetch Franchisee PO orders with allocations for these EPCs
     const fpos = await FpoOrder.find({
+      parent_po_id: null,
       $or: [
         { franchisee_id: resellerId },
         { 'items.epc_allocations.epc_buyer_id': { $in: epcIds } },

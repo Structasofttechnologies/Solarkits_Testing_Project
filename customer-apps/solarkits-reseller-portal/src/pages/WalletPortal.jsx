@@ -1031,10 +1031,16 @@ export default function WalletPortal() {
                                 const looseAmt = byQty[qty].loose;
                                 const poRs = poAmt != null ? poAmt / 100 : null;
                                 const looseRs = looseAmt != null ? looseAmt / 100 : null;
-                                const betterIs =
-                                  poRs != null && looseRs != null
-                                    ? poRs >= looseRs ? "po" : "loose"
-                                    : poRs != null ? "po" : looseRs != null ? "loose" : null;
+                                const hasBoth = poRs != null && looseRs != null;
+                                const betterIs = hasBoth
+                                  ? poRs >= looseRs ? "po" : "loose"
+                                  : null;
+                                const tierTypeLabel =
+                                  hasBoth
+                                    ? "PO & Loose Tier"
+                                    : poRs != null
+                                      ? "Bulk PO Tier"
+                                      : "Loose Order Tier";
 
                                 return (
                                   <tr key={qty} className="hover:bg-slate-50/80 transition-colors">
@@ -1047,7 +1053,18 @@ export default function WalletPortal() {
                                         </div>
                                         <div>
                                           <div className="font-black text-slate-900 text-sm">{qty} Kits Order</div>
-                                          <div className="text-xs text-slate-500 font-medium mt-0.5">Min. order: {qty} units</div>
+                                          <div className="flex items-center gap-1.5 mt-0.5">
+                                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                                              hasBoth
+                                                ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+                                                : poRs != null
+                                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                                                  : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                                            }`}>
+                                              {tierTypeLabel}
+                                            </span>
+                                            <span className="text-xs text-slate-400 font-medium">Min: {qty}</span>
+                                          </div>
                                         </div>
                                       </div>
                                     </td>
@@ -1056,7 +1073,7 @@ export default function WalletPortal() {
                                     <td className="px-6 py-5 text-center">
                                       {poRs != null ? (
                                         <div>
-                                          <div className={`text-xl font-black tabular-nums ${betterIs === "po" ? "text-blue-700" : "text-slate-700"}`}>
+                                          <div className={`text-xl font-black tabular-nums ${betterIs === "po" || !hasBoth ? "text-blue-700" : "text-slate-700"}`}>
                                             ₹{poRs.toLocaleString("en-IN")}
                                           </div>
                                           <div className="text-xs text-slate-500 font-semibold mt-0.5">total for {qty} kits</div>
@@ -1065,7 +1082,7 @@ export default function WalletPortal() {
                                           </div>
                                         </div>
                                       ) : (
-                                        <span className="text-slate-400 font-bold text-sm">Not configured</span>
+                                        <span className="text-slate-400 font-bold text-sm" title="Not applicable for this quantity tier">—</span>
                                       )}
                                     </td>
 
@@ -1073,7 +1090,7 @@ export default function WalletPortal() {
                                     <td className="px-6 py-5 text-center">
                                       {looseRs != null ? (
                                         <div>
-                                          <div className={`text-xl font-black tabular-nums ${betterIs === "loose" ? "text-emerald-700" : "text-slate-700"}`}>
+                                          <div className={`text-xl font-black tabular-nums ${betterIs === "loose" || !hasBoth ? "text-emerald-700" : "text-slate-700"}`}>
                                             ₹{looseRs.toLocaleString("en-IN")}
                                           </div>
                                           <div className="text-xs text-slate-500 font-semibold mt-0.5">total for {qty} kits</div>
@@ -1082,7 +1099,7 @@ export default function WalletPortal() {
                                           </div>
                                         </div>
                                       ) : (
-                                        <span className="text-slate-400 font-bold text-sm">Not configured</span>
+                                        <span className="text-slate-400 font-bold text-sm" title="Not applicable for this quantity tier">—</span>
                                       )}
                                     </td>
 
@@ -1097,13 +1114,12 @@ export default function WalletPortal() {
                                           <FaShoppingBag size={11} /> Loose Order
                                         </span>
                                       ) : (
-                                        <span className="text-slate-400 text-xs font-bold">—</span>
+                                        <span className="text-slate-400 text-xs font-bold" title="Only one order type is configured for this tier">—</span>
                                       )}
                                     </td>
                                   </tr>
                                 );
-                              })}
-                            </tbody>
+                              })}                            </tbody>
                           </table>
                         </div>
 
