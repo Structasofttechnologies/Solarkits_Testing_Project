@@ -172,6 +172,13 @@ const slice = createSlice({
         return null;
       }
     })(),
+    selectedPincode: (() => {
+      try {
+        return localStorage.getItem("selectedPincode") || null;
+      } catch (e) {
+        return null;
+      }
+    })(),
   },
   reducers: {
     // ── Regular Cart ────────────────────────────────────────────
@@ -675,9 +682,17 @@ const slice = createSlice({
     },
 
     setSelectedLocation: (state, action) => {
-      const { selectedState, selectedDistrict } = action.payload;
+      const { selectedState, selectedDistrict, selectedPincode } = action.payload;
       state.selectedState = selectedState;
       state.selectedDistrict = selectedDistrict;
+      if (selectedPincode !== undefined) {
+        state.selectedPincode = selectedPincode;
+        if (selectedPincode) {
+          localStorage.setItem("selectedPincode", selectedPincode);
+        } else {
+          localStorage.removeItem("selectedPincode");
+        }
+      }
       if (selectedState) {
         localStorage.setItem("selectedState", JSON.stringify(selectedState));
       } else {

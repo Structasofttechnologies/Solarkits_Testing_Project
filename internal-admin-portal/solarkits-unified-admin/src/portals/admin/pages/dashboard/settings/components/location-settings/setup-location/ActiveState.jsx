@@ -554,64 +554,6 @@ export default function ActiveStates({ moduleUniqueId }) {
         </div>
       </RenderIfPermission>
 
-      {/* ✅ Deactivate State */}
-      <RenderIfPermission 
-        requiredUniqueId={moduleUniqueId}
-        permission="edit"
-      >
-        <div className="card hover:shadow-xl transition-all duration-300">
-          <div className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-to-br from-danger to-danger/80 text-text-inverse">
-                  <FaBan className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-text-primary">Deactivate State</h3>
-                  <p className="text-text-secondary text-sm">Disable an active state and its components</p>
-                </div>
-              </div>
-            </div>
-
-            {activeStates.length > 0 ? (
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <div className="flex-1">
-                  <Dropdown
-                    options={activeStates.map((s) => ({ text: s.name, value: s.id, ...s }))}
-                    value={deactivateOTP}
-                    onChange={(val) => setDeactivateOTP(val)}
-                    placeholder="Select active state to deactivate..."
-                    className="w-full"
-                  />
-                </div>
-                <Button
-                  variant="danger"
-                  onClick={() => {
-                    const st = activeStates.find((s) => s.id === deactivateOTP);
-                    if (st) handleDeactivate(st);
-                  }}
-                  disabled={!deactivateOTP}
-                  icon={FaBan}
-                  iconPosition="left"
-                  className="whitespace-nowrap"
-                >
-                  Deactivate State
-                </Button>
-              </div>
-            ) : (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                  <p className="text-xs text-yellow-800">
-                    No active states found. Activate a state first to enable deactivation.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </RenderIfPermission>
-
       {/* ✅ Active States Grid */}
       <RenderIfPermission 
         requiredUniqueId={moduleUniqueId}
