@@ -29,7 +29,7 @@ const {
   FranchiseePlanPoSetting,
 } = require('../models/india_solarshop_db');
 const { resolveEffectivePoSettings, validatePoItems, resolveEffectiveMoqRule } = require('./franchisee.moq.service');
-const { resolveCommissionRule } = require('./franchisee.commission.service');
+const { resolveCommissionRule, resolveVariationCommission } = require('./franchisee.commission.service');
 const { recalculateProgress } = require('./franchisee.goal.service');
 const { postCommission, reverseCommission } = require('./franchisee.commission.service');
 const { logAudit } = require('../utils/audit.service');
@@ -300,6 +300,27 @@ async function createPoDraft({
     }
   }
 
+  // Incorporate explicit Admin Reseller Authorizations (Whitelisted / Blacklisted kits)
+  const effectiveResellerId = subscription?.reseller_id || franchisee_id;
+  if (effectiveResellerId) {
+    const { ResellerProductAuthorization } = require('../models/india_solarshop_db');
+    const adminRules = await ResellerProductAuthorization.find({
+      reseller_id: effectiveResellerId,
+      status: 'active',
+    }).lean();
+
+    for (const r of adminRules) {
+      if (r.scope_type === 'kit' && r.kit_id) {
+        const kId = String(r.kit_id._id || r.kit_id);
+        if (r.is_authorized === false) {
+          authorizedKitIds.delete(kId);
+        } else {
+          authorizedKitIds.add(kId);
+        }
+      }
+    }
+  }
+
     // ── Early Resolution of Linked Parent PO (for Drawdowns / Reorders against PO) ────
     const isPoOrder = (order_type === 'po_order' || order_type === 'bulk_po');
     let parentPoDoc = null;
@@ -349,6 +370,7 @@ async function createPoDraft({
     let tax_total_paise = 0;
     const builtItems = [];
     let totalItemQty = 0;
+    let total_commission_paise = 0;
 
     if (hasItems) {
       if (authorizedKitIds.size > 0 && created_by_role !== 'BDE') {
@@ -369,6 +391,28 @@ async function createPoDraft({
         const failures = validationResults.filter((r) => !r.valid);
         if (failures.length > 0) {
           throw new Error(failures.map((f) => `Item "${f.item_name}": ${f.reason}`).join('; '));
+        }
+      }
+
+      // ── Commission Setting Validation for Franchisee PO Orders ──────────────
+      if (franchisee_id && order_type === 'po_order' && !parent_po_id) {
+        const { FranchiseeVariationCommission } = require('../models/india_solarshop_db');
+        for (const item of items) {
+          const kitId = item.combo_kit_id || item.kit_id;
+          if (kitId) {
+            const definedRule = await FranchiseeVariationCommission.findOne({
+              reseller_id: franchisee_id,
+              combo_kit_id: kitId,
+              order_type: 'po',
+              is_active: true,
+              deleted_at: null,
+              commission_amount_paise: { $gt: 0 },
+            }).lean();
+            if (!definedRule) {
+              const kitName = item.item_name || 'Selected Product';
+              throw new Error(`Commission setting is not defined for product "${kitName}". Please configure commission settings in Franchise Commission Settings before creating a Purchase Order.`);
+            }
+          }
         }
       }
 
@@ -402,15 +446,38 @@ async function createPoDraft({
         // Commission snapshot
         let commission_method = null;
         let commission_snapshot = 0;
-        if (plan_id) {
+        let item_commission_paise = 0;
+
+        // 1. First priority: Check individual variation commission configured in Franchisee Commission Settings
+        if (franchisee_id && effectiveKitId) {
+          const varCommPaise = await resolveVariationCommission({
+            reseller_id: franchisee_id,
+            combo_kit_id: effectiveKitId,
+            quantity: item.quantity,
+            order_type: isPoOrder ? 'po' : 'loose',
+          });
+          if (varCommPaise !== null && varCommPaise >= 0) {
+            commission_method = 'FIXED_PER_KIT';
+            commission_snapshot = varCommPaise;
+            item_commission_paise = varCommPaise;
+          }
+        }
+
+        // 2. Fallback: Plan-level commission rule
+        if (!commission_method && plan_id) {
           const commissionRule = await resolveCommissionRule(plan_id);
           if (commissionRule) {
             commission_method = commissionRule.commission_method;
             commission_snapshot = commissionRule.commission_method === 'FIXED_PER_KIT'
               ? (commissionRule.fixed_amount_per_kit_paise || 0)
               : (commissionRule.commission_percentage || 0) * 100;
+            item_commission_paise = commissionRule.commission_method === 'FIXED_PER_KIT'
+              ? Math.round(item.quantity * (commissionRule.fixed_amount_per_kit_paise || 0))
+              : Math.round(((effectiveUnitPricePaise || 0) * item.quantity) * (commissionRule.commission_percentage / 100));
           }
         }
+
+        total_commission_paise += item_commission_paise;
 
         const validKitId = (item.kit_id && mongoose.Types.ObjectId.isValid(item.kit_id)) ? item.kit_id : null;
         const validProjTypeId = (item.project_type_id && mongoose.Types.ObjectId.isValid(item.project_type_id)) ? item.project_type_id : null;
@@ -605,6 +672,7 @@ async function createPoDraft({
       requires_approval: po_settings.requires_approval !== false,
       commission_rule_id: commissionRule?._id || null,
       commission_rule_snapshot: commissionRule || null,
+      total_commission_paise,
       expires_at,
       created_by: actor_id,
       updated_by: actor_id,
@@ -1105,8 +1173,31 @@ async function createPoDraft({
         throw new Error(failures.map((f) => `Item "${f.item_name}": ${f.reason}`).join('; '));
       }
 
+      // ── Commission Setting Validation on Allocated Items ──────────────
+      if (franchisee_id && (!order.parent_po_id)) {
+        const { FranchiseeVariationCommission } = require('../models/india_solarshop_db');
+        for (const item of items) {
+          const kitId = item.combo_kit_id || item.kit_id;
+          if (kitId) {
+            const definedRule = await FranchiseeVariationCommission.findOne({
+              reseller_id: franchisee_id,
+              combo_kit_id: kitId,
+              order_type: 'po',
+              is_active: true,
+              deleted_at: null,
+              commission_amount_paise: { $gt: 0 },
+            }).lean();
+            if (!definedRule) {
+              const kitName = item.item_name || 'Allocated Product';
+              throw new Error(`Commission setting is not defined for product "${kitName}". Please configure commission settings in Franchise Commission Settings before allocating.`);
+            }
+          }
+        }
+      }
+
       let subtotal_paise = 0;
       let tax_total_paise = 0;
+      let total_commission_paise = 0;
       const builtItems = [];
 
       for (let i = 0; i < items.length; i++) {
@@ -1135,15 +1226,38 @@ async function createPoDraft({
 
         let commission_method = null;
         let commission_snapshot = 0;
-        if (plan_id) {
+        let item_commission_paise = 0;
+
+        // 1. First priority: Check individual variation commission configured in Franchisee Commission Settings
+        if (franchisee_id && lockedKitId) {
+          const varCommPaise = await resolveVariationCommission({
+            reseller_id: franchisee_id,
+            combo_kit_id: lockedKitId,
+            quantity: item.quantity,
+            order_type: 'po',
+          });
+          if (varCommPaise !== null && varCommPaise >= 0) {
+            commission_method = 'FIXED_PER_KIT';
+            commission_snapshot = varCommPaise;
+            item_commission_paise = varCommPaise;
+          }
+        }
+
+        // 2. Fallback: Plan-level commission rule
+        if (!commission_method && plan_id) {
           const commissionRule = await resolveCommissionRule(plan_id);
           if (commissionRule) {
             commission_method = commissionRule.commission_method;
             commission_snapshot = commissionRule.commission_method === 'FIXED_PER_KIT'
               ? (commissionRule.fixed_amount_per_kit_paise || 0)
               : (commissionRule.commission_percentage || 0) * 100;
+            item_commission_paise = commissionRule.commission_method === 'FIXED_PER_KIT'
+              ? Math.round(item.quantity * (commissionRule.fixed_amount_per_kit_paise || 0))
+              : Math.round((lockedUnitPricePaise * item.quantity) * (commissionRule.commission_percentage / 100));
           }
         }
+
+        total_commission_paise += item_commission_paise;
         builtItems.push({
           project_type_id: item.project_type_id || null,
           project_type_name: item.project_type_name || null,
@@ -1232,6 +1346,7 @@ async function createPoDraft({
       order.total_booked_quantity = totalItemQty;
       order.remaining_quantity = totalItemQty;
       order.token_amount_paise = token_amount_paise;
+      order.total_commission_paise = total_commission_paise;
 
       // Check if token was already paid (e.g. at PO creation or advance escrow)
       const isTokenAlreadyPaid = Boolean(order.token_paid_paise && Number(order.token_paid_paise) > 0 && Number(order.token_paid_paise) >= token_amount_paise);

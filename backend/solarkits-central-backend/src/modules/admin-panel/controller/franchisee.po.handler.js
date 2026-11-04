@@ -225,6 +225,39 @@ const enrichOrdersWithKits = async (orders) => {
       });
     });
 
+    // Enrich with dynamic franchisee commission from Franchisee Commission Settings
+    try {
+      const { resolveVariationCommission } = require('../services/franchisee.commission.service');
+      for (const o of orders) {
+        const resellerId = o.franchisee_id?._id || o.franchisee_id;
+        const primaryItem = o.items?.[0];
+        const bookedQty = o.total_booked_quantity || o.total_quantity || primaryItem?.quantity || 1;
+        const kitId = primaryItem?.kit_id || primaryItem?.combo_kit_id;
+
+        let commPaise = o.total_commission_paise || 0;
+
+        // If order doesn't have total_commission_paise stored or it is 0, resolve from Franchisee Commission Settings
+        if ((!commPaise || commPaise === 0) && resellerId && kitId) {
+          const varCommPaise = await resolveVariationCommission({
+            reseller_id: resellerId,
+            combo_kit_id: kitId,
+            quantity: bookedQty,
+            order_type: 'po',
+          });
+          if (varCommPaise !== null && varCommPaise >= 0) {
+            commPaise = varCommPaise;
+          }
+        }
+
+        o.franchisee_commission_paise = commPaise;
+        o.franchisee_commission_amount = commPaise > 0 ? (commPaise / 100) : 0;
+        o.commission_per_kit = (commPaise > 0 && bookedQty > 0) ? Math.round((commPaise / 100) / bookedQty) : 0;
+        o.commission_tier_quantity = bookedQty;
+      }
+    } catch (commErr) {
+      console.warn('[po.handler] commission enrichment error:', commErr.message);
+    }
+
     return orders;
   } catch (err) {
     console.warn('[po.handler] enrichOrdersWithKits error:', err.message);

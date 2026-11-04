@@ -119,138 +119,6 @@ function PoStageStepper({ stepNumber }) {
           </React.Fragment>
         );
       })}
-
-      {/* ── FRANCHISE VIEW SIGNED CONTRACT MODAL ───────────────────────── */}
-      <AnimatePresence>
-        {contractViewModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-surface border border-border rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
-            >
-              <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-gradient-to-r from-emerald-600/10 via-teal-600/5 to-transparent">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center font-bold">
-                    <FiShield size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black text-text-primary">PO Legal Contract & Mobile OTP Seal</h3>
-                    <p className="text-[11px] text-text-muted">
-                      Contract Ref: <span className="font-mono font-bold text-emerald-600">{contractViewData?.contract?.contract_number || "CNT-PENDING"}</span>
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setContractViewModal(false)}
-                  className="w-8 h-8 rounded-full hover:bg-surface-hover flex items-center justify-center text-text-muted hover:text-text-primary transition-all cursor-pointer"
-                >
-                  <FiX size={18} />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {contractViewLoading ? (
-                  <div className="py-20 text-center">
-                    <FiLoader className="animate-spin text-primary mx-auto" size={32} />
-                    <p className="text-xs text-text-muted mt-2">Loading contract document...</p>
-                  </div>
-                ) : contractViewData ? (
-                  <div className="space-y-4">
-                    <div className="p-6 rounded-2xl bg-white text-slate-800 border border-slate-300 shadow-inner text-xs font-serif leading-relaxed space-y-4">
-                      <div className="text-center pb-3 border-b border-slate-300">
-                        <div className="text-[10px] font-sans font-black tracking-widest text-emerald-700 uppercase">SOLARKITS OFFICIAL PO AGREEMENT</div>
-                        <div className="text-base font-sans font-black text-slate-900 mt-1">{contractViewData.rendered_content?.contract_title}</div>
-                        <div className="text-[10px] font-sans text-slate-500 mt-0.5">PO Ref: {contractViewData.po_number} • Contract No: {contractViewData.contract?.contract_number}</div>
-                      </div>
-
-                      <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-sans grid grid-cols-2 gap-3">
-                        <div>
-                          <span className="text-[9px] font-bold text-slate-500 block uppercase">Franchise Partner:</span>
-                          <span className="font-bold text-slate-900">{contractViewData.franchisee?.business_name}</span>
-                          <span className="block text-[10px] text-slate-500">{contractViewData.franchisee?.mobile}</span>
-                        </div>
-                        <div>
-                          <span className="text-[9px] font-bold text-slate-500 block uppercase">Solar EPC Contractor:</span>
-                          <span className="font-bold text-slate-900">{contractViewData.epc?.company_name || contractViewData.epc?.name}</span>
-                          <span className="block text-[10px] text-slate-500">GST: {contractViewData.epc?.gstin || "N/A"}</span>
-                        </div>
-                      </div>
-
-                      <p className="text-[11px] text-slate-700 italic border-l-2 border-emerald-600 pl-2.5 py-0.5">
-                        {contractViewData.rendered_content?.terms_introduction}
-                      </p>
-
-                      <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-300 font-sans text-xs space-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Product / Combo Kit:</span>
-                          <span className="font-bold text-slate-900">{contractViewData.item_name}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Committed Quantity:</span>
-                          <span className="font-black text-emerald-800">{contractViewData.allocated_quantity} Combo Kit(s)</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Token Commitment Deposit:</span>
-                          <span className="font-black text-emerald-800">₹{contractViewData.token_amount_inr?.toLocaleString("en-IN")}</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3 pt-1">
-                        {(contractViewData.rendered_content?.clauses || []).map((c, i) => (
-                          <div key={i} className="space-y-0.5">
-                            <div className="font-sans font-bold text-slate-900 text-xs flex items-center justify-between">
-                              <span>{c.title}</span>
-                              {c.is_mandatory && <span className="text-[9px] text-emerald-700 font-bold uppercase tracking-wider">Mandatory</span>}
-                            </div>
-                            <p className="text-[11px] text-slate-600 leading-normal pl-2 border-l border-slate-200">
-                              {c.body}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mt-6 pt-4 border-t-2 border-slate-300 font-sans grid grid-cols-2 gap-4 text-xs">
-                        <div className="p-3 rounded-xl border border-dashed border-slate-300 text-center space-y-1">
-                          <div className="font-bold text-slate-700">Franchise Partner</div>
-                          <div className="text-[10px] text-slate-500">{contractViewData.franchisee?.business_name}</div>
-                          <div className="text-[9px] text-emerald-600 font-bold">ISSUED & ALLOCATED ✓</div>
-                        </div>
-                        <div className="p-3 rounded-xl border-2 border-emerald-500 bg-emerald-50/60 text-center space-y-1">
-                          <div className="font-black text-emerald-900 flex items-center justify-center gap-1">
-                            <FiCheck size={14} className="text-emerald-600" />
-                            <span>Digitally Signed & Sealed</span>
-                          </div>
-                          <div className="text-[10px] font-bold text-slate-800">{contractViewData.contract?.signer_name || "Authorized Signatory"}</div>
-                          <div className="text-[9px] text-slate-500">{contractViewData.contract?.signer_designation}</div>
-                          <div className="text-[9px] font-mono text-emerald-700 font-bold">
-                            OTP Verified: {contractViewData.contract?.otp_verified_at ? new Date(contractViewData.contract.otp_verified_at).toLocaleString("en-IN") : "Mobile OTP Verified"}
-                          </div>
-                          <div className="text-[8px] text-slate-400 font-mono">Mobile: {contractViewData.contract?.signer_phone || "N/A"}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="px-6 py-3 border-t border-border flex items-center justify-between bg-surface-hover/30">
-                <span className="text-[10px] text-text-muted">Authenticated electronic contract record.</span>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-4 py-2 rounded-xl bg-surface border border-border text-xs font-bold text-text-primary hover:bg-surface-hover transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  <span>🖨️ Print / Save Document</span>
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
     </div>
   );
 }
@@ -4226,6 +4094,136 @@ export default function PoOrder() {
                   </div>
                 </form>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* ── FRANCHISE VIEW SIGNED CONTRACT MODAL ───────────────────────── */}
+      <AnimatePresence>
+        {contractViewModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface border border-border rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+            >
+              <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-gradient-to-r from-emerald-600/10 via-teal-600/5 to-transparent">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center font-bold">
+                    <FiShield size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-text-primary">PO Legal Contract & Mobile OTP Seal</h3>
+                    <p className="text-[11px] text-text-muted">
+                      Contract Ref: <span className="font-mono font-bold text-emerald-600">{contractViewData?.contract?.contract_number || "CNT-PENDING"}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setContractViewModal(false)}
+                  className="w-8 h-8 rounded-full hover:bg-surface-hover flex items-center justify-center text-text-muted hover:text-text-primary transition-all cursor-pointer"
+                >
+                  <FiX size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {contractViewLoading ? (
+                  <div className="py-20 text-center">
+                    <FiLoader className="animate-spin text-primary mx-auto" size={32} />
+                    <p className="text-xs text-text-muted mt-2">Loading contract document...</p>
+                  </div>
+                ) : contractViewData ? (
+                  <div className="space-y-4">
+                    <div className="p-6 rounded-2xl bg-white text-slate-800 border border-slate-300 shadow-inner text-xs font-serif leading-relaxed space-y-4">
+                      <div className="text-center pb-3 border-b border-slate-300">
+                        <div className="text-[10px] font-sans font-black tracking-widest text-emerald-700 uppercase">SOLARKITS OFFICIAL PO AGREEMENT</div>
+                        <div className="text-base font-sans font-black text-slate-900 mt-1">{contractViewData.rendered_content?.contract_title}</div>
+                        <div className="text-[10px] font-sans text-slate-500 mt-0.5">PO Ref: {contractViewData.po_number} • Contract No: {contractViewData.contract?.contract_number}</div>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-sans grid grid-cols-2 gap-3">
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-500 block uppercase">Franchise Partner:</span>
+                          <span className="font-bold text-slate-900">{contractViewData.franchisee?.business_name}</span>
+                          <span className="block text-[10px] text-slate-500">{contractViewData.franchisee?.mobile}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-500 block uppercase">Solar EPC Contractor:</span>
+                          <span className="font-bold text-slate-900">{contractViewData.epc?.company_name || contractViewData.epc?.name}</span>
+                          <span className="block text-[10px] text-slate-500">GST: {contractViewData.epc?.gstin || "N/A"}</span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-slate-700 italic border-l-2 border-emerald-600 pl-2.5 py-0.5">
+                        {contractViewData.rendered_content?.terms_introduction}
+                      </p>
+
+                      <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-300 font-sans text-xs space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Product / Combo Kit:</span>
+                          <span className="font-bold text-slate-900">{contractViewData.item_name}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Committed Quantity:</span>
+                          <span className="font-black text-emerald-800">{contractViewData.allocated_quantity} Combo Kit(s)</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Token Commitment Deposit:</span>
+                          <span className="font-black text-emerald-800">₹{contractViewData.token_amount_inr?.toLocaleString("en-IN")}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 pt-1">
+                        {(contractViewData.rendered_content?.clauses || []).map((c, i) => (
+                          <div key={i} className="space-y-0.5">
+                            <div className="font-sans font-bold text-slate-900 text-xs flex items-center justify-between">
+                              <span>{c.title}</span>
+                              {c.is_mandatory && <span className="text-[9px] text-emerald-700 font-bold uppercase tracking-wider">Mandatory</span>}
+                            </div>
+                            <p className="text-[11px] text-slate-600 leading-normal pl-2 border-l border-slate-200">
+                              {c.body}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-6 pt-4 border-t-2 border-slate-300 font-sans grid grid-cols-2 gap-4 text-xs">
+                        <div className="p-3 rounded-xl border border-dashed border-slate-300 text-center space-y-1">
+                          <div className="font-bold text-slate-700">Franchise Partner</div>
+                          <div className="text-[10px] text-slate-500">{contractViewData.franchisee?.business_name}</div>
+                          <div className="text-[9px] text-emerald-600 font-bold">ISSUED & ALLOCATED ✓</div>
+                        </div>
+                        <div className="p-3 rounded-xl border-2 border-emerald-500 bg-emerald-50/60 text-center space-y-1">
+                          <div className="font-black text-emerald-900 flex items-center justify-center gap-1">
+                            <FiCheck size={14} className="text-emerald-600" />
+                            <span>Digitally Signed & Sealed</span>
+                          </div>
+                          <div className="text-[10px] font-bold text-slate-800">{contractViewData.contract?.signer_name || "Authorized Signatory"}</div>
+                          <div className="text-[9px] text-slate-500">{contractViewData.contract?.signer_designation}</div>
+                          <div className="text-[9px] font-mono text-emerald-700 font-bold">
+                            OTP Verified: {contractViewData.contract?.otp_verified_at ? new Date(contractViewData.contract.otp_verified_at).toLocaleString("en-IN") : "Mobile OTP Verified"}
+                          </div>
+                          <div className="text-[8px] text-slate-400 font-mono">Mobile: {contractViewData.contract?.signer_phone || "N/A"}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="px-6 py-3 border-t border-border flex items-center justify-between bg-surface-hover/30">
+                <span className="text-[10px] text-text-muted">Authenticated electronic contract record.</span>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 rounded-xl bg-surface border border-border text-xs font-bold text-text-primary hover:bg-surface-hover transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>🖨️ Print / Save Document</span>
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

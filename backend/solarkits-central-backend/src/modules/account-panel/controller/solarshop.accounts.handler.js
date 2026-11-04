@@ -1024,6 +1024,16 @@ const get_franchise_commissions = async (req, res) => {
       };
     });
 
+    // Fetch variation commission rules for FPO resellers in batch
+    const { FranchiseeVariationCommission } = require('../../admin-panel/models/india_solarshop_db');
+    const fpoResellerIds = fpoOrders.map((f) => f.franchisee_id?._id || f.franchisee_id).filter(Boolean);
+    const poVariationRules = await FranchiseeVariationCommission.find({
+      reseller_id: { $in: fpoResellerIds },
+      order_type: 'po',
+      is_active: true,
+      deleted_at: null,
+    }).lean();
+
     // Process FPO Orders
     const fpoCommissions = fpoOrders.map((f) => {
       const matchedLedger = ledgerMap.get(String(f._id));
@@ -1043,7 +1053,7 @@ const get_franchise_commissions = async (req, res) => {
         if (alloc.gstin) epcGstin = alloc.gstin;
       }
 
-      // Gross margin: from ledger or calculated
+      // Gross margin: from ledger, order snapshot, or Franchisee Commission Settings
       let grossMargin = 0;
       let netCommission = 0;
       let tdsAmount = 0;
@@ -1060,10 +1070,46 @@ const get_franchise_commissions = async (req, res) => {
         tdsAmount = (matchedLedger.tds_amount_paise || 0) / 100;
         tcsAmount = (matchedLedger.tcs_amount_paise || 0) / 100;
         netCommission = (matchedLedger.net_amount_paise || 0) / 100;
+      } else if (f.total_commission_paise && f.total_commission_paise > 0) {
+        grossMargin = f.total_commission_paise / 100;
+        tdsAmount = Math.round(grossMargin * 0.05);
+        netCommission = grossMargin - tdsAmount;
       } else {
-        const snapBps = f.items?.[0]?.commission_snapshot || 200;
-        ratePct = snapBps / 100;
-        grossMargin = Math.round(subtotal * (ratePct / 100));
+        // Resolve from Franchisee Commission Settings
+        const resellerIdStr = String(f.franchisee_id?._id || f.franchisee_id || '');
+        const kitIdStr = String(f.items?.[0]?.kit_id || f.items?.[0]?.combo_kit_id || '');
+        const bookedQty = Number(f.total_booked_quantity || f.total_quantity || f.items?.[0]?.quantity || 1);
+
+        const matchingRules = poVariationRules
+          .filter((r) => String(r.reseller_id) === resellerIdStr && String(r.combo_kit_id) === kitIdStr)
+          .sort((a, b) => b.order_quantity - a.order_quantity);
+
+        let varCommPaise = null;
+        if (matchingRules.length > 0) {
+          const exact = matchingRules.find((r) => r.order_quantity === bookedQty);
+          if (exact) {
+            varCommPaise = exact.commission_amount_paise;
+          } else {
+            const lower = matchingRules.find((r) => r.order_quantity <= bookedQty);
+            varCommPaise = lower ? lower.commission_amount_paise : matchingRules[matchingRules.length - 1].commission_amount_paise;
+          }
+        }
+
+        if (varCommPaise !== null && varCommPaise >= 0) {
+          grossMargin = varCommPaise / 100;
+        } else {
+          // If no specific variation rule, check item snapshot or 0
+          const itemCommSnap = f.items?.[0]?.commission_snapshot || 0;
+          if (itemCommSnap > 0 && f.items?.[0]?.commission_method === 'TIER_FIXED') {
+            grossMargin = itemCommSnap / 100;
+          } else if (itemCommSnap > 0 && f.items?.[0]?.commission_method === 'FIXED_PER_KIT') {
+            grossMargin = (itemCommSnap * bookedQty) / 100;
+          } else if (itemCommSnap > 0) {
+            grossMargin = Math.round(subtotal * (itemCommSnap / 10000));
+          } else {
+            grossMargin = 0;
+          }
+        }
         tdsAmount = Math.round(grossMargin * 0.05);
         netCommission = grossMargin - tdsAmount;
       }

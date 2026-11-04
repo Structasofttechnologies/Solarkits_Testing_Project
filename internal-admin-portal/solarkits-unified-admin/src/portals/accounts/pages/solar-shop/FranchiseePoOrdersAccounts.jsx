@@ -643,6 +643,18 @@ export default function FranchiseePoOrdersAccounts() {
         const grandTotalRs = (selectedOrder.grand_total_paise || 0) / 100;
         const unitPriceRs = orderItem.unit_price_paise ? (orderItem.unit_price_paise / 100) : (subtotalRs / bookedQuota);
 
+        const franchiseeMarginRs = selectedOrder.franchisee_commission_amount != null && Number(selectedOrder.franchisee_commission_amount) > 0
+          ? Number(selectedOrder.franchisee_commission_amount)
+          : (selectedOrder.total_commission_paise != null && Number(selectedOrder.total_commission_paise) > 0
+            ? Number(selectedOrder.total_commission_paise) / 100
+            : (orderItem.commission_method === 'TIER_FIXED' && orderItem.commission_snapshot > 0
+              ? Number(orderItem.commission_snapshot) / 100
+              : null));
+
+        const effectivePerKitMargin = franchiseeMarginRs != null && bookedQuota > 0
+          ? Math.round(franchiseeMarginRs / bookedQuota)
+          : (selectedOrder.commission_per_kit || null);
+
         const tokenRequired = (selectedOrder.token_amount_paise || 0) / 100;
         const tokenPaid = (selectedOrder.token_paid_paise || selectedOrder.token_amount_paise || 0) / 100;
         const tokenAdjusted = (selectedOrder.token_adjusted_total_paise || 0) / 100;
@@ -932,9 +944,26 @@ export default function FranchiseePoOrdersAccounts() {
                             <span>Settlement Rule:</span>
                             <span className="font-bold text-text-primary">{selectedOrder.token_settlement_mode || "PRO_RATA"}</span>
                           </div>
-                          <div className="flex justify-between text-text-secondary">
+                          <div className="flex justify-between text-text-secondary items-center">
                             <span>Franchisee Margin:</span>
-                            <span className="font-bold text-emerald-600">2.0% (₹{((subtotalRs * 0.02)).toLocaleString("en-IN")})</span>
+                            <div className="text-right">
+                              {franchiseeMarginRs != null && franchiseeMarginRs > 0 ? (
+                                <>
+                                  <span className="font-bold text-emerald-600 font-mono text-xs">
+                                    ₹{franchiseeMarginRs.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                  {effectivePerKitMargin != null && (
+                                    <span className="block text-[10px] text-text-muted font-medium mt-0.5">
+                                      ≈ ₹{effectivePerKitMargin.toLocaleString("en-IN")} / Kit ({bookedQuota} Kits Tier)
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="font-semibold text-amber-600 text-xs">
+                                  Configured Rate Pending
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>

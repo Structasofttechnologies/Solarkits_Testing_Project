@@ -1792,9 +1792,45 @@ const get_reseller_authorized_products = async (req, res) => {
 
     const items = Array.from(itemMap.values());
 
+    // Enrich items with Franchisee Commission Setting status
+    const { FranchiseeVariationCommission } = require('../../admin-panel/models/india_solarshop_db');
+    const franchiseeCommissionRules = await FranchiseeVariationCommission.find({
+      reseller_id: resellerId,
+      is_active: true,
+      deleted_at: null,
+    }).lean();
+
+    const commKitMap = new Map();
+    franchiseeCommissionRules.forEach((r) => {
+      const kid = (r.combo_kit_id?._id || r.combo_kit_id)?.toString();
+      if (!kid) return;
+      if (!commKitMap.has(kid)) {
+        commKitMap.set(kid, { po: [], loose: [] });
+      }
+      const entry = commKitMap.get(kid);
+      if (r.order_type === 'po') entry.po.push(r);
+      else if (r.order_type === 'loose') entry.loose.push(r);
+    });
+
+    const enrichedItems = items.map((it) => {
+      const kid = (it.kit_id || it.id || it._id)?.toString();
+      const entry = commKitMap.get(kid);
+      const validPoRules = (entry?.po || []).filter((r) => Number(r.commission_amount_paise) > 0);
+      const validLooseRules = (entry?.loose || []).filter((r) => Number(r.commission_amount_paise) > 0);
+      const hasPo = validPoRules.length > 0;
+      const hasLoose = validLooseRules.length > 0;
+      return {
+        ...it,
+        has_commission_configured: hasPo || hasLoose,
+        commission_status: (hasPo || hasLoose) ? 'DEFINED' : 'NOT_DEFINED',
+        po_commission_defined: hasPo,
+        loose_commission_defined: hasLoose,
+      };
+    });
+
     return res.json({
       status: 'success',
-      data: items,
+      data: enrichedItems,
     });
   } catch (error) {
     console.error('[reseller.portal] get_reseller_authorized_products error:', error);
@@ -2201,13 +2237,26 @@ const list_my_epc_orders = async (req, res) => {
               const ratio = (item.quantity > 0 && alloc.allocated_quantity < item.quantity) ? (alloc.allocated_quantity / item.quantity) : 1;
               grossMargin = Math.round((fpoLedger.commission_paise / 100) * ratio);
               commissionRate = subtotal > 0 ? Math.round((grossMargin / subtotal) * 100 * 10) / 10 : 0;
+            } else if (f.total_commission_paise && f.total_commission_paise > 0) {
+              const ratio = (f.total_booked_quantity > 0 && alloc.allocated_quantity < f.total_booked_quantity)
+                ? (alloc.allocated_quantity / f.total_booked_quantity)
+                : 1;
+              grossMargin = Math.round((f.total_commission_paise / 100) * ratio);
+              commissionRate = subtotal > 0 ? Math.round((grossMargin / subtotal) * 100 * 10) / 10 : 0;
             } else {
               // Check individual variation commission configured in Franchise Commission Settings
               const comboKitId = (item.combo_kit_id || item.kit_id)?.toString();
               const allocQty = parseInt(alloc.allocated_quantity, 10) || 1;
-              const matchingRules = (variationRules || []).filter(
-                (r) => (r.combo_kit_id?._id || r.combo_kit_id)?.toString() === comboKitId && r.order_type === 'loose'
+              // Check PO rules first (f is an FPO order)
+              let matchingRules = (variationRules || []).filter(
+                (r) => (r.combo_kit_id?._id || r.combo_kit_id)?.toString() === comboKitId && r.order_type === 'po'
               );
+              // Fallback to loose rules only if no PO rules configured
+              if (matchingRules.length === 0) {
+                matchingRules = (variationRules || []).filter(
+                  (r) => (r.combo_kit_id?._id || r.combo_kit_id)?.toString() === comboKitId && r.order_type === 'loose'
+                );
+              }
 
               let matchedPaise = null;
               if (matchingRules.length > 0) {
@@ -3220,6 +3269,36 @@ const get_my_plan_po_settings = async (req, res) => {
       ...poSettingsList.flatMap((s) => (s.allowed_combo_kit_ids || []).map(String)),
     ]);
 
+    // Query explicit admin reseller authorizations for this reseller
+    const { ResellerProductAuthorization } = require('../../admin-panel/models/india_solarshop_db');
+    const adminAuthorizations = await ResellerProductAuthorization.find({
+      reseller_id: resellerId,
+      status: 'active',
+    }).lean();
+
+    const adminWhitelistedKitIds = new Set();
+    const blacklistedKitIds = new Set();
+
+    for (const r of adminAuthorizations) {
+      if (r.scope_type === 'kit' && r.kit_id) {
+        const kId = String(r.kit_id._id || r.kit_id);
+        if (r.is_authorized === false) {
+          blacklistedKitIds.add(kId);
+          explicitKitIds.delete(kId);
+        } else {
+          adminWhitelistedKitIds.add(kId);
+          explicitKitIds.add(kId);
+        }
+      } else if (r.scope_type === 'category' && r.category_id) {
+        const catId = String(r.category_id._id || r.category_id);
+        if (r.is_authorized === false) {
+          allCategoryIds.delete(catId);
+        } else {
+          allCategoryIds.add(catId);
+        }
+      }
+    }
+
     // If industry types are specified, find all categories belonging to them
     if (allIndustryIds.size > 0) {
       const { ProjectCategory } = require('../../admin-panel/models/core_db');
@@ -3248,10 +3327,11 @@ const get_my_plan_po_settings = async (req, res) => {
 
     // Build ComboKit query
     const kitOrConditions = [];
-    const validExplicitIds = Array.from(explicitKitIds).filter((id) => mongoose.Types.ObjectId.isValid(id));
+    const validExplicitIds = Array.from(explicitKitIds).filter((id) => mongoose.Types.ObjectId.isValid(id) && !blacklistedKitIds.has(id));
     if (validExplicitIds.length > 0) {
       kitOrConditions.push({ _id: { $in: validExplicitIds } });
-    } else if (matchedSolarKitIds.length > 0) {
+    }
+    if (matchedSolarKitIds.length > 0) {
       kitOrConditions.push({ solar_kit_id: { $in: matchedSolarKitIds } });
     }
 
@@ -3262,6 +3342,10 @@ const get_my_plan_po_settings = async (req, res) => {
         deleted_at: null,
         $or: kitOrConditions,
       }).lean();
+    }
+
+    if (blacklistedKitIds.size > 0) {
+      foundKits = foundKits.filter((k) => !blacklistedKitIds.has(String(k._id)));
     }
 
     // Strict Rule: Warehouse Kit Activation check
@@ -3311,11 +3395,12 @@ const get_my_plan_po_settings = async (req, res) => {
       });
 
       // Filter: only kits actively activated in warehouse with configured pricing
+      // Note: If a kit is explicitly authorized by Admin override, allow fallback if kit has cached pricing configured
       foundKits = foundKits
         .filter((k) => {
           const act = activationMap.get(String(k._id));
-          if (!act) return false; // Kit is NOT active in warehouse
-          const effPrice = Number(act.selling_price_cached || k.selling_price_cached || act.base_price_cached || k.base_price_cached || 0);
+          if (!act && !adminWhitelistedKitIds.has(String(k._id))) return false; // Kit is NOT active in warehouse
+          const effPrice = Number(act?.selling_price_cached || k.selling_price_cached || act?.base_price_cached || k.base_price_cached || 0);
           return effPrice > 0; // Pricing must be configured
         })
         .map((k) => {
@@ -3531,13 +3616,47 @@ const get_my_plan_po_settings = async (req, res) => {
     });
     const uniqueKits = Array.from(uniqueKitsMap.values());
 
+    // Enrich uniqueKits with Franchisee Commission Setting status
+    const { FranchiseeVariationCommission: VarCommModel } = require('../../admin-panel/models/india_solarshop_db');
+    const franchiseePoRules = await VarCommModel.find({
+      reseller_id: resellerId,
+      is_active: true,
+      deleted_at: null,
+    }).lean();
+
+    const kitCommLookup = new Map();
+    franchiseePoRules.forEach((r) => {
+      const kid = (r.combo_kit_id?._id || r.combo_kit_id)?.toString();
+      if (!kid) return;
+      if (!kitCommLookup.has(kid)) {
+        kitCommLookup.set(kid, { po: [], loose: [] });
+      }
+      const entry = kitCommLookup.get(kid);
+      if (r.order_type === 'po') entry.po.push(r);
+      else if (r.order_type === 'loose') entry.loose.push(r);
+    });
+
+    const enrichedUniqueKits = uniqueKits.map((k) => {
+      const kid = (k._id || k.id)?.toString();
+      const entry = kitCommLookup.get(kid);
+      const validPoRules = (entry?.po || []).filter((r) => Number(r.commission_amount_paise) > 0);
+      const hasPoCommission = validPoRules.length > 0;
+      return {
+        ...k,
+        has_commission_configured: hasPoCommission,
+        commission_status: hasPoCommission ? 'DEFINED' : 'NOT_DEFINED',
+        po_commission_tiers_count: validPoRules.length,
+        loose_commission_tiers_count: (entry?.loose || []).length,
+      };
+    });
+
     const planResponseData = {
       has_active_plan: true,
       subscription,
       plan,
       po_settings: poSettingsList[0] || null,
       po_settings_list: poSettingsList,
-      combo_kits: uniqueKits,
+      combo_kits: enrichedUniqueKits,
     };
 
     planSettingsCache.set(resellerId.toString(), {

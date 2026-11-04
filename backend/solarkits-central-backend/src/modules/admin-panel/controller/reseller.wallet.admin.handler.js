@@ -486,7 +486,9 @@ const list_commission_earnings = async (req, res) => {
       const subtotalPaise = f.subtotal_paise || 0;
       const snapBps = f.items?.[0]?.commission_snapshot || 200;
       const ratePct = snapBps / 100;
-      const grossPaise = Math.round(subtotalPaise * (ratePct / 100));
+      const grossPaise = (f.total_commission_paise && f.total_commission_paise > 0)
+        ? f.total_commission_paise
+        : Math.round(subtotalPaise * (ratePct / 100));
       const tdsPaise = Math.round(grossPaise * 0.05);
       const netPaise = grossPaise - tdsPaise;
       const totalKits = f.total_kit_quantity || (f.items || []).reduce((acc, it) => acc + (it.quantity || 0), 0);

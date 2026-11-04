@@ -305,7 +305,7 @@ export default function LooseOrder() {
     return 0;
   }, [selectedParentPo, selectedKit, totalLooseQuantity]);
 
-  const gstRatePercent = selectedKit?.gst_rate || 12;
+  const gstRatePercent = selectedKit?.gst_rate != null ? Number(selectedKit.gst_rate) : (selectedKit?.tax_pct != null ? Number(selectedKit.tax_pct) : (selectedKit?.common_gst_rate != null ? Number(selectedKit.common_gst_rate) : 0));
   const subtotalINR = totalLooseQuantity * unitPriceINR;
   const taxINR = Math.round((subtotalINR * gstRatePercent) / 100);
   const grandTotalINR = subtotalINR + taxINR;

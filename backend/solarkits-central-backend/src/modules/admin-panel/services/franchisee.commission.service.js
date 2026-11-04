@@ -165,35 +165,59 @@ async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
   let eligible_kit_quantity = 0;
   let gross_eligible_paise = 0;
   let computed_commission_paise = 0;
+  let isVariationMatched = false;
 
-  for (const item of (order.items || [])) {
-    if (item.contributes_to_target === false) continue;
-    const delivered = item.delivered_quantity || item.quantity || 0;
-    const returned  = item.returned_quantity  || 0;
-    const cancelled = item.cancelled_quantity || 0;
-    const eligible  = Math.max(0, delivered - returned - cancelled);
-    eligible_kit_quantity += eligible;
-    const itemSubtotal = Math.round((item.unit_price_paise || 0) * eligible);
-    gross_eligible_paise  += itemSubtotal;
-
-    // Check individual variation commission for PO order
-    if (order.franchisee_id && (item.combo_kit_id || item.kit_id)) {
-      const varComm = await resolveVariationCommission({
-        reseller_id: order.franchisee_id,
-        combo_kit_id: item.combo_kit_id || item.kit_id,
-        quantity: eligible,
-        order_type: 'po',
-      });
-      if (varComm !== null && varComm >= 0) {
-        computed_commission_paise += varComm;
-        continue;
-      }
+  if (order.total_commission_paise && order.total_commission_paise > 0) {
+    computed_commission_paise = order.total_commission_paise;
+    isVariationMatched = true;
+    for (const item of (order.items || [])) {
+      if (item.contributes_to_target === false) continue;
+      const delivered = item.delivered_quantity || item.quantity || 0;
+      const returned  = item.returned_quantity  || 0;
+      const cancelled = item.cancelled_quantity || 0;
+      const eligible  = Math.max(0, delivered - returned - cancelled);
+      eligible_kit_quantity += eligible;
+      gross_eligible_paise  += Math.round((item.unit_price_paise || 0) * eligible);
     }
+  } else {
+    for (const item of (order.items || [])) {
+      if (item.contributes_to_target === false) continue;
+      const delivered = item.delivered_quantity || item.quantity || 0;
+      const returned  = item.returned_quantity  || 0;
+      const cancelled = item.cancelled_quantity || 0;
+      const eligible  = Math.max(0, delivered - returned - cancelled);
+      eligible_kit_quantity += eligible;
+      const itemSubtotal = Math.round((item.unit_price_paise || 0) * eligible);
+      gross_eligible_paise  += itemSubtotal;
 
-    // Check item-level commission_snapshot (e.g. 200 bps = 2.0%)
-    if (item.commission_snapshot != null && item.commission_snapshot > 0) {
-      const itemComm = Math.round(itemSubtotal * (Number(item.commission_snapshot) / 10000));
-      computed_commission_paise += itemComm;
+      // Check individual variation commission configured in Franchise Commission Settings
+      if (order.franchisee_id && (item.combo_kit_id || item.kit_id)) {
+        let varComm = await resolveVariationCommission({
+          reseller_id: order.franchisee_id,
+          combo_kit_id: item.combo_kit_id || item.kit_id,
+          quantity: eligible,
+          order_type: 'po',
+        });
+        if (varComm === null || varComm < 0) {
+          varComm = await resolveVariationCommission({
+            reseller_id: order.franchisee_id,
+            combo_kit_id: item.combo_kit_id || item.kit_id,
+            quantity: eligible,
+            order_type: 'loose',
+          });
+        }
+        if (varComm !== null && varComm >= 0) {
+          computed_commission_paise += varComm;
+          isVariationMatched = true;
+          continue;
+        }
+      }
+
+      // Check item-level commission_snapshot
+      if (item.commission_snapshot != null && item.commission_snapshot > 0) {
+        const itemComm = Math.round(itemSubtotal * (Number(item.commission_snapshot) / 10000));
+        computed_commission_paise += itemComm;
+      }
     }
   }
 
@@ -293,9 +317,12 @@ async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
       balance_after_paise: newBalancePaise,
       reference_order_id: order._id,
       idempotency_key:    walletIdempotencyKey,
-      narration: `FPO Commission (${order.po_number}): ${commission_rule.commission_method === 'FIXED_PER_KIT'
-        ? `${eligible_kit_quantity} kits × ₹${(commission_rule.fixed_amount_per_kit_paise / 100).toFixed(2)}`
-        : `${commission_rule.commission_percentage}% of ₹${(gross_eligible_paise / 100).toFixed(2)}`
+      narration: `FPO Commission (${order.po_number}): ${
+        isVariationMatched || (order.total_commission_paise && order.total_commission_paise > 0)
+          ? `Tier Rate (${eligible_kit_quantity} Kits)`
+          : commission_rule.commission_method === 'FIXED_PER_KIT'
+            ? `${eligible_kit_quantity} kits × ₹${(commission_rule.fixed_amount_per_kit_paise / 100).toFixed(2)}`
+            : `Tier Margin (${eligible_kit_quantity} Kits)`
       } = ₹${(net_commission_paise / 100).toFixed(2)} (net)`,
       created_by: actor_id,
     });

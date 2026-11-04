@@ -3,6 +3,7 @@ import api from "../services/api";
 import {
   FiPackage, FiCheckCircle, FiXCircle, FiLoader,
   FiGrid, FiLayers, FiBox, FiRefreshCw, FiInfo, FiTag,
+  FiAlertCircle, FiAlertTriangle,
 } from "react-icons/fi";
 import { FaTruck, FaShoppingBag } from "react-icons/fa";
 
@@ -126,8 +127,9 @@ export default function AuthorizedCatalog() {
     product: rules.filter((r) => r.scope_type === "product").length,
   };
 
-  // Check if any kit has commission data
-  const hasCommissionData = commissionRates.length > 0;
+  // Check if any kit has commission data or kits exist in catalog
+  const hasKits = rules.some((r) => r.scope_type === "kit" || r.kit_id);
+  const hasCommissionData = commissionRates.length > 0 || hasKits;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -278,8 +280,13 @@ export default function AuthorizedCatalog() {
                         <td className="px-4 py-4 text-center">
                           {loadingRates ? (
                             <FiLoader className="animate-spin text-slate-400 mx-auto" size={14} />
-                          ) : currentCommData?.po != null ? (
+                          ) : currentCommData?.po != null && Number(currentCommData.po) > 0 ? (
                             <CommBadge amount={currentCommData.po} type="po" qty={currentQty} />
+                          ) : r.scope_type === "kit" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20" title="Commission setting is not defined in Franchise Commission Settings">
+                              <FiAlertCircle size={11} className="text-amber-600 shrink-0" />
+                              <span>Not Defined</span>
+                            </span>
                           ) : (
                             <span className="text-slate-400 text-xs font-bold">—</span>
                           )}
@@ -291,8 +298,13 @@ export default function AuthorizedCatalog() {
                         <td className="px-4 py-4 text-center">
                           {loadingRates ? (
                             <FiLoader className="animate-spin text-slate-400 mx-auto" size={14} />
-                          ) : currentCommData?.loose != null ? (
+                          ) : currentCommData?.loose != null && Number(currentCommData.loose) > 0 ? (
                             <CommBadge amount={currentCommData.loose} type="loose" qty={currentQty} />
+                          ) : r.scope_type === "kit" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20" title="Commission setting is not defined in Franchise Commission Settings">
+                              <FiAlertCircle size={11} className="text-amber-600 shrink-0" />
+                              <span>Not Defined</span>
+                            </span>
                           ) : (
                             <span className="text-slate-400 text-xs font-bold">—</span>
                           )}

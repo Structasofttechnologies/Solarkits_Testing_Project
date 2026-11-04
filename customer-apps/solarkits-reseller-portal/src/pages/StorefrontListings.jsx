@@ -153,10 +153,7 @@ export default function StorefrontListings() {
             <span className="text-base font-black">{totalKits}</span>
             <span className="font-medium opacity-80">Combo Kits</span>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-200 bg-emerald-50 text-emerald-700">
-            <span className="text-base font-black">{inStockCount}</span>
-            <span className="font-medium opacity-80">In Stock</span>
-          </div>
+
 
           <button
             onClick={fetchData}
@@ -201,8 +198,8 @@ export default function StorefrontListings() {
                 key={tab.id}
                 onClick={() => setItemTypeFilter(tab.id)}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${itemTypeFilter === tab.id
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
+                  ? "bg-white text-blue-600 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
                   }`}
               >
                 {tab.label}
@@ -336,7 +333,13 @@ export default function StorefrontListings() {
               commissionPerKit = activeQty > 0 ? (totalCommissionInr / activeQty) : 0;
             }
 
-            const taxRate = item.tax_rate_pct || (k?.gst_rate ?? 18);
+            const taxRate = (item.tax_rate_pct != null && !isNaN(Number(item.tax_rate_pct)))
+              ? Number(item.tax_rate_pct)
+              : ((k?.gst_rate != null && !isNaN(Number(k.gst_rate)))
+                ? Number(k.gst_rate)
+                : (k?.tax_pct != null && !isNaN(Number(k.tax_pct))
+                  ? Number(k.tax_pct)
+                  : (k?.common_gst_rate != null && !isNaN(Number(k.common_gst_rate)) ? Number(k.common_gst_rate) : 0)));
             const subtotalWithMargin = totalCostInr + totalCommissionInr;
             const totalTaxAmount = (subtotalWithMargin * taxRate) / 100;
             const taxAmountPerKit = activeQty > 0 ? (totalTaxAmount / activeQty) : 0;
@@ -378,13 +381,7 @@ export default function StorefrontListings() {
                     </span>
                   </div>
 
-                  {/* Stock Badge */}
-                  <div className="mt-3 flex items-center gap-2">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${(item.stock_quantity || 0) > 0 ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"
-                      }`}>
-                      <FiBox size={12} /> {(item.stock_quantity || 0) > 0 ? `In Stock (${item.stock_quantity} units)` : "Available on Order"}
-                    </span>
-                  </div>
+
                 </div>
 
                 {/* Product/Kit Details & Tier Selectors */}
@@ -441,8 +438,8 @@ export default function StorefrontListings() {
                           type="button"
                           onClick={() => handleTierSelect(item._id, "loose", looseQtys[0] || 5)}
                           className={`px-3 py-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${activeType === "loose"
-                              ? "bg-blue-600 text-white shadow-xs"
-                              : "text-slate-600 hover:text-slate-900"
+                            ? "bg-blue-600 text-white shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
                             }`}
                         >
                           <FiPackage size={11} />
@@ -452,8 +449,8 @@ export default function StorefrontListings() {
                           type="button"
                           onClick={() => handleTierSelect(item._id, "po", poQtys[0] || 200)}
                           className={`px-3 py-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${activeType === "po"
-                              ? "bg-indigo-700 text-white shadow-xs"
-                              : "text-slate-600 hover:text-slate-900"
+                            ? "bg-indigo-700 text-white shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
                             }`}
                         >
                           <FiLayers size={11} />
@@ -480,10 +477,10 @@ export default function StorefrontListings() {
                                 type="button"
                                 onClick={() => handleTierSelect(item._id, activeType, q)}
                                 className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer flex items-center gap-1.5 ${isSelected
-                                    ? activeType === "loose"
-                                      ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                                      : "bg-indigo-700 text-white border-indigo-700 shadow-sm"
-                                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                                  ? activeType === "loose"
+                                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                                    : "bg-indigo-700 text-white border-indigo-700 shadow-sm"
+                                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
                                   }`}
                               >
                                 <span>{q} Kits</span>
@@ -515,7 +512,11 @@ export default function StorefrontListings() {
                         <span className="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                           Tier Commission Active
                         </span>
-                      ) : null}
+                      ) : (
+                        <span className="inline-flex items-center text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                          ⚠️ Commission Not Defined
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -554,8 +555,8 @@ export default function StorefrontListings() {
                           )}
                         </>
                       ) : (
-                        <span className="text-[11px] font-bold text-slate-400 italic">
-                          ₹0.00 (Zero Commission)
+                        <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          ⚠️ Commission Not Defined
                         </span>
                       )}
                     </div>
@@ -570,11 +571,11 @@ export default function StorefrontListings() {
                       <span className="font-bold text-slate-700 font-mono text-xs block">
                         +₹{totalTaxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
-                      {isKit && activeQty > 1 && (
+                      {/* {isKit && activeQty > 1 && (
                         <span className="text-[10px] text-slate-500 font-medium font-mono">
                           (+₹{taxAmountPerKit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/kit)
                         </span>
-                      )}
+                      )} */}
                     </div>
                   </div>
 
