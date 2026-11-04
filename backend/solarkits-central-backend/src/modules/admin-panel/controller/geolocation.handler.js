@@ -787,10 +787,35 @@ const deactivate_state_logic = async (state_id) => {
 const get_districts = async (req, res) => {
   try {
     const state_id = req.params?.state_id || req.body?.state_id || req.query?.state_id || req.body?.state;
-    if (!state_id) {
-      return res.status(400).json({
-        message: "state_id is required",
-        status: "error",
+    
+    // When state_id is omitted or 'all', return all active districts across India
+    if (!state_id || state_id === 'all') {
+      const allDistricts = await GeoLevel2.find({
+        is_active: true,
+        $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }]
+      })
+      .populate('level_1', 'name is_active')
+      .sort({ name: 1 })
+      .lean();
+
+      const districts = allDistricts.map(d => ({
+        id: d._id.toString(),
+        _id: d._id.toString(),
+        name: d.name,
+        state_id: d.level_1?._id ? d.level_1._id.toString() : (d.level_1 ? d.level_1.toString() : null),
+        state_name: d.level_1?.name || '',
+        is_active: d.is_active,
+        pincodes_count: d.pincodes ? d.pincodes.length : 0,
+        pincodes: d.pincodes || [],
+        lat: d.lat || 0,
+        lng: d.lng || 0
+      }));
+
+      return res.status(200).json({
+        message: "Fetched all active districts successfully.",
+        status: "success",
+        districts,
+        data: districts
       });
     }
 

@@ -20,11 +20,13 @@ import { useTheme } from "@/hooks/useTheme";
 import Button from "./Button";
 import IconButton from "./IconButton";
 import DropdownWithSearchInput from "./DropdownWithSearchInput";
+import PincodeLocationModal from "./PincodeLocationModal";
 import axios from "axios";
 
 export default function Header({ isOpen, setIsOpen, isMobile }) {
   const { toggleTheme, isDark } = useTheme();
-  const { cart, selectedState, selectedDistrict } = useSelector((state) => state.slice);
+  const { cart, selectedState, selectedDistrict, selectedPincode } = useSelector((state) => state.slice);
+  const [pincodeModalOpen, setPincodeModalOpen] = useState(false);
   const totalCartItems = useSelector(selectCartTotalItems);
   const { user, isAuthenticated, loading } = useSelector((state) => state.auth_slice);
   const [showPopup, setShowPopup] = useState(false);
@@ -209,9 +211,15 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
 
         {/* Middle - Geolocation Selector */}
         <div className="flex items-center space-x-2.5 bg-surface-hover px-4 py-1.5 rounded-full border border-border shadow-inner">
-          <div className="flex items-center space-x-1.5 text-text-secondary">
+          <div 
+            onClick={() => !isEpcUser && setPincodeModalOpen(true)}
+            className="flex items-center space-x-1.5 text-text-secondary cursor-pointer hover:opacity-80"
+            title="Click to enter Pincode"
+          >
             <FiMapPin size={13} className="text-primary dark:text-info" />
-            <span className="text-xs font-semibold uppercase tracking-wider opacity-90">Location:</span>
+            <span className="text-xs font-semibold uppercase tracking-wider opacity-90">
+              {selectedPincode ? `PIN ${selectedPincode}:` : "Location:"}
+            </span>
           </div>
 
           {/* State Dropdown */}
@@ -255,6 +263,16 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
             className="w-40 text-xs text-text-primary dark:text-info !"
             forceDown={true}
           />
+          {!isEpcUser && (
+            <button
+              type="button"
+              onClick={() => setPincodeModalOpen(true)}
+              className="text-[10px] font-bold px-2 py-1 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25 border border-amber-500/30 cursor-pointer shrink-0 transition-colors"
+              title="Enter 6-digit Pincode"
+            >
+              {selectedPincode ? `PIN: ${selectedPincode}` : "Enter PIN"}
+            </button>
+          )}
 
           {isEpcUser && (
             <span

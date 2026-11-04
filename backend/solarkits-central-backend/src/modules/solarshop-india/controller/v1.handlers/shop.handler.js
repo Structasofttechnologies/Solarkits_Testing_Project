@@ -317,11 +317,19 @@ const computeKitAvailableStock = async (kit, warehouseId, otherCartDepletion = {
 
 const get_combo_kits_by_district = async (req, res) => {
   try {
-    const { district_id } = req.query;
+    const { district_id, pincode } = req.query;
     
     const shopSettings = await SolarShopSettings.findOne({}).lean() || {};
 
     let targetDistrictId = district_id;
+    const resolvedPincode = pincode ? pincode.trim() : null;
+
+    if (resolvedPincode && (!targetDistrictId || !mongoose.Types.ObjectId.isValid(targetDistrictId))) {
+      const pDoc = await GeoLevel2.findOne({ 'pincodes.pincode': resolvedPincode, deleted_at: null }).lean();
+      if (pDoc) {
+        targetDistrictId = pDoc._id.toString();
+      }
+    }
     if (!targetDistrictId || !mongoose.Types.ObjectId.isValid(targetDistrictId)) {
       // Find the first active sub warehouse as default
       const defaultWarehouse = await CompanyWarehouse.findOne({ 
@@ -362,12 +370,25 @@ const get_combo_kits_by_district = async (req, res) => {
       if (stateId && targetDistrictId) {
         bsQuery.$or = [
           { district_id: new mongoose.Types.ObjectId(targetDistrictId) },
-          { state_id: new mongoose.Types.ObjectId(stateId), district_id: null }
+          { state_id: new mongoose.Types.ObjectId(stateId), district_id: null },
+          { state_id: null }
         ];
       } else if (stateId) {
-        bsQuery.state_id = new mongoose.Types.ObjectId(stateId);
+        bsQuery.$or = [
+          { state_id: new mongoose.Types.ObjectId(stateId) },
+          { state_id: null }
+        ];
+      } else {
+        bsQuery.state_id = null;
       }
-      const bsDocs = await BestSellerKit.find(bsQuery).sort({ priority: 1, created_at: -1 }).lean();
+      const bsDocs = await BestSellerKit.find(bsQuery).lean();
+      // Prioritize hierarchy: District level (3) > State level (2) > National All India (1), then priority
+      bsDocs.sort((a, b) => {
+        const aScope = a.district_id ? 3 : (a.state_id ? 2 : 1);
+        const bScope = b.district_id ? 3 : (b.state_id ? 2 : 1);
+        if (aScope !== bScope) return bScope - aScope;
+        return (a.priority || 1) - (b.priority || 1);
+      });
       bsDocs.forEach(bs => {
         if (bs.combo_kit_id) {
           const kId = bs.combo_kit_id.toString();
@@ -1691,7 +1712,23 @@ const get_combo_kits_by_district = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 const get_best_seller_kits = async (req, res) => {
   try {
-    const { district_id, state_id } = req.query;
+    const { district_id, state_id, pincode } = req.query;
+
+    let targetDistrictId = district_id;
+    let targetStateId = state_id;
+    const targetPincode = pincode ? pincode.trim() : null;
+    let localityName = null;
+
+    if (targetPincode && (!targetDistrictId || !mongoose.Types.ObjectId.isValid(targetDistrictId))) {
+      const pDoc = await GeoLevel2.findOne({ 'pincodes.pincode': targetPincode, deleted_at: null }).lean().catch(() => null);
+      if (pDoc) {
+        targetDistrictId = pDoc._id.toString();
+        if (pDoc.level_1) targetStateId = pDoc.level_1.toString();
+        const matched = (pDoc.pincodes || []).find(p => String(p.pincode).trim() === targetPincode);
+        if (matched && matched.locality) localityName = matched.locality;
+        req.query.district_id = targetDistrictId;
+      }
+    }
 
     let resolvedKits = [];
     const mockRes = {
@@ -1707,10 +1744,11 @@ const get_best_seller_kits = async (req, res) => {
     let locationMeta = {
       state_name: "Gujarat",
       district_name: "Rajkot",
+      pincode: targetPincode || null,
+      locality: localityName || null,
       is_fallback: false
     };
 
-    let targetDistrictId = district_id;
     if (targetDistrictId && mongoose.Types.ObjectId.isValid(targetDistrictId)) {
       const distDoc = await GeoLevel2.findById(targetDistrictId).lean().catch(() => null);
       if (distDoc) {
@@ -1724,8 +1762,8 @@ const get_best_seller_kits = async (req, res) => {
           }
         }
       }
-    } else if (state_id && mongoose.Types.ObjectId.isValid(state_id)) {
-      const stateDoc = await GeoLevel1.findById(state_id).lean().catch(() => null);
+    } else if (targetStateId && mongoose.Types.ObjectId.isValid(targetStateId)) {
+      const stateDoc = await GeoLevel1.findById(targetStateId).lean().catch(() => null);
       if (stateDoc) {
         locationMeta.state_name = stateDoc.name;
         locationMeta.state_id = stateDoc._id;
@@ -1737,6 +1775,21 @@ const get_best_seller_kits = async (req, res) => {
     let bestSellers = resolvedKits
       .filter(k => k.is_best_seller)
       .sort((a, b) => (a.best_seller_priority || 999) - (b.best_seller_priority || 999));
+
+    // Dynamic Fallback: If no kits are explicitly tagged yet, showcase top catalog kits with dynamic ranking
+    if (bestSellers.length === 0 && resolvedKits.length > 0) {
+      const locLabel = locationMeta.district_name && locationMeta.district_name !== 'All Districts'
+        ? locationMeta.district_name
+        : locationMeta.state_name;
+      bestSellers = resolvedKits.slice(0, 4).map((k, idx) => ({
+        ...k,
+        is_best_seller: true,
+        best_seller_priority: idx + 1,
+        best_seller_badge: idx === 0 ? `🔥 #1 Best Seller in ${locLabel}` : (idx === 1 ? `⚡ High Demand in ${locLabel}` : '⭐ Top Rated'),
+        best_seller_state: locationMeta.state_name,
+        best_seller_district: locationMeta.district_name
+      }));
+    }
 
     return res.status(200).json({
       success: true,
