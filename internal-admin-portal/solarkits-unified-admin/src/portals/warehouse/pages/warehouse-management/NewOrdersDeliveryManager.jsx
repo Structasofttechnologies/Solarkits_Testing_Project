@@ -2045,6 +2045,12 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                     <span className="px-2.5 py-1 rounded-lg font-mono text-xs font-bold bg-primary/15 text-primary border border-primary/30 shadow-2xs">
                       {ord.delivery_order_id}
                     </span>
+                    {/* PO Drawdown / Linked Quota Order Badge */}
+                    {(ord.po_origin?.is_po_drawdown || ord.po_origin?.parent_po_number || ord.parent_po_number) && (
+                      <span className="px-2.5 py-1 rounded-lg font-mono text-xs font-black bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1.5 shadow-2xs">
+                        📋 PO Order: {ord.po_origin?.parent_po_number || ord.parent_po_number}
+                      </span>
+                    )}
                     {/* 1 Truck = 1 Card Consolidated Shipment Badge */}
                     {ord.epcs && ord.epcs.length > 1 ? (
                       <span className="px-3 py-1 rounded-lg font-mono text-xs font-black bg-gradient-to-r from-purple-600/20 to-indigo-600/20 text-purple-300 border border-purple-500/40 flex items-center gap-1.5 shadow-xs">
@@ -2081,10 +2087,39 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                       </span>
                     )}
 
-                    {/* Payment Done Badge */}
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-1">
-                      <FaCheckCircle className="text-[10px]" /> Payment Done
-                    </span>
+                    {/* Payment Status Badges (Milestone 1 Advance & Milestone 2 Dispatch Clearance) */}
+                    {(() => {
+                      const hasM2Pending = ord.epcs?.some(e => e.payment_second_half?.status === 'pending') || ord.payment_second_half?.status === 'pending';
+                      const isFullyCleared = (ord.payment_second_half?.status === 'done' || (ord.epcs && ord.epcs.length > 0 && ord.epcs.every(e => e.payment_second_half?.status === 'done'))) && !hasM2Pending;
+
+                      if (hasM2Pending) {
+                        return (
+                          <span
+                            className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-500 border border-amber-500/30 flex items-center gap-1 shadow-2xs"
+                            title="Milestone 2 (70%) balance payment pending from buyer before courier dispatch"
+                          >
+                            ⚠️ Hold Dispatch: M2 (70%) Pending
+                          </span>
+                        );
+                      }
+
+                      if (isFullyCleared) {
+                        return (
+                          <span
+                            className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 shadow-2xs"
+                            title="100% payments verified by Accounts. Order fully cleared for vehicle dispatch"
+                          >
+                            <FaCheckCircle className="text-[10px]" /> ✓ Cleared for Dispatch (100% Paid)
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                          <FaCheckCircle className="text-[10px]" /> Advance Paid
+                        </span>
+                      );
+                    })()}
 
                     {/* Inward Status Badge */}
                     {totalPendingItems === 0 || isReadyForDispatch ? (
@@ -2141,7 +2176,12 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                         <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-black uppercase border border-primary/20">
                           EPC Contractor
                         </span>
-                        <span>{ord.epcs?.[0]?.epc_name || ord.customer_name}</span>
+                        <span>{ord.po_origin?.epc_name || ord.epcs?.[0]?.epc_name || ord.customer_name}</span>
+                        {(ord.po_origin?.parent_po_number || ord.parent_po_number) && (
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-mono font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20" title={`Drawn from Parent PO ${ord.po_origin?.parent_po_number || ord.parent_po_number}`}>
+                            PO: {ord.po_origin?.parent_po_number || ord.parent_po_number}
+                          </span>
+                        )}
                       </span>
                       {(ord.epcs?.[0]?.contact_phone || ord.customer_phone) && (
                         <span className="flex items-center gap-1 text-text-muted font-medium">

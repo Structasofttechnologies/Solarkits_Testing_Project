@@ -389,8 +389,8 @@ export default function EpcOrdersManagement() {
             type="button"
             onClick={() => setShowFilters(!showFilters)}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition ${showFilters || activeFiltersCount > 0
-                ? "bg-primary/10 border-primary text-primary"
-                : "bg-surface border-border text-text-secondary hover:text-text-primary shadow-sm"
+              ? "bg-primary/10 border-primary text-primary"
+              : "bg-surface border-border text-text-secondary hover:text-text-primary shadow-sm"
               }`}
           >
             <MdFilterList className="text-sm" />
@@ -496,8 +496,8 @@ export default function EpcOrdersManagement() {
             setPage(1);
           }}
           className={`p-5 rounded-2xl border shadow-sm flex flex-col justify-between cursor-pointer transition ${stats.payment_delays > 0
-              ? "bg-rose-500/10 border-rose-500/30 hover:border-rose-500"
-              : "bg-surface border-border hover:border-emerald-500"
+            ? "bg-rose-500/10 border-rose-500/30 hover:border-rose-500"
+            : "bg-surface border-border hover:border-emerald-500"
             }`}
         >
           <div className="flex items-center justify-between text-xs font-bold">
@@ -572,34 +572,34 @@ export default function EpcOrdersManagement() {
                 setPage(1);
               }}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${activeTab === tab.key
+                ? tab.highlightColor === "rose"
+                  ? "bg-rose-600 text-white shadow-md shadow-rose-600/30"
+                  : tab.highlightColor === "purple"
+                    ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+                    : tab.highlightColor === "amber"
+                      ? "bg-amber-600 text-white shadow-md shadow-amber-600/30"
+                      : "bg-primary text-white shadow-md shadow-primary/30"
+                : tab.highlight
                   ? tab.highlightColor === "rose"
-                    ? "bg-rose-600 text-white shadow-md shadow-rose-600/30"
+                    ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 hover:bg-rose-500/25"
                     : tab.highlightColor === "purple"
-                      ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
-                      : tab.highlightColor === "amber"
-                        ? "bg-amber-600 text-white shadow-md shadow-amber-600/30"
-                        : "bg-primary text-white shadow-md shadow-primary/30"
-                  : tab.highlight
-                    ? tab.highlightColor === "rose"
-                      ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 hover:bg-rose-500/25"
-                      : tab.highlightColor === "purple"
-                        ? "bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-500/25"
-                        : "bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25"
-                    : "bg-surface text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-border"
+                      ? "bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-500/25"
+                      : "bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25"
+                  : "bg-surface text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-border"
                 }`}
             >
               <span>{tab.label}</span>
               {tab.count != null && (
                 <span
                   className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${activeTab === tab.key
-                      ? "bg-white/20 text-white"
-                      : tab.highlight
-                        ? tab.highlightColor === "rose"
-                          ? "bg-rose-600 text-white animate-pulse"
-                          : tab.highlightColor === "purple"
-                            ? "bg-purple-600 text-white"
-                            : "bg-amber-500 text-white animate-pulse"
-                        : "bg-surface-hover text-text-muted"
+                    ? "bg-white/20 text-white"
+                    : tab.highlight
+                      ? tab.highlightColor === "rose"
+                        ? "bg-rose-600 text-white animate-pulse"
+                        : tab.highlightColor === "purple"
+                          ? "bg-purple-600 text-white"
+                          : "bg-amber-500 text-white animate-pulse"
+                      : "bg-surface-hover text-text-muted"
                     }`}
                 >
                   {tab.count}
@@ -876,6 +876,9 @@ export default function EpcOrdersManagement() {
                 orders.map((o) => {
                   const isOnline = Boolean(o.is_online || o.payment_mode === "online" || o.payment_method === "icici_ecollection");
                   const isDirect = o.is_direct;
+                  const isPoOrder = Boolean(o.po_origin?.is_po_drawdown || o.po_origin?.parent_po_number || o.parent_po_number || o.order_type === "loose_kit_order");
+                  const parentPoRef = o.po_origin?.parent_po_number || o.parent_po_number;
+                  const poEpcName = o.po_origin?.epc_name || o.buyer_name;
                   const m2 = o.payment_milestones?.milestones?.find((m) => m.milestone_number === 2);
                   const m1 = o.payment_milestones?.milestones?.find((m) => m.milestone_number === 1);
                   const utr = o.latest_utr || m2?.utr_number || m1?.utr_number || o.offline_payment?.utr_number || o.payment_reference;
@@ -930,18 +933,36 @@ export default function EpcOrdersManagement() {
 
                       {/* 3. Order Origin */}
                       <td className="py-3 px-3">
-                        <span
-                          className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md inline-block ${isDirect
-                              ? "bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20"
-                              : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
-                            }`}
-                        >
-                          {isDirect ? "Direct EPC" : "Franchisee"}
-                        </span>
-                        {!isDirect && o.franchisee_name && (
-                          <div className="text-[10px] text-text-muted truncate max-w-[120px] mt-0.5" title={o.franchisee_name}>
-                            {o.franchisee_name}
+                        {isPoOrder ? (
+                          <div className="space-y-0.5">
+                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md inline-flex items-center gap-1 bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25">
+                              📋 PO Order
+                            </span>
+                            {parentPoRef && (
+                              <div className="text-[10px] font-mono font-bold text-sky-600 dark:text-sky-400 truncate max-w-[130px]" title={`Parent PO: ${parentPoRef}`}>
+                                {parentPoRef}
+                              </div>
+                            )}
+                            <div className="text-[9px] text-text-muted truncate max-w-[130px]" title={poEpcName}>
+                              EPC: {poEpcName}
+                            </div>
                           </div>
+                        ) : (
+                          <>
+                            <span
+                              className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md inline-block ${isDirect
+                                ? "bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20"
+                                : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
+                                }`}
+                            >
+                              {isDirect ? "Direct EPC" : "Franchisee"}
+                            </span>
+                            {!isDirect && o.franchisee_name && (
+                              <div className="text-[10px] text-text-muted truncate max-w-[120px] mt-0.5" title={o.franchisee_name}>
+                                {o.franchisee_name}
+                              </div>
+                            )}
+                          </>
                         )}
                       </td>
 
@@ -966,6 +987,11 @@ export default function EpcOrdersManagement() {
                         <div className="font-black text-text-primary dark:text-white">
                           {formatCurrency(o.grand_total)}
                         </div>
+                        {o.price_lock?.is_locked && (
+                          <div className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-end gap-1 mt-0.5" title="Price locked at PO creation rate">
+                            🔒 Rate Locked
+                          </div>
+                        )}
                       </td>
 
                       {/* 6. Amount Received */}
@@ -1061,16 +1087,16 @@ export default function EpcOrdersManagement() {
                           </span>
                           <div className="text-[10px]">
                             <span className={`font-bold ${o.customer_payment_status === "Paid"
-                                ? "text-emerald-600 dark:text-emerald-400"
-                                : o.customer_payment_status === "Milestone 2 Submitted"
-                                  ? "text-purple-600 dark:text-purple-400"
-                                  : o.customer_payment_status === "Partially Paid"
-                                    ? "text-amber-600 dark:text-amber-400"
-                                    : o.customer_payment_status === "Awaiting Admin Approval"
-                                      ? "text-purple-600 dark:text-purple-400"
-                                      : o.customer_payment_status === "Payment Failed"
-                                        ? "text-rose-600"
-                                        : "text-text-muted"
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : o.customer_payment_status === "Milestone 2 Submitted"
+                                ? "text-purple-600 dark:text-purple-400"
+                                : o.customer_payment_status === "Partially Paid"
+                                  ? "text-amber-600 dark:text-amber-400"
+                                  : o.customer_payment_status === "Awaiting Admin Approval"
+                                    ? "text-purple-600 dark:text-purple-400"
+                                    : o.customer_payment_status === "Payment Failed"
+                                      ? "text-rose-600"
+                                      : "text-text-muted"
                               }`}>
                               {o.customer_payment_status}
                             </span>
@@ -1258,11 +1284,10 @@ export default function EpcOrdersManagement() {
             </div>
 
             {/* Notice */}
-            <div className={`p-3 rounded-xl text-xs flex items-start gap-2 ${
-              accountsModal.order?.is_online || accountsModal.order?.payment_mode === "online" || accountsModal.order?.payment_method === "icici_ecollection"
+            <div className={`p-3 rounded-xl text-xs flex items-start gap-2 ${accountsModal.order?.is_online || accountsModal.order?.payment_mode === "online" || accountsModal.order?.payment_method === "icici_ecollection"
                 ? "bg-blue-500/10 border border-blue-500/20 text-blue-800 dark:text-blue-300"
                 : "bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300"
-            }`}>
+              }`}>
               <FiInfo className="shrink-0 mt-0.5" />
               <span>
                 {accountsModal.order?.is_online || accountsModal.order?.payment_mode === "online" || accountsModal.order?.payment_method === "icici_ecollection" ? (
@@ -1506,8 +1531,8 @@ export default function EpcOrdersManagement() {
                     type="button"
                     onClick={() => setAccountsModal({ ...accountsModal, decision: "submitted_for_approval" })}
                     className={`py-2 px-1 text-center rounded-xl font-bold transition text-[11px] ${accountsModal.decision === "submitted_for_approval"
-                        ? "bg-amber-600 text-white shadow-sm"
-                        : "bg-surface-hover text-text-secondary hover:text-text-primary border border-border"
+                      ? "bg-amber-600 text-white shadow-sm"
+                      : "bg-surface-hover text-text-secondary hover:text-text-primary border border-border"
                       }`}
                   >
                     {accountsModal.order?.is_online || accountsModal.order?.payment_mode === "online" || accountsModal.order?.payment_method === "icici_ecollection" ? "Verify & Activate (Direct)" : "Submit for Admin Approval"}
@@ -1516,8 +1541,8 @@ export default function EpcOrdersManagement() {
                     type="button"
                     onClick={() => setAccountsModal({ ...accountsModal, decision: "returned" })}
                     className={`py-2 px-1 text-center rounded-xl font-bold transition text-[11px] ${accountsModal.decision === "returned"
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "bg-surface-hover text-text-secondary hover:text-text-primary border border-border"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-surface-hover text-text-secondary hover:text-text-primary border border-border"
                       }`}
                   >
                     Return for Correction
@@ -1526,8 +1551,8 @@ export default function EpcOrdersManagement() {
                     type="button"
                     onClick={() => setAccountsModal({ ...accountsModal, decision: "rejected" })}
                     className={`py-2 px-1 text-center rounded-xl font-bold transition text-[11px] ${accountsModal.decision === "rejected"
-                        ? "bg-rose-600 text-white shadow-sm"
-                        : "bg-surface-hover text-text-secondary hover:text-text-primary border border-border"
+                      ? "bg-rose-600 text-white shadow-sm"
+                      : "bg-surface-hover text-text-secondary hover:text-text-primary border border-border"
                       }`}
                   >
                     Reject Payment

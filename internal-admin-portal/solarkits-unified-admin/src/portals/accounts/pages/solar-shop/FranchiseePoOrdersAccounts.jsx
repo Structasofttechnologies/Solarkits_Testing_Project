@@ -235,11 +235,17 @@ export default function FranchiseePoOrdersAccounts() {
     if (!childPaymentModal) return;
     setActionLoading(true);
     try {
+      const isM2 = childPaymentModal.target_milestone === 2;
+      const effectiveRef = isM2
+        ? (childPaymentModal.offline_payment_m2?.utr_number || childPaymentModal.payment_milestones?.milestones?.find(m => m.milestone_number === 2)?.utr_number || childPaymentRefInput)
+        : (childPaymentModal.payment_reference || childPaymentModal.offline_payment?.utr_number || childPaymentRefInput);
+
       const res = await axios.post(
         `${API_URL}/franchisee/po/confirm-payment?unique_id=ACC_PO&req_for=edit`,
         {
           order_id: childPaymentModal._id,
-          payment_reference: childPaymentModal.payment_reference || childPaymentModal.offline_payment?.utr_number || childPaymentRefInput || `UTR-ACC-${Date.now()}`,
+          milestone_number: childPaymentModal.target_milestone || 1,
+          payment_reference: effectiveRef || `UTR-ACC-${Date.now()}`,
           payment_mode: "BANK_TRANSFER",
         },
         { headers: authHeaderObj() }
@@ -1244,12 +1250,61 @@ export default function FranchiseePoOrdersAccounts() {
                           </thead>
                           <tbody className="divide-y divide-border">
                             {repeatOrdersList.map((child, cIdx) => {
-                              const isPaid = ["PAID", "CONFIRMED", "PROCESSING", "DISPATCHED", "DELIVERED", "COMPLETED"].includes(child.status);
                               const childTotal = (child.net_payable_paise || child.grand_total_paise || 0) / 100;
                               const childAdjusted = (child.token_adjusted_paise || child.token_adjusted_amount_paise || 0) / 100;
-                              const buyerTitle = child.created_by_role === "SOLAR_EPC" || child.epc_id
-                                ? (child.epc_id?.name || child.epc_id?.company_name || "Solar EPC")
-                                : (child.franchisee_id?.business_name || "Franchisee Partner");
+                              const buyerTitle = child.po_origin?.epc_name ||
+                                child.po_origin?.epc_company ||
+                                (child.created_by_role === "SOLAR_EPC" || child.epc_id
+                                  ? (child.epc_id?.name || child.epc_id?.company_name || child.buyer_name || "Solar EPC")
+                                  : (child.franchisee_id?.business_name || child.buyer_name || "Franchisee Partner"));
+
+                              const childMilestones = child.payment_milestones?.milestones || [];
+                              const m1 = childMilestones.find(m => m.milestone_number === 1);
+                              const m2 = childMilestones.find(m => m.milestone_number === 2);
+                              const childAdvPct = child.payment_milestones?.advance_percentage || m1?.percentage || 30;
+                              const childRemPct = child.payment_milestones?.remaining_percentage || m2?.percentage || (100 - childAdvPct);
+                              const m1Amount = child.payment_milestones?.advance_amount || Math.round(childTotal * (childAdvPct / 100));
+                              const m2Amount = child.payment_milestones?.remaining_amount || Math.max(0, childTotal - m1Amount);
+
+                              const isM1Approved = ["PAID", "CONFIRMED", "ADVANCE_PAID", "STOCK_ALLOCATED", "PROCESSING", "VEHICLE_ASSIGNED", "READY_FOR_DISPATCH", "DISPATCHED", "IN_TRANSIT", "REACHED_DESTINATION", "DELIVERED", "COMPLETED"].includes(child.status) ||
+                                m1?.payment_status === "approved" ||
+                                m1?.payment_status === "verified" ||
+                                child.payment_status === "advance_paid" ||
+                                child.payment_status === "paid" ||
+                                child.offline_payment?.verification_status === "approved" ||
+                                child.payment_milestones?.milestone_verification_status === "advance_verified" ||
+                                child.payment_milestones?.milestone_verification_status === "fully_paid";
+
+                              const isM2Approved = child.status === "PAID" ||
+                                m2?.payment_status === "approved" ||
+                                m2?.payment_status === "verified" ||
+                                child.payment_status === "paid" ||
+                                child.payment_milestones?.milestone_verification_status === "fully_paid";
+
+                              const isM2Submitted = !isM2Approved && (
+                                m2?.payment_status === "pending_verification" ||
+                                child.milestone_verification_status === "final_payment_pending_verification" ||
+                                child.payment_milestones?.milestone_verification_status === "final_payment_pending_verification" ||
+                                child.status === "FINAL_PAYMENT_SUBMITTED" ||
+                                Boolean(m2?.utr_number || child.offline_payment_m2?.utr_number)
+                              );
+
+                              const m1Utr = m1?.utr_number || child.payment_reference || child.offline_payment?.utr_number || child.payment_utr || "—";
+                              const m2Utr = m2?.utr_number || child.offline_payment_m2?.utr_number;
+
+                              const rawSlip1 = child.offline_payment?.receipt_url || child.offline_payment?.payment_receipt_url || child.payment_receipt_url || child.receipt_url;
+                              const slip1Url = rawSlip1
+                                ? (rawSlip1.startsWith("http")
+                                  ? rawSlip1
+                                  : `${(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${rawSlip1.startsWith("/") ? "" : "/"}${rawSlip1}`)
+                                : null;
+
+                              const rawSlip2 = child.offline_payment_m2?.receipt_url || m2?.receipt_url;
+                              const slip2Url = rawSlip2
+                                ? (rawSlip2.startsWith("http")
+                                  ? rawSlip2
+                                  : `${(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${rawSlip2.startsWith("/") ? "" : "/"}${rawSlip2}`)
+                                : null;
 
                               return (
                                 <tr key={cIdx} className="hover:bg-surface-hover/50 transition-colors">
@@ -1262,12 +1317,15 @@ export default function FranchiseePoOrdersAccounts() {
                                         year: "numeric"
                                       })}
                                     </div>
+                                    <div className="text-[9px] text-primary font-bold">
+                                      {child.fulfillment_mode === "warehouse_pickup" ? "EPC Depot" : "Direct Site"}
+                                    </div>
                                   </td>
 
                                   <td className="py-2.5 px-3 font-bold text-xs text-text-primary">
                                     {buyerTitle}
                                     <span className="block text-[9px] text-text-muted font-normal">
-                                      {child.customer_details?.phone || child.franchisee_id?.mobile || ""}
+                                      {child.delivery_address?.contact_phone || child.customer_details?.phone || child.franchisee_id?.mobile || ""}
                                     </span>
                                   </td>
 
@@ -1284,80 +1342,114 @@ export default function FranchiseePoOrdersAccounts() {
                                         Token -₹{childAdjusted.toLocaleString("en-IN")}
                                       </div>
                                     )}
+                                    <div className="text-[10px] text-text-muted pt-1 space-y-0.5">
+                                      <div className="flex items-center justify-between gap-1">
+                                        <span>M1 (30%):</span>
+                                        <strong className={isM1Approved ? "text-emerald-600" : "text-amber-600"}>₹{m1Amount.toLocaleString("en-IN")}</strong>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-1">
+                                        <span>M2 (70%):</span>
+                                        <strong className={isM2Approved ? "text-emerald-600" : isM2Submitted ? "text-blue-600" : "text-purple-600"}>₹{m2Amount.toLocaleString("en-IN")}</strong>
+                                      </div>
+                                    </div>
                                   </td>
 
                                   <td className="py-2.5 px-3 text-xs">
-                                    {(() => {
-                                      const utr = child.payment_reference || child.offline_payment?.utr_number || "—";
-                                      const rawSlipUrl = child.offline_payment?.receipt_url || child.offline_payment?.payment_receipt_url || child.payment_receipt_url || child.receipt_url;
-                                      const slipUrl = rawSlipUrl
-                                        ? (rawSlipUrl.startsWith("http")
-                                          ? rawSlipUrl
-                                          : `${(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${rawSlipUrl.startsWith("/") ? "" : "/"}${rawSlipUrl}`)
-                                        : null;
+                                    <div className="flex flex-col gap-1.5">
+                                      {/* M1 Proof */}
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-[9px] font-bold text-amber-700 bg-amber-500/10 px-1 rounded">M1</span>
+                                        <span className="font-mono font-bold text-text-primary text-[10px] bg-surface-hover px-1.5 py-0.2 rounded border border-border/80 select-all" title={m1Utr}>
+                                          {m1Utr}
+                                        </span>
+                                        {slip1Url && (
+                                          <a
+                                            href={slip1Url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[9px] font-bold text-primary underline"
+                                          >
+                                            Slip
+                                          </a>
+                                        )}
+                                      </div>
 
-                                      return (
-                                        <div className="flex flex-col gap-1">
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="font-mono font-bold text-text-primary text-[11px] bg-surface-hover px-1.5 py-0.5 rounded border border-border/80 select-all" title={utr}>
-                                              {utr}
-                                            </span>
-                                            {utr !== "—" && (
-                                              <button
-                                                type="button"
-                                                onClick={() => handleCopyText(utr, `utr-${child._id}`)}
-                                                className="text-text-muted hover:text-text-primary p-0.5 rounded hover:bg-surface-hover transition cursor-pointer"
-                                                title="Copy UTR Reference"
-                                              >
-                                                {copiedField === `utr-${child._id}` ? (
-                                                  <FaCheck size={10} className="text-emerald-500" />
-                                                ) : (
-                                                  <FaCopy size={10} />
-                                                )}
-                                              </button>
-                                            )}
-                                          </div>
-                                          {slipUrl ? (
+                                      {/* M2 Proof */}
+                                      {(m2Utr || isM2Submitted || isM2Approved) && (
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="text-[9px] font-bold text-purple-700 bg-purple-500/10 px-1 rounded">M2</span>
+                                          <span className="font-mono font-bold text-text-primary text-[10px] bg-surface-hover px-1.5 py-0.2 rounded border border-border/80 select-all" title={m2Utr || "Paid"}>
+                                            {m2Utr || "Verified"}
+                                          </span>
+                                          {slip2Url && (
                                             <a
-                                              href={slipUrl}
+                                              href={slip2Url}
                                               target="_blank"
                                               rel="noreferrer"
-                                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-white transition-all w-fit"
-                                              title="View Payment Transfer Slip"
+                                              className="text-[9px] font-bold text-purple-600 underline"
                                             >
-                                              <span>View Slip</span>
-                                              <FaExternalLinkAlt size={8} />
+                                              Slip
                                             </a>
-                                          ) : (
-                                            <span className="text-[9px] text-text-muted italic">No Slip Uploaded</span>
                                           )}
                                         </div>
-                                      );
-                                    })()}
+                                      )}
+                                    </div>
                                   </td>
 
                                   <td className="py-2.5 px-3 text-center">
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black ${isPaid ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                                      }`}>
-                                      {isPaid ? "✓ Paid" : "⏳ Pending"}
-                                    </span>
+                                    {isM2Approved ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-300">
+                                        ✓ Fully Paid
+                                      </span>
+                                    ) : isM2Submitted ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-300">
+                                        ⏳ M2 In Review
+                                      </span>
+                                    ) : isM1Approved ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 border border-indigo-300">
+                                        ✓ M1 Verified
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-300">
+                                        ⏳ M1 Pending
+                                      </span>
+                                    )}
                                   </td>
 
                                   <td className="py-2.5 px-3 text-right">
-                                    {isPaid ? (
-                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-black bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 border border-emerald-200">
-                                        ✓ In Supplier Procurement
-                                      </span>
-                                    ) : (
+                                    {!isM1Approved ? (
                                       <button
                                         onClick={() => {
-                                          setChildPaymentModal(child);
-                                          setChildPaymentRefInput(child.payment_reference || child.offline_payment?.utr_number || "");
+                                          setChildPaymentModal({ ...child, target_milestone: 1 });
+                                          setChildPaymentRefInput(m1Utr !== "—" ? m1Utr : "");
                                         }}
-                                        className="px-3 py-1 rounded-xl text-[10px] font-black bg-emerald-600 text-white hover:bg-emerald-700 transition-all cursor-pointer shadow-xs whitespace-nowrap"
+                                        className="px-3 py-1.5 rounded-xl text-[10px] font-black bg-emerald-600 text-white hover:bg-emerald-700 transition-all cursor-pointer shadow-xs whitespace-nowrap"
                                       >
-                                        ✓ Verify Payment
+                                        ✓ Verify M1 Advance
                                       </button>
+                                    ) : isM2Submitted ? (
+                                      <button
+                                        onClick={() => {
+                                          setChildPaymentModal({ ...child, target_milestone: 2 });
+                                          setChildPaymentRefInput(m2Utr || "");
+                                        }}
+                                        className="px-3 py-1.5 rounded-xl text-[10px] font-black bg-purple-600 text-white hover:bg-purple-700 transition-all cursor-pointer shadow-xs whitespace-nowrap"
+                                      >
+                                        ✓ Verify M2 Final
+                                      </button>
+                                    ) : isM2Approved ? (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-black bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 border border-emerald-200">
+                                        ✓ Ready for Dispatch
+                                      </span>
+                                    ) : (
+                                      <div className="flex flex-col items-end gap-0.5">
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xl text-[10px] font-black bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 border border-emerald-200">
+                                          ✓ In Procurement
+                                        </span>
+                                        <span className="text-[9px] text-amber-600 font-bold">
+                                          M2 Balance ₹{m2Amount.toLocaleString("en-IN")} Due
+                                        </span>
+                                      </div>
                                     )}
                                   </td>
                                 </tr>
@@ -1426,113 +1518,163 @@ export default function FranchiseePoOrdersAccounts() {
       {childPaymentModal && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
           <div className="relative w-full max-w-md rounded-2xl bg-surface border-2 border-border shadow-2xl p-6 space-y-4">
-            <h3 className="text-base font-black text-text-primary flex items-center gap-2">
-              <FaShoppingCart className="text-primary" /> Verify Drawdown Repeat Order Payment
-            </h3>
-            <p className="text-xs text-text-muted">
-              Confirm payment for Drawdown Order <strong>{childPaymentModal.order_number || childPaymentModal.po_number}</strong> (Units: <strong>{childPaymentModal.total_quantity || childPaymentModal.items?.[0]?.quantity || 1} Kits</strong>, Net Payable: <strong>₹{(((childPaymentModal.net_payable_paise || childPaymentModal.grand_total_paise || 0) / 100)).toLocaleString("en-IN")}</strong>).
-            </p>
+            {(() => {
+              const isM2 = childPaymentModal.target_milestone === 2;
+              const totalVal = Math.round((childPaymentModal.net_payable_paise || childPaymentModal.grand_total_paise || 0) / 100);
+              const m1Milestone = childPaymentModal.payment_milestones?.milestones?.find(m => m.milestone_number === 1);
+              const m2Milestone = childPaymentModal.payment_milestones?.milestones?.find(m => m.milestone_number === 2);
+              const advPct = childPaymentModal.payment_milestones?.advance_percentage || m1Milestone?.percentage || 30;
+              const remPct = childPaymentModal.payment_milestones?.remaining_percentage || m2Milestone?.percentage || (100 - advPct);
+              const targetAmount = isM2
+                ? (childPaymentModal.payment_milestones?.remaining_amount || Math.round(totalVal * (remPct / 100)))
+                : (childPaymentModal.payment_milestones?.advance_amount || Math.round(totalVal * (advPct / 100)));
 
-            <form onSubmit={handleConfirmChildPayment} className="space-y-4">
-              {/* Read-Only UTR Card with Copy Button */}
-              <div className="p-3.5 rounded-xl bg-surface-hover/80 border border-border space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-                    Customer Submitted UTR Reference
-                  </span>
-                  <span className="px-2 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
-                    Read-Only Check
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-2 pt-1">
-                  <span className="font-mono font-black text-sm text-text-primary select-all">
-                    {childPaymentModal.payment_reference || childPaymentModal.offline_payment?.utr_number || childPaymentRefInput || "—"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyText(childPaymentModal.payment_reference || childPaymentModal.offline_payment?.utr_number || childPaymentRefInput, "modal-utr")}
-                    className="px-2.5 py-1 text-xs font-bold bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-                    title="Copy UTR to check in Bank Portal"
-                  >
-                    {copiedField === "modal-utr" ? (
-                      <>
-                        <FaCheck size={11} className="text-emerald-500" />
-                        <span>Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <FaCopy size={11} />
-                        <span>Copy UTR</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
+              const targetUtr = isM2
+                ? (childPaymentModal.offline_payment_m2?.utr_number || m2Milestone?.utr_number || childPaymentRefInput)
+                : (childPaymentModal.payment_reference || childPaymentModal.offline_payment?.utr_number || childPaymentRefInput);
 
-              {/* Payment Slip Preview Card */}
-              {(() => {
-                const rawSlip = childPaymentModal.offline_payment?.receipt_url || childPaymentModal.offline_payment?.payment_receipt_url || childPaymentModal.payment_receipt_url || childPaymentModal.receipt_url;
-                const slipUrl = rawSlip
-                  ? (rawSlip.startsWith("http")
-                    ? rawSlip
-                    : `${(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${rawSlip.startsWith("/") ? "" : "/"}${rawSlip}`)
-                  : null;
+              const rawSlip = isM2
+                ? (childPaymentModal.offline_payment_m2?.receipt_url || m2Milestone?.receipt_url)
+                : (childPaymentModal.offline_payment?.receipt_url || childPaymentModal.offline_payment?.payment_receipt_url || childPaymentModal.payment_receipt_url || childPaymentModal.receipt_url);
 
-                return (
-                  <div className="p-3.5 rounded-xl bg-surface-hover/80 border border-border space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
-                      Attached Payment Transfer Slip
-                    </span>
-                    {slipUrl ? (
-                      <div className="flex items-center justify-between gap-3 pt-1">
-                        <div className="flex items-center gap-2 truncate">
-                          <span className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
-                            📄 Slip
-                          </span>
-                          <span className="text-xs text-text-primary font-bold truncate">
-                            {rawSlip.split("/").pop() || "Payment_Receipt.png"}
-                          </span>
-                        </div>
-                        <a
-                          href={slipUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary text-white hover:opacity-90 transition-all flex items-center gap-1 shrink-0"
-                        >
-                          <span>View Slip</span>
-                          <FaExternalLinkAlt size={9} />
-                        </a>
-                      </div>
-                    ) : (
-                      <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                        ⚠️ No payment receipt was attached by the buyer. Please check UTR in bank statement.
-                      </div>
-                    )}
+              const slipUrl = rawSlip
+                ? (rawSlip.startsWith("http")
+                  ? rawSlip
+                  : `${(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${rawSlip.startsWith("/") ? "" : "/"}${rawSlip}`)
+                : null;
+
+              return (
+                <>
+                  <div className="flex items-center justify-between border-b border-border pb-3">
+                    <div>
+                      <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${isM2 ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"}`}>
+                        {isM2 ? `Milestone 2 Verification (${remPct}% Final)` : `Milestone 1 Verification (${advPct}% Advance)`}
+                      </span>
+                      <h3 className="text-base font-black text-text-primary mt-1">
+                        {isM2 ? "Verify Milestone 2 Final Payment" : "Verify Milestone 1 Advance Payment"}
+                      </h3>
+                    </div>
                   </div>
-                );
-              })()}
 
-              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/40 text-[11px] text-blue-800 dark:text-blue-300">
-                ⚡ Upon verification, parent PO quota will be deducted and this order will immediately transfer to <strong>New Orders Queue</strong> for batching and supplier procurement.
-              </div>
+                  <div className="p-3.5 rounded-xl bg-surface-hover text-xs space-y-1.5 border border-border">
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Order Number:</span>
+                      <strong className="font-mono text-text-primary">{childPaymentModal.order_number || childPaymentModal.po_number}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Kits Ordered:</span>
+                      <strong className="text-primary">{childPaymentModal.total_quantity || childPaymentModal.items?.[0]?.quantity || 1} Kits</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Total Order Value:</span>
+                      <span className="font-mono font-bold text-text-primary">₹{totalVal.toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-border font-bold text-sm">
+                      <span className={isM2 ? "text-purple-700 dark:text-purple-300" : "text-amber-700 dark:text-amber-300"}>
+                        {isM2 ? `Milestone 2 (${remPct}%) to Verify:` : `Milestone 1 (${advPct}%) to Verify:`}
+                      </span>
+                      <span className={`font-mono font-black ${isM2 ? "text-purple-700 dark:text-purple-300" : "text-emerald-600"}`}>
+                        ₹{Number(targetAmount).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setChildPaymentModal(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold border border-border text-text-muted hover:bg-surface-hover cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-4 py-2 rounded-xl text-xs font-black bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer disabled:opacity-50"
-                >
-                  {actionLoading ? "Confirming..." : "Verify Payment & Release to Supplier"}
-                </button>
-              </div>
-            </form>
+                  <form onSubmit={handleConfirmChildPayment} className="space-y-4">
+                    {/* Read-Only UTR Card with Copy Button */}
+                    <div className="p-3.5 rounded-xl bg-surface-hover/80 border border-border space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                          {isM2 ? "Milestone 2 UTR Reference" : "Milestone 1 UTR Reference"}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                          Read-Only Check
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 pt-1">
+                        <span className="font-mono font-black text-sm text-text-primary select-all">
+                          {targetUtr || "—"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(targetUtr, "modal-utr")}
+                          className="px-2.5 py-1 text-xs font-bold bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                          title="Copy UTR to check in Bank Portal"
+                        >
+                          {copiedField === "modal-utr" ? (
+                            <>
+                              <FaCheck size={11} className="text-emerald-500" />
+                              <span>Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <FaCopy size={11} />
+                              <span>Copy UTR</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Payment Slip Preview Card */}
+                    <div className="p-3.5 rounded-xl bg-surface-hover/80 border border-border space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                        {isM2 ? "Milestone 2 Transfer Slip" : "Milestone 1 Transfer Slip"}
+                      </span>
+                      {slipUrl ? (
+                        <div className="flex items-center justify-between gap-3 pt-1">
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                              📄 Slip
+                            </span>
+                            <span className="text-xs text-text-primary font-bold truncate">
+                              {rawSlip.split("/").pop() || "Receipt.png"}
+                            </span>
+                          </div>
+                          <a
+                            href={slipUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary text-white hover:opacity-90 transition-all flex items-center gap-1 shrink-0"
+                          >
+                            <span>View Slip</span>
+                            <FaExternalLinkAlt size={9} />
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                          ⚠️ No receipt attached by buyer. Please verify UTR against bank statement.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={`p-3 rounded-xl border text-[11px] ${isM2 ? "bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/40 text-purple-800 dark:text-purple-300" : "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800/40 text-blue-800 dark:text-blue-300"}`}>
+                      {isM2 ? (
+                        <span>🚀 <strong>Final Payment Approval:</strong> Approving Milestone 2 marks the order FULLY_PAID and unlocks final warehouse dispatch clearance.</span>
+                      ) : (
+                        <span>⚡ <strong>Milestone 1 Approval:</strong> Parent PO quota will be deducted and this order will transfer to <strong>New Orders Queue</strong> for Supplier Procurement.</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setChildPaymentModal(null)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold border border-border text-text-muted hover:bg-surface-hover cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={actionLoading}
+                        className={`px-4 py-2 rounded-xl text-xs font-black text-white cursor-pointer disabled:opacity-50 ${isM2 ? "bg-purple-600 hover:bg-purple-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
+                      >
+                        {actionLoading ? "Confirming..." : (isM2 ? "✓ Verify M2 & Release for Dispatch" : "✓ Verify M1 & Release to Supplier")}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

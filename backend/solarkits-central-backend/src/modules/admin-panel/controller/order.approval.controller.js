@@ -342,9 +342,10 @@ const formatEpcOrderDetails = (ord) => {
 
 const formatFpoOrderDetails = (fpo) => {
   if (!fpo) return null;
-  const res = fpo.reseller_id || {};
+  const res = fpo.franchisee_id || fpo.reseller_id || {};
+  const epc = fpo.epc_id || {};
   const addr = typeof fpo.delivery_address === 'string'
-    ? { line: fpo.delivery_address, district_name: res.city, state_name: '', pincode: '' }
+    ? { line: fpo.delivery_address, district_name: res.city || 'Ahmedabad', state_name: 'Gujarat', pincode: '' }
     : fpo.delivery_address || {};
 
   const items = (fpo.items || []).map((it) => ({
@@ -356,37 +357,46 @@ const formatFpoOrderDetails = (fpo) => {
     total_price: it.total_price_paise ? it.total_price_paise / 100 : (it.total_price || 0),
   }));
 
+  const grandTotal = (fpo.net_payable_paise ? fpo.net_payable_paise / 100 : 0) || (fpo.grand_total_paise ? fpo.grand_total_paise / 100 : 0) || (fpo.financials?.grand_total_paise ? fpo.financials.grand_total_paise / 100 : 0) || fpo.total_amount || 0;
+  const subTotal = (fpo.base_price_paise ? fpo.base_price_paise / 100 : 0) || (fpo.financials?.subtotal_paise ? fpo.financials.subtotal_paise / 100 : 0) || grandTotal;
+  const taxTotal = (fpo.gst_paise ? fpo.gst_paise / 100 : 0) || (fpo.financials?.tax_paise ? fpo.financials.tax_paise / 100 : 0) || 0;
+
+  const buyerName = fpo.po_origin?.epc_name || fpo.po_origin?.epc_company || epc.company_name || epc.name || res.business_name || res.name || 'Franchisee Store';
+  const buyerPhone = addr.contact_phone || epc.whatsapp || epc.phone || res.mobile || 'N/A';
+  const buyerEmail = epc.email || res.email || 'N/A';
+  const buyerGst = epc.gstin || res.gst_number || 'N/A';
+
   return {
-    order_type: 'Franchisee Store Order (FPO)',
-    order_number: fpo.po_number,
-    order_request_id: fpo.order_group_id || null,
+    order_type: fpo.po_origin?.is_po_drawdown ? 'PO Order Drawdown (EPC)' : 'Franchisee Store Order (FPO)',
+    order_number: fpo.po_number || fpo.order_number,
+    order_request_id: fpo.order_group_id || fpo.order_request_id || null,
     order_date: fpo.created_at || fpo.createdAt,
     order_status: fpo.status,
-    grand_total: fpo.financials?.grand_total_paise ? fpo.financials.grand_total_paise / 100 : (fpo.financials?.grand_total || 0),
-    subtotal: fpo.financials?.subtotal_paise ? fpo.financials.subtotal_paise / 100 : (fpo.financials?.subtotal || 0),
-    tax_total: fpo.financials?.tax_paise ? fpo.financials.tax_paise / 100 : (fpo.financials?.tax || 0),
+    grand_total: grandTotal,
+    subtotal: subTotal,
+    tax_total: taxTotal,
     shipping_fee: 0,
-    payment_method: 'Franchise Token / Escrow',
-    payment_status: fpo.status || 'pending',
-    payment_reference: fpo.token_transaction_ref || null,
+    payment_method: fpo.payment_method || 'Franchise Token / Escrow',
+    payment_status: fpo.payment_status || fpo.status || 'pending',
+    payment_reference: fpo.offline_payment?.utr_number || fpo.token_transaction_ref || null,
     buyer: {
-      name: res.business_name || res.name || 'Franchisee Store',
-      contact_person: res.name || 'Store Manager',
-      phone: res.mobile || 'N/A',
-      email: res.email || 'N/A',
-      gst: res.gst_number || 'N/A',
-      address: [addr.line, addr.district_name, addr.state_name, addr.pincode].filter(Boolean).join(', ') || 'N/A',
-      state: addr.state_name || 'N/A',
-      district: addr.district_name || res.city || 'N/A',
+      name: buyerName,
+      contact_person: epc.name || res.name || 'Store Manager',
+      phone: buyerPhone,
+      email: buyerEmail,
+      gst: buyerGst,
+      address: [addr.line || addr.address_line, addr.district_name || addr.district, addr.state_name || addr.state, addr.pincode].filter(Boolean).join(', ') || 'N/A',
+      state: addr.state_name || addr.state || 'N/A',
+      district: addr.district_name || addr.district || res.city || 'N/A',
       pincode: addr.pincode || 'N/A',
     },
     delivery_address: {
-      line: addr.line || 'Regional Hub Warehouse',
-      district: addr.district_name || res.city || 'N/A',
-      state: addr.state_name || 'N/A',
+      line: addr.line || addr.address_line || 'Regional Hub Warehouse',
+      district: addr.district_name || addr.district || res.city || 'N/A',
+      state: addr.state_name || addr.state || 'N/A',
       pincode: addr.pincode || 'N/A',
-      contact_name: res.name || 'Store Contact',
-      contact_phone: res.mobile || 'N/A',
+      contact_name: addr.contact_name || epc.name || res.name || 'Store Contact',
+      contact_phone: addr.contact_phone || epc.phone || res.mobile || 'N/A',
     },
     reseller_partner: {
       name: res.business_name || res.name || 'Franchise Partner',
@@ -426,7 +436,9 @@ const formatFpoOrderDetails = (fpo) => {
           .limit(100)
           .lean(),
         FpoOrder.find(fpoQuery)
+          .populate('franchisee_id', 'business_name name mobile email city address')
           .populate('reseller_id', 'business_name name mobile email city address')
+          .populate('epc_id', 'name email whatsapp registered_whatsapp gstin address district_name state_name pincode')
           .sort({ createdAt: -1 })
           .limit(100)
           .lean(),
@@ -474,38 +486,40 @@ const formatFpoOrderDetails = (fpo) => {
       });
 
       fpoList.forEach((fpo) => {
-        const amount = fpo.financials?.grand_total_paise ? fpo.financials.grand_total_paise / 100 : 0;
-        const tat = enrichTat(fpo.createdAt, 'order_approval');
+        const amount = (fpo.net_payable_paise ? fpo.net_payable_paise / 100 : 0) || (fpo.grand_total_paise ? fpo.grand_total_paise / 100 : 0) || (fpo.financials?.grand_total_paise ? fpo.financials.grand_total_paise / 100 : 0) || fpo.total_amount || 0;
+        const tat = enrichTat(fpo.createdAt || fpo.created_at, 'order_approval');
         let fpoStatus = 'pending';
-        if (fpo.status === 'APPROVED' || fpo.status === 'CONFIRMED') fpoStatus = 'approved';
+        if (fpo.status === 'APPROVED' || fpo.status === 'CONFIRMED' || fpo.status === 'PAID') fpoStatus = 'approved';
         else if (fpo.status === 'REJECTED') fpoStatus = 'rejected';
         else if (fpo.status === 'CHANGES_REQUESTED') fpoStatus = 'returned';
 
         const orderInfo = formatFpoOrderDetails(fpo);
+        const res = fpo.franchisee_id || fpo.reseller_id || {};
+        const epc = fpo.epc_id || {};
 
         queueItems.push({
           _id: fpo._id.toString(),
           stage: 'orders',
-          stage_label: 'Franchisee PO Order (FPO)',
-          order_number: fpo.po_number,
+          stage_label: fpo.po_origin?.is_po_drawdown ? 'PO Order Drawdown (EPC)' : 'Franchisee PO Order (FPO)',
+          order_number: fpo.po_number || fpo.order_number,
           pi_number: null,
-          order_group_id: fpo.order_group_id || null,
-          entity_name: fpo.reseller_id?.business_name || fpo.reseller_id?.name || 'Franchisee Store',
-          partner_name: fpo.reseller_id?.city || fpo.reseller_id?.name || 'Franchisee Store',
+          order_group_id: fpo.order_group_id || fpo.order_request_id || null,
+          entity_name: fpo.po_origin?.epc_name || fpo.po_origin?.epc_company || epc.company_name || epc.name || res.business_name || res.name || 'Franchisee Store',
+          partner_name: res.business_name || res.city || epc.name || 'Franchisee Store',
           requested_amount: amount,
           benchmark_amount: amount,
           variance_amount: 0,
           variance_percentage: 0,
           approval_status: fpoStatus,
-          requested_at: fpo.createdAt,
-          requested_by_name: fpo.reseller_id?.name || 'Store Manager',
+          requested_at: fpo.createdAt || fpo.created_at,
+          requested_by_name: fpo.po_origin?.epc_name || epc.name || res.name || 'Store Manager',
           tat_hours: tat.tat_hours,
           hours_pending: tat.hours_pending,
           is_overdue: tat.is_overdue && fpoStatus === 'pending',
           customer_order_info: orderInfo,
           decision_info: {
             approved_by: fpo.status_history?.slice(-1)[0]?.changed_by || null,
-            approved_at: fpo.updatedAt,
+            approved_at: fpo.updatedAt || fpo.updated_at,
             remarks: fpo.status_history?.slice(-1)[0]?.note || '',
           },
           details: {
@@ -561,7 +575,9 @@ const formatFpoOrderDetails = (fpo) => {
           : [],
         piOrderNumbers.length > 0
           ? FpoOrder.find({ po_number: { $in: piOrderNumbers } })
+              .populate('franchisee_id', 'business_name name mobile email city address')
               .populate('reseller_id', 'business_name name mobile email city address')
+              .populate('epc_id', 'name email whatsapp registered_whatsapp gstin address district_name state_name pincode')
               .lean()
           : [],
       ]);

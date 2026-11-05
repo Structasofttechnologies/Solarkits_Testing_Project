@@ -1,4 +1,4 @@
-/**
+﻿/**
  * franchisee.po.service.js
  *
  * Complete lifecycle management for Franchisee Purchase Orders (fpo_orders collection).
@@ -122,6 +122,12 @@ async function createPoDraft({
   destination_type = 'hub_stock',
   destination_address = null,
   destination_pincode = null,
+  delivery_address = null,
+  fulfillment_mode = 'direct_site',
+  is_online_order = false,
+  online_order_state_id = null,
+  payment_method = null,
+  pay_full_amount = false,
   offline_payment = null,
   actor_id,
   req,
@@ -409,8 +415,10 @@ async function createPoDraft({
             commission_amount_paise: { $gt: 0 },
           }).lean();
           if (!definedRule) {
-            const kitName = item.item_name || 'Selected Product';
-            throw new Error(`Commission setting is not defined for product "${kitName}". Please configure commission settings in Franchise Commission Settings before creating a Purchase Order.`);
+            const planRule = plan_id ? await resolveCommissionRule(plan_id) : null;
+            if (!planRule) {
+              console.warn(`[franchisee.po.service] No specific variation commission rule for kit "${item.item_name || kitId}". Using default rate.`);
+            }
           }
         }
       }
@@ -608,6 +616,113 @@ async function createPoDraft({
     penalty_rules: po_settings.penalty_rules || [],
   };
 
+  // ── Resolve Payment Milestones for PO Drawdowns (same journey as direct EPC orders) ──
+  // For EPC drawdown orders, we apply the same product_payment_milestones config as direct
+  // EPC orders: Milestone 1 = Advance (30%), Milestone 2 = Final (70%) before dispatch.
+  // This ensures the order journey is IDENTICAL whether direct or via PO.
+  let resolvedMilestones = null;
+  if (parentPoDoc && epc_id) {
+    try {
+      const { ProductPaymentMilestone } = require('../models/india_solarshop_db');
+      const targetKitId = builtItems[0]?.kit_id || parentPoDoc?.items?.[0]?.kit_id;
+      let milestoneCfg = null;
+      if (targetKitId) {
+        milestoneCfg = await ProductPaymentMilestone.findOne({ kit_id: targetKitId, is_active: true }).lean();
+      }
+      if (!milestoneCfg) {
+        milestoneCfg = await ProductPaymentMilestone.findOne({ is_default: true, is_active: true }).lean();
+      }
+      if (!milestoneCfg) {
+        milestoneCfg = await ProductPaymentMilestone.findOne({ is_active: true }).sort({ created_at: -1 }).lean();
+      }
+
+      if (milestoneCfg && Array.isArray(milestoneCfg.milestones) && milestoneCfg.milestones.length > 0) {
+        const totalOrderAmount = net_payable_paise; // Amount EPC must pay after token adjustment
+        const isFullPay = Boolean(pay_full_amount);
+        const advPct = isFullPay ? 100 : (milestoneCfg?.milestones?.[0]?.percentage || 30);
+        const remPct = isFullPay ? 0 : (100 - advPct);
+        const advAmount = Math.round((totalOrderAmount * advPct) / 100);
+        const remAmount = isFullPay ? 0 : Math.round((totalOrderAmount * remPct) / 100);
+
+        const m1Status = offline_payment?.utr_number ? 'pending_verification' : 'unpaid';
+
+        const builtMilestones = [
+          {
+            milestone_number: 1,
+            title: isFullPay ? 'Full Order Payment' : (milestoneCfg?.milestones?.[0]?.milestone_name || 'Advance Payment at Order Placement'),
+            percentage: advPct,
+            amount: advAmount,
+            stage: 'order_placement',
+            tat_days: milestoneCfg?.milestones?.[0]?.tat_days || 2,
+            payment_status: m1Status,
+            utr_number: offline_payment?.utr_number || null,
+            amount_paid: offline_payment?.amount_paid || (offline_payment?.utr_number ? advAmount / 100 : 0),
+            payment_date: offline_payment?.payment_date || (offline_payment?.utr_number ? new Date() : null),
+            receipt_url: offline_payment?.receipt_url || offline_payment?.payment_receipt_url || null,
+            receipt_filename: offline_payment?.receipt_filename || null,
+            sender_bank_name: offline_payment?.sender_bank_name || null,
+            account_holder_name: offline_payment?.account_holder_name || null,
+          }
+        ];
+
+        if (!isFullPay && remPct > 0) {
+          builtMilestones.push({
+            milestone_number: 2,
+            title: milestoneCfg?.milestones?.[1]?.milestone_name || 'Remaining Payment Before Dispatch',
+            percentage: remPct,
+            amount: remAmount,
+            stage: 'before_dispatch',
+            tat_days: milestoneCfg?.milestones?.[1]?.tat_days || 2,
+            payment_status: 'unpaid',
+            utr_number: null,
+            amount_paid: 0,
+            payment_date: null,
+            receipt_url: null,
+            receipt_filename: null,
+            sender_bank_name: null,
+            account_holder_name: null,
+          });
+        }
+
+        resolvedMilestones = {
+          configured_milestone_id: milestoneCfg?._id || null,
+          total_order_amount: totalOrderAmount,
+          advance_percentage: advPct,
+          advance_amount: advAmount,
+          remaining_percentage: remPct,
+          remaining_amount: remAmount,
+          current_milestone_due: 1,
+          milestone_verification_status: isFullPay
+            ? (offline_payment?.utr_number ? 'final_payment_pending_verification' : 'awaiting_advance')
+            : (offline_payment?.utr_number ? 'awaiting_advance' : 'awaiting_advance'),
+          milestones: builtMilestones,
+        };
+      }
+    } catch (milestoneErr) {
+      console.warn('[franchisee.po.service] Could not resolve payment milestones for PO drawdown:', milestoneErr.message);
+    }
+  }
+
+  // ── Price Lock metadata for EPC drawdown orders ───────────────────────────
+  const priceLockData = parentPoDoc && epc_id ? {
+    is_locked: true,
+    locked_price_paise: parentPoDoc.items?.[0]?.unit_price_paise || null,
+    lock_source_po: parentPoDoc.po_number || null,
+    lock_source_po_id: parentPoDoc._id,
+    locked_at: parentPoDoc.created_at || new Date(),
+    lock_expires_at: parentPoDoc.lock_expires_at || parentPoDoc.expires_at || null,
+  } : { is_locked: false };
+
+  // ── PO origin tag for Accounts/Warehouse display ──────────────────────────
+  const poOriginData = parentPoDoc && epc_id ? {
+    is_po_drawdown: true,
+    parent_po_id: parentPoDoc._id,
+    parent_po_number: parentPoDoc.po_number || null,
+    epc_id: epc_id,
+    epc_name: custDetails.name || null,
+    epc_company: custDetails.company_name || null,
+  } : { is_po_drawdown: false };
+
   const order = await FpoOrder.create({
     po_number,
     idempotency_key: ikey,
@@ -630,6 +745,18 @@ async function createPoDraft({
     destination_type,
     destination_address,
     destination_pincode,
+    delivery_address: delivery_address || (destination_address ? {
+      line: destination_address,
+      pincode: destination_pincode,
+      state_name: custDetails.state || null,
+      district_name: custDetails.district || null,
+      contact_name: custDetails.name || null,
+      contact_phone: custDetails.phone || null,
+    } : null),
+    fulfillment_mode: fulfillment_mode || 'direct_site',
+    is_online_order: Boolean(is_online_order),
+    online_order_state_id: online_order_state_id || null,
+    payment_method: payment_method || (is_online_order ? 'icici_ecollection' : (offline_payment ? 'offline_bank_transfer' : 'bank_transfer')),
     offline_payment: offline_payment ? {
       ...offline_payment,
       receipt_url: offline_payment.receipt_url || offline_payment.payment_receipt_url || null,
@@ -679,30 +806,26 @@ async function createPoDraft({
     expires_at,
     created_by: actor_id,
     updated_by: actor_id,
+
+    // ── Price Lock — EPC PO Drawdown (locked to parent PO's unit price) ──
+    price_lock: priceLockData,
+
+    // ── PO Origin Tag — for Accounts and Warehouse display ──────────────
+    po_origin: poOriginData,
+
+    // ── Payment Milestones — same journey as direct EPC order ───────────
+    ...(resolvedMilestones ? { payment_milestones: resolvedMilestones } : {}),
   });
 
-  // If a parent PO was consumed by this repeat order, atomically update its quota & token balance
+  // If a parent PO is linked to this repeat order, track linked id (quota & token balance deducted upon Accounts payment confirmation)
   if (parentPoDoc) {
-    const prevAdjusted = Number(parentPoDoc.token_adjusted_total_paise || 0);
-    const newAdjusted = prevAdjusted + token_adjusted_paise;
-    const totalToken = Number(parentPoDoc.token_amount_paise || parentPoDoc.token_paid_paise || 0);
-
-    parentPoDoc.fulfilled_quantity = (parentPoDoc.fulfilled_quantity || 0) + totalItemQty;
-    parentPoDoc.remaining_quantity = Math.max(0, (parentPoDoc.remaining_quantity != null ? parentPoDoc.remaining_quantity : (parentPoDoc.total_booked_quantity || 0)) - totalItemQty);
-    parentPoDoc.token_adjusted_total_paise = newAdjusted;
-    parentPoDoc.token_balance_paise = Math.max(0, totalToken - newAdjusted);
-
     if (!Array.isArray(parentPoDoc.linked_loose_order_ids)) {
       parentPoDoc.linked_loose_order_ids = [];
     }
-    parentPoDoc.linked_loose_order_ids.push(order._id);
-
-    if (parentPoDoc.remaining_quantity === 0) {
-      parentPoDoc.token_payment_status = 'ADJUSTED';
-      parentPoDoc.status = 'COMPLETED';
-      parentPoDoc.settlement_status = 'SETTLED';
+    if (!parentPoDoc.linked_loose_order_ids.some((id) => id.toString() === order._id.toString())) {
+      parentPoDoc.linked_loose_order_ids.push(order._id);
+      await parentPoDoc.save();
     }
-    await parentPoDoc.save();
   }
 
   const now = new Date();
@@ -788,7 +911,7 @@ async function rejectPo({ po_id, admin_id, reason, req }) {
 }
 
 // ── 6. CONFIRM PAYMENT ───────────────────────────────────────────────────────
-async function confirmPayment({ po_id, order_id, payment_reference, razorpay_payment_id, admin_id, req }) {
+async function confirmPayment({ po_id, order_id, payment_reference, razorpay_payment_id, admin_id, req, milestone_number }) {
   const targetId = po_id || order_id;
   const orderDoc = await FpoOrder.findById(targetId);
   if (!orderDoc) throw new Error(`PO "${targetId}" not found`);
@@ -816,48 +939,149 @@ async function confirmPayment({ po_id, order_id, payment_reference, razorpay_pay
     });
   } else {
     // Standard / Loose Kit repeat order payment confirmation
-    updated = await _transitionStatus(targetId, 'PAID', {
-      changed_by: admin_id,
-      actor_type: 'cms_user',
-      note: `Payment confirmed by Accounts: ${ref || 'Verified'}`,
-      extra_update: {
-        payment_reference: ref || null,
-        payment_utr: ref || null,
-        payment_status: 'paid',
-        'offline_payment.verification_status': 'approved',
-        'offline_payment.admin_approval_status': 'approved',
-        'offline_payment.verified_by': admin_id,
-        'offline_payment.verified_at': new Date(),
-        razorpay_payment_id: razorpay_payment_id || null,
-        payment_confirmed_at: new Date(),
-      },
-    });
+    const isFullPay = orderDoc.pay_full_amount === true || (orderDoc.payment_milestones?.advance_percentage === 100);
+    const targetMilestone = Number(milestone_number) || (orderDoc.status === 'FINAL_PAYMENT_SUBMITTED' ? 2 : 1);
 
-    // If this is a child repeat order, atomically sync parent PO quota and token escrow
-    if (orderDoc.parent_po_id) {
-      const parentPo = await FpoOrder.findById(orderDoc.parent_po_id);
-      if (parentPo) {
-        const qtyOrdered = orderDoc.items?.reduce((s, i) => s + (Number(i.quantity) || 0), 0) || orderDoc.total_quantity || 1;
-        const tokenAdj = Number(orderDoc.token_adjusted_paise || 0);
-
-        if (!Array.isArray(parentPo.linked_loose_order_ids)) {
-          parentPo.linked_loose_order_ids = [];
+    if (targetMilestone === 2 && !isFullPay) {
+      // Milestone 2 (Final Balance 70%) Verification:
+      if (orderDoc.payment_milestones?.milestones) {
+        const m2 = orderDoc.payment_milestones.milestones.find(m => m.milestone_number === 2);
+        if (m2) {
+          m2.payment_status = 'approved';
+          m2.verified_at = new Date();
+          m2.verified_by = admin_id;
         }
-        if (!parentPo.linked_loose_order_ids.some((id) => id.toString() === orderDoc._id.toString())) {
-          parentPo.linked_loose_order_ids.push(orderDoc._id);
+        orderDoc.payment_milestones.milestone_verification_status = 'fully_paid';
+        orderDoc.markModified('payment_milestones');
+      }
+
+      updated = await _transitionStatus(targetId, 'PAID', {
+        changed_by: admin_id,
+        actor_type: 'cms_user',
+        note: `Milestone 2 (Final 70%) payment verified by Accounts: ${ref || 'Verified'}. Order fully cleared for dispatch.`,
+        extra_update: {
+          'offline_payment_m2.verification_status': 'approved',
+          'offline_payment_m2.verified_by': admin_id,
+          'offline_payment_m2.verified_at': new Date(),
+          payment_status: 'paid',
+          final_payment_confirmed_at: new Date(),
+        },
+      });
+
+      // Release Warehouse dispatch hold by updating linked DeliveryOrder
+      try {
+        const { DeliveryOrder } = require('../../warehouse-panel/models/company_warehouse_db');
+        if (DeliveryOrder) {
+          const ordNum = orderDoc.order_number || orderDoc.po_number;
+          const doOrder = await DeliveryOrder.findOne({
+            $or: [
+              { order_number: ordNum },
+              { 'epcs.epc_id': targetId },
+              { 'epcs.epc_name': orderDoc.buyer_name || orderDoc.po_origin?.epc_name }
+            ]
+          });
+          if (doOrder) {
+            (doOrder.epcs || []).forEach(epc => {
+              if (!epc.payment_second_half) epc.payment_second_half = {};
+              epc.payment_second_half.status = 'done';
+              epc.payment_second_half.paid_at = new Date();
+              epc.payment_second_half.verified_by = 'Accounts (Milestone 2 UTR Approved)';
+            });
+            if (!doOrder.payment_second_half) doOrder.payment_second_half = {};
+            doOrder.payment_second_half.status = 'done';
+            doOrder.payment_second_half.paid_at = new Date();
+            doOrder.payment_second_half.verified_by = 'Accounts (Milestone 2 UTR Approved)';
+            await doOrder.save();
+          }
+        }
+      } catch (errSync) {
+        console.warn("Could not sync DeliveryOrder on Milestone 2 approval:", errSync.message);
+      }
+    } else {
+      // Milestone 1 (Advance 30%) or 100% Full Payment Verification:
+      if (orderDoc.payment_milestones?.milestones) {
+        const m1 = orderDoc.payment_milestones.milestones.find(m => m.milestone_number === 1);
+        if (m1) {
+          m1.payment_status = 'approved';
+          m1.verified_at = new Date();
+          m1.verified_by = admin_id;
+        }
+        if (isFullPay) {
+          const m2 = orderDoc.payment_milestones.milestones.find(m => m.milestone_number === 2);
+          if (m2) {
+            m2.payment_status = 'approved';
+            m2.verified_at = new Date();
+            m2.verified_by = admin_id;
+          }
+          orderDoc.payment_milestones.milestone_verification_status = 'fully_paid';
+        } else {
+          orderDoc.payment_milestones.milestone_verification_status = 'advance_verified_balance_pending';
+          orderDoc.payment_milestones.current_milestone_due = 2;
+        }
+        orderDoc.markModified('payment_milestones');
+      }
+
+      const nextStatus = isFullPay ? 'PAID' : 'CONFIRMED';
+      updated = await _transitionStatus(targetId, nextStatus, {
+        changed_by: admin_id,
+        actor_type: 'cms_user',
+        note: isFullPay
+          ? `100% Full Payment verified by Accounts: ${ref || 'Verified'}`
+          : `Milestone 1 (30% Advance) verified by Accounts: ${ref || 'Verified'}. Order moved to Procurement.`,
+        extra_update: {
+          payment_reference: ref || null,
+          payment_utr: ref || null,
+          payment_status: isFullPay ? 'paid' : 'advance_paid',
+          'offline_payment.verification_status': 'approved',
+          'offline_payment.admin_approval_status': 'approved',
+          'offline_payment.verified_by': admin_id,
+          'offline_payment.verified_at': new Date(),
+          razorpay_payment_id: razorpay_payment_id || null,
+          payment_confirmed_at: new Date(),
+        },
+      });
+
+      // If this is a child repeat order, atomically sync parent PO quota and token escrow
+      if (orderDoc.parent_po_id) {
+        const parentPo = await FpoOrder.findById(orderDoc.parent_po_id);
+        if (parentPo) {
+          const qtyOrdered = orderDoc.items?.reduce((s, i) => s + (Number(i.quantity) || 0), 0) || orderDoc.total_quantity || 1;
+          const tokenAdj = Number(orderDoc.token_adjusted_paise || 0);
+
+          if (!Array.isArray(parentPo.linked_loose_order_ids)) {
+            parentPo.linked_loose_order_ids = [];
+          }
+          if (!parentPo.linked_loose_order_ids.some((id) => id.toString() === orderDoc._id.toString())) {
+            parentPo.linked_loose_order_ids.push(orderDoc._id);
+          }
           parentPo.fulfilled_quantity = (parentPo.fulfilled_quantity || 0) + qtyOrdered;
           parentPo.remaining_quantity = Math.max(0, (parentPo.total_booked_quantity || 0) - parentPo.fulfilled_quantity);
           parentPo.token_adjusted_total_paise = (parentPo.token_adjusted_total_paise || 0) + tokenAdj;
           const totalToken = Number(parentPo.token_paid_paise || parentPo.token_amount_paise || 0);
           parentPo.token_balance_paise = Math.max(0, totalToken - parentPo.token_adjusted_total_paise);
-        }
 
-        if (parentPo.remaining_quantity === 0) {
-          parentPo.token_payment_status = 'ADJUSTED';
-          parentPo.status = 'COMPLETED';
-          parentPo.settlement_status = 'SETTLED';
+          // Update EPC allocation tracking inside parent PO items
+          if (orderDoc.epc_id && Array.isArray(parentPo.items)) {
+            parentPo.items.forEach((it) => {
+              if (Array.isArray(it.epc_allocations)) {
+                it.epc_allocations.forEach((alloc) => {
+                  const epcIdStr = (alloc.epc_buyer_id?._id || alloc.epc_buyer_id || alloc._id)?.toString();
+                  if (epcIdStr === orderDoc.epc_id.toString()) {
+                    alloc.fulfilled_quantity = (alloc.fulfilled_quantity || 0) + qtyOrdered;
+                    alloc.remaining_quantity = Math.max(0, (alloc.allocated_quantity || 0) - alloc.fulfilled_quantity);
+                  }
+                });
+              }
+            });
+          }
+
+          if (parentPo.remaining_quantity === 0) {
+            parentPo.token_payment_status = 'ADJUSTED';
+            parentPo.status = 'COMPLETED';
+            parentPo.settlement_status = 'SETTLED';
+          }
+          await parentPo.save();
         }
-        await parentPo.save();
       }
     }
   }
@@ -1195,8 +1419,10 @@ async function allocatePoProducts({
           commission_amount_paise: { $gt: 0 },
         }).lean();
         if (!definedRule) {
-          const kitName = item.item_name || 'Allocated Product';
-          throw new Error(`Commission setting is not defined for product "${kitName}". Please configure commission settings in Franchise Commission Settings before allocating.`);
+          const planRule = plan_id ? await resolveCommissionRule(plan_id) : null;
+          if (!planRule) {
+            console.warn(`[franchisee.po.service] No specific variation commission rule for allocated product "${item.item_name || kitId}". Using default rate.`);
+          }
         }
       }
     }

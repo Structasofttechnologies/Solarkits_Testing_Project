@@ -1194,36 +1194,22 @@ export default function PoOrder() {
           };
         });
     } else {
-      if (allocateSingleTarget === "single_epc") {
-        if (!allocateSingleEpcId) {
-          setAllocateError("Please select an onboarded EPC Partner, or switch to Warehouse Stock.");
-          return;
-        }
-        const buyer = epcBuyers.find((b) => (b._id || b.id)?.toString() === allocateSingleEpcId?.toString());
-        epcList = [
-          {
-            epc_buyer_id: allocateSingleEpcId,
-            company_name: buyer?.company_name || buyer?.name || "EPC Partner",
-            buyer_name: buyer?.name || buyer?.company_name || "EPC Partner",
-            gstin: buyer?.gstin || null,
-            allocated_quantity: totalCommitted,
-            token_amount_paise: poTotalTokenPaise,
-            payment_status: (allocatingOrder.token_paid_paise > 0 && allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? "PAID" : "PENDING",
-          },
-        ];
-      } else {
-        epcList = [
-          {
-            epc_buyer_id: null,
-            company_name: "Franchise Warehouse Stock",
-            buyer_name: "Warehouse Stock",
-            gstin: null,
-            allocated_quantity: totalCommitted,
-            token_amount_paise: poTotalTokenPaise,
-            payment_status: (allocatingOrder.token_paid_paise > 0 && allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? "PAID" : "PENDING",
-          },
-        ];
+      if (!allocateSingleEpcId) {
+        setAllocateError("Please select an onboarded Solar EPC Partner to assign this PO quota.");
+        return;
       }
+      const buyer = epcBuyers.find((b) => (b._id || b.id)?.toString() === allocateSingleEpcId?.toString());
+      epcList = [
+        {
+          epc_buyer_id: allocateSingleEpcId,
+          company_name: buyer?.company_name || buyer?.name || "EPC Partner",
+          buyer_name: buyer?.name || buyer?.company_name || "EPC Partner",
+          gstin: buyer?.gstin || null,
+          allocated_quantity: totalCommitted,
+          token_amount_paise: poTotalTokenPaise,
+          payment_status: (allocatingOrder.token_paid_paise > 0 && allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? "PAID" : "PENDING",
+        },
+      ];
     }
 
     const allocUnitPricePaise = allocItem?.unit_price_paise != null && Number(allocItem.unit_price_paise) > 0
@@ -2014,29 +2000,18 @@ export default function PoOrder() {
                             )}
 
                             {isPoStarted && (
-                              <button
-                                onClick={() => handleValidateOrder(order)}
-                                disabled={validatingOrderId === order._id}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all cursor-pointer disabled:opacity-50"
-                              >
-                                {validatingOrderId === order._id ? (
-                                  <FiLoader size={11} className="animate-spin" />
-                                ) : (
-                                  <FiCheckCircle size={11} />
-                                )}
-                                <span>Validate</span>
-                              </button>
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40" title="Token payment submitted. Awaiting Accounts verification.">
+                                <FiClock size={11} />
+                                <span>Awaiting Accounts</span>
+                              </span>
                             )}
 
                             {isValidated && (
                               remaining > 0 ? (
-                                <button
-                                  onClick={() => handleOpenReorderModal(order)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-primary hover:opacity-90 text-white shadow-2xs transition-all cursor-pointer"
-                                >
-                                  <FiPlus size={11} />
-                                  <span>Reorder</span>
-                                </button>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40" title="Quota assigned to EPC contractor(s). Fulfillable via EPC portal.">
+                                  <FiUsers size={11} />
+                                  <span>EPC Quota Active</span>
+                                </span>
                               ) : (
                                 <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40">
                                   <FiCheck size={10} /> Fulfilled
@@ -2187,20 +2162,17 @@ export default function PoOrder() {
                                   </div>
                                 </div>
                                 {isValidated && remaining > 0 && (
-                                  <button
-                                    onClick={() => handleOpenReorderModal(order)}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-primary hover:opacity-90 text-white shadow-xs transition-all cursor-pointer"
-                                  >
-                                    <FiPlus size={12} />
-                                    <span> Place Reorder</span>
-                                  </button>
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/60">
+                                    <FiUsers size={12} />
+                                    <span>Assigned EPC Quota Active</span>
+                                  </span>
                                 )}
                               </div>
 
                               {(order.linked_repeat_orders || []).length === 0 ? (
                                 <div className="p-4 rounded-xl bg-surface-hover/60 border border-dashed border-border text-center">
                                   <p className="text-[11px] text-text-muted font-medium">
-                                    No drawdowns placed against this PO yet. Click "+ Place Reorder" to draw kits from the {remaining} remaining quota.
+                                    No drawdowns placed against this PO yet. Assigned EPC contractor(s) can draw down kits from this quota via their EPC portal.
                                   </p>
                                 </div>
                               ) : (
@@ -2316,14 +2288,11 @@ export default function PoOrder() {
                 >
                   View Details
                 </button>
-                {order.status === "VALIDATED" && (order.remaining_quantity || 0) > 0 && (
-                  <button
-                    onClick={() => handleOpenReorderModal(order)}
-                    className="px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-bold"
-                  >
-                    ⚡ Reorder
-                  </button>
-                )}
+                {order.status === "VALIDATED" && (order.remaining_quantity || 0) > 0 ? (
+                  <span className="px-2.5 py-1 rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 text-xs font-bold border border-blue-200/60">
+                    EPC Quota Active
+                  </span>
+                ) : null}
               </div>
             </div>
           ))}
@@ -3015,52 +2984,23 @@ export default function PoOrder() {
                         <div className="space-y-4">
                           <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-text-muted mb-2">
-                              Assign 100% of PO Quota ({totalQuota} Kits) To <span className="text-rose-500">*</span>
+                              Assign 100% of PO Quota ({totalQuota} Kits) To Onboarded Solar EPC Partner <span className="text-rose-500">*</span>
                             </label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div
-                                onClick={() => setAllocateSingleTarget("single_epc")}
-                                className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3 ${allocateSingleTarget === "single_epc" ? "border-primary bg-primary/5 shadow-xs" : "border-border hover:border-primary/40 bg-surface"
-                                  }`}
-                              >
-                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${allocateSingleTarget === "single_epc" ? "bg-primary text-white" : "bg-primary/10 text-primary"
-                                  }`}>
-                                  <FiUserCheck size={16} />
-                                </div>
-                                <div>
-                                  <div className="font-black text-xs text-text-primary flex items-center gap-1.5">
-                                    Single EPC Partner
-                                    {allocateSingleTarget === "single_epc" && <FiCheck className="text-primary" size={13} />}
-                                  </div>
-                                  <p className="text-[11px] text-text-muted mt-0.5 leading-tight">
-                                    Assign {totalQuota} kits to 1 dedicated EPC contractor.
-                                  </p>
-                                </div>
+                            <div className="p-3.5 rounded-2xl border-2 border-primary bg-primary/5 shadow-xs flex items-start gap-3 mb-3">
+                              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-primary text-white">
+                                <FiUserCheck size={16} />
                               </div>
-
-                              <div
-                                onClick={() => setAllocateSingleTarget("warehouse")}
-                                className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3 ${allocateSingleTarget === "warehouse" ? "border-blue-600 bg-blue-500/5 shadow-xs" : "border-border hover:border-blue-400 bg-surface"
-                                  }`}
-                              >
-                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${allocateSingleTarget === "warehouse" ? "bg-blue-600 text-white" : "bg-blue-500/10 text-blue-600"
-                                  }`}>
-                                  <FiBox size={16} />
+                              <div>
+                                <div className="font-black text-xs text-text-primary flex items-center gap-1.5">
+                                  Single EPC Beneficiary Assignment
+                                  <FiCheck className="text-primary" size={13} />
                                 </div>
-                                <div>
-                                  <div className="font-black text-xs text-text-primary flex items-center gap-1.5">
-                                    Warehouse Self-Stock
-                                    {allocateSingleTarget === "warehouse" && <FiCheck className="text-blue-600" size={13} />}
-                                  </div>
-                                  <p className="text-[11px] text-text-muted mt-0.5 leading-tight">
-                                    Keep inventory in Franchise Store warehouse.
-                                  </p>
-                                </div>
+                                <p className="text-[11px] text-text-muted mt-0.5 leading-tight">
+                                  Assign entire committed quota of {totalQuota} kits exclusively to 1 verified EPC partner. The EPC partner will draw down and fulfill kits directly via their store dashboard.
+                                </p>
                               </div>
                             </div>
-                          </div>
 
-                          {allocateSingleTarget === "single_epc" && (
                             <div className="space-y-1.5">
                               <label className="block text-xs font-bold uppercase tracking-wider text-text-muted">
                                 Select Onboarded EPC Partner <span className="text-rose-500">*</span>
@@ -3079,7 +3019,7 @@ export default function PoOrder() {
                                 ))}
                               </select>
                             </div>
-                          )}
+                          </div>
                         </div>
                       ) : (
                         /* Combine PO Multi-EPC Loose Allocation */
@@ -3409,311 +3349,9 @@ export default function PoOrder() {
         )}
       </AnimatePresence>
 
-      {/* ─────────────────────────────────────────────────────────────────────────────
-          STAGE 4: REORDER / DRAWDOWN MODAL
-          (Using Configured Loose Quantities for that ComboKit)
-      ───────────────────────────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {reorderModal && reorderOrder && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-xs"
-              onClick={() => !reorderSubmitting && setReorderModal(false)}
-            />
+      {/* STAGE 4: Reorder / Drawdown Modal removed for Franchise (only assigned EPC can order) */}
 
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden z-10"
-              style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
-            >
-              <div className="p-5 border-b border-border flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                      <FiRefreshCw size={15} />
-                    </span>
-                    <h2 className="text-base font-black text-text-primary">
-                      Reorder Loose Kits against PO: {reorderOrder.po_number}
-                    </h2>
-                  </div>
-                  <p className="text-xs text-text-muted mt-0.5">
-                    Draw repeat loose kit orders against locked price & settle token deposit.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => !reorderSubmitting && setReorderModal(false)}
-                  className="p-2 rounded-xl hover:bg-surface-hover text-text-muted hover:text-text-primary transition-colors cursor-pointer"
-                >
-                  <FiX size={18} />
-                </button>
-              </div>
 
-              {reorderSuccess ? (
-                <div className="p-6 space-y-4 text-center">
-                  <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 mx-auto flex items-center justify-center">
-                    <FiCheckCircle size={32} />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-black text-text-primary">
-                      Repeat Order Successfully Placed!
-                    </h3>
-                    <p className="text-xs text-text-muted">
-                      Order Generated: <span className="font-mono font-bold text-primary">{reorderSuccess.orderNumber}</span>
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setReorderModal(false);
-                      setReorderSuccess(null);
-                    }}
-                    className="w-full py-2.5 rounded-xl bg-primary text-white text-xs font-black shadow-md hover:opacity-90 transition-all cursor-pointer"
-                  >
-                    Done & Return to PO List
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleSubmitReorder} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
-                  {reorderError && (
-                    <div className="p-3 rounded-xl bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 text-xs flex items-center gap-2">
-                      <FiAlertCircle size={15} className="shrink-0" />
-                      <span>{reorderError}</span>
-                    </div>
-                  )}
-
-                  {(() => {
-                    const it = reorderOrder.items?.[0] || {};
-                    const kitObj = availableKits.find((k) => String(k._id) === String(it.kit_id)) || availableKits[0];
-                    const unitPrice = (it.unit_price_paise || 0) / 100;
-                    const committed = Number(reorderOrder.total_booked_quantity || it.quantity || 100);
-                    const fulfilled = Number(reorderOrder.fulfilled_quantity || 0);
-                    const remaining = reorderOrder.remaining_quantity != null ? reorderOrder.remaining_quantity : Math.max(1, committed - fulfilled);
-                    const subtotal = reorderQty * unitPrice;
-                    const tax = Math.round(subtotal * 0.12);
-                    const grossTotal = subtotal + tax;
-                    const tokenPaid = Math.round((reorderOrder.token_paid_paise || reorderOrder.token_amount_paise || 0) / 100);
-                    const tokenPerKit = committed > 0 ? Math.floor(tokenPaid / committed) : 0;
-                    const tokenToDeduct = Math.min(reorderQty * tokenPerKit, grossTotal);
-                    const netPayable = Math.max(0, grossTotal - tokenToDeduct);
-
-                    return (
-                      <>
-                        <div className="p-3.5 rounded-2xl bg-surface-hover border border-border space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-text-primary text-xs line-clamp-1">
-                              {it.item_name || "Solar ComboKit"}
-                            </span>
-                            <span className="text-xs font-black text-primary">
-                              ₹{unitPrice.toLocaleString("en-IN")}/kit + GST
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/60 text-center">
-                            <div>
-                              <div className="text-[10px] text-text-muted">Remaining Quota</div>
-                              <div className="font-black text-emerald-600">{remaining} Kits</div>
-                            </div>
-                            <div className="border-l border-border/60">
-                              <div className="text-[10px] text-text-muted">Token Deduct Rate</div>
-                              <div className="font-black text-emerald-600">₹{tokenPerKit.toLocaleString("en-IN")}/kit</div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Configured Loose Quantities Selector */}
-                        <div className="space-y-2">
-                          <label className="text-[11px] font-bold text-text-primary block">
-                            Select Configured Loose Quantity:
-                          </label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {kitObj.loose_order_quantities?.filter((lq) => lq <= remaining).map((lq) => (
-                              <button
-                                key={lq}
-                                type="button"
-                                onClick={() => setReorderQty(lq)}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border ${reorderQty === lq
-                                  ? "bg-sky-600 text-white border-sky-600 shadow-xs scale-105"
-                                  : "bg-sky-500/10 text-sky-800 hover:bg-sky-500/20 border-sky-500/20"
-                                  }`}
-                              >
-                                {lq} KITS
-                              </button>
-                            ))}
-                            {remaining > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => setReorderQty(remaining)}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border ${reorderQty === remaining
-                                  ? "bg-primary text-white border-primary shadow-xs scale-105"
-                                  : "bg-surface-hover text-text-secondary border-border"
-                                  }`}
-                              >
-                                All Remaining ({remaining})
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Direct Numeric Input */}
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-bold text-text-primary block">
-                            Or enter exact loose quantity (Max: {remaining} kits):
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            max={remaining}
-                            value={reorderQty}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value, 10) || 1;
-                              setReorderQty(Math.min(remaining, Math.max(1, val)));
-                            }}
-                            className="w-full px-4 py-2 rounded-xl border text-center font-black text-sm border-border bg-surface text-text-primary outline-none focus:border-primary"
-                            required
-                          />
-                        </div>
-
-                        {/* Breakdown Box */}
-                        <div className="p-3.5 rounded-2xl bg-surface-hover/80 border border-border space-y-1.5">
-                          <div className="flex justify-between text-text-muted">
-                            <span>Subtotal ({reorderQty} kits × ₹{unitPrice.toLocaleString("en-IN")}):</span>
-                            <span className="font-bold text-text-primary">₹{subtotal.toLocaleString("en-IN")}</span>
-                          </div>
-                          <div className="flex justify-between text-text-muted">
-                            <span>GST (12%):</span>
-                            <span>₹{tax.toLocaleString("en-IN")}</span>
-                          </div>
-                          <div className="flex justify-between text-emerald-600 font-bold border-t border-border pt-1">
-                            <span>Token Escrow Adjusted:</span>
-                            <span>-₹{tokenToDeduct.toLocaleString("en-IN")}</span>
-                          </div>
-                          <div className="flex justify-between text-sm font-black text-text-primary border-t border-border pt-1">
-                            <span>Net Amount to Pay:</span>
-                            <span>₹{netPayable.toLocaleString("en-IN")}</span>
-                          </div>
-                        </div>
-
-                        {/* Payment Inputs */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-bold text-text-muted mb-1">
-                              Payment UTR / Ref <span className="text-rose-500">*</span>
-                            </label>
-                            <input
-                              type="text"
-                              required
-                              value={reorderUtr}
-                              onChange={(e) => setReorderUtr(e.target.value)}
-                              placeholder="e.g. UTR12345678"
-                              className="w-full px-3 py-2 rounded-xl text-xs font-mono font-bold border text-text-primary outline-none focus:border-primary"
-                              style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-text-muted mb-1">
-                              Bank Name
-                            </label>
-                            <input
-                              type="text"
-                              value={reorderBank}
-                              onChange={(e) => setReorderBank(e.target.value)}
-                              placeholder="ICICI / HDFC"
-                              className="w-full px-3 py-2 rounded-xl text-xs font-bold border text-text-primary outline-none focus:border-primary"
-                              style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Payment Slip Upload */}
-                        <div className="space-y-1.5">
-                          <label className="block text-[10px] font-bold text-text-muted">
-                            Upload Bank Transfer Slip / Payment Screenshot <span className="text-text-muted font-normal">(Receipt / JPG / PNG / PDF)</span>
-                          </label>
-                          <div className="flex items-center gap-3">
-                            <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-border hover:border-primary/50 bg-surface text-xs font-bold text-text-secondary cursor-pointer transition">
-                              <FiUpload size={14} className="text-primary" />
-                              <span className="truncate">{reorderSlipFile ? reorderSlipFile.name : "Attach Payment Transfer Receipt..."}</span>
-                              <input
-                                type="file"
-                                accept="image/*,application/pdf"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    setReorderSlipFile(file);
-                                    if (file.type.startsWith("image/")) {
-                                      const reader = new FileReader();
-                                      reader.onload = (ev) => setReorderSlipPreview(ev.target.result);
-                                      reader.readAsDataURL(file);
-                                    } else {
-                                      setReorderSlipPreview(null);
-                                    }
-                                  }
-                                }}
-                              />
-                            </label>
-                            {reorderSlipPreview && (
-                              <img
-                                src={reorderSlipPreview}
-                                alt="Slip Preview"
-                                className="w-10 h-10 object-cover rounded-lg border border-border shadow-xs shrink-0"
-                              />
-                            )}
-                            {reorderSlipFile && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setReorderSlipFile(null);
-                                  setReorderSlipPreview(null);
-                                }}
-                                className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer"
-                              >
-                                Remove
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="pt-3 border-t border-border flex items-center justify-end gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setReorderModal(false)}
-                            disabled={reorderSubmitting}
-                            className="px-5 py-2.5 rounded-xl border text-xs font-bold text-text-secondary hover:bg-surface-hover cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={reorderSubmitting || !reorderUtr.trim()}
-                            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-white text-xs font-black shadow-lg hover:opacity-90 transition-all cursor-pointer disabled:opacity-50"
-                          >
-                            {reorderSubmitting ? (
-                              <>
-                                <FiLoader size={14} className="animate-spin" />
-                                <span>Placing Reorder...</span>
-                              </>
-                            ) : (
-                              <>
-                                <FiPlus size={14} />
-                                <span>Place Reorder (₹{netPayable.toLocaleString("en-IN")})</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </form>
-              )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* ─────────────────────────────────────────────────────────────────────────────
           ORDER DETAIL MODAL

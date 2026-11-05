@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const { india_solarshop_db } = require('../../config/databases');
 
 /**
@@ -100,6 +100,8 @@ const epcAllocationSchema = new mongoose.Schema(
     buyer_name: { type: String, default: null },
     gstin: { type: String, default: null },
     allocated_quantity: { type: Number, required: true, min: 1 },
+    fulfilled_quantity: { type: Number, default: 0, min: 0 },
+    remaining_quantity: { type: Number, default: null },
     token_amount_paise: { type: Number, default: 0 },
     token_paid_paise: { type: Number, default: 0 },
     payment_status: { type: String, enum: ['PENDING', 'PAID', 'RECEIPT_SUBMITTED', 'VERIFIED'], default: 'PENDING' },
@@ -224,6 +226,23 @@ const schema = new mongoose.Schema(
     },
     destination_address: { type: String, default: null },
     destination_pincode: { type: String, default: null },
+    delivery_address: {
+      line:          { type: String, default: null },
+      state_id:      { type: mongoose.Schema.Types.ObjectId, ref: 'geolocation_level_1', default: null },
+      state_name:    { type: String, default: null },
+      district_id:   { type: mongoose.Schema.Types.ObjectId, ref: 'geolocation_level_2', default: null },
+      district_name: { type: String, default: null },
+      pincode:       { type: String, default: null },
+      contact_name:  { type: String, default: null },
+      contact_phone: { type: String, default: null },
+    },
+    fulfillment_mode: {
+      type: String,
+      enum: ['direct_site', 'epc_warehouse', 'franchisee_warehouse', null],
+      default: 'direct_site',
+    },
+    warehouse_id: { type: mongoose.Schema.Types.ObjectId, ref: 'company_warehouses', default: null },
+    warehouse_code: { type: String, default: null },
     offline_payment: {
       payment_method: { type: String, default: null },
       utr_number: { type: String, default: null, trim: true, uppercase: true },
@@ -246,9 +265,30 @@ const schema = new mongoose.Schema(
       enum: ['icici_ecollection', 'offline_utr', 'bank_transfer', 'offline_bank_transfer', null],
       default: null,
     },
+    offline_payment_m2: {
+      payment_method: { type: String, default: null },
+      utr_number: { type: String, default: null, trim: true, uppercase: true },
+      amount_paid: { type: Number, default: 0 },
+      payment_date: { type: Date, default: null },
+      sender_bank_name: { type: String, default: null },
+      receipt_url: { type: String, default: null },
+      receipt_filename: { type: String, default: null },
+      verification_status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+      verified_by: { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
+      verified_at: { type: Date, default: null },
+      rejection_reason: { type: String, default: null, trim: true },
+      admin_remarks: { type: String, default: null, trim: true },
+    },
+    follow_up: { type: mongoose.Schema.Types.Mixed, default: {} },
+    payment_tracking: { type: mongoose.Schema.Types.Mixed, default: {} },
 
     // ── Ownership & Creator Attribution ───────────────────────────────────────
     franchisee_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'resellers',
+      default: null,
+    },
+    reseller_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'resellers',
       default: null,
@@ -419,6 +459,77 @@ const schema = new mongoose.Schema(
 
     // ── Expiry ────────────────────────────────────────────────────────────────
     expires_at: { type: Date, default: null },
+
+    // ── Price Lock (for PO Drawdowns / Reorders) ──────────────────────────────
+    // When an EPC places a drawdown order against an active parent PO, the price is LOCKED
+    // to the unit_price_paise captured at PO creation time. Market price changes are ignored
+    // for the entire duration of the PO validity (lock_expires_at).
+    price_lock: {
+      is_locked:          { type: Boolean, default: false },
+      locked_price_paise: { type: Number,  default: null },
+      lock_source_po:     { type: String,  default: null },
+      lock_source_po_id:  { type: mongoose.Schema.Types.ObjectId, ref: 'fpo_orders', default: null },
+      locked_at:          { type: Date,    default: null },
+      lock_expires_at:    { type: Date,    default: null },
+    },
+
+    // ── Payment Milestones for PO Drawdowns ──────────────────────────────────
+    // Mirrors epc_orders.payment_milestones so order journey is IDENTICAL whether
+    // EPC places a direct order or a drawdown under a PO.
+    // Milestone 1 = Advance (30%), Milestone 2 = Final (70%) before dispatch.
+    payment_milestones: {
+      configured_milestone_id:   { type: mongoose.Schema.Types.ObjectId, ref: 'product_payment_milestones', default: null },
+      total_order_amount:         { type: Number, default: 0 },
+      advance_percentage:         { type: Number, default: 30 },
+      advance_amount:             { type: Number, default: 0 },
+      remaining_percentage:       { type: Number, default: 70 },
+      remaining_amount:           { type: Number, default: 0 },
+      current_milestone_due:      { type: Number, default: 1 },
+      milestone_verification_status: {
+        type: String,
+        enum: ['awaiting_advance', 'advance_verified', 'awaiting_final_payment', 'final_payment_pending_verification', 'fully_paid', 'rejected'],
+        default: 'awaiting_advance',
+      },
+      milestones: [{
+        milestone_number:    { type: Number, required: true },
+        title:               { type: String, required: true },
+        percentage:          { type: Number, required: true },
+        amount:              { type: Number, required: true },
+        stage:               { type: String, required: true },
+        tat_days:            { type: Number, default: 2 },
+        payment_status:      { type: String, enum: ['unpaid', 'pending_verification', 'verified', 'rejected'], default: 'unpaid' },
+        utr_number:          { type: String, default: null, trim: true, uppercase: true },
+        amount_paid:         { type: Number, default: 0 },
+        payment_date:        { type: Date,   default: null },
+        receipt_url:         { type: String, default: null },
+        receipt_filename:    { type: String, default: null },
+        sender_bank_name:    { type: String, default: null, trim: true },
+        account_holder_name: { type: String, default: null, trim: true },
+        verified_by:         { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
+        verified_at:         { type: Date,   default: null },
+        rejection_reason:    { type: String, default: null, trim: true },
+        notes:               { type: String, default: null },
+      }],
+    },
+
+    // ── PO Origin Tag (for Accounts/Warehouse display) ────────────────────────
+    // Populated when this order is a drawdown placed by an EPC against a parent PO.
+    // Accounts and warehouse portals display 'PO Order — by EPC XYZ' using this.
+    po_origin: {
+      is_po_drawdown:   { type: Boolean, default: false },
+      parent_po_id:     { type: mongoose.Schema.Types.ObjectId, ref: 'fpo_orders', default: null },
+      parent_po_number: { type: String,  default: null },
+      epc_id:           { type: mongoose.Schema.Types.ObjectId, ref: 'epc_accounts', default: null },
+      epc_name:         { type: String,  default: null },
+      epc_company:      { type: String,  default: null },
+    },
+
+    // ── Online Order Flag (state-specific) ────────────────────────────────────
+    // Set at checkout from SolarShopSettings.online_order_allowed_state_ids.
+    // true  → online milestone flow (ICICI ePay / Razorpay gateway)
+    // false → standard offline milestone flow
+    is_online_order:       { type: Boolean, default: false },
+    online_order_state_id: { type: mongoose.Schema.Types.ObjectId, ref: 'geolocation_level_1', default: null },
 
     // ── Commission ────────────────────────────────────────────────────────────
     commission_rule_id: { type: mongoose.Schema.Types.ObjectId, ref: 'franchisee_commission_rules', default: null },

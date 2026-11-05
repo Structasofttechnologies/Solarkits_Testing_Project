@@ -3760,11 +3760,21 @@ const get_epc_order_invoice_data = async (req, res) => {
     const epc_id = req.user?.account_id || req.user?.id;
     const { id } = req.params;
 
-    const { EpcOrder } = require("../../../admin-panel/models/india_solarshop_db");
-    const order = await EpcOrder.findOne({ _id: id, epc_id })
+    const { EpcOrder, FpoOrder } = require("../../../admin-panel/models/india_solarshop_db");
+    let order = await EpcOrder.findOne({ _id: id, epc_id })
       .populate('epc_id', 'name email whatsapp gstin company_name address')
       .populate('reseller_id', 'business_name gst_number address mobile email')
       .lean();
+
+    if (!order && FpoOrder) {
+      order = await FpoOrder.findOne({
+        _id: id,
+        $or: [{ epc_id }, { 'po_origin.epc_id': epc_id }, { buyer_id: epc_id }]
+      })
+        .populate('epc_id', 'name email whatsapp gstin company_name address')
+        .populate('franchisee_id', 'name business_name gst_number address mobile email')
+        .lean();
+    }
 
     if (!order) {
       return res.status(404).json({ success: false, message: "Order record not found." });
@@ -5335,21 +5345,73 @@ const reorder_against_epc_po = async (req, res) => {
       destination_type,
       destination_address,
       destination_pincode,
+      delivery_address,
+      fulfillment_mode,
+      payment_milestones,
+      pay_full_amount,
+      is_online_order,
+      payment_method,
       offline_payment,
     } = req.body;
 
-    const { FpoOrder } = require('../../../admin-panel/models/india_solarshop_db');
+    const { FpoOrder, RegionPaymentConfig } = require('../../../admin-panel/models/india_solarshop_db');
     const parentPo = await FpoOrder.findById(id).lean();
     if (!parentPo) {
-      return res.status(404).json({ success: false, status: "error", message: "Parent PO not found" });
+      return res.status(404).json({ success: false, status: 'error', message: 'Parent PO not found' });
     }
 
+    // Allow validated, started, confirmed, or processing POs
+    const activeStatuses = ['VALIDATED', 'PO_STARTED', 'CONFIRMED', 'APPROVED', 'STOCK_ALLOCATED', 'PROCESSING'];
+    if (!activeStatuses.includes(parentPo.status)) {
+      return res.status(400).json({
+        success: false,
+        status: 'error',
+        message: 'Parent PO is not active (current status: ' + parentPo.status + '). Price lock and kit drawdowns activate once the PO is started / token deposit is verified.'
+      });
+    }
+
+    // ── Enforce PO Guaranteed Price Lock Validity Period ──
+    const now = new Date();
+    const poExpiryDate = parentPo.lock_expires_at || parentPo.expires_at;
+    if (poExpiryDate && now > new Date(poExpiryDate)) {
+      return res.status(400).json({
+        success: false,
+        status: 'error',
+        message: 'The price lock on PO #' + parentPo.po_number + ' expired on ' + new Date(poExpiryDate).toLocaleDateString('en-IN') + '. Cannot place reorder under this PO.'
+      });
+    }
+
+    const reorderRequestedQty = Number(quantity) || (Array.isArray(items) ? items.reduce((s, i) => s + (Number(i.quantity) || 0), 0) : 1);
+    const accountStr = accountId ? accountId.toString() : '';
+
+    // Enforce individual EPC quota in Combine PO (multi-EPC)
+    if (parentPo.po_category === 'COMBINE_PO' && Array.isArray(parentPo.items?.[0]?.epc_allocations)) {
+      const epcAlloc = parentPo.items[0].epc_allocations.find(a => 
+        (a.epc_buyer_id?._id || a.epc_buyer_id || a.buyer_id || a._id)?.toString() === accountStr
+      );
+      if (epcAlloc) {
+        const allocCap = Number(epcAlloc.allocated_quantity || 0);
+        const alreadyFulfilled = Number(epcAlloc.fulfilled_quantity || 0);
+        const epcRemaining = Math.max(0, allocCap - alreadyFulfilled);
+        if (reorderRequestedQty > epcRemaining) {
+          return res.status(400).json({
+            success: false,
+            status: 'error',
+            message: 'Requested quantity (' + reorderRequestedQty + ' kits) exceeds your remaining allocated quota (' + epcRemaining + ' kits remaining out of ' + allocCap + ' allocated).'
+          });
+        }
+      }
+    }
+
+    // ── Enforce Immutable Locked Price from Parent PO ──
+    const parentItem = parentPo.items?.[0] || {};
+    const lockedUnitPricePaise = parentItem.unit_price_paise || 0;
+    const lockedGstRate = parentItem.gst_rate != null ? parentItem.gst_rate : 13.85;
+    const targetKitId = kit_id || parentItem.kit_id || parentItem.product_id;
+
     if (!Array.isArray(items) || items.length === 0) {
-      const parentItem = parentPo.items?.[0] || {};
-      const reorderQty = Number(quantity) || 1;
-      const targetKitId = kit_id || parentItem.kit_id || parentItem.product_id;
       if (!targetKitId) {
-        return res.status(400).json({ success: false, status: "error", message: "Kit ID or Items array is required for reorder" });
+        return res.status(400).json({ success: false, status: 'error', message: 'Kit ID or Items array is required for reorder' });
       }
 
       items = [{
@@ -5357,12 +5419,34 @@ const reorder_against_epc_po = async (req, res) => {
         product_id: targetKitId,
         item_name: parentItem.item_name || 'Solar Kit',
         item_code: parentItem.item_code || null,
-        quantity: reorderQty,
-        unit_price_paise: parentItem.unit_price_paise || 0,
-        gst_rate: parentItem.gst_rate || 13.85,
+        quantity: reorderRequestedQty,
+        unit_price_paise: lockedUnitPricePaise,
+        gst_rate: lockedGstRate,
         project_type_id: parentItem.project_type_id || null,
       }];
+    } else {
+      // Force locked unit price on all items
+      items = items.map(it => ({
+        ...it,
+        unit_price_paise: lockedUnitPricePaise,
+        gst_rate: lockedGstRate,
+      }));
     }
+
+    // ── Check if delivery state allows online orders ──
+    let onlineAllowedForState = false;
+    const stateIdToCheck = delivery_address?.state_id || parentPo.state_id;
+    if (stateIdToCheck) {
+      try {
+        const rCfg = await RegionPaymentConfig.findOne({ state_id: stateIdToCheck, is_active: { $ne: false } }).lean();
+        if (rCfg && (rCfg.payment_mode === 'online' || rCfg.payment_mode === 'both' || rCfg.online_enabled)) {
+          onlineAllowedForState = true;
+        }
+      } catch (errCfg) {
+        console.warn('Error checking region payment config:', errCfg.message);
+      }
+    }
+    const finalIsOnlineOrder = Boolean(is_online_order && onlineAllowedForState);
 
     const { createPoDraft, submitPo } = require('../../../admin-panel/services/franchisee.po.service');
 
@@ -5373,9 +5457,15 @@ const reorder_against_epc_po = async (req, res) => {
       items,
       order_type: 'loose_kit_order',
       parent_po_id: id,
-      destination_type: destination_type || 'direct',
-      destination_address: destination_address || parentPo.destination_address || null,
-      destination_pincode: destination_pincode || parentPo.destination_pincode || null,
+      destination_type: destination_type || (fulfillment_mode === 'epc_warehouse' ? 'warehouse' : 'direct'),
+      destination_address: delivery_address?.line || destination_address || parentPo.destination_address || null,
+      destination_pincode: delivery_address?.pincode || destination_pincode || parentPo.destination_pincode || null,
+      delivery_address: delivery_address || null,
+      fulfillment_mode: fulfillment_mode || 'direct_site',
+      is_online_order: finalIsOnlineOrder,
+      online_order_state_id: stateIdToCheck || null,
+      payment_method: finalIsOnlineOrder ? 'icici_ecollection' : (payment_method || (offline_payment ? 'offline_bank_transfer' : 'bank_transfer')),
+      pay_full_amount: Boolean(pay_full_amount),
       offline_payment: offline_payment || null,
       actor_id: accountId,
       req,
@@ -5393,10 +5483,13 @@ const reorder_against_epc_po = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      status: "success",
-      message: "Linked reorder placed successfully against PO",
+      status: 'success',
+      message: 'Linked reorder placed successfully against PO',
       data: {
         order: finalOrder,
+        price_lock: finalOrder.price_lock,
+        payment_milestones: finalOrder.payment_milestones,
+        po_origin: finalOrder.po_origin,
         token_adjustment: {
           token_adjusted_inr: Math.round((finalOrder.token_adjusted_paise || 0) / 100),
           net_payable_inr: Math.round((finalOrder.net_payable_paise || finalOrder.grand_total_paise || 0) / 100),
@@ -5404,8 +5497,8 @@ const reorder_against_epc_po = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("reorder_against_epc_po error:", error);
-    return res.status(400).json({ success: false, status: "error", message: error.message || "Failed to place reorder" });
+    console.error('reorder_against_epc_po error:', error);
+    return res.status(400).json({ success: false, status: 'error', message: error.message || 'Failed to place reorder' });
   }
 };
 

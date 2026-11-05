@@ -371,10 +371,10 @@ const reject_po = async (req, res) => {
 const confirm_payment = async (req, res) => {
   try {
     const po_id = req.body.po_id || req.body.order_id;
-    const { payment_reference, razorpay_payment_id } = req.body;
+    const { payment_reference, razorpay_payment_id, milestone_number } = req.body;
     if (!po_id) return res.status(400).json({ status: 'error', message: 'po_id or order_id is required' });
 
-    const order = await confirmPayment({ po_id, payment_reference, razorpay_payment_id, admin_id: req.user?.id, req });
+    const order = await confirmPayment({ po_id, payment_reference, razorpay_payment_id, milestone_number, admin_id: req.user?.id, req });
     return res.json({ status: 'success', message: 'Payment confirmed', data: { id: order._id, status: order.status } });
   } catch (error) {
     console.error('[po.handler] confirm_payment error:', error.message);
