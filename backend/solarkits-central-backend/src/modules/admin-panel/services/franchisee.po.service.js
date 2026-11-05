@@ -45,7 +45,7 @@ const ALLOWED_TRANSITIONS = {
   SUBMITTED: ['PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED', 'PAID', 'CONFIRMED', 'CANCELLED'],
   PENDING_APPROVAL: ['CHANGES_REQUESTED', 'APPROVED', 'REJECTED', 'PAID', 'CONFIRMED', 'CANCELLED'],
   CHANGES_REQUESTED: ['SUBMITTED', 'CANCELLED'],
-  APPROVED: ['AWAITING_PAYMENT', 'PO_STARTED', 'VALIDATED', 'CONFIRMED', 'PAID', 'PROCESSING', 'CANCELLED'],
+  APPROVED: ['AWAITING_PAYMENT', 'PO_STARTED', 'VALIDATED', 'CONFIRMED', 'PAID', 'PROCESSING', 'CANCELLED', 'PENDING_APPROVAL'],
   REJECTED: [],
   AWAITING_PAYMENT: ['PARTIALLY_PAID', 'PAID', 'PO_STARTED', 'VALIDATED', 'CONFIRMED', 'CANCELLED'],
   PARTIALLY_PAID: ['PAID', 'PO_STARTED', 'VALIDATED', 'CONFIRMED', 'CANCELLED'],
@@ -67,6 +67,7 @@ const ALLOWED_TRANSITIONS = {
 };
 
 function assertTransition(currentStatus, targetStatus) {
+  if (currentStatus === targetStatus) return; // Idempotent transition is valid
   const allowed = ALLOWED_TRANSITIONS[currentStatus] || [];
   if (!allowed.includes(targetStatus)) {
     throw new Error(
@@ -849,7 +850,9 @@ async function _transitionStatus(po_id, targetStatus, { changed_by, actor_type =
   order.status_history.push({ status: targetStatus, changed_by: validChangedBy, actor_type, note, changed_at: now });
   order.updated_by = validChangedBy;
 
-  Object.assign(order, extra_update);
+  for (const [k, v] of Object.entries(extra_update)) {
+    order.set(k, v);
+  }
   await order.save();
 
   recalculateProgress({ franchisee_id: order.franchisee_id, month: now.getMonth() + 1, year: now.getFullYear() }).catch(() => { });

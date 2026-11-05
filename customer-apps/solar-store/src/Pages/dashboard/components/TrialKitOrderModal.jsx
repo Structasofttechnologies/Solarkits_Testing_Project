@@ -10,6 +10,7 @@ import {
   FaShoppingCart,
   FaShieldAlt,
   FaTag,
+  FaWarehouse,
 } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import Dialog from "@/Components/Dialog";
@@ -85,6 +86,7 @@ export default function TrialKitOrderModal({
               pincode: pin,
               kit_id: kit?._id || kit?.id,
               quantity: trialQty,
+              order_type: "trial",
               unit_price: unitPrice,
               gst_rate:
                 currentVariant?.gstRate ??
@@ -176,6 +178,7 @@ export default function TrialKitOrderModal({
         variantIndex: selectedVariantIndex,
         qty: trialQty,
         is_trial_kit: true,
+        order_type: "trial",
         trial_kit_quantity: trialQty,
         delivery_cost: deliveryFreight,
         delivery_pincode: pincode,
@@ -321,6 +324,17 @@ export default function TrialKitOrderModal({
                     {deliveryData.district_name ? `${deliveryData.district_name}, ` : ""}
                     {deliveryData.state_name || "India"} ({deliveryData.pincode})
                   </span>
+                  {deliveryData.warehouse && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold mt-0.5">
+                      <FaWarehouse size={10} className="shrink-0" />
+                      <span>Fulfillment: {deliveryData.warehouse.name}</span>
+                      {deliveryData.distance_km > 0 && (
+                        <span className="font-mono text-[10px] bg-emerald-500/20 px-1.5 py-0.2 rounded font-bold">
+                          ~{deliveryData.distance_km} km
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

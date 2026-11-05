@@ -3735,14 +3735,24 @@ const accounts_verify_epc_payment = async (req, res) => {
     } = req.body;
 
     const user = req.user;
-    const userId = user?.id || user?._id;
+    const rawUserId = user?.id || user?._id;
+    const userId = (rawUserId && mongoose.Types.ObjectId.isValid(rawUserId)) ? new mongoose.Types.ObjectId(rawUserId) : null;
     const userName = user?.name || user?.email || 'Accounts Team';
 
-    let order = await EpcOrder.findById(id);
+    let order = null;
     let isFpo = false;
-    if (!order) {
-      order = await FpoOrder.findById(id);
-      isFpo = Boolean(order);
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      order = await EpcOrder.findById(id);
+      if (!order) {
+        order = await FpoOrder.findById(id);
+        isFpo = Boolean(order);
+      }
+    } else {
+      order = await EpcOrder.findOne({ order_number: id });
+      if (!order) {
+        order = await FpoOrder.findOne({ $or: [{ order_number: id }, { po_number: id }] });
+        isFpo = Boolean(order);
+      }
     }
     if (!order) return res.status(404).json({ status: 'error', message: 'Order not found' });
 
@@ -3858,12 +3868,15 @@ const accounts_verify_epc_payment = async (req, res) => {
         order.payment_status = 'pending_verification';
         if (isFpo) {
           order.status = 'PENDING_APPROVAL';
+          order.payment_status = 'pending_verification';
           if (order.payment_milestones?.milestones?.length > 0) {
             const m1 = order.payment_milestones.milestones.find(m => m.milestone_number === 1);
             if (m1) {
               m1.payment_status = 'pending_verification';
               m1.utr_number = utr_number ? utr_number.trim().toUpperCase() : m1.utr_number;
               m1.amount_paid = Number(amount_paid) || m1.amount_paid;
+              if (payment_date) m1.payment_date = new Date(payment_date);
+              if (receipt_url) m1.receipt_url = receipt_url;
             }
             order.markModified('payment_milestones');
           }
@@ -3924,6 +3937,9 @@ const accounts_verify_epc_payment = async (req, res) => {
       });
     }
 
+    order.markModified('offline_payment');
+    order.markModified('payment_tracking');
+    order.markModified('audit_trail');
     await order.save();
     return res.status(200).json({
       status: 'success',
@@ -3954,14 +3970,24 @@ const admin_approve_epc_payment = async (req, res) => {
     } = req.body;
 
     const user = req.user;
-    const userId = user?.id || user?._id;
+    const rawUserId = user?.id || user?._id;
+    const userId = (rawUserId && mongoose.Types.ObjectId.isValid(rawUserId)) ? new mongoose.Types.ObjectId(rawUserId) : null;
     const userName = user?.name || user?.email || 'Administrator';
 
-    let order = await EpcOrder.findById(id);
+    let order = null;
     let isFpo = false;
-    if (!order) {
-      order = await FpoOrder.findById(id);
-      isFpo = Boolean(order);
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      order = await EpcOrder.findById(id);
+      if (!order) {
+        order = await FpoOrder.findById(id);
+        isFpo = Boolean(order);
+      }
+    } else {
+      order = await EpcOrder.findOne({ order_number: id });
+      if (!order) {
+        order = await FpoOrder.findOne({ $or: [{ order_number: id }, { po_number: id }] });
+        isFpo = Boolean(order);
+      }
     }
     if (!order) return res.status(404).json({ status: 'error', message: 'Order not found' });
 
@@ -4000,7 +4026,6 @@ const admin_approve_epc_payment = async (req, res) => {
           if (!order.order_number && order.po_number) {
             order.order_number = order.po_number;
           }
-          await order.save();
         } catch (fpoApproveErr) {
           console.warn("Fpo confirmPayment warning:", fpoApproveErr.message);
           order.status = 'CONFIRMED';
@@ -4008,7 +4033,7 @@ const admin_approve_epc_payment = async (req, res) => {
           if (order.payment_milestones?.milestones?.length > 0) {
             const m1 = order.payment_milestones.milestones.find(m => m.milestone_number === 1);
             if (m1) {
-              m1.payment_status = 'approved';
+              m1.payment_status = 'verified';
               m1.verified_at = new Date();
               m1.verified_by = userId;
             }
@@ -4016,7 +4041,23 @@ const admin_approve_epc_payment = async (req, res) => {
             order.payment_milestones.current_milestone_due = 2;
             order.markModified('payment_milestones');
           }
-          await order.save();
+        }
+
+        if (!order.offline_payment) order.offline_payment = {};
+        order.offline_payment.admin_approval_status = 'approved';
+        order.offline_payment.verification_status = 'approved';
+        order.offline_payment.admin_approved_by = userId;
+        order.offline_payment.admin_approved_at = new Date();
+        order.offline_payment.admin_remarks = admin_remarks;
+
+        order.payment_tracking = order.payment_tracking || {};
+        order.payment_tracking.customer_payment_status = 'Partially Paid';
+        order.payment_tracking.current_stage = 'production_milestone';
+        order.payment_tracking.stage_entered_at = new Date();
+        order.payment_tracking.delay_signal = 'green';
+        if (order.payment_milestones?.advance_amount) {
+          order.payment_tracking.total_verified_amount = order.payment_milestones.advance_amount;
+          order.payment_tracking.outstanding_amount = order.payment_milestones.remaining_amount;
         }
       } else {
         if (!order.order_request_id) {
@@ -4084,7 +4125,6 @@ const admin_approve_epc_payment = async (req, res) => {
             order.markModified('payment_milestones');
           }
         }
-        await order.save();
       }
 
       order.audit_trail.push({
@@ -4101,6 +4141,10 @@ const admin_approve_epc_payment = async (req, res) => {
           milestone: 1,
         },
       });
+      order.markModified('offline_payment');
+      order.markModified('payment_tracking');
+      order.markModified('audit_trail');
+      await order.save();
     } else if (decision === 'returned') {
       order.offline_payment.admin_approval_status = 'returned';
       order.offline_payment.verification_status = 'returned';
@@ -4764,9 +4808,17 @@ const log_customer_payment_followup = async (req, res) => {
       next_follow_up_date,
     } = req.body;
 
-    let order = await EpcOrder.findById(id);
-    if (!order) {
-      order = await FpoOrder.findById(id);
+    let order = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      order = await EpcOrder.findById(id);
+      if (!order) {
+        order = await FpoOrder.findById(id);
+      }
+    } else {
+      order = await EpcOrder.findOne({ order_number: id });
+      if (!order) {
+        order = await FpoOrder.findOne({ $or: [{ order_number: id }, { po_number: id }] });
+      }
     }
     if (!order) {
       return res.status(404).json({ status: 'error', message: 'Order not found' });
@@ -4832,11 +4884,20 @@ const record_milestone_two_payment = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'A valid UTR / Bank Reference Number is required' });
     }
 
-    let order = await EpcOrder.findById(id);
+    let order = null;
     let isFpo = false;
-    if (!order) {
-      order = await FpoOrder.findById(id);
-      isFpo = Boolean(order);
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      order = await EpcOrder.findById(id);
+      if (!order) {
+        order = await FpoOrder.findById(id);
+        isFpo = Boolean(order);
+      }
+    } else {
+      order = await EpcOrder.findOne({ order_number: id });
+      if (!order) {
+        order = await FpoOrder.findOne({ $or: [{ order_number: id }, { po_number: id }] });
+        isFpo = Boolean(order);
+      }
     }
     if (!order) {
       return res.status(404).json({ status: 'error', message: 'Order not found' });

@@ -3405,7 +3405,7 @@ const checkout_warehouse_capacity_check = async (req, res) => {
  */
 const calculate_pincode_delivery_cost = async (req, res) => {
   try {
-    const { pincode, kit_id, quantity = 1 } = req.query;
+    const { pincode, kit_id, quantity = 1, order_type = 'loose' } = req.query;
 
     if (!pincode || !String(pincode).trim()) {
       return res.status(400).json({
@@ -3422,9 +3422,16 @@ const calculate_pincode_delivery_cost = async (req, res) => {
       });
     }
 
+    // Normalize order type: loose, po, trial
+    const rawOrderType = String(order_type || 'loose').toLowerCase();
+    const normalizedOrderType = rawOrderType.includes('trial')
+      ? 'trial'
+      : (rawOrderType.includes('po') ? 'po' : 'loose');
+
     const qty = Math.max(1, parseInt(quantity, 10) || 1);
     const { PincodeDeliveryCost } = require("../../../admin-panel/models/india_solarshop_db");
     const ComboKit = require("../../../admin-panel/models/india_solarshop_db/combo_kits.schema");
+    const { GeoLevel2 } = require("../../../admin-panel/models/geolocation_db");
 
     let kitDoc = null;
     let targetKitId = null;
@@ -3461,10 +3468,60 @@ const calculate_pincode_delivery_cost = async (req, res) => {
       }).lean();
     }
 
+    // 4. District Master Fallback: Look up district of this pincode from Geolocation master
+    let geoDistrict = null;
+    if (!rateRule) {
+      try {
+        geoDistrict = await GeoLevel2.findOne({
+          'pincodes.pincode': cleanPincode,
+          is_active: true,
+          $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }],
+        }).populate('level_1', 'name').lean();
+
+        if (geoDistrict) {
+          if (targetKitId) {
+            rateRule = await PincodeDeliveryCost.findOne({
+              district_id: geoDistrict._id,
+              combo_kit_id: targetKitId,
+              is_active: true,
+            }).lean();
+          }
+
+          if (!rateRule) {
+            rateRule = await PincodeDeliveryCost.findOne({
+              district_id: geoDistrict._id,
+              combo_kit_id: null,
+              is_active: true,
+            }).lean();
+          }
+        }
+      } catch (geoErr) {
+        console.warn('Geolocation fallback lookup warning:', geoErr.message);
+      }
+    }
+
+    // Resolve order-type specific delivery cost
+    let resolvedDeliveryCost = 0;
+    if (rateRule) {
+      if (normalizedOrderType === 'trial') {
+        resolvedDeliveryCost = rateRule.trial_delivery_cost !== undefined && rateRule.trial_delivery_cost !== null && rateRule.trial_delivery_cost > 0
+          ? Number(rateRule.trial_delivery_cost)
+          : Number(rateRule.delivery_cost || 0);
+      } else if (normalizedOrderType === 'po') {
+        resolvedDeliveryCost = rateRule.po_delivery_cost !== undefined && rateRule.po_delivery_cost !== null && rateRule.po_delivery_cost > 0
+          ? Number(rateRule.po_delivery_cost)
+          : Number(rateRule.delivery_cost || 0);
+      } else {
+        resolvedDeliveryCost = rateRule.loose_delivery_cost !== undefined && rateRule.loose_delivery_cost !== null && rateRule.loose_delivery_cost > 0
+          ? Number(rateRule.loose_delivery_cost)
+          : Number(rateRule.delivery_cost || 0);
+      }
+    }
+
     const isServiceable = Boolean(rateRule);
-    const deliveryCost = rateRule ? Number(rateRule.delivery_cost) : 0;
-    const stateName = rateRule?.state_name || locationFallback?.state_name || null;
-    const districtName = rateRule?.district_name || locationFallback?.district_name || null;
+    const deliveryCost = resolvedDeliveryCost;
+    const stateName = rateRule?.state_name || locationFallback?.state_name || geoDistrict?.level_1?.name || null;
+    const districtName = rateRule?.district_name || locationFallback?.district_name || geoDistrict?.name || null;
     const estMin = rateRule?.estimated_days_min || 3;
     const estMax = rateRule?.estimated_days_max || 7;
 
@@ -3505,10 +3562,23 @@ const calculate_pincode_delivery_cost = async (req, res) => {
       success: true,
       data: {
         pincode: cleanPincode,
+        order_type: normalizedOrderType,
         is_serviceable: isServiceable,
         state_name: stateName,
         district_name: districtName,
+        warehouse: rateRule?.warehouse_name ? {
+          code: rateRule.warehouse_code,
+          name: rateRule.warehouse_name,
+          type: rateRule.warehouse_type || 'master',
+        } : null,
+        pricing_mode: rateRule?.pricing_mode || 'fixed',
+        distance_km: rateRule?.distance_km || 0,
         delivery_cost: deliveryCost,
+        rates_breakdown: {
+          loose: rateRule ? Number(rateRule.loose_delivery_cost ?? rateRule.delivery_cost ?? 0) : 0,
+          po: rateRule ? Number(rateRule.po_delivery_cost ?? rateRule.delivery_cost ?? 0) : 0,
+          trial: rateRule ? Number(rateRule.trial_delivery_cost ?? rateRule.delivery_cost ?? 0) : 0,
+        },
         formatted_delivery_cost: `₹${deliveryCost.toLocaleString("en-IN")}`,
         estimated_days_min: estMin,
         estimated_days_max: estMax,
@@ -3523,7 +3593,7 @@ const calculate_pincode_delivery_cost = async (req, res) => {
           gst_amount: gstAmount,
         },
         message: isServiceable
-          ? `Delivery available to ${districtName ? districtName + ', ' : ''}${stateName || ''} (${cleanPincode})`
+          ? `Delivery available to ${districtName ? districtName + ', ' : ''}${stateName || ''} (${cleanPincode}) for ${normalizedOrderType.toUpperCase()} order`
           : `Delivery charge not configured for PIN ${cleanPincode}. Standard rates may apply.`,
       },
     });

@@ -212,7 +212,7 @@ const schema = new mongoose.Schema({
   offline_payment: {
     utr_number:                  { type: String, default: null, trim: true, uppercase: true },
     amount_paid:                 { type: Number, default: 0 },
-    payment_mode:                { type: String, enum: ['bank_transfer', 'neft', 'rtgs', 'imps', 'upi', 'cheque', 'other'], default: 'bank_transfer' },
+    payment_mode:                { type: String, enum: ['bank_transfer', 'neft', 'rtgs', 'imps', 'upi', 'cheque', 'other', 'online'], default: 'bank_transfer' },
     payment_date:                { type: Date, default: null },
     receipt_url:                 { type: String, default: null },
     receipt_filename:            { type: String, default: null },
@@ -298,7 +298,7 @@ const schema = new mongoose.Schema({
     current_milestone_due:    { type: Number, default: 1 }, // 1 or 2
     milestone_verification_status: {
       type: String,
-      enum: ['awaiting_advance', 'advance_verified', 'awaiting_final_payment', 'final_payment_pending_verification', 'fully_paid', 'rejected'],
+      enum: ['awaiting_advance', 'advance_verified', 'advance_verified_balance_pending', 'awaiting_final_payment', 'final_payment_pending_verification', 'fully_paid', 'rejected', 'pending_verification', 'approved'],
       default: 'awaiting_advance',
     },
     milestones: [{
@@ -308,7 +308,7 @@ const schema = new mongoose.Schema({
       amount:             { type: Number, required: true },
       stage:              { type: String, required: true },
       tat_days:           { type: Number, default: 2 },
-      payment_status:     { type: String, enum: ['unpaid', 'pending_verification', 'verified', 'rejected'], default: 'unpaid' },
+      payment_status:     { type: String, enum: ['unpaid', 'pending_verification', 'verified', 'approved', 'rejected'], default: 'unpaid' },
       utr_number:         { type: String, default: null, trim: true, uppercase: true },
       amount_paid:        { type: Number, default: 0 },
       payment_date:       { type: Date, default: null },
