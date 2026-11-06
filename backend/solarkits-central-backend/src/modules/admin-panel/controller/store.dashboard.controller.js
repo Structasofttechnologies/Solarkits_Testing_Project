@@ -450,7 +450,10 @@ exports.get_store_analytics = async (req, res) => {
       }
 
       return {
-        id: e.epc_code || `EPC-${e._id.toString().slice(-4)}`,
+        _id: e._id.toString(),
+        id: e._id.toString(),
+        epcId: e._id.toString(),
+        epc_code: e.epc_code || `EPC-${e._id.toString().slice(-4)}`,
         name: e.company_name || e.name || 'Solar EPC Contractor',
         contact: e.name || 'Managing Director',
         state: epcState,

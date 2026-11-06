@@ -156,7 +156,7 @@ export default function SolarEpcAnalytics({
                   <tr
                     key={epc.id}
                     className="hover:bg-surface-subtle transition-colors cursor-pointer group"
-                    onClick={() => onSelectEpc && onSelectEpc(epc)}
+                    onClick={() => onSelectEpc && onSelectEpc(epc, epcPerformance)}
                   >
                     <td className="py-3 px-4 font-bold text-text group-hover:text-primary transition-colors">
                       {formatText(epc.name, 'Solar EPC Contractor')}

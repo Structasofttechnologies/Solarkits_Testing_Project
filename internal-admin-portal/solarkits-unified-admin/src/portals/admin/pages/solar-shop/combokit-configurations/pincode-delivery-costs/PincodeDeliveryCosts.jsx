@@ -875,7 +875,7 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
             rate_per_km: Number(districtFormData.loose_rate_per_km) || 0,
             states: districtFormData.loose_states || [],
             apply_all_districts: Boolean(districtFormData.loose_apply_all_districts),
-            district_ids: districtFormData.loose_apply_all_districts ? "all" : (districtFormData.loose_district_ids || []),
+            district_ids: districtFormData.loose_apply_all_districts ? [] : (districtFormData.loose_district_ids || []),
           },
           po: {
             enabled: Boolean(districtFormData.po_enabled),
@@ -885,7 +885,7 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
             rate_per_km: Number(districtFormData.po_rate_per_km) || 0,
             states: districtFormData.po_states || [],
             apply_all_districts: Boolean(districtFormData.po_apply_all_districts),
-            district_ids: districtFormData.po_apply_all_districts ? "all" : (districtFormData.po_district_ids || []),
+            district_ids: districtFormData.po_apply_all_districts ? [] : (districtFormData.po_district_ids || []),
           },
           trial: {
             enabled: Boolean(districtFormData.trial_enabled),
@@ -895,7 +895,7 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
             rate_per_km: Number(districtFormData.trial_rate_per_km) || 0,
             states: districtFormData.trial_states || [],
             apply_all_districts: Boolean(districtFormData.trial_apply_all_districts),
-            district_ids: districtFormData.trial_apply_all_districts ? "all" : (districtFormData.trial_district_ids || []),
+            district_ids: districtFormData.trial_apply_all_districts ? [] : (districtFormData.trial_district_ids || []),
           },
         },
 
@@ -1972,8 +1972,8 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                                   {item.warehouse_code}
                                 </span>
                                 <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${item.pricing_mode === 'per_km'
-                                    ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20'
-                                    : 'bg-surface-hover text-text-muted border border-border'
+                                  ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20'
+                                  : 'bg-surface-hover text-text-muted border border-border'
                                   }`}>
                                   {item.pricing_mode === 'per_km' ? `KM (~ ${item.distance_km || 0} km)` : 'Fixed Rate'}
                                 </span>
@@ -2019,8 +2019,8 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
                             className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${item.is_active !== false
-                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
-                                : "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20"
+                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                              : "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20"
                               }`}
                           >
                             <span
@@ -2168,8 +2168,8 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                   type="button"
                   onClick={() => setViewMode("cards")}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "cards"
-                      ? "bg-surface text-primary shadow-xs"
-                      : "text-text-secondary hover:text-text-primary"
+                    ? "bg-surface text-primary shadow-xs"
+                    : "text-text-secondary hover:text-text-primary"
                     }`}
                   title="Card Grid View"
                 >
@@ -2180,8 +2180,8 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                   type="button"
                   onClick={() => setViewMode("table")}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "table"
-                      ? "bg-surface text-primary shadow-xs"
-                      : "text-text-secondary hover:text-text-primary"
+                    ? "bg-surface text-primary shadow-xs"
+                    : "text-text-secondary hover:text-text-primary"
                     }`}
                   title="Master Table View"
                 >
@@ -2397,8 +2397,8 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                                       {item.warehouse_code}
                                     </span>
                                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${item.pricing_mode === 'per_km'
-                                        ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20'
-                                        : 'bg-surface-hover text-text-muted border border-border'
+                                      ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20'
+                                      : 'bg-surface-hover text-text-muted border border-border'
                                       }`}>
                                       {item.pricing_mode === 'per_km' ? `KM (~ ${item.distance_km || 0} km)` : 'Fixed Rate'}
                                     </span>
@@ -2442,8 +2442,8 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span
                                 className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${item.is_active !== false
-                                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
-                                    : "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20"
+                                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                                  : "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20"
                                   }`}
                               >
                                 <span
@@ -2909,21 +2909,19 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
               CARD 1: LOOSE ORDER FULFILLMENT
               ══════════════════════════════════════════════════════════════════════ */}
           <div
-            className={`rounded-2xl border-2 transition-all p-4 space-y-4 ${
-              districtFormData.loose_enabled
+            className={`rounded-2xl border-2 transition-all p-4 space-y-4 ${districtFormData.loose_enabled
                 ? "bg-emerald-500/[0.03] border-emerald-500/30 shadow-xs"
                 : "bg-surface-hover/30 border-border opacity-70"
-            }`}
+              }`}
           >
             {/* Header: Title, Badge, On/Off Toggle */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
               <div className="flex items-center gap-2.5">
                 <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-                    districtFormData.loose_enabled
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 ${districtFormData.loose_enabled
                       ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                       : "bg-surface-hover text-text-muted"
-                  }`}
+                    }`}
                 >
                   <FaBoxOpen size={16} />
                 </div>
@@ -2941,9 +2939,8 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
               {/* On / Off Toggle */}
               <div className="flex items-center gap-2.5 self-end sm:self-auto">
                 <span
-                  className={`text-xs font-black uppercase tracking-wider ${
-                    districtFormData.loose_enabled ? "text-emerald-600 dark:text-emerald-400" : "text-text-muted"
-                  }`}
+                  className={`text-xs font-black uppercase tracking-wider ${districtFormData.loose_enabled ? "text-emerald-600 dark:text-emerald-400" : "text-text-muted"
+                    }`}
                 >
                   {districtFormData.loose_enabled ? "ACTIVE" : "DISABLED"}
                 </span>
@@ -2972,22 +2969,20 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                     <button
                       type="button"
                       onClick={() => setDistrictFormData((prev) => ({ ...prev, loose_pricing_mode: "fixed" }))}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                        districtFormData.loose_pricing_mode === "fixed"
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${districtFormData.loose_pricing_mode === "fixed"
                           ? "bg-emerald-600 text-white shadow-xs"
                           : "text-text-secondary hover:text-text-primary"
-                      }`}
+                        }`}
                     >
                       Fixed Price (₹)
                     </button>
                     <button
                       type="button"
                       onClick={() => setDistrictFormData((prev) => ({ ...prev, loose_pricing_mode: "per_km" }))}
-                      className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition-all ${
-                        districtFormData.loose_pricing_mode === "per_km"
+                      className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition-all ${districtFormData.loose_pricing_mode === "per_km"
                           ? "bg-emerald-600 text-white shadow-xs"
                           : "text-text-secondary hover:text-text-primary"
-                      }`}
+                        }`}
                     >
                       <FaRoad size={10} /> Kilometer (KM) Wise
                     </button>
@@ -3099,11 +3094,10 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                           return (
                             <label
                               key={dId}
-                              className={`flex items-center justify-between p-1.5 rounded border text-xs cursor-pointer ${
-                                isChecked
+                              className={`flex items-center justify-between p-1.5 rounded border text-xs cursor-pointer ${isChecked
                                   ? "bg-emerald-500/15 border-emerald-500/40 font-bold text-emerald-800 dark:text-emerald-200"
                                   : "bg-surface border-border text-text-primary"
-                              }`}
+                                }`}
                             >
                               <div className="flex items-center gap-1.5 truncate">
                                 <input
@@ -3231,21 +3225,19 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
               CARD 2: BULK PO ORDER FULFILLMENT
               ══════════════════════════════════════════════════════════════════════ */}
           <div
-            className={`rounded-2xl border-2 transition-all p-4 space-y-4 ${
-              districtFormData.po_enabled
+            className={`rounded-2xl border-2 transition-all p-4 space-y-4 ${districtFormData.po_enabled
                 ? "bg-indigo-500/[0.03] border-indigo-500/30 shadow-xs"
                 : "bg-surface-hover/30 border-border opacity-70"
-            }`}
+              }`}
           >
             {/* Header: Title, Badge, On/Off Toggle */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
               <div className="flex items-center gap-2.5">
                 <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-                    districtFormData.po_enabled
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 ${districtFormData.po_enabled
                       ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
                       : "bg-surface-hover text-text-muted"
-                  }`}
+                    }`}
                 >
                   <FaFileAlt size={16} />
                 </div>
@@ -3263,9 +3255,8 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
               {/* On / Off Toggle */}
               <div className="flex items-center gap-2.5 self-end sm:self-auto">
                 <span
-                  className={`text-xs font-black uppercase tracking-wider ${
-                    districtFormData.po_enabled ? "text-indigo-600 dark:text-indigo-400" : "text-text-muted"
-                  }`}
+                  className={`text-xs font-black uppercase tracking-wider ${districtFormData.po_enabled ? "text-indigo-600 dark:text-indigo-400" : "text-text-muted"
+                    }`}
                 >
                   {districtFormData.po_enabled ? "ACTIVE" : "DISABLED"}
                 </span>
@@ -3292,22 +3283,20 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                     <button
                       type="button"
                       onClick={() => setDistrictFormData((prev) => ({ ...prev, po_pricing_mode: "fixed" }))}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                        districtFormData.po_pricing_mode === "fixed"
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${districtFormData.po_pricing_mode === "fixed"
                           ? "bg-indigo-600 text-white shadow-xs"
                           : "text-text-secondary hover:text-text-primary"
-                      }`}
+                        }`}
                     >
                       Fixed Price (₹)
                     </button>
                     <button
                       type="button"
                       onClick={() => setDistrictFormData((prev) => ({ ...prev, po_pricing_mode: "per_km" }))}
-                      className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition-all ${
-                        districtFormData.po_pricing_mode === "per_km"
+                      className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition-all ${districtFormData.po_pricing_mode === "per_km"
                           ? "bg-indigo-600 text-white shadow-xs"
                           : "text-text-secondary hover:text-text-primary"
-                      }`}
+                        }`}
                     >
                       <FaRoad size={10} /> Kilometer (KM) Wise
                     </button>
@@ -3419,11 +3408,10 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                           return (
                             <label
                               key={dId}
-                              className={`flex items-center justify-between p-1.5 rounded border text-xs cursor-pointer ${
-                                isChecked
+                              className={`flex items-center justify-between p-1.5 rounded border text-xs cursor-pointer ${isChecked
                                   ? "bg-indigo-500/15 border-indigo-500/40 font-bold text-indigo-800 dark:text-indigo-200"
                                   : "bg-surface border-border text-text-primary"
-                              }`}
+                                }`}
                             >
                               <div className="flex items-center gap-1.5 truncate">
                                 <input
@@ -3551,21 +3539,19 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
               CARD 3: TRIAL KIT ORDER FULFILLMENT
               ══════════════════════════════════════════════════════════════════════ */}
           <div
-            className={`rounded-2xl border-2 transition-all p-4 space-y-4 ${
-              districtFormData.trial_enabled
+            className={`rounded-2xl border-2 transition-all p-4 space-y-4 ${districtFormData.trial_enabled
                 ? "bg-amber-500/[0.03] border-amber-500/30 shadow-xs"
                 : "bg-surface-hover/30 border-border opacity-70"
-            }`}
+              }`}
           >
             {/* Header: Title, Badge, On/Off Toggle */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
               <div className="flex items-center gap-2.5">
                 <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-                    districtFormData.trial_enabled
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 ${districtFormData.trial_enabled
                       ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                       : "bg-surface-hover text-text-muted"
-                  }`}
+                    }`}
                 >
                   <FaBolt size={16} />
                 </div>
@@ -3583,9 +3569,8 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
               {/* On / Off Toggle */}
               <div className="flex items-center gap-2.5 self-end sm:self-auto">
                 <span
-                  className={`text-xs font-black uppercase tracking-wider ${
-                    districtFormData.trial_enabled ? "text-amber-600 dark:text-amber-400" : "text-text-muted"
-                  }`}
+                  className={`text-xs font-black uppercase tracking-wider ${districtFormData.trial_enabled ? "text-amber-600 dark:text-amber-400" : "text-text-muted"
+                    }`}
                 >
                   {districtFormData.trial_enabled ? "ACTIVE" : "DISABLED"}
                 </span>
@@ -3612,22 +3597,20 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                     <button
                       type="button"
                       onClick={() => setDistrictFormData((prev) => ({ ...prev, trial_pricing_mode: "fixed" }))}
-                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                        districtFormData.trial_pricing_mode === "fixed"
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${districtFormData.trial_pricing_mode === "fixed"
                           ? "bg-amber-500 text-white shadow-xs"
                           : "text-text-secondary hover:text-text-primary"
-                      }`}
+                        }`}
                     >
                       Fixed Price (₹)
                     </button>
                     <button
                       type="button"
                       onClick={() => setDistrictFormData((prev) => ({ ...prev, trial_pricing_mode: "per_km" }))}
-                      className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition-all ${
-                        districtFormData.trial_pricing_mode === "per_km"
+                      className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition-all ${districtFormData.trial_pricing_mode === "per_km"
                           ? "bg-amber-500 text-white shadow-xs"
                           : "text-text-secondary hover:text-text-primary"
-                      }`}
+                        }`}
                     >
                       <FaRoad size={10} /> Kilometer (KM) Wise
                     </button>
@@ -3739,11 +3722,10 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                           return (
                             <label
                               key={dId}
-                              className={`flex items-center justify-between p-1.5 rounded border text-xs cursor-pointer ${
-                                isChecked
+                              className={`flex items-center justify-between p-1.5 rounded border text-xs cursor-pointer ${isChecked
                                   ? "bg-amber-500/15 border-amber-500/40 font-bold text-amber-800 dark:text-amber-200"
                                   : "bg-surface border-border text-text-primary"
-                              }`}
+                                }`}
                             >
                               <div className="flex items-center gap-1.5 truncate">
                                 <input
@@ -4292,8 +4274,8 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
               type="button"
               onClick={() => setBulkMode("file")}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${bulkMode === "file"
-                  ? "bg-primary text-white shadow-xs"
-                  : "bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+                ? "bg-primary text-white shadow-xs"
+                : "bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary"
                 }`}
             >
               <FaUpload size={12} />
@@ -4303,8 +4285,8 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
               type="button"
               onClick={() => setBulkMode("paste")}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${bulkMode === "paste"
-                  ? "bg-primary text-white shadow-xs"
-                  : "bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+                ? "bg-primary text-white shadow-xs"
+                : "bg-surface text-text-secondary hover:bg-surface-hover hover:text-text-primary"
                 }`}
             >
               <FaFileAlt size={12} />
@@ -4341,8 +4323,8 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                   }}
                   onClick={() => fileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-2xl p-7 text-center cursor-pointer transition-all ${isDragging
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/60 bg-surface hover:bg-surface-hover/50"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/60 bg-surface hover:bg-surface-hover/50"
                     }`}
                 >
                   <div className="w-12 h-12 mx-auto rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-2.5">

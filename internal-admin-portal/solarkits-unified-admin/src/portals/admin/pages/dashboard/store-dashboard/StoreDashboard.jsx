@@ -54,14 +54,16 @@ export default function StoreDashboard() {
     title: '',
     kpiType: '',
     data: null,
+    extra: null,
   });
 
-  const handleOpenDrawer = (kpiType, data, title) => {
+  const handleOpenDrawer = (kpiType, data, title, extra = null) => {
     setDrawerState({
       isOpen: true,
       title: title || `Drill-Down: ${kpiType}`,
       kpiType,
       data,
+      extra,
     });
   };
 
@@ -181,7 +183,14 @@ export default function StoreDashboard() {
         epcData={solarEpcAnalytics}
         epcActiveDaysWindow={epcActiveDaysWindow}
         setEpcActiveDaysWindow={setEpcActiveDaysWindow}
-        onSelectEpc={(epc) => handleOpenDrawer('Solar EPC Account Activity', epc, `EPC Partner: ${epc.name}`)}
+        onSelectEpc={(epc, epcList) =>
+          handleOpenDrawer(
+            'Solar EPC Account Activity',
+            epc,
+            `EPC Buying Analytics: ${epc.name}`,
+            { epcList: epcList || solarEpcAnalytics?.epcPerformance || [] }
+          )
+        }
       />
 
       {/* Section H: EPC Quotes, PO Raised & Conversion Ratio */}
@@ -202,6 +211,7 @@ export default function StoreDashboard() {
         title={drawerState.title}
         kpiType={drawerState.kpiType}
         data={drawerState.data}
+        extra={drawerState.extra}
         recentOrders={recentOrders}
       />
     </div>

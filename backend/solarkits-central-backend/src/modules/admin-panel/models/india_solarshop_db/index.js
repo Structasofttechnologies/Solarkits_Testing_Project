@@ -129,6 +129,7 @@ const DeliveryOrder = require('./delivery_order.schema');
 const RegionPaymentConfig = require('./region_payment_configs.schema');
 const AdminNotification = require('./admin_notifications.schema');
 const BenchmarkApprovalConfig = require('./BenchmarkApprovalConfig.schema');
+const EpcCartActivityLog = require('./epc_cart_activity_logs.schema');
 
 module.exports = {
   RegionPaymentConfig,
@@ -260,4 +261,6 @@ module.exports = {
   ProductPaymentMilestone,
   // --- Benchmark Price Approval Module ---
   BenchmarkApprovalConfig,
+  // --- EPC Buying Analytics Module ---
+  EpcCartActivityLog,
 };

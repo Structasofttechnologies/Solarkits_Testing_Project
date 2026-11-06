@@ -57,9 +57,9 @@ export default function Board() {
   const menuItems = useMemo(() => {
     const defaultGroup = [
       { name: "Combo Kit", icon: <FaSolarPanel />, path: "/preconfigured-combo-kit" },
-      { name: "Custom Combo Kit", icon: <MdSettings />, path: "/custom-combo-kit", requiresAuth: true },
+      // { name: "Custom Combo Kit", icon: <MdSettings />, path: "/custom-combo-kit", requiresAuth: true },
       { name: "Know My Margin", icon: <FiTrendingUp />, path: "/know-my-margin" },
-      { name: "Bulk Buy", icon: <FaBoxes />, path: "/bulk-buy", requiresAuth: true },
+      // { name: "Bulk Buy", icon: <FaBoxes />, path: "/bulk-buy", requiresAuth: true },
       { name: "Request Order", icon: <MdListAlt />, path: "/request-order", requiresAuth: true },
       { name: "Cart", icon: <MdShoppingCart />, path: "/cart", requiresAuth: true },
     ];
@@ -75,7 +75,7 @@ export default function Board() {
         { name: "Find Nearby Store", icon: <FaMapMarkerAlt />, path: "/store-locator" },
         { name: "Track Order Status", icon: <MdListAlt />, path: "/track-status", requiresAuth: true },
       ],
-      [{ name: "Settings", icon: <MdSettings />, path: "/settings", requiresAuth: true }]
+      // [{ name: "Settings", icon: <MdSettings />, path: "/settings", requiresAuth: true }]
     ];
   }, [isAuthenticated]);
 

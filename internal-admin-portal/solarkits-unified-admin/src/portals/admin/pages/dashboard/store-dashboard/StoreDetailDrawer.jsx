@@ -7,11 +7,14 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiX, FiDownload, FiDollarSign, FiBox, FiCheckCircle, FiUsers, FiShoppingCart } from 'react-icons/fi';
+import AdminEpcBuyingAnalytics from './AdminEpcBuyingAnalytics';
 
 const MotionDiv = motion.div;
 
-export default function StoreDetailDrawer({ isOpen, onClose, title, kpiType, data, recentOrders = [] }) {
+export default function StoreDetailDrawer({ isOpen, onClose, title, kpiType, data, extra, recentOrders = [] }) {
   if (!isOpen) return null;
+
+  const isEpcAnalytics = kpiType === 'Solar EPC Account Activity';
 
   // Filter matching records based on selected data entity
   const matchingOrders = (recentOrders || []).filter((ord) => {
@@ -76,13 +79,13 @@ export default function StoreDetailDrawer({ isOpen, onClose, title, kpiType, dat
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-            className="w-screen max-w-2xl bg-surface shadow-2xl flex flex-col border-l border-border"
+            className={`w-screen ${isEpcAnalytics ? 'max-w-5xl' : 'max-w-2xl'} bg-surface shadow-2xl flex flex-col border-l border-border transition-all duration-300`}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 gradient-primary text-text-inverse shrink-0">
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-wider opacity-80">
-                  Store Business Intelligence Drill-Down
+                  {isEpcAnalytics ? 'EPC Commercial Intelligence & Buying Behavior' : 'Store Business Intelligence Drill-Down'}
                 </span>
                 <h2 className="text-base font-bold tracking-tight">{title || 'KPI Drill-Down'}</h2>
               </div>
@@ -97,75 +100,85 @@ export default function StoreDetailDrawer({ isOpen, onClose, title, kpiType, dat
 
             {/* Content Body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
-              {/* Context Summary Box */}
-              <div className="bg-surface-subtle p-4 rounded-2xl border border-border space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-text-muted font-medium">Metric Category:</span>
-                  <span className="font-bold text-primary uppercase">{kpiType || 'COMMERCIAL_AUDIT'}</span>
-                </div>
-                {data?.revenue && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-text-muted font-medium">Revenue Contribution:</span>
-                    <span className="font-black text-emerald-600 text-sm">
-                      {typeof data.revenue === 'object' ? JSON.stringify(data.revenue) : String(data.revenue)}
-                    </span>
-                  </div>
-                )}
-                {data?.name && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-text-muted font-medium">Entity / Name:</span>
-                    <span className="font-bold text-text">
-                      {typeof data.name === 'object' ? (data.name?.name || data.name?.company_name || 'N/A') : String(data.name)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Live Detailed Records for this KPI */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-text text-sm">Underlying Transaction Ledger ({displayOrders.length} records)</h4>
-                  <button
-                    type="button"
-                    onClick={handleDownloadLedgerCsv}
-                    disabled={displayOrders.length === 0}
-                    className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer disabled:opacity-40"
-                  >
-                    <FiDownload size={12} />
-                    Download CSV
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  {displayOrders.length > 0 ? (
-                    displayOrders.slice(0, 15).map((ord) => (
-                      <div
-                        key={ord.id || ord.orderNumber}
-                        className="p-3 rounded-xl border border-border bg-surface hover:border-primary/40 transition-colors space-y-1"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-primary">{ord.orderNumber}</span>
-                          <span className="text-emerald-600 font-bold">{ord.amountFormatted}</span>
-                        </div>
-                        <div className="text-text font-medium flex items-center justify-between">
-                          <span>Customer / EPC: {ord.customer}</span>
-                          <span className="text-text-muted font-mono text-[11px]">{ord.orderDate}</span>
-                        </div>
-                        <div className="text-text-muted text-[11px] flex items-center justify-between">
-                          <span>Kit: {ord.kit}</span>
-                          <span className="px-2 py-0.5 rounded-md bg-surface-subtle text-text font-semibold">
-                            {ord.stage}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-6 text-center text-text-muted bg-surface-subtle rounded-xl border border-border">
-                      No order transactions found for this selection in the current database filter.
+              {isEpcAnalytics ? (
+                <AdminEpcBuyingAnalytics
+                  epcId={data?.id || data?._id}
+                  initialEpc={data || {}}
+                  epcList={extra?.epcList || []}
+                />
+              ) : (
+                <>
+                  {/* Context Summary Box */}
+                  <div className="bg-surface-subtle p-4 rounded-2xl border border-border space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-text-muted font-medium">Metric Category:</span>
+                      <span className="font-bold text-primary uppercase">{kpiType || 'COMMERCIAL_AUDIT'}</span>
                     </div>
-                  )}
-                </div>
-              </div>
+                    {data?.revenue && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-text-muted font-medium">Revenue Contribution:</span>
+                        <span className="font-black text-emerald-600 text-sm">
+                          {typeof data.revenue === 'object' ? JSON.stringify(data.revenue) : String(data.revenue)}
+                        </span>
+                      </div>
+                    )}
+                    {data?.name && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-text-muted font-medium">Entity / Name:</span>
+                        <span className="font-bold text-text">
+                          {typeof data.name === 'object' ? (data.name?.name || data.name?.company_name || 'N/A') : String(data.name)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Live Detailed Records for this KPI */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-text text-sm">Underlying Transaction Ledger ({displayOrders.length} records)</h4>
+                      <button
+                        type="button"
+                        onClick={handleDownloadLedgerCsv}
+                        disabled={displayOrders.length === 0}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline cursor-pointer disabled:opacity-40"
+                      >
+                        <FiDownload size={12} />
+                        Download CSV
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {displayOrders.length > 0 ? (
+                        displayOrders.slice(0, 15).map((ord) => (
+                          <div
+                            key={ord.id || ord.orderNumber}
+                            className="p-3 rounded-xl border border-border bg-surface hover:border-primary/40 transition-colors space-y-1"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-primary">{ord.orderNumber}</span>
+                              <span className="text-emerald-600 font-bold">{ord.amountFormatted}</span>
+                            </div>
+                            <div className="text-text font-medium flex items-center justify-between">
+                              <span>Customer / EPC: {ord.customer}</span>
+                              <span className="text-text-muted font-mono text-[11px]">{ord.orderDate}</span>
+                            </div>
+                            <div className="text-text-muted text-[11px] flex items-center justify-between">
+                              <span>Kit: {ord.kit}</span>
+                              <span className="px-2 py-0.5 rounded-md bg-surface-subtle text-text font-semibold">
+                                {ord.stage}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-6 text-center text-text-muted bg-surface-subtle rounded-xl border border-border">
+                          No order transactions found for this selection in the current database filter.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Footer */}

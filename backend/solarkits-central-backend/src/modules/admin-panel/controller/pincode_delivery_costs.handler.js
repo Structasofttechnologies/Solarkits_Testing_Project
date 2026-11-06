@@ -613,6 +613,42 @@ const apply_district_rates = async (req, res) => {
 
     const ot = order_types_config || order_types || {};
 
+    // Helper to safely parse district IDs from array, string, or object representations
+    const parseDistrictIds = (...inputs) => {
+      for (const val of inputs) {
+        if (!val || val === 'all') continue;
+        if (Array.isArray(val)) {
+          return val
+            .map(item => (typeof item === 'object' && item !== null ? (item._id || item.id || item.value || '') : item))
+            .filter(Boolean)
+            .map(String);
+        }
+        if (typeof val === 'string') {
+          const parts = val.split(',').map(s => s.trim()).filter(Boolean);
+          const filtered = parts.filter(p => p !== 'all');
+          if (filtered.length > 0) return filtered;
+        }
+      }
+      return [];
+    };
+
+    // Helper to safely resolve whether all districts in state should be applied
+    const resolveApplyAll = (typeObj, flatApplyAll, flatDistrictIds, legacyApplyAll, legacyDistrictIds) => {
+      if (typeObj?.apply_all_districts !== undefined && typeObj.apply_all_districts !== null) {
+        return Boolean(typeObj.apply_all_districts);
+      }
+      if (typeObj?.district_ids === 'all') return true;
+      if (flatApplyAll !== undefined && flatApplyAll !== null) {
+        return Boolean(flatApplyAll);
+      }
+      if (flatDistrictIds === 'all') return true;
+      if (legacyApplyAll !== undefined && legacyApplyAll !== null) {
+        return Boolean(legacyApplyAll);
+      }
+      if (legacyDistrictIds === 'all') return true;
+      return true;
+    };
+
     // 1. Normalize configs for Loose, Bulk PO, and Trial Kit
     const looseCfg = {
       enabled: ot.loose?.enabled !== undefined ? Boolean(ot.loose.enabled) : (is_loose_enabled !== undefined ? Boolean(is_loose_enabled) : true),
@@ -621,8 +657,8 @@ const apply_district_rates = async (req, res) => {
       baseCost: Math.max(0, parseFloat(ot.loose?.base_cost ?? loose_base_cost ?? base_delivery_cost ?? 0) || 0),
       ratePerKm: Math.max(0, parseFloat(ot.loose?.rate_per_km ?? loose_rate_per_km ?? rate_per_km_loose ?? 15) || 0),
       states: ot.loose?.states || loose_states || selected_states || state_names || (state_name ? [state_name] : []),
-      applyAllDistricts: ot.loose?.apply_all_districts !== undefined ? Boolean(ot.loose.apply_all_districts) : (loose_apply_all_districts !== undefined ? Boolean(loose_apply_all_districts) : (apply_to_all_districts !== undefined ? Boolean(apply_to_all_districts) : true)),
-      districtIds: (ot.loose?.district_ids || loose_district_ids || (district_ids !== 'all' ? district_ids : []) || []).map(String),
+      applyAllDistricts: resolveApplyAll(ot.loose, loose_apply_all_districts, loose_district_ids, apply_to_all_districts, district_ids),
+      districtIds: parseDistrictIds(ot.loose?.district_ids, loose_district_ids, district_ids),
     };
 
     const poCfg = {
@@ -632,8 +668,8 @@ const apply_district_rates = async (req, res) => {
       baseCost: Math.max(0, parseFloat(ot.po?.base_cost ?? po_base_cost ?? base_delivery_cost ?? 0) || 0),
       ratePerKm: Math.max(0, parseFloat(ot.po?.rate_per_km ?? po_rate_per_km ?? rate_per_km_po ?? 10) || 0),
       states: ot.po?.states || po_states || selected_states || state_names || (state_name ? [state_name] : []),
-      applyAllDistricts: ot.po?.apply_all_districts !== undefined ? Boolean(ot.po.apply_all_districts) : (po_apply_all_districts !== undefined ? Boolean(po_apply_all_districts) : (apply_to_all_districts !== undefined ? Boolean(apply_to_all_districts) : true)),
-      districtIds: (ot.po?.district_ids || po_district_ids || (district_ids !== 'all' ? district_ids : []) || []).map(String),
+      applyAllDistricts: resolveApplyAll(ot.po, po_apply_all_districts, po_district_ids, apply_to_all_districts, district_ids),
+      districtIds: parseDistrictIds(ot.po?.district_ids, po_district_ids, district_ids),
     };
 
     const trialCfg = {
@@ -643,8 +679,8 @@ const apply_district_rates = async (req, res) => {
       baseCost: Math.max(0, parseFloat(ot.trial?.base_cost ?? trial_base_cost ?? base_delivery_cost ?? 0) || 0),
       ratePerKm: Math.max(0, parseFloat(ot.trial?.rate_per_km ?? trial_rate_per_km ?? rate_per_km_trial ?? 12) || 0),
       states: ot.trial?.states || trial_states || selected_states || state_names || (state_name ? [state_name] : []),
-      applyAllDistricts: ot.trial?.apply_all_districts !== undefined ? Boolean(ot.trial.apply_all_districts) : (trial_apply_all_districts !== undefined ? Boolean(trial_apply_all_districts) : (apply_to_all_districts !== undefined ? Boolean(apply_to_all_districts) : true)),
-      districtIds: (ot.trial?.district_ids || trial_district_ids || (district_ids !== 'all' ? district_ids : []) || []).map(String),
+      applyAllDistricts: resolveApplyAll(ot.trial, trial_apply_all_districts, trial_district_ids, apply_to_all_districts, district_ids),
+      districtIds: parseDistrictIds(ot.trial?.district_ids, trial_district_ids, district_ids),
     };
 
     if (!looseCfg.enabled && !poCfg.enabled && !trialCfg.enabled) {
@@ -656,12 +692,17 @@ const apply_district_rates = async (req, res) => {
 
     // 2. Aggregate all states across enabled order types
     const allStateSet = new Set();
-    const collectStates = (arr) => {
-      if (Array.isArray(arr)) {
-        arr.forEach(s => {
+    const collectStates = (val) => {
+      if (!val) return;
+      if (Array.isArray(val)) {
+        val.forEach(s => {
           if (typeof s === 'string' && s.trim()) allStateSet.add(s.trim());
           else if (s && s.name) allStateSet.add(String(s.name).trim());
         });
+      } else if (typeof val === 'string' && val.trim()) {
+        val.split(',').forEach(s => { if (s.trim()) allStateSet.add(s.trim()); });
+      } else if (val && val.name) {
+        allStateSet.add(String(val.name).trim());
       }
     };
 
@@ -686,7 +727,8 @@ const apply_district_rates = async (req, res) => {
 
     const stateRegexes = stateInputs.map(s => {
       const clean = String(s).replace(/\s*\(.*?\)/, '').trim();
-      return new RegExp(`^${clean}`, 'i');
+      const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`^${escaped}`, 'i');
     });
 
     const stateDocs = await GeoLevel1.find({
@@ -718,24 +760,36 @@ const apply_district_rates = async (req, res) => {
     const resolvedStateIds = stateDocs.map(s => s._id);
     const resolvedStateNames = stateDocs.map(s => s.name);
 
-    // 3. Helper to test if a district is covered by an order config
+    // 3. Helper to test if a state & district is covered by an order config
     const isStateCovered = (cfgStates, distStateDoc) => {
       if (!cfgStates || cfgStates.length === 0) return true;
       const distName = (distStateDoc?.name || '').toLowerCase();
       const distClean = distName.replace(/\s*\(.*?\)/, '').trim();
       const distIdStr = (distStateDoc?.id || distStateDoc?._id || '').toString();
 
-      return cfgStates.some(st => {
-        const sStr = String(st || '').toLowerCase().trim();
+      const statesArr = Array.isArray(cfgStates) ? cfgStates : [cfgStates];
+      return statesArr.some(st => {
+        const sStr = String(typeof st === 'object' && st !== null ? (st.name || st.id || st._id || '') : (st || '')).toLowerCase().trim();
         const sClean = sStr.replace(/\s*\(.*?\)/, '').trim();
         return sStr === distIdStr || sStr === distName || sClean === distClean;
+      });
+    };
+
+    const isDistrictCovered = (cfg, distIdStr, distName) => {
+      if (!cfg.enabled) return false;
+      if (cfg.applyAllDistricts) return true;
+      if (!cfg.districtIds || cfg.districtIds.length === 0) return false;
+      const lowerName = (distName || '').toLowerCase().trim();
+      return cfg.districtIds.some(d => {
+        const dStr = String(d || '').trim();
+        return dStr === distIdStr || dStr.toLowerCase() === lowerName;
       });
     };
 
     // 4. Resolve Districts across all resolved states
     const districts = await GeoLevel2.find({
       level_1: { $in: resolvedStateIds },
-      is_active: true,
+      is_active: { $ne: false },
       $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }],
     }).select('_id name level_1 lat lng pincodes').lean();
 
@@ -762,8 +816,8 @@ const apply_district_rates = async (req, res) => {
     let whLng = warehouse_lng != null ? Number(warehouse_lng) : null;
 
     const anyKmMode = (looseCfg.enabled && looseCfg.mode === 'per_km') ||
-                      (poCfg.enabled && poCfg.mode === 'per_km') ||
-                      (trialCfg.enabled && trialCfg.mode === 'per_km');
+      (poCfg.enabled && poCfg.mode === 'per_km') ||
+      (trialCfg.enabled && trialCfg.mode === 'per_km');
 
     if (anyKmMode && (whLat == null || whLng == null)) {
       if (warehouse_code) {
@@ -795,13 +849,13 @@ const apply_district_rates = async (req, res) => {
 
       // Determine order type coverage for this district
       const looseInState = isStateCovered(looseCfg.states, distStateDoc);
-      const isLooseCovered = looseCfg.enabled && looseInState && (looseCfg.applyAllDistricts || looseCfg.districtIds.includes(distIdStr));
+      const isLooseCovered = looseInState && isDistrictCovered(looseCfg, distIdStr, dist.name);
 
       const poInState = isStateCovered(poCfg.states, distStateDoc);
-      const isPoCovered = poCfg.enabled && poInState && (poCfg.applyAllDistricts || poCfg.districtIds.includes(distIdStr));
+      const isPoCovered = poInState && isDistrictCovered(poCfg, distIdStr, dist.name);
 
       const trialInState = isStateCovered(trialCfg.states, distStateDoc);
-      const isTrialCovered = trialCfg.enabled && trialInState && (trialCfg.applyAllDistricts || trialCfg.districtIds.includes(distIdStr));
+      const isTrialCovered = trialInState && isDistrictCovered(trialCfg, distIdStr, dist.name);
 
       // If this district is NOT covered by any enabled order type, skip it
       if (!isLooseCovered && !isPoCovered && !isTrialCovered) {
