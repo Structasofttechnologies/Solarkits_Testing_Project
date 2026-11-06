@@ -191,143 +191,154 @@ const DEFAULT_SOLAR_STORE_CONTENT = {
     },
     categories: {
       enabled: true,
-      badge_text: "Browse Solar Kit Categories",
+      badge_text: "Browse by Industry & Application",
       heading: "Find the Right Solar",
       highlight_heading: "Kit Solution",
-      subtitle: "Explore our certified range of complete solar kits designed for homes, businesses, farms and commercial projects.",
+      subtitle: "Explore our certified range of complete solar kits engineered for Residential, Commercial, Agriculture, EV and Industrial power needs.",
       items: [
         {
-          id: 1,
-          name: "On-Grid Solar Kits",
-          desc: "Grid-tied rooftop solar kits from 1kW to 10kW with net-metering & PM Surya Ghar subsidy.",
+          id: "solar-pv",
+          industry_slug: "solar-pv",
+          name: "Solar PV Ecosystem",
+          desc: "Complete grid-tied, hybrid, and off-grid rooftop solar systems for homes, societies and commercial establishments.",
           count: "45+ Kits",
-          label: "On-Grid",
-          href: "#products",
+          label: "Solar PV",
+          href: "/browse/industry?slug=solar-pv",
           icon_type: "sun",
+          subcategories_preview: "Residential Solar • Commercial & Industrial • Ground-Mount"
         },
         {
-          id: 2,
-          name: "Off-Grid Solar Kits",
-          desc: "Battery-backed complete solar kits for 24x7 independent power without grid reliance.",
+          id: "solar-agriculture",
+          industry_slug: "solar-agriculture",
+          name: "Solar Agriculture",
+          desc: "Solar water pumping systems (DC/AC submersible & surface), solar cold storage, and microgrid kits for farms under PM KUSUM.",
           count: "30+ Kits",
-          label: "Off-Grid",
-          href: "#products",
+          label: "Agro-Solar",
+          href: "/browse/industry?slug=solar-agriculture",
+          icon_type: "agriculture",
+          subcategories_preview: "Solar Water Pumps • Cold Storages • Agro-processing Mills"
+        },
+        {
+          id: "solar-ev",
+          industry_slug: "solar-ev",
+          name: "Solar EV Infrastructure",
+          desc: "Solar carports and fast DC / AC EV charging station kits integrated with grid power and battery backup for commercial fleet hubs.",
+          count: "20+ Kits",
+          label: "EV Mobility",
+          href: "/browse/industry?slug=solar-ev",
           icon_type: "zap",
+          subcategories_preview: "Solar Carports • 2W/3W/4W EV Charging Stations"
         },
         {
-          id: 3,
-          name: "Hybrid Solar Kits",
-          desc: "Best of both: Grid connectivity with battery backup for uninterrupted power & maximum savings.",
+          id: "energy-storage",
+          industry_slug: "energy-storage",
+          name: "Energy Storage (BESS)",
+          desc: "High-density Lithium Ferro Phosphate (LFP) Battery Energy Storage Systems for 24x7 uninterrupted power and peak shaving.",
           count: "25+ Kits",
-          label: "Hybrid",
-          href: "#products",
+          label: "BESS & ESS",
+          href: "/browse/industry?slug=energy-storage",
           icon_type: "package",
+          subcategories_preview: "Residential BESS • Industrial Peak Shaving • Remote Microgrids"
         },
         {
-          id: 4,
-          name: "Solar Custom Kits",
-          desc: "Pre-wired AC/DC distribution boxes, lightning arrestors, earthing kits and custom combos.",
-          count: "50+ Kits",
-          label: "Custom Kits",
-          href: "#products",
+          id: "solar-lighting",
+          industry_slug: "solar-lighting",
+          name: "Solar Lighting & Security",
+          desc: "All-in-one smart solar streetlights, semi-integrated floodlights, and CCTV surveillance combo kits for rural roads and factory campuses.",
+          count: "35+ Kits",
+          label: "Smart Lighting",
+          href: "/browse/industry?slug=solar-lighting",
           icon_type: "grid",
+          subcategories_preview: "Smart All-in-One Streetlights • Factory Perimeter • Rural Highmasts"
         },
+        {
+          id: "solar-thermal",
+          industry_slug: "solar-thermal",
+          name: "Solar Thermal & Heating",
+          desc: "High-efficiency pressurized & non-pressurized solar water heating kits and industrial process hot water solutions for institutions.",
+          count: "15+ Kits",
+          label: "Thermal",
+          href: "/browse/industry?slug=solar-thermal",
+          icon_type: "sun",
+          subcategories_preview: "Domestic Hot Water • Commercial Boilers • Dairy Heating"
+        },
+        {
+          id: "rural-solar",
+          industry_slug: "rural-solar",
+          name: "Rural Solar Solutions",
+          desc: "Decentralized solar microgrids, off-grid solar home lighting systems, community drinking water pumps, and rural livelihood applications.",
+          count: "20+ Kits",
+          label: "Rural Solar",
+          href: "/browse/industry?slug=rural-solar",
+          icon_type: "sun",
+          subcategories_preview: "Solar Home Lighting • Village Microgrids • Community Solar Pumps"
+        }
       ],
-      quality_note_1: "All products are quality verified",
-      quality_note_2: "Pan-India delivery and installation support",
+      quality_note_1: "All products are quality verified & ALMM certified",
+      quality_note_2: "Pan-India delivery, DISCOM approvals & installation support",
     },
     featured_products: {
       enabled: true,
-      badge_text: "Most Popular",
-      heading: "Bestselling Solar Kits",
-      subtitle: "Explore our most trusted pre-configured solar combo kits selected for high performance, durability and maximum subsidy benefits.",
+      badge_text: "National Best Sellers",
+      heading: "Bestselling Solar Combo Kits",
+      subtitle: "Explore our most trusted pre-configured solar combo kits actively ordered by EPC contractors across India with verified subsidy benefits.",
       view_all_text: "View All Solar Kits",
       view_all_href: "#all-products",
       items: [
         {
           id: 1,
-          name: "SolarKits 1kW Smart On-Grid Home Kit",
+          name: "3 KW Solarkits DCR Complete Home Combo Kit",
           category: "On-Grid Solar Kit",
-          badge: "Subsidy Eligible",
-          badgeColor: "bg-green-500 text-white",
-          rating: 4.8,
-          reviews: 234,
-          price: 48000,
-          mrp: 65000,
-          discount: 26,
-          watt: "1kW Kit",
+          badge: "🔥 #1 Best Seller in India",
+          badgeColor: "bg-amber-500 text-white",
+          rating: 4.9,
+          reviews: 228,
+          price: 79498.75,
+          mrp: 98000,
+          discount: 19,
+          watt: "3kW Kit",
           brand: "SolarKits Prime",
+          inStock: true,
+          region: "ALL INDIA (NATIONAL SCOPE)",
+          sales_volume: 184,
+          orders_count: 98
         },
         {
           id: 2,
-          name: "SolarKits 2kW Rooftop Solar Combo Kit",
+          name: "2 K.W. Solarkits DCR Rooftop Combo Kit",
           category: "On-Grid Solar Kit",
-          badge: "PM Surya Ghar Ready",
+          badge: "⚡ High Demand in India",
           badgeColor: "bg-sky-500 text-white",
           rating: 4.9,
-          reviews: 189,
-          price: 95000,
-          mrp: 125000,
-          discount: 24,
+          reviews: 204,
+          price: 57548.75,
+          mrp: 72000,
+          discount: 20,
           watt: "2kW Kit",
           brand: "SolarKits Prime",
+          inStock: true,
+          region: "ALL INDIA (NATIONAL SCOPE)",
+          sales_volume: 126,
+          orders_count: 72
         },
         {
           id: 3,
-          name: "SolarKits 3kW Complete Home Combo Kit",
+          name: "1 K.W. Solarkits DCR Kit",
           category: "On-Grid Solar Kit",
-          badge: "🔥 Bestseller",
-          badgeColor: "bg-red-500 text-white",
+          badge: "⭐ Top Rated in India",
+          badgeColor: "bg-emerald-500 text-white",
           rating: 4.9,
-          reviews: 312,
-          price: 145000,
-          mrp: 195000,
-          discount: 26,
-          watt: "3kW Kit",
+          reviews: 180,
+          price: 31324.25,
+          mrp: 42000,
+          discount: 25,
+          watt: "1kW Kit",
           brand: "SolarKits Prime",
-        },
-        {
-          id: 4,
-          name: "SolarKits 5kW Heavy Duty Hybrid Solar Kit",
-          category: "Hybrid Solar Kit",
-          badge: "Battery Backup",
-          badgeColor: "bg-orange-500 text-white",
-          rating: 4.8,
-          reviews: 156,
-          price: 265000,
-          mrp: 340000,
-          discount: 22,
-          watt: "5kW Kit",
-          brand: "SolarKits Ultra",
-        },
-        {
-          id: 5,
-          name: "SolarKits 10kW Commercial 3-Phase Kit",
-          category: "Commercial Solar Kit",
-          badge: "High ROI",
-          badgeColor: "bg-blue-600 text-white",
-          rating: 4.8,
-          reviews: 98,
-          price: 490000,
-          mrp: 620000,
-          discount: 21,
-          watt: "10kW Kit",
-          brand: "SolarKits Pro",
-        },
-        {
-          id: 6,
-          name: "SolarKits Universal Complete Solar BOS Kit",
-          category: "Solar BOS Kit",
-          badge: "Plug & Play",
-          badgeColor: "bg-purple-500 text-white",
-          rating: 4.7,
-          reviews: 142,
-          price: 18500,
-          mrp: 24000,
-          discount: 23,
-          watt: "Universal BOS",
-          brand: "SolarKits",
-        },
+          inStock: true,
+          region: "ALL INDIA (NATIONAL SCOPE)",
+          sales_volume: 88,
+          orders_count: 54
+        }
       ],
     },
     why_choose: {
@@ -480,10 +491,10 @@ const DEFAULT_SOLAR_STORE_CONTENT = {
     },
     footer: {
       consultation_box: {
-        badge: "Free solar consultation",
-        heading: "Ready to switch to solar?",
-        subtitle: "Share your pincode and our expert will suggest the right solar kit.",
-        button_text: "Get free quote",
+        badge: "BULK ORDER & EPC INQUIRY",
+        heading: "Want to Order Bulk Solar Kits? Send Query to Us",
+        subtitle: "Direct wholesale B2B pricing, pan-India fast dispatch & dedicated BDE engineer assigned to your account.",
+        button_text: "Send Bulk Query",
       },
       description: "Quality solar kits, honest guidance and reliable support for homes, farms and businesses across India.",
       phone: "1800-SOLAR-KIT",
@@ -865,6 +876,40 @@ exports.get_content = async (req, res) => {
           website_key,
           sections: {},
         });
+      }
+    }
+
+    // Auto-migrate legacy dummy items in solar-store to real industry types & national best sellers
+    if (website_key === 'solar-store' && doc && doc.sections) {
+      let needsSave = false;
+      const prods = doc.sections.featured_products?.items || [];
+      const hasDummyProducts = prods.some(p => (p.name || '').includes('Smart On-Grid') || p.price === 48000);
+      if (hasDummyProducts || prods.length === 0) {
+        if (!doc.sections.featured_products) doc.sections.featured_products = {};
+        doc.sections.featured_products.items = DEFAULT_SOLAR_STORE_CONTENT.sections.featured_products.items;
+        needsSave = true;
+      }
+      const cats = doc.sections.categories?.items || [];
+      const hasDummyCats = cats.some(c => c.name === 'On-Grid Solar Kits' && !cats.some(x => x.name?.includes('Solar PV')));
+      const isMissingRural = !cats.some(x => (x.name || '').toLowerCase().includes('rural'));
+      if (hasDummyCats || cats.length < 7 || isMissingRural) {
+        if (!doc.sections.categories) doc.sections.categories = {};
+        doc.sections.categories.items = DEFAULT_SOLAR_STORE_CONTENT.sections.categories.items;
+        needsSave = true;
+      }
+            const footerBox = doc.sections.footer?.consultation_box;
+      if (!footerBox || !footerBox.heading || (footerBox.heading && footerBox.heading.includes('switch to solar'))) {
+        if (!doc.sections.footer) doc.sections.footer = {};
+        doc.sections.footer.consultation_box = {
+          badge: 'BULK ORDER & EPC INQUIRY',
+          heading: 'Want to Order Bulk Solar Kits? Send Query to Us',
+          subtitle: 'Direct wholesale B2B pricing, pan-India fast dispatch & dedicated BDE engineer assigned to your account.',
+          button_text: 'Send Bulk Query',
+        };
+        needsSave = true;
+      }
+      if (needsSave) {
+        await WebsiteContent.updateOne({ _id: doc._id }, { $set: { sections: doc.sections } }).catch(() => {});
       }
     }
 

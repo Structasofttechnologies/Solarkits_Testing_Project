@@ -34,6 +34,7 @@ router.put('/update-range', check_auth, check_permissions([{ unique_code: 'ADM_P
 router.get('/get-ranges', check_auth, check_permissions([{ unique_code: 'ADM_PROJ_TYPES', permissions: ['view'] }, { unique_code: 'ADM_COMBO_KITS', permissions: ['view'] }, { unique_code: 'ADM_COMBO_KIT_VARIANTS', permissions: ['view'] }, { unique_code: 'ADM_CUSTOMIZE_KITS', permissions: ['view'] }, { unique_code: 'ADM_PO_ORDERS', permissions: ['view'] }, { unique_code: 'ADM_BULK_COMBO', permissions: ['view'] }, { unique_code: 'ADM_WH_KIT_ACT', permissions: ['view'] }, { unique_code: 'ADM_ORDER_SETTINGS', permissions: ['view'] }, { unique_code: 'RSL_PROD_AUTH', permissions: ['view'] }, { unique_code: 'RSL_PRODAUTH', permissions: ['view'] }, { unique_code: 'FPO_MOQ', permissions: ['view'] }, { unique_code: 'RSL_MGMT', permissions: ['view'] }]), handler.get_project_ranges);
 
 // FULL TREE
+router.get('/public-hierarchy', handler.get_all_project_hierarchy);
 router.get('/get-all-hierarchy', check_auth, check_permissions([{ unique_code: 'ADM_PROJ_TYPES', permissions: ['view'] }, { unique_code: 'ADM_PROD_TMPL', permissions: ['view'] }]), handler.get_all_project_hierarchy);
 
 module.exports = router;

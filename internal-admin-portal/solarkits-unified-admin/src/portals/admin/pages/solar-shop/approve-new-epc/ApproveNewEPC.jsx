@@ -3,8 +3,9 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import ReactCountryFlag from "react-country-flag";
-import { FaBuilding, FaGlobe, FaCheckCircle } from "react-icons/fa";
+import { FaBuilding, FaGlobe, FaCheckCircle, FaUsers, FaUserCheck } from "react-icons/fa";
 import ApproveNewEPCIndia from "./ApproveNewEPCIndia";
+import WebsiteEpcLeads from "../../dashboard/website-configuration/WebsiteEpcLeads";
 import { authHeaderObj } from "@/app/authHeader";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -15,6 +16,7 @@ export default function ApproveNewEPC({ moduleUniqueId }) {
   const [selectedCountry, setSelectedCountry] = useState(null);
   const [loading, setLoading] = useState(true);
   const [countryDetails, setCountryDetails] = useState(null);
+  const [activeTab, setActiveTab] = useState("website_leads"); // Default to Website Leads
 
   // Fetch active countries
   useEffect(() => {
@@ -40,7 +42,6 @@ export default function ApproveNewEPC({ moduleUniqueId }) {
               setCountryDetails(null);
             }
           } else if (fetched.length > 0) {
-            // Check if there's a stored selected country in localStorage
             const activeCountriesNames = fetched.map(c => c.name.toLowerCase());
             const storedCountry = localStorage.getItem('selected_country_solar-shop');
             const defaultCountry = (storedCountry && activeCountriesNames.includes(storedCountry.toLowerCase()))
@@ -77,10 +78,10 @@ export default function ApproveNewEPC({ moduleUniqueId }) {
               </div>
               <div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-white">
-                  Approve New EPCs
+                  EPC Management & Approvals
                 </h1>
                 <p className="text-white/90 mt-1">
-                  Review and manage pending EPC registration requests
+                  Manage incoming website bulk kit leads, assign BDEs, and verify EPC contractor registrations
                 </p>
               </div>
             </div>
@@ -102,7 +103,7 @@ export default function ApproveNewEPC({ moduleUniqueId }) {
               <div className="bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 border border-white/30">
                 <span className="text-white text-sm font-medium flex items-center gap-2">
                   <FaCheckCircle className="text-green-300" />
-                  Pending Approvals
+                  Live Leads Queue
                 </span>
               </div>
             </div>
@@ -110,8 +111,42 @@ export default function ApproveNewEPC({ moduleUniqueId }) {
         </div>
       </div>
 
-      {/* Country-specific Component */}
-      {loading ? (
+      {/* Sub-Tabs: Website EPC Leads (Form) vs Contractor Verification (KYC) */}
+      <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab("website_leads")}
+          className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${
+            activeTab === "website_leads"
+              ? "bg-primary text-white shadow-lg shadow-primary/25 scale-[1.01]"
+              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"
+          }`}
+        >
+          <FaUsers className="text-base" />
+          <span>Website EPC Leads & Inquiries</span>
+          <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-amber-400 text-slate-900 font-extrabold shadow-sm">
+            Form Leads
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("contractor_kyc")}
+          className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-bold text-sm transition-all cursor-pointer ${
+            activeTab === "contractor_kyc"
+              ? "bg-primary text-white shadow-lg shadow-primary/25 scale-[1.01]"
+              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"
+          }`}
+        >
+          <FaUserCheck className="text-base" />
+          <span>Contractor Verification Queue (KYC)</span>
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === "website_leads" ? (
+        <WebsiteEpcLeads />
+      ) : loading ? (
         <div className="card p-12 text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-text-secondary">Loading market details...</p>

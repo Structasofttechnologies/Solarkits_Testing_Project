@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   FiArrowUpRight,
@@ -6,44 +7,94 @@ import {
   FiPackage,
   FiSun,
   FiZap,
+  FiLayers
 } from "react-icons/fi";
+import { MdAgriculture, MdOutlineFactory } from "react-icons/md";
+import IndustryKitExplorerModal from "./IndustryKitExplorerModal";
 
-const CATEGORIES = [
+const MASTER_INDUSTRY_CATEGORIES = [
   {
-    id: 1,
-    name: "On-Grid Solar Kits",
-    desc: "Grid-tied rooftop solar kits from 1kW to 10kW with net-metering & PM Surya Ghar subsidy.",
+    id: "solar-pv",
+    industry_slug: "solar-pv",
+    name: "Solar PV Ecosystem",
+    desc: "Complete grid-tied, hybrid, and off-grid rooftop solar systems for homes, societies and commercial establishments with net-metering & PM Surya Ghar subsidy.",
     icon: FiSun,
     count: "45+ Kits",
-    label: "On-Grid",
-    href: "#products",
+    label: "Solar PV",
+    href: "/browse/industry?slug=solar-pv",
+    subcategories_preview: "Residential Solar • Commercial & Industrial • Ground-Mount"
   },
   {
-    id: 2,
-    name: "Off-Grid Solar Kits",
-    desc: "Battery-backed complete solar kits for 24x7 independent power without grid reliance.",
-    icon: FiZap,
+    id: "solar-agriculture",
+    industry_slug: "solar-agriculture",
+    name: "Solar Agriculture",
+    desc: "Solar water pumping systems (DC/AC submersible & surface), solar cold storage, and microgrid kits for farms under PM KUSUM Scheme.",
+    icon: MdAgriculture,
+    icon_type: "agriculture",
     count: "30+ Kits",
-    label: "Off-Grid",
-    href: "#products",
+    label: "Agro-Solar",
+    href: "/browse/industry?slug=solar-agriculture",
+    subcategories_preview: "Solar Water Pumps • Cold Storages • Agro-processing Mills"
   },
   {
-    id: 3,
-    name: "Hybrid Solar Kits",
-    desc: "Best of both: Grid connectivity with battery backup for uninterrupted power & maximum savings.",
+    id: "solar-ev",
+    industry_slug: "solar-ev",
+    name: "Solar EV Infrastructure",
+    desc: "Solar carports and fast DC / AC EV charging station kits integrated with grid power and battery backup for commercial fleet hubs.",
+    icon: FiZap,
+    icon_type: "zap",
+    count: "20+ Kits",
+    label: "EV Mobility",
+    href: "/browse/industry?slug=solar-ev",
+    subcategories_preview: "Solar Carports • 2W/3W/4W EV Charging Stations"
+  },
+  {
+    id: "energy-storage",
+    industry_slug: "energy-storage",
+    name: "Energy Storage (BESS)",
+    desc: "High-density Lithium Ferro Phosphate (LFP) Battery Energy Storage Systems for 24x7 uninterrupted power, diesel generator replacement and industrial peak shaving.",
     icon: FiPackage,
+    icon_type: "package",
     count: "25+ Kits",
-    label: "Hybrid",
-    href: "#products",
+    label: "BESS & ESS",
+    href: "/browse/industry?slug=energy-storage",
+    subcategories_preview: "Residential BESS • Industrial Peak Shaving • Remote Microgrids"
   },
   {
-    id: 4,
-    name: "Solar Custom Kits",
-    desc: "Pre-wired AC/DC distribution boxes, lightning arrestors, earthing kits and custom combos.",
+    id: "solar-lighting",
+    industry_slug: "solar-lighting",
+    name: "Solar Lighting & Security",
+    desc: "All-in-one smart solar streetlights, semi-integrated floodlights, and CCTV surveillance combo kits for rural roads and factory campuses.",
     icon: FiGrid,
-    count: "50+ Kits",
-    label: "Custom Kits",
-    href: "#products",
+    icon_type: "grid",
+    count: "35+ Kits",
+    label: "Smart Lighting",
+    href: "/browse/industry?slug=solar-lighting",
+    subcategories_preview: "Smart All-in-One Streetlights • Factory Perimeter • Rural Highmasts"
+  },
+  {
+    id: "solar-thermal",
+    industry_slug: "solar-thermal",
+    name: "Solar Thermal & Heating",
+    desc: "High-efficiency pressurized & non-pressurized solar water heating kits and industrial process hot water solutions for institutions.",
+    icon: FiSun,
+    icon_type: "sun",
+    count: "15+ Kits",
+    label: "Thermal",
+    href: "/browse/industry?slug=solar-thermal",
+    subcategories_preview: "Domestic Hot Water • Commercial Boilers • Dairy Heating"
+  },
+  {
+    id: "rural-solar",
+    industry_slug: "rural-solar",
+    name: "Rural Solar Solutions",
+    desc: "Decentralized solar microgrids, off-grid solar home lighting systems, community drinking water pumps, and rural livelihood applications.",
+    icon: FiSun,
+    icon_type: "sun",
+    count: "20+ Kits",
+    label: "Rural Solar",
+    href: "/browse/industry?slug=rural-solar",
+    subcategories_preview: "Solar Home Lighting • Village Microgrids • Community Solar Pumps"
   },
 ];
 
@@ -72,19 +123,30 @@ const cardVariants = {
   },
 };
 
-function CategoryCard({ category, index }) {
+function CategoryCard({ category, index, onExplore }) {
   let Icon = category.icon || FiSun;
-  if (category.icon_type === "zap") Icon = FiZap;
-  else if (category.icon_type === "package") Icon = FiPackage;
-  else if (category.icon_type === "grid") Icon = FiGrid;
+  const nameLower = (category.name || "").toLowerCase();
+  const typeLower = (category.icon_type || "").toLowerCase();
+
+  if (typeLower === "agriculture" || nameLower.includes("agri") || nameLower.includes("pump")) {
+    Icon = MdAgriculture;
+  } else if (typeLower === "zap" || nameLower.includes("ev") || nameLower.includes("charg")) {
+    Icon = FiZap;
+  } else if (typeLower === "package" || nameLower.includes("storage") || nameLower.includes("bess")) {
+    Icon = FiPackage;
+  } else if (typeLower === "grid" || nameLower.includes("light") || nameLower.includes("security")) {
+    Icon = FiGrid;
+  } else if (nameLower.includes("industrial") || nameLower.includes("commercial")) {
+    Icon = MdOutlineFactory;
+  }
 
   return (
-    <motion.a
-      href={category.href || "#products"}
+    <motion.div
       variants={cardVariants}
       whileHover={{ y: -8 }}
       whileTap={{ scale: 0.98 }}
-      className="group relative isolate flex min-h-[340px] flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 shadow-sm transition-all duration-300 hover:border-primary-200 hover:shadow-card md:p-7"
+      onClick={() => onExplore(category)}
+      className="group relative isolate flex min-h-[360px] flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white p-6 shadow-sm transition-all duration-300 hover:border-primary-200 hover:shadow-card md:p-7 cursor-pointer"
     >
       {/* Subtle decorative glow on hover */}
       <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-primary-50 opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100" />
@@ -97,25 +159,33 @@ function CategoryCard({ category, index }) {
           </div>
 
           <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-500 transition-colors group-hover:border-primary-200 group-hover:bg-primary-50 group-hover:text-primary-600">
-            Category {String(index + 1).padStart(2, "0")}
+            Industry {String(index + 1).padStart(2, "0")}
           </span>
         </div>
 
         {/* Card content */}
-        <div className="mt-7">
+        <div className="mt-6">
           <h3 className="font-heading text-xl font-extrabold leading-tight text-navy transition-colors group-hover:text-primary-600 md:text-2xl">
             {category.name}
           </h3>
 
-          <p className="mt-3 text-sm leading-relaxed text-gray-500">
+          <p className="mt-2.5 text-xs sm:text-sm leading-relaxed text-gray-500 line-clamp-3">
             {category.desc}
           </p>
+
+          {/* Sub-types Preview Line */}
+          {category.subcategories_preview && (
+            <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-primary-600 bg-primary-50/70 px-2.5 py-1 rounded-lg border border-primary-100/60">
+              <FiLayers className="text-primary-500 shrink-0 text-xs" />
+              <span className="truncate">{category.subcategories_preview}</span>
+            </div>
+          )}
         </div>
 
         {/* Card bottom */}
-        <div className="mt-auto flex items-end justify-between border-t border-gray-100 pt-6">
+        <div className="mt-auto flex items-end justify-between border-t border-gray-100 pt-5">
           <div>
-            <span className="block font-heading text-2xl font-extrabold text-navy">
+            <span className="block font-heading text-xl md:text-2xl font-extrabold text-navy">
               {category.count}
             </span>
 
@@ -125,28 +195,43 @@ function CategoryCard({ category, index }) {
           </div>
 
           <div className="flex items-center gap-2 rounded-full border border-primary-100 bg-primary-50 py-2 pl-4 pr-2 text-xs font-bold text-primary-600 transition-all duration-300 group-hover:border-primary-500 group-hover:bg-primary-500 group-hover:text-white">
-            Explore
-
+            <span>Explore Kits</span>
             <span className="grid h-7 w-7 place-items-center rounded-full bg-white text-primary-600 shadow-sm transition-all duration-300 group-hover:bg-white/20 group-hover:text-white group-hover:rotate-45">
               <FiArrowUpRight className="text-sm" />
             </span>
           </div>
         </div>
       </div>
-    </motion.a>
+    </motion.div>
   );
 }
 
 export default function CategorySection({ categoriesConfig }) {
+  const [selectedIndustry, setSelectedIndustry] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
   if (categoriesConfig && categoriesConfig.enabled === false) return null;
 
-  const badgeText = categoriesConfig?.badge_text || "Browse Solar Kit Categories";
+  const badgeText = categoriesConfig?.badge_text || "Browse by Industry & Application";
   const heading = categoriesConfig?.heading || "Find the Right Solar";
   const highlightHeading = categoriesConfig?.highlight_heading || "Kit Solution";
-  const subtitle = categoriesConfig?.subtitle || "Explore our certified range of complete solar kits designed for homes, businesses, farms and commercial projects.";
-  const items = categoriesConfig?.items && categoriesConfig.items.length > 0 ? categoriesConfig.items : CATEGORIES;
-  const note1 = categoriesConfig?.quality_note_1 || "All products are quality verified";
-  const note2 = categoriesConfig?.quality_note_2 || "Pan-India delivery and installation support";
+  const subtitle = categoriesConfig?.subtitle || "Explore our certified range of complete solar kits engineered for Residential, Commercial, Agriculture, EV and Industrial power needs.";
+  
+  // Use configured items or master industry categories
+  let items = categoriesConfig?.items && categoriesConfig.items.length > 0 ? categoriesConfig.items : MASTER_INDUSTRY_CATEGORIES;
+  
+  // Fallback to master industry categories if items contain only legacy generic names
+  if (items.some(i => i.name === "On-Grid Solar Kits" && !items.some(x => x.name?.includes("Solar PV")))) {
+    items = MASTER_INDUSTRY_CATEGORIES;
+  }
+
+  const note1 = categoriesConfig?.quality_note_1 || "All products are quality verified & ALMM certified";
+  const note2 = categoriesConfig?.quality_note_2 || "Pan-India delivery, DISCOM approvals & installation support";
+
+  const handleOpenExplore = (industry) => {
+    setSelectedIndustry(industry);
+    setModalOpen(true);
+  };
 
   return (
     <section
@@ -189,13 +274,14 @@ export default function CategorySection({ categoriesConfig }) {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, amount: 0.12 }}
-          className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4"
+          className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
         >
           {items.map((category, index) => (
             <CategoryCard
-              key={category.id || index}
+              key={category.id || category.industry_slug || index}
               category={category}
               index={index}
+              onExplore={handleOpenExplore}
             />
           ))}
         </motion.div>
@@ -220,6 +306,13 @@ export default function CategorySection({ categoriesConfig }) {
           </span>
         </motion.div>
       </div>
+
+      {/* Interactive Industry & Kit Explorer Modal */}
+      <IndustryKitExplorerModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        industry={selectedIndustry}
+      />
     </section>
   );
 }

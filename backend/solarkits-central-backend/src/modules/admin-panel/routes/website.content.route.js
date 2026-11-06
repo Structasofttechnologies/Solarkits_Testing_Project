@@ -8,6 +8,7 @@ const { upload_any_files } = require('../utils/upload.files');
 const websiteImageUpload = upload_any_files('public/uploads/website_content', 10);
 
 // Public route for storefront landing pages
+router.get('/public/industry-hierarchy', require('../controller/project.types.handler').get_all_project_hierarchy);
 router.get('/public/:websiteKey', handler.get_content);
 
 // Admin-authenticated routes
