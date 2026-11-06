@@ -6,9 +6,7 @@ import {
   FiTrendingUp, FiMinusCircle, FiInfo, FiRefreshCw,
   FiShield, FiFileText, FiPercent, FiEdit2, FiSend,
   FiBriefcase, FiUser, FiHash, FiMapPin, FiSmartphone, FiX,
-  FiBox, FiPackage, FiTag,
 } from "react-icons/fi";
-import { FaTruck, FaShoppingBag } from "react-icons/fa";
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -75,15 +73,10 @@ export default function WalletPortal() {
   const [ledger, setLedger] = useState([]);
   const [payouts, setPayouts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("ledger"); // "ledger" | "payouts" | "commission_rates"
+  const [activeTab, setActiveTab] = useState("ledger"); // "ledger" | "payouts"
   const [filterType, setFilterType] = useState("all");
   const [payoutFilter, setPayoutFilter] = useState("all"); // "all" | "paid" | "pending" | "processing" | "failed"
   const [payoutSearch, setPayoutSearch] = useState("");
-
-  // ── Commission Rates State ──────────────────────────────────────────────────
-  const [commissionRates, setCommissionRates] = useState([]);
-  const [loadingRates, setLoadingRates] = useState(false);
-  const [activeRateKitId, setActiveRateKitId] = useState(null);
 
   // ── Bank Details State ──────────────────────────────────────────────────────
   const [bankDetails, setBankDetails] = useState(null);
@@ -135,33 +128,9 @@ export default function WalletPortal() {
       .finally(() => setLoading(false));
   }, []);
 
-  // ── Fetch Commission Rates ──────────────────────────────────────────────────
-  const fetchCommissionRates = useCallback(() => {
-    setLoadingRates(true);
-    api.get("/india/v1/reseller/commission-rates")
-      .then((res) => {
-        if (res.data?.status === "success") {
-          const rates = res.data.data || [];
-          setCommissionRates(rates);
-          // Group by kit and set first kit as active
-          const kitIds = [...new Set(rates.map((r) => r.combo_kit_id?._id || r.combo_kit_id).filter(Boolean))];
-          if (kitIds.length > 0 && !activeRateKitId) setActiveRateKitId(kitIds[0]);
-        }
-      })
-      .catch(() => { })
-      .finally(() => setLoadingRates(false));
-  }, [activeRateKitId]);
-
   useEffect(() => {
     fetchAll();
-    fetchCommissionRates();
   }, [fetchAll]);
-
-  useEffect(() => {
-    if (activeTab === "commission_rates" && commissionRates.length === 0) {
-      fetchCommissionRates();
-    }
-  }, [activeTab]);
 
   // ── Bank Details: validate + save ──────────────────────────────────────────
   const validateBankForm = () => {
@@ -672,16 +641,6 @@ export default function WalletPortal() {
             >
               Settlement &amp; Payout History ({payouts.length})
             </button>
-            <button
-              onClick={() => { setActiveTab("commission_rates"); fetchCommissionRates(); }}
-              className={`px-5 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 ${activeTab === "commission_rates"
-                ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
-                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                }`}
-            >
-              <FiTag size={12} />
-              My Commission Rates
-            </button>
           </div>
 
           {activeTab === "ledger" && (
@@ -903,248 +862,6 @@ export default function WalletPortal() {
               </table>
             </div>
           )
-        )}
-
-        {/* ── Commission Rates Tab ─────────────────────────────────────────── */}
-        {activeTab === "commission_rates" && (
-          <div className="space-y-5">
-            {/* Info banner */}
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-start gap-3">
-              <FiInfo className="text-emerald-600 shrink-0 mt-0.5" size={18} />
-              <div>
-                <p className="text-sm font-extrabold text-emerald-800">Your Commission Rate Structure</p>
-                <p className="text-xs text-emerald-700 font-semibold mt-0.5">
-                  Commission rates are set individually for your franchise by the admin. Rates differ for
-                  <span className="font-black"> PO Orders</span> (bulk franchise purchase) and
-                  <span className="font-black"> Loose Orders</span> (individual EPC/customer orders).
-                  Rates are locked at the time of order placement.
-                </p>
-              </div>
-            </div>
-
-            {loadingRates ? (
-              <div className="flex items-center justify-center py-20 text-slate-500 gap-3 text-sm font-semibold">
-                <FiLoader className="animate-spin text-emerald-600" size={22} />
-                Loading your commission rates...
-              </div>
-            ) : commissionRates.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
-                  <FiTag className="text-slate-400" size={28} />
-                </div>
-                <p className="text-sm font-extrabold text-slate-700">No Commission Rates Configured</p>
-                <p className="text-xs text-slate-500 text-center max-w-xs font-semibold leading-relaxed">
-                  Your admin hasn't configured individual commission rates for your franchise yet.
-                  Please contact your regional admin.
-                </p>
-              </div>
-            ) : (() => {
-              // Group rates by kit
-              const kitMap = {};
-              commissionRates.forEach((r) => {
-                const kitId = r.combo_kit_id?._id || r.combo_kit_id;
-                const kitName = r.combo_kit_id?.name || r.combo_kit_id?.kit_name || r.kit_name || "Combo Kit";
-                if (!kitMap[kitId]) kitMap[kitId] = { kitId, kitName, rates: [] };
-                kitMap[kitId].rates.push(r);
-              });
-              const kitGroups = Object.values(kitMap);
-              const currentKitGroup = kitGroups.find((g) => g.kitId === activeRateKitId) || kitGroups[0];
-
-              return (
-                <>
-                  {/* Kit Tabs */}
-                  <div className="flex gap-2 flex-wrap">
-                    {kitGroups.map((g) => (
-                      <button
-                        key={g.kitId}
-                        onClick={() => setActiveRateKitId(g.kitId)}
-                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all cursor-pointer flex items-center gap-2 ${activeRateKitId === g.kitId
-                            ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                          }`}
-                      >
-                        <FiBox size={12} />
-                        {g.kitName}
-                      </button>
-                    ))}
-                  </div>
-
-                  {currentKitGroup && (() => {
-                    // Organize by quantity and order_type
-                    const byQty = {};
-                    currentKitGroup.rates.forEach((r) => {
-                      const qty = r.order_quantity;
-                      if (!byQty[qty]) byQty[qty] = { po: null, loose: null };
-                      byQty[qty][r.order_type] = r.commission_amount_paise;
-                    });
-                    const quantities = Object.keys(byQty).map(Number).sort((a, b) => a - b);
-
-                    return (
-                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        {/* Kit Header */}
-                        <div className="px-6 py-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100 flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center">
-                            <FiBox className="text-emerald-700" size={20} />
-                          </div>
-                          <div>
-                            <h3 className="font-black text-slate-900 text-base">{currentKitGroup.kitName}</h3>
-                            <p className="text-xs text-slate-600 font-semibold mt-0.5">
-                              {quantities.length} quantity tier(s) · Commission rates set by admin
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Commission Table */}
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b border-slate-200 bg-slate-50">
-                                <th className="text-left text-slate-600 font-extrabold px-6 py-4 uppercase text-xs tracking-wider w-52">
-                                  Order Quantity
-                                </th>
-                                <th className="text-center text-slate-600 font-extrabold px-6 py-4 uppercase text-xs tracking-wider">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <FaTruck className="text-blue-600" size={14} />
-                                    PO Order Commission
-                                  </div>
-                                  <div className="text-[10px] font-semibold text-slate-500 mt-0.5 normal-case tracking-normal">
-                                    Bulk franchise purchase
-                                  </div>
-                                </th>
-                                <th className="text-center text-slate-600 font-extrabold px-6 py-4 uppercase text-xs tracking-wider">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <FaShoppingBag className="text-emerald-600" size={14} />
-                                    Loose Order Commission
-                                  </div>
-                                  <div className="text-[10px] font-semibold text-slate-500 mt-0.5 normal-case tracking-normal">
-                                    Individual EPC/customer order
-                                  </div>
-                                </th>
-                                <th className="text-center text-slate-600 font-extrabold px-6 py-4 uppercase text-xs tracking-wider">
-                                  Better Rate
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {quantities.map((qty) => {
-                                const poAmt = byQty[qty].po;
-                                const looseAmt = byQty[qty].loose;
-                                const poRs = poAmt != null ? poAmt / 100 : null;
-                                const looseRs = looseAmt != null ? looseAmt / 100 : null;
-                                const hasBoth = poRs != null && looseRs != null;
-                                const betterIs = hasBoth
-                                  ? poRs >= looseRs ? "po" : "loose"
-                                  : null;
-                                const tierTypeLabel =
-                                  hasBoth
-                                    ? "PO & Loose Tier"
-                                    : poRs != null
-                                      ? "Bulk PO Tier"
-                                      : "Loose Order Tier";
-
-                                return (
-                                  <tr key={qty} className="hover:bg-slate-50/80 transition-colors">
-                                    {/* Quantity */}
-                                    <td className="px-6 py-5">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-14 h-14 rounded-2xl bg-amber-50 border-2 border-amber-100 flex flex-col items-center justify-center shrink-0">
-                                          <span className="text-2xl font-black text-amber-600 leading-none">{qty}</span>
-                                          <span className="text-[9px] font-black text-amber-500 uppercase tracking-wider">Kits</span>
-                                        </div>
-                                        <div>
-                                          <div className="font-black text-slate-900 text-sm">{qty} Kits Order</div>
-                                          <div className="flex items-center gap-1.5 mt-0.5">
-                                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
-                                              hasBoth
-                                                ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
-                                                : poRs != null
-                                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                                                  : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
-                                            }`}>
-                                              {tierTypeLabel}
-                                            </span>
-                                            <span className="text-xs text-slate-400 font-medium">Min: {qty}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </td>
-
-                                    {/* PO Commission */}
-                                    <td className="px-6 py-5 text-center">
-                                      {poRs != null ? (
-                                        <div>
-                                          <div className={`text-xl font-black tabular-nums ${betterIs === "po" || !hasBoth ? "text-blue-700" : "text-slate-700"}`}>
-                                            ₹{poRs.toLocaleString("en-IN")}
-                                          </div>
-                                          <div className="text-xs text-slate-500 font-semibold mt-0.5">total for {qty} kits</div>
-                                          <div className="text-xs font-extrabold text-blue-600 mt-1">
-                                            Effective: ₹{(poRs / qty).toLocaleString("en-IN", { maximumFractionDigits: 1 })}/kit
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <span className="text-slate-400 font-bold text-sm" title="Not applicable for this quantity tier">—</span>
-                                      )}
-                                    </td>
-
-                                    {/* Loose Commission */}
-                                    <td className="px-6 py-5 text-center">
-                                      {looseRs != null ? (
-                                        <div>
-                                          <div className={`text-xl font-black tabular-nums ${betterIs === "loose" || !hasBoth ? "text-emerald-700" : "text-slate-700"}`}>
-                                            ₹{looseRs.toLocaleString("en-IN")}
-                                          </div>
-                                          <div className="text-xs text-slate-500 font-semibold mt-0.5">total for {qty} kits</div>
-                                          <div className="text-xs font-extrabold text-emerald-600 mt-1">
-                                            Effective: ₹{(looseRs / qty).toLocaleString("en-IN", { maximumFractionDigits: 1 })}/kit
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <span className="text-slate-400 font-bold text-sm" title="Not applicable for this quantity tier">—</span>
-                                      )}
-                                    </td>
-
-                                    {/* Better Rate */}
-                                    <td className="px-6 py-5 text-center">
-                                      {betterIs === "po" ? (
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-100 text-blue-800 text-xs font-extrabold border border-blue-200">
-                                          <FaTruck size={11} /> PO Order
-                                        </span>
-                                      ) : betterIs === "loose" ? (
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-extrabold border border-emerald-200">
-                                          <FaShoppingBag size={11} /> Loose Order
-                                        </span>
-                                      ) : (
-                                        <span className="text-slate-400 text-xs font-bold" title="Only one order type is configured for this tier">—</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}                            </tbody>
-                          </table>
-                        </div>
-
-                        {/* Commission Total summary footer */}
-                        <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-slate-50 border-t border-slate-200">
-                          <p className="text-xs font-extrabold text-slate-600 uppercase tracking-wider mb-2">
-                            📌 How your commission is calculated
-                          </p>
-                          <p className="text-xs text-slate-600 font-semibold leading-relaxed">
-                            When an order is placed for <strong>N kits</strong> of <strong>{currentKitGroup.kitName}</strong>,
-                            your franchise receives the configured tier commission based on the order quantity threshold.
-                            {quantities.length > 0 && byQty[quantities[0]]?.po ? (
-                              <span className="block mt-1 text-slate-700">
-                                Live Rate: For a {quantities[0]}-kit PO order, your gross commission is ₹{(byQty[quantities[0]].po / 100).toLocaleString("en-IN")} (≈ ₹{((byQty[quantities[0]].po / 100) / quantities[0]).toLocaleString("en-IN", { maximumFractionDigits: 1 })}/kit).
-                              </span>
-                            ) : null}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </>
-              );
-            })()}
-          </div>
         )}
       </div>
     </div>

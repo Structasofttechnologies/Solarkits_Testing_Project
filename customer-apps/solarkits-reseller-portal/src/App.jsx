@@ -10,6 +10,7 @@ import MyTerritories from "./pages/MyTerritories";
 import AuthorizedCatalog from "./pages/AuthorizedCatalog";
 import MyOrders from "./pages/MyOrders";
 import WalletPortal from "./pages/WalletPortal";
+import MyCommission from "./pages/MyCommission";
 import ProcurementInventory from "./pages/ProcurementInventory";
 import StorefrontListings from "./pages/StorefrontListings";
 import MyEpcBuyers from "./pages/MyEpcBuyers";
@@ -54,6 +55,8 @@ export default function App() {
           <Route path="/storefront-listings" element={<StorefrontListings />} />
           <Route path="/epc-buyers" element={<MyEpcBuyers />} />
           <Route path="/orders" element={<MyOrders />} />
+          <Route path="/my-commission" element={<MyCommission />} />
+          <Route path="/commission-rates" element={<Navigate to="/my-commission" replace />} />
           <Route path="/wallet" element={<WalletPortal />} />
           <Route path='/po-order' element={<PoOrder />} />
           <Route path='/loose-order' element={<LooseOrder />} />

@@ -90,9 +90,12 @@ router.post("/gst/verify-otp", verify_auth, gst_verify_otp);
 
 // ── EPC Profile, Multi-State GST Onboarding, Multi-District Offices & Sub-Users ─
 const epcProfileHandler = require("../../controller/v1.handlers/epc.profile.handler");
+const epcAnalyticsHandler = require("../../controller/v1.handlers/epc.analytics.handler");
 const epcOfficePhotoUpload = upload_any_files('public/uploads/epc_offices', 10);
 
 router.get("/epc/profile", verify_auth, epcProfileHandler.get_epc_profile);
+router.get("/epc/analytics", verify_auth, epcAnalyticsHandler.get_epc_analytics);
+router.post("/cart/track-activity", verify_auth, epcAnalyticsHandler.track_cart_activity);
 router.post("/epc/gst/lookup", verify_auth, epcProfileHandler.lookup_gst_details);
 router.post("/epc/onboard-state", verify_auth, epcProfileHandler.onboard_state_gst);
 router.get("/epc/offices", verify_auth, epcProfileHandler.get_epc_offices);

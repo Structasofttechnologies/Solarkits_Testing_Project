@@ -34,6 +34,23 @@ export const syncCartWithBackend = createAsyncThunk(
       if (!isAuthenticated) return;
       const response = await axiosInstance.post("/india/v1/shop/cart", { cart });
       
+      // Background activity tracking for EPC analytics
+      if (cart && cart.length > 0) {
+        const lastItem = cart[cart.length - 1];
+        if (lastItem) {
+          axiosInstance.post("/india/v1/shop/cart/track-activity", {
+            product_id: lastItem.id || lastItem.listing_id || null,
+            kit_id: lastItem.kit_id || lastItem.id || null,
+            capacity: lastItem.capacityKW ? `${lastItem.capacityKW} kW` : (lastItem.capacity || null),
+            item_name: lastItem.kitName || lastItem.title || 'Solar Kit',
+            action_type: 'success',
+            is_success: true,
+            source_page: 'store_cart',
+            idempotency_key: `sync_${lastItem.cartItemId || lastItem.id}_${cart.length}`
+          }).catch(() => {});
+        }
+      }
+
       // Fetch latest live stock so quantity updates are instantly reflected
       const districtId = slice.selectedDistrict?.id;
       if (districtId) {
@@ -48,6 +65,18 @@ export const syncCartWithBackend = createAsyncThunk(
         dispatch(clearUser());
       }
       return rejectWithValue(error.response?.data?.message || 'Failed to sync cart');
+    }
+  }
+);
+
+export const logCartActivity = createAsyncThunk(
+  "solar/logCartActivity",
+  async (activityData, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post("/india/v1/shop/cart/track-activity", activityData);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to log cart activity');
     }
   }
 );

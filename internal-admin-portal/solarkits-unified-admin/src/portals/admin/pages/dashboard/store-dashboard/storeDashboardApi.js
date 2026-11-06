@@ -97,6 +97,41 @@ export const storeDashboardApi = {
     }
   },
 
+  getEpcBuyingAnalytics: async (epcId, params = {}) => {
+    try {
+      const q = buildQuery(params, '00000000', 'view');
+      const res = await axios.get(`${ADMIN_API}/epc-analytics/epc-buying-analytics/${epcId}?${q}`, headers());
+      return res.data;
+    } catch (err) {
+      console.warn('getEpcBuyingAnalytics error:', err.message || err);
+      return null;
+    }
+  },
+
+  updateEpcType: async (epcId, epcTypeId) => {
+    try {
+      const res = await axios.put(
+        `${ADMIN_API}/epc-analytics/epc-profile/${epcId}/epc-type`,
+        { epc_type_id: epcTypeId },
+        headers()
+      );
+      return res.data;
+    } catch (err) {
+      console.warn('updateEpcType error:', err.message || err);
+      return null;
+    }
+  },
+
+  getActiveEpcTypes: async () => {
+    try {
+      const res = await axios.get(`${ADMIN_API}/epc-types/active`, headers());
+      return res.data;
+    } catch (err) {
+      console.warn('getActiveEpcTypes error:', err.message || err);
+      return null;
+    }
+  },
+
   getBdes: async () => {
     try {
       const res = await axios.get(`${ADMIN_API}/bde/list?unique_id=ADM_BDE_MGMT&req_for=view`, headers());
