@@ -81,3 +81,4 @@ schema.virtual('id').get(function () {
 });
 
 module.exports = db.model('epc_cart_activity_logs', schema);
+
