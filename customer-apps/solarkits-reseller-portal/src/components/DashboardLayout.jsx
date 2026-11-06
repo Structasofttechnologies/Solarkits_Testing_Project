@@ -25,6 +25,7 @@ import {
   FiTool,
   FiFileText,
   FiCalendar,
+  FiPercent,
 } from "react-icons/fi";
 import api from "../services/api";
 import logoImg from "@/assets/images/logo.png";
@@ -53,6 +54,7 @@ const NAV_ITEMS = [
   },
   { name: "My Buyers", icon: FiUsers, path: "/epc-buyers" },
   { name: "Orders & Tracking", icon: FiShoppingCart, path: "/orders" },
+  { name: "My Commission", icon: FiPercent, path: "/my-commission" },
   { name: "My Earnings", icon: FiCreditCard, path: "/wallet" },
   { name: "Service Tickets", icon: FiTool, path: "/service-tickets" },
 ];
@@ -195,8 +197,8 @@ export default function DashboardLayout() {
   const allowedOrderTypes = Array.isArray(rawAllowed)
     ? rawAllowed
     : typeof rawAllowed === "string"
-    ? (rawAllowed === "both" ? ["po_order", "loose_order"] : rawAllowed.split(",").map((s) => s.trim()))
-    : ["po_order"];
+      ? (rawAllowed === "both" ? ["po_order", "loose_order"] : rawAllowed.split(",").map((s) => s.trim()))
+      : ["po_order"];
 
   const hasLoose = allowedOrderTypes.includes("loose_order");
   const hasCombinePo = allowedOrderTypes.includes("combine_po_order");
@@ -353,15 +355,14 @@ export default function DashboardLayout() {
                         <button
                           type="button"
                           onClick={() => toggleSubMenu(item.name)}
-                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
-                            isAnyChildActive ? "text-primary font-bold bg-primary/10" : ""
-                          }`}
+                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${isAnyChildActive ? "text-primary font-bold bg-primary/10" : ""
+                            }`}
                           style={
                             !isAnyChildActive
                               ? {
-                                  color: "var(--color-text-secondary)",
-                                  background: "transparent",
-                                }
+                                color: "var(--color-text-secondary)",
+                                background: "transparent",
+                              }
                               : {}
                           }
                           onMouseEnter={(e) => {
@@ -411,15 +412,14 @@ export default function DashboardLayout() {
                                     <Link
                                       to={child.path}
                                       onClick={() => isMobile && setSidebarOpen(false)}
-                                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${
-                                        isChildActive ? "btn-primary text-white" : ""
-                                      }`}
+                                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${isChildActive ? "btn-primary text-white" : ""
+                                        }`}
                                       style={
                                         !isChildActive
                                           ? {
-                                              color: "var(--color-text-secondary)",
-                                              background: "transparent",
-                                            }
+                                            color: "var(--color-text-secondary)",
+                                            background: "transparent",
+                                          }
                                           : {}
                                       }
                                       onMouseEnter={(e) => {
@@ -461,15 +461,14 @@ export default function DashboardLayout() {
                         <Link
                           to={item.path}
                           onClick={() => isMobile && setSidebarOpen(false)}
-                          className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                            isActive ? "btn-primary text-white" : ""
-                          }`}
+                          className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${isActive ? "btn-primary text-white" : ""
+                            }`}
                           style={
                             !isActive
                               ? {
-                                  color: "var(--color-text-secondary)",
-                                  background: "transparent",
-                                }
+                                color: "var(--color-text-secondary)",
+                                background: "transparent",
+                              }
                               : {}
                           }
                           onMouseEnter={(e) => {
@@ -839,11 +838,10 @@ export default function DashboardLayout() {
                             <span>4-Digit Security PIN</span>
                           </div>
                           <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-black uppercase ${
-                              reseller?.is_pin_set
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-black uppercase ${reseller?.is_pin_set
                                 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400"
                                 : "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400"
-                            }`}
+                              }`}
                           >
                             {reseller?.is_pin_set ? "Active" : "Set PIN"}
                           </span>

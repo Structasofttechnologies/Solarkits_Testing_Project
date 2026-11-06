@@ -96,6 +96,7 @@ const get_delivery_costs = async (req, res) => {
       district_name,
       pincode,
       combo_kit_id,
+      warehouse_id,
       warehouse_code,
       pricing_mode,
       is_active,
@@ -125,6 +126,10 @@ const get_delivery_costs = async (req, res) => {
 
     if (warehouse_code && warehouse_code.trim()) {
       query.warehouse_code = warehouse_code.trim();
+    }
+
+    if (warehouse_id && warehouse_id.trim() && warehouse_id !== 'all' && mongoose.Types.ObjectId.isValid(warehouse_id.trim())) {
+      query.warehouse_id = new mongoose.Types.ObjectId(warehouse_id.trim());
     }
 
     if (pricing_mode && pricing_mode.trim()) {
@@ -228,6 +233,12 @@ const create_delivery_cost = async (req, res) => {
       estimated_days_min = 3,
       estimated_days_max = 7,
       is_active = true,
+      is_loose_enabled = true,
+      is_po_enabled = true,
+      is_trial_enabled = true,
+      loose_pricing_mode = 'fixed',
+      po_pricing_mode = 'fixed',
+      trial_pricing_mode = 'fixed',
       notes = null,
       country_id = null,
       state_id = null,
@@ -302,6 +313,12 @@ const create_delivery_cost = async (req, res) => {
       existing.estimated_days_max = Number(estimated_days_max) || 7;
       existing.is_active = is_active !== false;
       existing.notes = notes || existing.notes;
+      if (is_loose_enabled !== undefined) existing.is_loose_enabled = Boolean(is_loose_enabled);
+      if (is_po_enabled !== undefined) existing.is_po_enabled = Boolean(is_po_enabled);
+      if (is_trial_enabled !== undefined) existing.is_trial_enabled = Boolean(is_trial_enabled);
+      if (loose_pricing_mode !== undefined) existing.loose_pricing_mode = loose_pricing_mode;
+      if (po_pricing_mode !== undefined) existing.po_pricing_mode = po_pricing_mode;
+      if (trial_pricing_mode !== undefined) existing.trial_pricing_mode = trial_pricing_mode;
       existing.combo_kit_name = comboKitName;
       existing.updated_at = new Date();
       await existing.save();
@@ -340,6 +357,12 @@ const create_delivery_cost = async (req, res) => {
       estimated_days_max: Number(estimated_days_max) || 7,
       is_active: is_active !== false,
       notes: notes || null,
+      is_loose_enabled: Boolean(is_loose_enabled),
+      is_po_enabled: Boolean(is_po_enabled),
+      is_trial_enabled: Boolean(is_trial_enabled),
+      loose_pricing_mode: loose_pricing_mode || 'fixed',
+      po_pricing_mode: po_pricing_mode || 'fixed',
+      trial_pricing_mode: trial_pricing_mode || 'fixed',
       created_at: new Date(),
       updated_at: new Date(),
     });
@@ -465,6 +488,12 @@ const update_delivery_cost = async (req, res) => {
     if (estimated_days_min !== undefined) existing.estimated_days_min = Number(estimated_days_min) || 3;
     if (estimated_days_max !== undefined) existing.estimated_days_max = Number(estimated_days_max) || 7;
     if (is_active !== undefined) existing.is_active = is_active === true || is_active === 'true';
+    if (req.body.is_loose_enabled !== undefined) existing.is_loose_enabled = Boolean(req.body.is_loose_enabled);
+    if (req.body.is_po_enabled !== undefined) existing.is_po_enabled = Boolean(req.body.is_po_enabled);
+    if (req.body.is_trial_enabled !== undefined) existing.is_trial_enabled = Boolean(req.body.is_trial_enabled);
+    if (req.body.loose_pricing_mode !== undefined) existing.loose_pricing_mode = req.body.loose_pricing_mode;
+    if (req.body.po_pricing_mode !== undefined) existing.po_pricing_mode = req.body.po_pricing_mode;
+    if (req.body.trial_pricing_mode !== undefined) existing.trial_pricing_mode = req.body.trial_pricing_mode;
     if (notes !== undefined) existing.notes = notes;
 
     existing.updated_at = new Date();
@@ -520,62 +549,142 @@ const apply_district_rates = async (req, res) => {
   try {
     const {
       combo_kit_id,
-      state_id,
-      state_name,
-      selected_states, // array of state names or IDs
-      state_names,
-      district_ids, // array or string
-      apply_to_all_districts = false,
-      
-      // Warehouse Mapping
       warehouse_id = null,
       warehouse_code = null,
       warehouse_name = null,
       warehouse_type = null,
       warehouse_lat = null,
       warehouse_lng = null,
-
-      // Pricing Mode: 'fixed' | 'per_km'
-      pricing_mode = 'fixed',
-      distance_km = 0,
-      rate_per_km_loose = 0,
-      rate_per_km_po = 0,
-      rate_per_km_trial = 0,
-      base_delivery_cost = 0,
-
-      // Fixed Rates (fallback or when pricing_mode === 'fixed')
-      loose_delivery_cost = 0,
-      po_delivery_cost = 0,
-      trial_delivery_cost = 0,
-      delivery_cost,
-
       estimated_days_min = 3,
       estimated_days_max = 7,
       is_active = true,
       notes = null,
+
+      // Flexible config object or flat fields
+      order_types_config,
+      order_types,
+
+      // Flat fields for each order type
+      is_loose_enabled,
+      loose_pricing_mode,
+      loose_fixed_cost,
+      loose_delivery_cost,
+      loose_base_cost,
+      loose_rate_per_km,
+      rate_per_km_loose,
+      loose_states,
+      loose_district_ids,
+      loose_apply_all_districts,
+
+      is_po_enabled,
+      po_pricing_mode,
+      po_fixed_cost,
+      po_delivery_cost,
+      po_base_cost,
+      po_rate_per_km,
+      rate_per_km_po,
+      po_states,
+      po_district_ids,
+      po_apply_all_districts,
+
+      is_trial_enabled,
+      trial_pricing_mode,
+      trial_fixed_cost,
+      trial_delivery_cost,
+      trial_base_cost,
+      trial_rate_per_km,
+      rate_per_km_trial,
+      trial_states,
+      trial_district_ids,
+      trial_apply_all_districts,
+
+      // Legacy fallback fields
+      pricing_mode = 'fixed',
+      base_delivery_cost = 0,
+      distance_km = 0,
+      delivery_cost,
+      selected_states,
+      state_names,
+      state_name,
+      state_id,
+      district_ids,
+      apply_to_all_districts = false,
     } = req.body;
 
-    // 1. Resolve All Specified States (Supports single or multiple mapped states)
-    let rawStateInputs = [];
-    if (Array.isArray(selected_states) && selected_states.length > 0) {
-      rawStateInputs = selected_states;
-    } else if (Array.isArray(state_names) && state_names.length > 0) {
-      rawStateInputs = state_names;
-    } else if (state_name) {
-      rawStateInputs = [state_name];
-    } else if (state_id) {
-      rawStateInputs = [state_id];
-    }
+    const ot = order_types_config || order_types || {};
 
-    if (rawStateInputs.length === 0) {
+    // 1. Normalize configs for Loose, Bulk PO, and Trial Kit
+    const looseCfg = {
+      enabled: ot.loose?.enabled !== undefined ? Boolean(ot.loose.enabled) : (is_loose_enabled !== undefined ? Boolean(is_loose_enabled) : true),
+      mode: ot.loose?.pricing_mode || loose_pricing_mode || pricing_mode || 'fixed',
+      fixedCost: Math.max(0, parseFloat(ot.loose?.fixed_cost ?? loose_fixed_cost ?? loose_delivery_cost ?? delivery_cost ?? 1500) || 0),
+      baseCost: Math.max(0, parseFloat(ot.loose?.base_cost ?? loose_base_cost ?? base_delivery_cost ?? 0) || 0),
+      ratePerKm: Math.max(0, parseFloat(ot.loose?.rate_per_km ?? loose_rate_per_km ?? rate_per_km_loose ?? 15) || 0),
+      states: ot.loose?.states || loose_states || selected_states || state_names || (state_name ? [state_name] : []),
+      applyAllDistricts: ot.loose?.apply_all_districts !== undefined ? Boolean(ot.loose.apply_all_districts) : (loose_apply_all_districts !== undefined ? Boolean(loose_apply_all_districts) : (apply_to_all_districts !== undefined ? Boolean(apply_to_all_districts) : true)),
+      districtIds: (ot.loose?.district_ids || loose_district_ids || (district_ids !== 'all' ? district_ids : []) || []).map(String),
+    };
+
+    const poCfg = {
+      enabled: ot.po?.enabled !== undefined ? Boolean(ot.po.enabled) : (is_po_enabled !== undefined ? Boolean(is_po_enabled) : true),
+      mode: ot.po?.pricing_mode || po_pricing_mode || pricing_mode || 'fixed',
+      fixedCost: Math.max(0, parseFloat(ot.po?.fixed_cost ?? po_fixed_cost ?? po_delivery_cost ?? delivery_cost ?? 800) || 0),
+      baseCost: Math.max(0, parseFloat(ot.po?.base_cost ?? po_base_cost ?? base_delivery_cost ?? 0) || 0),
+      ratePerKm: Math.max(0, parseFloat(ot.po?.rate_per_km ?? po_rate_per_km ?? rate_per_km_po ?? 10) || 0),
+      states: ot.po?.states || po_states || selected_states || state_names || (state_name ? [state_name] : []),
+      applyAllDistricts: ot.po?.apply_all_districts !== undefined ? Boolean(ot.po.apply_all_districts) : (po_apply_all_districts !== undefined ? Boolean(po_apply_all_districts) : (apply_to_all_districts !== undefined ? Boolean(apply_to_all_districts) : true)),
+      districtIds: (ot.po?.district_ids || po_district_ids || (district_ids !== 'all' ? district_ids : []) || []).map(String),
+    };
+
+    const trialCfg = {
+      enabled: ot.trial?.enabled !== undefined ? Boolean(ot.trial.enabled) : (is_trial_enabled !== undefined ? Boolean(is_trial_enabled) : true),
+      mode: ot.trial?.pricing_mode || trial_pricing_mode || pricing_mode || 'fixed',
+      fixedCost: Math.max(0, parseFloat(ot.trial?.fixed_cost ?? trial_fixed_cost ?? trial_delivery_cost ?? delivery_cost ?? 1200) || 0),
+      baseCost: Math.max(0, parseFloat(ot.trial?.base_cost ?? trial_base_cost ?? base_delivery_cost ?? 0) || 0),
+      ratePerKm: Math.max(0, parseFloat(ot.trial?.rate_per_km ?? trial_rate_per_km ?? rate_per_km_trial ?? 12) || 0),
+      states: ot.trial?.states || trial_states || selected_states || state_names || (state_name ? [state_name] : []),
+      applyAllDistricts: ot.trial?.apply_all_districts !== undefined ? Boolean(ot.trial.apply_all_districts) : (trial_apply_all_districts !== undefined ? Boolean(trial_apply_all_districts) : (apply_to_all_districts !== undefined ? Boolean(apply_to_all_districts) : true)),
+      districtIds: (ot.trial?.district_ids || trial_district_ids || (district_ids !== 'all' ? district_ids : []) || []).map(String),
+    };
+
+    if (!looseCfg.enabled && !poCfg.enabled && !trialCfg.enabled) {
       return res.status(400).json({
         status: 'error',
-        message: 'At least one state is required to apply district rates.',
+        message: 'At least one order fulfillment type (Loose, Bulk PO, or Trial Kit) must be enabled.',
       });
     }
 
-    // Match by ID or clean name
-    const stateRegexes = rawStateInputs.map(s => {
+    // 2. Aggregate all states across enabled order types
+    const allStateSet = new Set();
+    const collectStates = (arr) => {
+      if (Array.isArray(arr)) {
+        arr.forEach(s => {
+          if (typeof s === 'string' && s.trim()) allStateSet.add(s.trim());
+          else if (s && s.name) allStateSet.add(String(s.name).trim());
+        });
+      }
+    };
+
+    if (looseCfg.enabled) collectStates(looseCfg.states);
+    if (poCfg.enabled) collectStates(poCfg.states);
+    if (trialCfg.enabled) collectStates(trialCfg.states);
+
+    if (allStateSet.size === 0) {
+      collectStates(selected_states);
+      collectStates(state_names);
+      if (state_name) allStateSet.add(state_name.trim());
+      if (state_id) allStateSet.add(state_id);
+    }
+
+    const stateInputs = Array.from(allStateSet);
+    if (stateInputs.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please select at least one fulfillment state for enabled order types.',
+      });
+    }
+
+    const stateRegexes = stateInputs.map(s => {
       const clean = String(s).replace(/\s*\(.*?\)/, '').trim();
       return new RegExp(`^${clean}`, 'i');
     });
@@ -585,7 +694,7 @@ const apply_district_rates = async (req, res) => {
         {
           $or: [
             { name: { $in: stateRegexes } },
-            ...(rawStateInputs.filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => ({ _id: new mongoose.Types.ObjectId(id) })))
+            ...(stateInputs.filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => ({ _id: new mongoose.Types.ObjectId(id) })))
           ]
         },
         {
@@ -597,53 +706,47 @@ const apply_district_rates = async (req, res) => {
     if (!stateDocs || stateDocs.length === 0) {
       return res.status(404).json({
         status: 'error',
-        message: 'None of the selected states were found in geolocation master.',
+        message: 'None of the specified states were found in geolocation master.',
       });
     }
 
     const stateMap = {};
     stateDocs.forEach(s => {
-      stateMap[s._id.toString()] = { id: s._id, name: s.name };
+      const idStr = s._id.toString();
+      stateMap[idStr] = { id: s._id, name: s.name };
     });
     const resolvedStateIds = stateDocs.map(s => s._id);
     const resolvedStateNames = stateDocs.map(s => s.name);
 
-    // 2. Resolve Districts across all resolved states
-    const districtFilter = {
+    // 3. Helper to test if a district is covered by an order config
+    const isStateCovered = (cfgStates, distStateDoc) => {
+      if (!cfgStates || cfgStates.length === 0) return true;
+      const distName = (distStateDoc?.name || '').toLowerCase();
+      const distClean = distName.replace(/\s*\(.*?\)/, '').trim();
+      const distIdStr = (distStateDoc?.id || distStateDoc?._id || '').toString();
+
+      return cfgStates.some(st => {
+        const sStr = String(st || '').toLowerCase().trim();
+        const sClean = sStr.replace(/\s*\(.*?\)/, '').trim();
+        return sStr === distIdStr || sStr === distName || sClean === distClean;
+      });
+    };
+
+    // 4. Resolve Districts across all resolved states
+    const districts = await GeoLevel2.find({
       level_1: { $in: resolvedStateIds },
       is_active: true,
       $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }],
-    };
-
-    const isAll = apply_to_all_districts === true ||
-      apply_to_all_districts === 'true' ||
-      district_ids === 'all' ||
-      (Array.isArray(district_ids) && district_ids.includes('all'));
-
-    if (!isAll && district_ids) {
-      let idsArr = Array.isArray(district_ids) ? district_ids : [district_ids];
-      idsArr = idsArr
-        .map(id => String(id).trim())
-        .filter(id => mongoose.Types.ObjectId.isValid(id))
-        .map(id => new mongoose.Types.ObjectId(id));
-
-      if (idsArr.length > 0) {
-        districtFilter._id = { $in: idsArr };
-      }
-    }
-
-    const districts = await GeoLevel2.find(districtFilter)
-      .select('_id name level_1 lat lng pincodes')
-      .lean();
+    }).select('_id name level_1 lat lng pincodes').lean();
 
     if (!districts || districts.length === 0) {
       return res.status(404).json({
         status: 'error',
-        message: 'No active districts found for the specified state/selection.',
+        message: 'No active districts found for the specified state selection.',
       });
     }
 
-    // 3. Resolve Target Combo Kit
+    // 5. Target Combo Kit
     let targetKitId = null;
     let comboKitName = null;
     if (combo_kit_id && combo_kit_id !== 'default' && combo_kit_id !== 'null') {
@@ -654,11 +757,15 @@ const apply_district_rates = async (req, res) => {
       }
     }
 
-    // 4. Resolve Warehouse Coordinates for KM Calculation
+    // 6. Resolve Warehouse Coordinates for KM Calculation
     let whLat = warehouse_lat != null ? Number(warehouse_lat) : null;
     let whLng = warehouse_lng != null ? Number(warehouse_lng) : null;
 
-    if (pricing_mode === 'per_km' && (whLat == null || whLng == null)) {
+    const anyKmMode = (looseCfg.enabled && looseCfg.mode === 'per_km') ||
+                      (poCfg.enabled && poCfg.mode === 'per_km') ||
+                      (trialCfg.enabled && trialCfg.mode === 'per_km');
+
+    if (anyKmMode && (whLat == null || whLng == null)) {
       if (warehouse_code) {
         const cw = await CompanyWarehouse.findOne({
           warehouse_code: new RegExp(`^${warehouse_code.trim()}$`, 'i'),
@@ -671,31 +778,36 @@ const apply_district_rates = async (req, res) => {
       }
     }
 
-    // Parse KM rate inputs
-    const isKmMode = pricing_mode === 'per_km';
-    const rateKmLoose = Math.max(0, parseFloat(rate_per_km_loose) || 0);
-    const rateKmPo = Math.max(0, parseFloat(rate_per_km_po) || 0);
-    const rateKmTrial = Math.max(0, parseFloat(rate_per_km_trial) || 0);
-    const baseCost = Math.max(0, parseFloat(base_delivery_cost) || 0);
-
-    // Parse Fixed rate inputs
-    const fixedLoose = Math.max(0, parseFloat(loose_delivery_cost !== undefined ? loose_delivery_cost : delivery_cost) || 0);
-    const fixedPo = Math.max(0, parseFloat(po_delivery_cost !== undefined ? po_delivery_cost : delivery_cost) || 0);
-    const fixedTrial = Math.max(0, parseFloat(trial_delivery_cost !== undefined ? trial_delivery_cost : delivery_cost) || 0);
-    const fixedFallback = delivery_cost !== undefined && !isNaN(parseFloat(delivery_cost))
-      ? Math.max(0, parseFloat(delivery_cost))
-      : fixedLoose;
-
     const estMin = Math.max(1, parseInt(estimated_days_min, 10) || 3);
     const estMax = Math.max(estMin, parseInt(estimated_days_max, 10) || 7);
     const isActiveBool = is_active !== false && is_active !== 'false';
 
-    // 5. Build bulk operations with per-pincode or per-district distance calculation
+    // 7. Build bulk operations with per-order-type coverage and distance
     const bulkOps = [];
     const seenPincodes = new Set();
     let totalPincodesCount = 0;
 
     for (const dist of districts) {
+      const distIdStr = dist._id.toString();
+      const distStateDoc = dist.level_1 && stateMap[dist.level_1.toString()]
+        ? stateMap[dist.level_1.toString()]
+        : { id: resolvedStateIds[0], name: resolvedStateNames[0] };
+
+      // Determine order type coverage for this district
+      const looseInState = isStateCovered(looseCfg.states, distStateDoc);
+      const isLooseCovered = looseCfg.enabled && looseInState && (looseCfg.applyAllDistricts || looseCfg.districtIds.includes(distIdStr));
+
+      const poInState = isStateCovered(poCfg.states, distStateDoc);
+      const isPoCovered = poCfg.enabled && poInState && (poCfg.applyAllDistricts || poCfg.districtIds.includes(distIdStr));
+
+      const trialInState = isStateCovered(trialCfg.states, distStateDoc);
+      const isTrialCovered = trialCfg.enabled && trialInState && (trialCfg.applyAllDistricts || trialCfg.districtIds.includes(distIdStr));
+
+      // If this district is NOT covered by any enabled order type, skip it
+      if (!isLooseCovered && !isPoCovered && !isTrialCovered) {
+        continue;
+      }
+
       const pinList = dist.pincodes || [];
       const distLat = dist.lat != null ? Number(dist.lat) : null;
       const distLng = dist.lng != null ? Number(dist.lng) : null;
@@ -709,29 +821,45 @@ const apply_district_rates = async (req, res) => {
         seenPincodes.add(cleanPin);
         totalPincodesCount++;
 
-        let effectiveLoose = fixedLoose;
-        let effectivePo = fixedPo;
-        let effectiveTrial = fixedTrial;
-        let effectiveFallback = fixedFallback;
-        let effectiveDistKm = Number(distance_km) || 0;
+        const pinLat = pItem?.lat != null ? Number(pItem.lat) : distLat;
+        const pinLng = pItem?.lng != null ? Number(pItem.lng) : distLng;
 
-        if (isKmMode) {
-          const pinLat = pItem?.lat != null ? Number(pItem.lat) : distLat;
-          const pinLng = pItem?.lng != null ? Number(pItem.lng) : distLng;
-
-          if (whLat != null && whLng != null && pinLat != null && pinLng != null) {
-            effectiveDistKm = calculate_distance_km(whLat, whLng, pinLat, pinLng);
-          }
-
-          effectiveLoose = Math.round(baseCost + (effectiveDistKm * rateKmLoose));
-          effectivePo = Math.round(baseCost + (effectiveDistKm * rateKmPo));
-          effectiveTrial = Math.round(baseCost + (effectiveDistKm * rateKmTrial));
-          effectiveFallback = effectiveLoose;
+        let distKm = Number(distance_km) || 0;
+        if (whLat != null && whLng != null && pinLat != null && pinLng != null) {
+          distKm = calculate_distance_km(whLat, whLng, pinLat, pinLng);
         }
 
-        const distState = dist.level_1 && stateMap[dist.level_1.toString()]
-          ? stateMap[dist.level_1.toString()]
-          : { id: resolvedStateIds[0], name: resolvedStateNames[0] };
+        // Calculate Loose Order
+        let effLoose = 0;
+        if (isLooseCovered) {
+          if (looseCfg.mode === 'per_km') {
+            effLoose = Math.round(looseCfg.baseCost + (distKm * looseCfg.ratePerKm));
+          } else {
+            effLoose = looseCfg.fixedCost;
+          }
+        }
+
+        // Calculate Bulk PO Order
+        let effPo = 0;
+        if (isPoCovered) {
+          if (poCfg.mode === 'per_km') {
+            effPo = Math.round(poCfg.baseCost + (distKm * poCfg.ratePerKm));
+          } else {
+            effPo = poCfg.fixedCost;
+          }
+        }
+
+        // Calculate Trial Kit Order
+        let effTrial = 0;
+        if (isTrialCovered) {
+          if (trialCfg.mode === 'per_km') {
+            effTrial = Math.round(trialCfg.baseCost + (distKm * trialCfg.ratePerKm));
+          } else {
+            effTrial = trialCfg.fixedCost;
+          }
+        }
+
+        const effDelivery = effLoose || effPo || effTrial || 0;
 
         bulkOps.push({
           updateOne: {
@@ -741,8 +869,8 @@ const apply_district_rates = async (req, res) => {
             },
             update: {
               $set: {
-                state_id: distState.id,
-                state_name: distState.name,
+                state_id: distStateDoc.id,
+                state_name: distStateDoc.name,
                 district_id: dist._id,
                 district_name: dist.name,
                 pincode: cleanPin,
@@ -752,20 +880,31 @@ const apply_district_rates = async (req, res) => {
                 warehouse_code: warehouse_code || null,
                 warehouse_name: warehouse_name || null,
                 warehouse_type: warehouse_type || null,
-                pricing_mode: isKmMode ? 'per_km' : 'fixed',
-                distance_km: effectiveDistKm,
-                rate_per_km_loose: rateKmLoose,
-                rate_per_km_po: rateKmPo,
-                rate_per_km_trial: rateKmTrial,
-                base_delivery_cost: baseCost,
-                delivery_cost: effectiveFallback,
-                loose_delivery_cost: effectiveLoose,
-                po_delivery_cost: effectivePo,
-                trial_delivery_cost: effectiveTrial,
+
+                // Order type statuses & modes
+                is_loose_enabled: isLooseCovered,
+                is_po_enabled: isPoCovered,
+                is_trial_enabled: isTrialCovered,
+                loose_pricing_mode: looseCfg.mode,
+                po_pricing_mode: poCfg.mode,
+                trial_pricing_mode: trialCfg.mode,
+                pricing_mode: anyKmMode ? 'per_km' : 'fixed',
+
+                distance_km: distKm,
+                rate_per_km_loose: looseCfg.ratePerKm,
+                rate_per_km_po: poCfg.ratePerKm,
+                rate_per_km_trial: trialCfg.ratePerKm,
+                base_delivery_cost: looseCfg.baseCost || poCfg.baseCost || trialCfg.baseCost || base_delivery_cost || 0,
+
+                delivery_cost: effDelivery,
+                loose_delivery_cost: effLoose,
+                po_delivery_cost: effPo,
+                trial_delivery_cost: effTrial,
+
                 estimated_days_min: estMin,
                 estimated_days_max: estMax,
                 is_active: isActiveBool,
-                notes: notes || `${isKmMode ? 'KM-based rate' : 'Fixed rate'} applied from ${warehouse_name || 'Hub'} for ${dist.name}, ${distState.name}`,
+                notes: notes || `Configured delivery rates from ${warehouse_name || 'Hub'} for ${dist.name}, ${distStateDoc.name}`,
                 updated_at: new Date(),
               },
               $setOnInsert: {
@@ -781,7 +920,7 @@ const apply_district_rates = async (req, res) => {
     if (bulkOps.length === 0) {
       return res.status(400).json({
         status: 'error',
-        message: 'No valid 6-digit pincodes found in the selected district(s). Please verify the geolocation master.',
+        message: 'No matching pincodes found for the selected order type routes. Please verify state/district selections.',
       });
     }
 
@@ -789,7 +928,7 @@ const apply_district_rates = async (req, res) => {
 
     return res.status(200).json({
       status: 'success',
-      message: `${isKmMode ? 'KM-wise' : 'Fixed'} delivery rates successfully applied to ${totalPincodesCount} pincodes across ${districts.length} district(s) in ${resolvedStateNames.join(', ')}.`,
+      message: `Delivery rates successfully applied to ${totalPincodesCount} pincodes across ${districts.length} district(s) in ${resolvedStateNames.join(', ')}.`,
       data: {
         state_names: resolvedStateNames,
         state_name: resolvedStateNames.join(', '),
@@ -797,21 +936,13 @@ const apply_district_rates = async (req, res) => {
         pincodes_count: totalPincodesCount,
         warehouse_code,
         warehouse_name,
-        pricing_mode: isKmMode ? 'per_km' : 'fixed',
         upserted_count: bulkResult.upsertedCount || 0,
         modified_count: bulkResult.modifiedCount || 0,
-        rates_summary: isKmMode ? {
-          mode: 'per_km',
-          base_delivery_cost: baseCost,
-          rate_per_km_loose: rateKmLoose,
-          rate_per_km_po: rateKmPo,
-          rate_per_km_trial: rateKmTrial,
-        } : {
-          mode: 'fixed',
-          loose_delivery_cost: fixedLoose,
-          po_delivery_cost: fixedPo,
-          trial_delivery_cost: fixedTrial,
-        },
+        order_types: {
+          loose: { enabled: looseCfg.enabled, mode: looseCfg.mode, cost: looseCfg.fixedCost, rate_per_km: looseCfg.ratePerKm },
+          po: { enabled: poCfg.enabled, mode: poCfg.mode, cost: poCfg.fixedCost, rate_per_km: poCfg.ratePerKm },
+          trial: { enabled: trialCfg.enabled, mode: trialCfg.mode, cost: trialCfg.fixedCost, rate_per_km: trialCfg.ratePerKm },
+        }
       },
     });
   } catch (error) {
@@ -823,10 +954,6 @@ const apply_district_rates = async (req, res) => {
   }
 };
 
-/**
- * POST /admin-api/pincode-delivery-costs/bulk-import
- * Batch import or upload delivery freight rules
- */
 const bulk_import_delivery_costs = async (req, res) => {
   try {
     const { items } = req.body;
@@ -935,29 +1062,42 @@ const bulk_import_delivery_costs = async (req, res) => {
 
 /**
  * GET /admin-api/pincode-delivery-costs/kit-stats
- * Returns aggregated pincode count and price ranges grouped by combo_kit_id
+ * Returns aggregated pincode count and price ranges grouped by combo_kit_id, optionally filtered by warehouse
  */
 const get_kit_stats = async (req, res) => {
   try {
-    const stats = await PincodeDeliveryCost.aggregate([
-      {
-        $group: {
-          _id: '$combo_kit_id',
-          total_pincodes: { $sum: 1 },
-          min_cost: { $min: '$delivery_cost' },
-          max_cost: { $max: '$delivery_cost' },
-          min_loose_cost: { $min: '$loose_delivery_cost' },
-          max_loose_cost: { $max: '$loose_delivery_cost' },
-          min_po_cost: { $min: '$po_delivery_cost' },
-          max_po_cost: { $max: '$po_delivery_cost' },
-          min_trial_cost: { $min: '$trial_delivery_cost' },
-          max_trial_cost: { $max: '$trial_delivery_cost' },
-          active_count: {
-            $sum: { $cond: [{ $eq: ['$is_active', true] }, 1, 0] },
-          },
+    const { warehouse_id, warehouse_code } = req.query;
+    const match = {};
+    if (warehouse_id && mongoose.Types.ObjectId.isValid(warehouse_id)) {
+      match.warehouse_id = new mongoose.Types.ObjectId(warehouse_id);
+    } else if (warehouse_code && warehouse_code.trim()) {
+      match.warehouse_code = warehouse_code.trim();
+    }
+
+    const pipeline = [];
+    if (Object.keys(match).length > 0) {
+      pipeline.push({ $match: match });
+    }
+
+    pipeline.push({
+      $group: {
+        _id: '$combo_kit_id',
+        total_pincodes: { $sum: 1 },
+        min_cost: { $min: '$delivery_cost' },
+        max_cost: { $max: '$delivery_cost' },
+        min_loose_cost: { $min: '$loose_delivery_cost' },
+        max_loose_cost: { $max: '$loose_delivery_cost' },
+        min_po_cost: { $min: '$po_delivery_cost' },
+        max_po_cost: { $max: '$po_delivery_cost' },
+        min_trial_cost: { $min: '$trial_delivery_cost' },
+        max_trial_cost: { $max: '$trial_delivery_cost' },
+        active_count: {
+          $sum: { $cond: [{ $eq: ['$is_active', true] }, 1, 0] },
         },
       },
-    ]);
+    });
+
+    const stats = await PincodeDeliveryCost.aggregate(pipeline);
 
     return res.status(200).json({
       status: 'success',
@@ -969,8 +1109,56 @@ const get_kit_stats = async (req, res) => {
   }
 };
 
+/**
+ * GET /admin-api/pincode-delivery-costs/warehouse-summary
+ * Aggregates configured delivery freight stats per warehouse
+ */
+const get_warehouse_delivery_summary = async (req, res) => {
+  try {
+    const stats = await PincodeDeliveryCost.aggregate([
+      {
+        $group: {
+          _id: { $ifNull: ['$warehouse_code', 'DEFAULT'] },
+          warehouse_id: { $first: '$warehouse_id' },
+          warehouse_code: { $first: '$warehouse_code' },
+          warehouse_name: { $first: '$warehouse_name' },
+          total_rules: { $sum: 1 },
+          distinct_pincodes: { $addToSet: '$pincode' },
+          distinct_kits: { $addToSet: '$combo_kit_id' },
+          min_cost: { $min: '$delivery_cost' },
+          max_cost: { $max: '$delivery_cost' },
+          active_rules: { $sum: { $cond: [{ $eq: ['$is_active', true] }, 1, 0] } },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          warehouse_id: 1,
+          warehouse_code: 1,
+          warehouse_name: 1,
+          total_rules: 1,
+          total_pincodes: { $size: '$distinct_pincodes' },
+          total_kits: { $size: '$distinct_kits' },
+          min_cost: 1,
+          max_cost: 1,
+          active_rules: 1,
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      status: 'success',
+      data: stats,
+    });
+  } catch (error) {
+    console.error('Error in get_warehouse_delivery_summary:', error);
+    return res.status(500).json({ status: 'error', message: error.message || 'Internal Server Error' });
+  }
+};
+
 module.exports = {
   get_fulfillment_warehouses,
+  get_warehouse_delivery_summary,
   get_delivery_costs,
   get_kit_stats,
   create_delivery_cost,

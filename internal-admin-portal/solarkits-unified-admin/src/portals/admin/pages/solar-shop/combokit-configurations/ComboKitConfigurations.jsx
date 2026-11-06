@@ -56,7 +56,14 @@ function ComboKitConfigurations() {
                     </Suspense>
                 </PermissionGuard>
             } />
-            <Route path="/pincode-delivery-costs" element={
+                        <Route path="/pincode-delivery-costs/:warehouseId" element={
+                <PermissionGuard requiredUniqueId="ADM_COMBO_KITS">
+                    <Suspense fallback={<Loader text="Loading Warehouse Pincode Delivery Costs..." />}>
+                        <PincodeDeliveryCosts moduleUniqueId="ADM_COMBO_KITS" />
+                    </Suspense>
+                </PermissionGuard>
+            } />
+<Route path="/pincode-delivery-costs" element={
                 <PermissionGuard requiredUniqueId="ADM_COMBO_KITS">
                     <Suspense fallback={<Loader text="Loading Pincode Delivery Costs..." />}>
                         <PincodeDeliveryCosts moduleUniqueId="ADM_COMBO_KITS" />

@@ -1855,12 +1855,22 @@ const get_reseller_commission_rates = async (req, res) => {
     }).populate('combo_kit_id', 'name kit_name kit_code capacity order_quantities loose_order_quantities').lean();
 
     if (individualRules && individualRules.length > 0) {
-      const rates = individualRules.map((r) => ({
-        combo_kit_id: r.combo_kit_id?._id || r.combo_kit_id,
-        order_quantity: r.order_quantity,
-        order_type: r.order_type,
-        commission_amount_paise: r.commission_amount_paise,
-      }));
+      const rates = individualRules.map((r) => {
+        const kitObj = r.combo_kit_id && typeof r.combo_kit_id === 'object' ? r.combo_kit_id : null;
+        const kitId = kitObj?._id ? kitObj._id.toString() : (r.combo_kit_id ? r.combo_kit_id.toString() : '');
+        const kitName = kitObj?.name || kitObj?.kit_name || 'Combo Kit';
+        return {
+          _id: r._id,
+          combo_kit_id: kitId,
+          kit_id: kitId,
+          kit_name: kitName,
+          kit_code: kitObj?.kit_code || '',
+          capacity: kitObj?.capacity || '',
+          order_quantity: r.order_quantity,
+          order_type: r.order_type,
+          commission_amount_paise: r.commission_amount_paise,
+        };
+      });
       return res.json({ status: 'success', data: rates });
     }
 
