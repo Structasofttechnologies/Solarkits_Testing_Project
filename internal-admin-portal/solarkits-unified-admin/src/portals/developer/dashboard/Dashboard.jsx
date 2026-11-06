@@ -87,6 +87,8 @@ export default function Dashboard() {
     const normalizedPath = location.pathname.replace(/\/$/, "");
     if (normalizedPath === "/developer-panel") {
       navigate("/developer-panel/home", { replace: true });
+    } else if (normalizedPath.startsWith("/developer-panel/solar-shop")) {
+      navigate("/admin-panel/solar-shop/india/home", { replace: true });
     }
   }, [location.pathname, navigate]);
 

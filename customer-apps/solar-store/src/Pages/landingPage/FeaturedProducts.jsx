@@ -103,7 +103,8 @@ const PRODUCTS = [
 
 ];
 
-function ProductCard({ product, fieldVisibility = {} }) {
+function ProductCard({ product, fieldVisibility = {}, onCtaClick }) {
+  const navigate = useNavigate();
   const [wished, setWished] = useState(false);
   const price = Number(product.price) || 0;
   const mrp = Number(product.mrp) || price;
@@ -247,11 +248,17 @@ function ProductCard({ product, fieldVisibility = {} }) {
         {showCta && (
           <button
             type="button"
-            onClick={() => navigate("/shop")}
+            onClick={() => {
+              if (onCtaClick) {
+                onCtaClick(product);
+              } else {
+                navigate("/auth/login");
+              }
+            }}
             className="mt-auto flex w-full items-center justify-center gap-2 rounded-xl bg-primary-500 py-3.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-primary-600 hover:shadow-lg active:scale-[0.98] cursor-pointer"
           >
             <FiShoppingCart className="text-lg" />
-            {product.cta_label || "View & Add to Cart"}
+            {product.cta_label || "Buy in Bulk"}
           </button>
         )}
       </div>
@@ -518,7 +525,7 @@ export default function FeaturedProducts({ productsConfig }) {
           brand: k.brand || "SolarKits Prime",
           img: k.kitImage || imgKit,
           stock_status: "In Stock • Fast Delivery",
-          cta_label: "View & Add to Cart"
+          cta_label: "Buy in Bulk"
         };
       });
     }
@@ -796,7 +803,7 @@ export default function FeaturedProducts({ productsConfig }) {
               pauseOnMouseEnter: true,
             }}
             navigation={false}
-            loop={displayItems.length > 2}
+            loop={displayItems.length >= 6}
             grabCursor
             spaceBetween={24}
             slidesPerView={1}
@@ -814,7 +821,11 @@ export default function FeaturedProducts({ productsConfig }) {
           >
             {displayItems.map((product, idx) => (
               <SwiperSlide key={product.id || idx} className="h-auto">
-                <ProductCard product={product} fieldVisibility={fieldVisibility} />
+                <ProductCard
+                  product={product}
+                  fieldVisibility={fieldVisibility}
+                  onCtaClick={() => navigate("/auth/login")}
+                />
               </SwiperSlide>
             ))}
           </Swiper>

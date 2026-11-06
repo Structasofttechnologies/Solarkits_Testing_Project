@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { FaHome, FaUserCheck, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf } from "react-icons/fa";
+import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf } from "react-icons/fa";
 import { HiCube } from "react-icons/hi";
 import { useSelector, useDispatch } from "react-redux";
 import { setAlert } from "../features/alert.slice";
@@ -46,6 +46,7 @@ const PaymentMilestoneSettings = lazy(() => import("../pages/solar-shop/payment-
 
 const Home = lazy(() => import("../pages/solar-shop/Home"));
 const ApproveNewEPC = lazy(() => import("../pages/solar-shop/approve-new-epc/ApproveNewEPC"));
+const WebsiteEpcLeads = lazy(() => import("../pages/dashboard/website-configuration/WebsiteEpcLeads"));
 const PoOrders = lazy(() => import("../pages/solar-shop/po-orders/PoOrders"));
 const WarehousePoConfig = lazy(() => import("../pages/solar-shop/po-orders/WarehousePoConfig"));
 const LooseOrders = lazy(() => import("../pages/solar-shop/loose-orders/LooseOrders"));
@@ -84,6 +85,7 @@ const menus = [
     [{ step: "01", badgeKey: "01", name: "Dashboard", icon: <FaHome />, path: "/admin-panel/solar-shop/home", unique_id: "00000000" }],
     [
         { step: "02", badgeKey: "02", name: "Approve New EPC", icon: <FaUserCheck />, path: "/admin-panel/solar-shop/approve-new-epc", unique_id: "ADM_APPROVE_EPC" },
+        { step: "02B", badgeKey: "website-leads", name: "Website EPC Leads", icon: <FaUsers />, path: "/admin-panel/solar-shop/website-epc-leads", unique_id: "ADM_APPROVE_EPC" },
         {
             step: "03",
             badgeKey: "03",
@@ -381,6 +383,13 @@ const menus = [
                     path: "/admin-panel/solar-shop/reseller-management/leads",
                     unique_id: "RSL_MGMT",
                     badgeKey: "leads"
+                },
+                {
+                    name: "Website EPC Leads",
+                    icon: <FiUsers />,
+                    path: "/admin-panel/website-configurations/epc-leads",
+                    unique_id: "ADM_WEBSITE_CONFIG",
+                    badgeKey: "website-leads"
                 },
                 {
                     name: "Onboard New Store",
@@ -714,6 +723,16 @@ export default function SolarShopDashboard() {
                                         }
                                     />
                                     <Route
+                                        path="/website-epc-leads"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="ADM_APPROVE_EPC">
+                                                <Suspense fallback={<Loader text="Loading Website EPC Leads..." />}>
+                                                    <WebsiteEpcLeads />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
                                         path="/po-orders"
                                         element={
                                             <PermissionGuard requiredUniqueId="ADM_PO_ORDERS">
@@ -789,6 +808,16 @@ export default function SolarShopDashboard() {
                                             <PermissionGuard requiredUniqueId="ADM_APPROVE_EPC">
                                                 <Suspense fallback={<Loader text="Loading content..." />}>
                                                     <ApproveNewEPC moduleUniqueId="ADM_APPROVE_EPC" />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/website-epc-leads"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="ADM_APPROVE_EPC">
+                                                <Suspense fallback={<Loader text="Loading Website EPC Leads..." />}>
+                                                    <WebsiteEpcLeads />
                                                 </Suspense>
                                             </PermissionGuard>
                                         }

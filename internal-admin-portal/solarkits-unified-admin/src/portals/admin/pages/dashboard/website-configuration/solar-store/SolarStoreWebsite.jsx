@@ -46,6 +46,172 @@ import Loader from "../../../../components/Loader";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/admin-api";
 
+export const DEFAULT_INDUSTRY_TYPES = [
+  {
+    id: "solar-pv",
+    industry_slug: "solar-pv",
+    name: "Solar PV Ecosystem",
+    count: "45+ Kits",
+    label: "Solar PV",
+    desc: "Grid-tied, hybrid, and off-grid rooftop solar packages for homes, housing societies, and commercial buildings with net-metering & PM Surya Ghar subsidy.",
+    icon_type: "sun",
+    subcategories_preview: "Residential Solar • Commercial & Industrial • Ground-Mount"
+  },
+  {
+    id: "solar-agriculture",
+    industry_slug: "solar-agriculture",
+    name: "Solar Agriculture",
+    count: "30+ Kits",
+    label: "Agro-Solar",
+    desc: "Solar water pumping systems (DC/AC submersible & surface), solar cold storage, and microgrid kits for farms under PM KUSUM Scheme.",
+    icon_type: "agriculture",
+    subcategories_preview: "Solar Water Pumps • Cold Storages • Agro-processing Mills"
+  },
+  {
+    id: "solar-ev",
+    industry_slug: "solar-ev",
+    name: "Solar EV Infrastructure",
+    count: "20+ Kits",
+    label: "EV Mobility",
+    desc: "Solar carports and fast DC / AC EV charging station kits integrated with grid power and battery backup for commercial fleet hubs.",
+    icon_type: "zap",
+    subcategories_preview: "Solar Carports • 2W/3W/4W EV Charging Stations"
+  },
+  {
+    id: "energy-storage",
+    industry_slug: "energy-storage",
+    name: "Energy Storage (BESS)",
+    count: "25+ Kits",
+    label: "BESS & ESS",
+    desc: "High-density Lithium Ferro Phosphate (LFP) Battery Energy Storage Systems for 24x7 uninterrupted power and industrial peak shaving.",
+    icon_type: "package",
+    subcategories_preview: "Residential BESS • Industrial Peak Shaving • Remote Microgrids"
+  },
+  {
+    id: "solar-lighting",
+    industry_slug: "solar-lighting",
+    name: "Solar Lighting & Security",
+    count: "35+ Kits",
+    label: "Smart Lighting",
+    desc: "All-in-one smart solar streetlights, semi-integrated floodlights, and CCTV surveillance combo kits for rural roads and factory campuses.",
+    icon_type: "grid",
+    subcategories_preview: "Smart All-in-One Streetlights • Factory Perimeter • Rural Highmasts"
+  },
+  {
+    id: "solar-thermal",
+    industry_slug: "solar-thermal",
+    name: "Solar Thermal & Heating",
+    count: "15+ Kits",
+    label: "Thermal",
+    desc: "High-efficiency pressurized & non-pressurized solar water heating kits and industrial process hot water solutions for institutions.",
+    icon_type: "sun",
+    subcategories_preview: "Domestic Hot Water • Commercial Boilers • Dairy Heating"
+  },
+  {
+    id: "rural-solar",
+    industry_slug: "rural-solar",
+    name: "Rural Solar Solutions",
+    count: "20+ Kits",
+    label: "Rural Solar",
+    desc: "Decentralized solar microgrids, off-grid solar home lighting systems, community drinking water pumps, and rural livelihood applications.",
+    icon_type: "sun",
+    subcategories_preview: "Solar Home Lighting • Village Microgrids • Community Solar Pumps"
+  }
+];
+
+export const DEFAULT_NATIONAL_BEST_SELLERS = [
+  {
+    id: 1,
+    combo_kit_id: "675000000000000000000001",
+    name: "3 KW Solarkits DCR Complete Home Combo Kit",
+    category: "On-Grid Solar Kit",
+    brand: "SolarKits Prime",
+    badge: "🔥 #1 Best Seller in India",
+    badgeColor: "bg-amber-500 text-white",
+    rating: 4.9,
+    reviews: 228,
+    price: 79498.75,
+    mrp: 98000,
+    discount: 19,
+    watt: "3kW Kit",
+    inStock: true,
+    region: "ALL INDIA (NATIONAL SCOPE)",
+    sales_volume: 184,
+    orders_count: 98,
+    show_badge: true,
+    show_watt: true,
+    show_brand_category: true,
+    show_price: true,
+    show_mrp: true,
+    show_discount: true,
+    show_rating: true,
+    show_reviews: true,
+    show_stock_status: true,
+    show_cta: true,
+    show_quick_view: true
+  },
+  {
+    id: 2,
+    combo_kit_id: "675000000000000000000002",
+    name: "2 K.W. Solarkits DCR Rooftop Combo Kit",
+    category: "On-Grid Solar Kit",
+    brand: "SolarKits Prime",
+    badge: "⚡ High Demand in India",
+    badgeColor: "bg-sky-500 text-white",
+    rating: 4.9,
+    reviews: 204,
+    price: 57548.75,
+    mrp: 72000,
+    discount: 20,
+    watt: "2kW Kit",
+    inStock: true,
+    region: "ALL INDIA (NATIONAL SCOPE)",
+    sales_volume: 126,
+    orders_count: 72,
+    show_badge: true,
+    show_watt: true,
+    show_brand_category: true,
+    show_price: true,
+    show_mrp: true,
+    show_discount: true,
+    show_rating: true,
+    show_reviews: true,
+    show_stock_status: true,
+    show_cta: true,
+    show_quick_view: true
+  },
+  {
+    id: 3,
+    combo_kit_id: "675000000000000000000003",
+    name: "1 K.W. Solarkits DCR Kit",
+    category: "On-Grid Solar Kit",
+    brand: "SolarKits Prime",
+    badge: "⭐ Top Rated in India",
+    badgeColor: "bg-emerald-500 text-white",
+    rating: 4.9,
+    reviews: 180,
+    price: 31324.25,
+    mrp: 42000,
+    discount: 25,
+    watt: "1kW Kit",
+    inStock: true,
+    region: "ALL INDIA (NATIONAL SCOPE)",
+    sales_volume: 88,
+    orders_count: 54,
+    show_badge: true,
+    show_watt: true,
+    show_brand_category: true,
+    show_price: true,
+    show_mrp: true,
+    show_discount: true,
+    show_rating: true,
+    show_reviews: true,
+    show_stock_status: true,
+    show_cta: true,
+    show_quick_view: true
+  }
+];
+
 const DEFAULT_SOLAR_STORE_STATE = {
   hero: {
     enabled: true,
@@ -56,19 +222,19 @@ const DEFAULT_SOLAR_STORE_STATE = {
   },
   categories: {
     enabled: true,
-    badge_text: "",
-    heading: "",
-    highlight_heading: "",
-    subtitle: "",
-    items: [],
+    badge_text: "Browse by Industry & Application",
+    heading: "Find the Right Solar",
+    highlight_heading: "Kit Solution",
+    subtitle: "Explore our certified range of complete solar kits engineered for Residential, Commercial, Agriculture, EV and Industrial power needs.",
+    items: DEFAULT_INDUSTRY_TYPES,
     quality_note_1: "",
     quality_note_2: "",
   },
   featured_products: {
     enabled: true,
-    badge_text: "Most Popular",
-    heading: "Bestselling Solar Kits",
-    subtitle: "Explore our most trusted pre-configured solar combo kits selected for high performance, durability and maximum subsidy benefits.",
+    badge_text: "National Best Sellers",
+    heading: "Bestselling Solar Combo Kits",
+    subtitle: "Explore our most trusted pre-configured solar combo kits actively ordered by EPC contractors across India with verified subsidy benefits.",
     view_all_text: "View All Solar Kits",
     view_all_href: "/shop",
     field_visibility: {
@@ -84,7 +250,7 @@ const DEFAULT_SOLAR_STORE_STATE = {
       show_cta: true,
       show_quick_view: true,
     },
-    items: [],
+    items: DEFAULT_NATIONAL_BEST_SELLERS,
   },
   why_choose: {
     enabled: true,
@@ -149,6 +315,111 @@ export default function SolarStoreWebsite() {
   const [bestSellerQuickAddId, setBestSellerQuickAddId] = useState("");
   const [previewCardIdx, setPreviewCardIdx] = useState(null);
   const [uploadingProductImgIdx, setUploadingProductImgIdx] = useState(null);
+
+  // ── Industry Types & Project Types Integration ─────────────────────────────
+  const [industryTypes, setIndustryTypes] = useState(DEFAULT_INDUSTRY_TYPES);
+  const [loadingIndustries, setLoadingIndustries] = useState(false);
+  const [selectedIndustryToAdd, setSelectedIndustryToAdd] = useState("");
+
+  const fetchIndustryData = useCallback(async () => {
+    setLoadingIndustries(true);
+    try {
+      const res = await axios.get(
+        `${API_URL}/industry-types/list?active_only=true&unique_id=ADM_PROJ_TYPES&req_for=view`,
+        { headers: authHeaderObj() }
+      ).catch(() => null);
+
+      const hRes = await axios.get(
+        `${API_URL}/project-types/get-all-hierarchy?unique_id=ADM_PROJ_TYPES&req_for=view`,
+        { headers: authHeaderObj() }
+      ).catch(() => null);
+
+      const items = res?.data?.data || [];
+      const hierarchy = hRes?.data?.data || [];
+
+      if (items.length > 0) {
+        const mapped = items.map((ind) => {
+          const hMatch = hierarchy.find(h => String(h.id) === String(ind.id) || h.slug === ind.slug);
+          const cats = hMatch?.categories || [];
+          const catNames = cats.map(c => c.name).filter(Boolean);
+          const subCount = cats.reduce((acc, c) => acc + (c.subcategories?.length || 0), 0);
+
+          return {
+            id: ind.slug || ind.id,
+            industry_id: ind.id,
+            industry_slug: ind.slug,
+            name: ind.name,
+            label: ind.code || ind.name,
+            count: subCount > 0 ? `${subCount}+ Sub-types` : "Complete Range",
+            desc: ind.description || `Certified solar systems and engineering kits for ${ind.name} applications.`,
+            icon_type: ind.slug?.includes('agri') ? 'agriculture' : ind.slug?.includes('ev') ? 'zap' : ind.slug?.includes('storage') ? 'package' : 'sun',
+            subcategories_preview: catNames.slice(0, 3).join(' • ') || 'Full Industrial Range'
+          };
+        });
+        setIndustryTypes(mapped);
+
+        // Auto-update sections.categories.items to all active industries if missing any
+        setSections((prev) => {
+          const currentCats = prev.categories?.items || [];
+          if (currentCats.length < mapped.length || !currentCats.some(c => (c.name || '').toLowerCase().includes('rural'))) {
+            return {
+              ...prev,
+              categories: {
+                ...prev.categories,
+                items: mapped
+              }
+            };
+          }
+          return prev;
+        });
+      }
+    } catch (e) {
+      console.warn("Could not load industry types:", e);
+    } finally {
+      setLoadingIndustries(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchIndustryData();
+  }, [fetchIndustryData]);
+
+  const handleSyncFromProjectTypes = () => {
+    const listToSync = industryTypes.length > 0 ? industryTypes : DEFAULT_INDUSTRY_TYPES;
+    setSections((prev) => ({
+      ...prev,
+      categories: {
+        ...prev.categories,
+        items: listToSync
+      }
+    }));
+    setAlert({
+      type: "success",
+      message: `Live synced ${listToSync.length} Industry Types from Project Logic!`
+    });
+  };
+
+  const handleQuickAddIndustry = (e) => {
+    const indId = e.target.value;
+    setSelectedIndustryToAdd(indId);
+    if (!indId) return;
+
+    const matched = industryTypes.find(i => String(i.id) === String(indId) || String(i.industry_id) === String(indId));
+    if (!matched) return;
+
+    setSections((prev) => ({
+      ...prev,
+      categories: {
+        ...prev.categories,
+        items: [...(prev.categories?.items || []), matched]
+      }
+    }));
+    setAlert({
+      type: "success",
+      message: `Added ${matched.name} to category ribbons!`
+    });
+    setSelectedIndustryToAdd("");
+  };
 
   const fetchBestSellerData = useCallback(async () => {
     setLoadingBestSellers(true);
@@ -251,10 +522,27 @@ export default function SolarStoreWebsite() {
     try {
       const res = await getWebsiteContent("solar-store");
       if (res && res.data && res.data.sections) {
-        setSections({
+        const loaded = {
           ...DEFAULT_SOLAR_STORE_STATE,
           ...res.data.sections,
-        });
+        };
+
+        // Auto-upgrade legacy dummy products to real national best sellers
+        const prods = loaded.featured_products?.items || [];
+        const isDummyProds = prods.some(p => (p.name || '').includes('Smart On-Grid') || p.price === 48000);
+        if (isDummyProds || prods.length === 0) {
+          loaded.featured_products.items = DEFAULT_NATIONAL_BEST_SELLERS;
+        }
+
+        // Auto-upgrade legacy dummy categories to master industry types
+        const cats = loaded.categories?.items || [];
+        const isDummyCats = cats.some(c => c.name === 'On-Grid Solar Kits' && !cats.some(x => x.name?.includes('Solar PV')));
+        const isMissingRural = !cats.some(x => (x.name || '').toLowerCase().includes('rural'));
+        if (isDummyCats || cats.length < 7 || isMissingRural) {
+          loaded.categories.items = DEFAULT_INDUSTRY_TYPES;
+        }
+
+        setSections(loaded);
       }
     } catch (err) {
       console.warn("Could not load from API, using clean default store data:", err);
@@ -1486,11 +1774,51 @@ export default function SolarStoreWebsite() {
             </div>
           </div>
 
+          {/* Industry Logic Sync Banner */}
+          <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-primary/5 to-surface border border-amber-500/20 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-500 text-white">
+                  ⚡ Live Project Types Integration
+                </span>
+                <span className="text-xs font-bold text-text-primary">
+                  Dynamic Industry Wise Ribbons
+                </span>
+              </div>
+              <p className="text-[11px] text-text-secondary mt-1">
+                Cards pull live from Product Configurations &gt; Project Types (Solar PV, Agro, EV, BESS, Lighting, Thermal).
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedIndustryToAdd}
+                onChange={handleQuickAddIndustry}
+                className="px-3 py-2 bg-surface border border-border rounded-xl text-xs font-bold text-text-primary shadow-xs cursor-pointer max-w-xs truncate"
+              >
+                <option value="">-- Choose Industry Type to Add Card --</option>
+                {industryTypes.map((ind) => (
+                  <option key={ind.id} value={ind.id}>
+                    + Add {ind.name} ({ind.count || 'Active'})
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={handleSyncFromProjectTypes}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-sm transition-all cursor-pointer shrink-0"
+              >
+                <FiZap size={14} /> Live Sync All Industries
+              </button>
+            </div>
+          </div>
+
           {/* Cards Grid */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">
-                Category Cards ({sections.categories?.items?.length || 0})
+                Category / Industry Cards ({sections.categories?.items?.length || 0})
               </h4>
               <button
                 type="button"
@@ -1523,13 +1851,26 @@ export default function SolarStoreWebsite() {
 
                   <div>
                     <label className="text-[10px] font-bold text-text-secondary block">
-                      Category Name
+                      Industry / Category Name
                     </label>
                     <input
                       type="text"
                       value={cat.name}
                       onChange={(e) => handleUpdateCategory(idx, "name", e.target.value)}
                       className="w-full px-2.5 py-1.5 bg-surface-hover border border-border rounded-lg text-xs font-bold text-text-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-text-secondary block">
+                      Sub-Types / Hierarchy Preview
+                    </label>
+                    <input
+                      type="text"
+                      value={cat.subcategories_preview || ""}
+                      onChange={(e) => handleUpdateCategory(idx, "subcategories_preview", e.target.value)}
+                      placeholder="Residential Solar • Commercial & Industrial"
+                      className="w-full px-2.5 py-1.5 bg-surface-hover border border-border rounded-lg text-xs font-semibold text-primary"
                     />
                   </div>
 

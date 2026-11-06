@@ -42,7 +42,7 @@ const schema = new mongoose.Schema(
       match: [/^[6-9]\d{9}$/, 'Please enter a valid 10-digit Indian mobile number'],
       index: true,
     },
-    email: { type: String, required: true, trim: true, lowercase: true, maxlength: 150, index: true },
+    email: { type: String, default: null, trim: true, lowercase: true, maxlength: 150, index: true },
     gst_number: { type: String, default: null, trim: true, uppercase: true, maxlength: 20, index: true },
     gst_verified: { type: Boolean, default: false },
     gst_legal_name: { type: String, default: null, trim: true, maxlength: 300 },

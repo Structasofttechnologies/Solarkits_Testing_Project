@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect } from "react"
-import { Routes, Route } from "react-router-dom";
+import { lazy, Suspense, useEffect } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { useDispatch, Provider } from "react-redux";
 import store from "./app/store";
 import { ensureValidAccessToken } from "./features/auth.slice.jsx";
@@ -8,7 +8,7 @@ import Alert from "./components/Alert";
 import Loader from "./components/Loader";
 import ProtectedRoutes from "./components/ProtectedRoutes";
 import { ms_conversion } from "./utils/msConversion.jsx";
-const Dashboard = lazy(() => import("./dashboard/Dashboard"))
+const Dashboard = lazy(() => import("./dashboard/Dashboard"));
 
 function DeveloperPortalInner() {
   const dispatch = useDispatch();
@@ -24,8 +24,10 @@ function DeveloperPortalInner() {
   return (
     <>
       <Routes>
-        <Route path='/*' element={<ProtectedRoutes />} >
-          <Route path='solar-shop/*' element={<Suspense fallback={<Loader />}><Dashboard /></Suspense>} />
+        <Route path='/*' element={<ProtectedRoutes />}>
+          {/* Redirect SaaS product solar-shop to the real solar shop dashboard */}
+          <Route path='solar-shop/*' element={<Navigate to="/admin-panel/solar-shop/india/home" replace />} />
+          <Route path='solar-shop' element={<Navigate to="/admin-panel/solar-shop/india/home" replace />} />
           <Route path='*' element={<Suspense fallback={<Loader />}><Dashboard /></Suspense>} />
         </Route>
       </Routes>

@@ -1,0 +1,424 @@
+/**
+ * website.epc.lead.handler.js
+ *
+ * Controller for:
+ * 1. Public submission of Bulk Solar Kit inquiries by EPCs from the website banner
+ * 2. Admin dashboard listing with state-wise, BDE-wise and status filters
+ * 3. Multi-lead selection and bulk assignment to BDEs
+ * 4. Status tracking and audit
+ */
+
+const mongoose = require('mongoose');
+const { WebsiteEpcLead, BDEProfile } = require('../models/india_solarshop_db');
+const { GeoLevel1 } = require('../models/geolocation_db');
+
+// Helper to generate unique Lead ID
+const generateLeadId = async () => {
+  const year = new Date().getFullYear();
+  const prefix = `WEB-${year}-`;
+  try {
+    const count = await WebsiteEpcLead.countDocuments({
+      lead_id: { $regex: `^${prefix}` }
+    });
+    const sequence = String(count + 1).padStart(4, '0');
+    const randomSuffix = Math.floor(100 + Math.random() * 900);
+    return `${prefix}${sequence}${randomSuffix}`;
+  } catch (e) {
+    return `${prefix}${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
+  }
+};
+
+/**
+ * 1. PUBLIC: Submit Bulk Solar Kit Inquiry from Website Banner
+ * POST /api/india/v1/website-leads/submit
+ */
+exports.submit_website_lead = async (req, res) => {
+  try {
+    const {
+      name,
+      phone,
+      email,
+      state_name,
+      state_id,
+      district_name,
+      pincode,
+      estimated_quantity,
+      query_message,
+      project_type,
+    } = req.body;
+
+    // Validation
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'Please enter your name or company name.' });
+    }
+
+    const cleanPhone = String(phone || '').replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid 10-digit mobile number.' });
+    }
+    const finalPhone = cleanPhone.slice(-10);
+
+    if (!state_name || !state_name.trim()) {
+      return res.status(400).json({ success: false, message: 'Please select your state.' });
+    }
+
+    // Auto-resolve state_id if not sent
+    let resolvedStateId = state_id && mongoose.Types.ObjectId.isValid(state_id) ? state_id : null;
+    if (!resolvedStateId && GeoLevel1) {
+      try {
+        const foundState = await GeoLevel1.findOne({
+          name: { $regex: new RegExp(`^${state_name.trim()}$`, 'i') },
+          deleted_at: null,
+        }).select('_id');
+        if (foundState) resolvedStateId = foundState._id;
+      } catch (e) {}
+    }
+
+    const leadId = await generateLeadId();
+    const trimmedName = name.trim();
+
+    const newLead = await WebsiteEpcLead.create({
+      lead_id: leadId,
+      name: trimmedName,
+      company_name: trimmedName,
+      contact_person: trimmedName,
+      phone: finalPhone,
+      mobile_number: finalPhone,
+      email: email && email.trim() ? email.trim().toLowerCase() : `${finalPhone}@lead.solarkits.in`,
+      state_id: resolvedStateId,
+      state_name: state_name.trim(),
+      district_name: district_name ? district_name.trim() : null,
+      pincode: pincode ? pincode.trim() : null,
+      project_type: project_type || 'Bulk Solar Combo Kits',
+      estimated_quantity: estimated_quantity || 'Bulk Order (5+ Kits)',
+      query_message: query_message ? query_message.trim() : null,
+      status: 'new',
+      lead_status: 'New',
+      lead_source: 'portal',
+      source: 'solar-store-bulk-banner',
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Thank you! Your bulk solar kit inquiry has been received. Our regional BDE will contact you shortly.',
+      data: {
+        lead_id: newLead.lead_id,
+        name: newLead.name,
+        phone: newLead.phone,
+        state_name: newLead.state_name,
+        created_at: newLead.created_at,
+      },
+    });
+  } catch (error) {
+    console.error('Error submitting website EPC lead:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to submit inquiry. Please try again or call our hotline.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * 2. PUBLIC / ADMIN: Get Active States (from Setup Location)
+ * GET /api/india/v1/website-leads/active-states
+ */
+exports.get_active_states = async (req, res) => {
+  try {
+    let states = [];
+    if (GeoLevel1) {
+      states = await GeoLevel1.find({
+        is_active: { $ne: false },
+        deleted_at: null,
+      })
+        .select('_id name state_code')
+        .sort({ name: 1 })
+        .lean();
+    }
+
+    // Fallback if none found
+    if (!states || states.length === 0) {
+      const fallback = [
+        'Andhra Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Delhi', 'Goa',
+        'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu & Kashmir', 'Jharkhand',
+        'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Odisha',
+        'Punjab', 'Rajasthan', 'Tamil Nadu', 'Telangana', 'Uttar Pradesh',
+        'Uttarakhand', 'West Bengal'
+      ];
+      states = fallback.map(name => ({ name, state_code: name.slice(0, 2).toUpperCase() }));
+    }
+
+    return res.json({
+      success: true,
+      states,
+    });
+  } catch (error) {
+    console.error('Error fetching active states for leads:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load states' });
+  }
+};
+
+/**
+ * 3. ADMIN: Get Live BDE List for Assignment Dropdown
+ * GET /admin-api/website-leads/bdes
+ */
+exports.get_active_bdes = async (req, res) => {
+  try {
+    const bdes = await BDEProfile.find({
+      status: { $ne: 'inactive' },
+      deleted_at: null,
+    })
+      .select('_id bde_id full_name mobile_number email state_name')
+      .sort({ full_name: 1 })
+      .lean();
+
+    return res.json({
+      success: true,
+      bdes,
+    });
+  } catch (error) {
+    console.error('Error fetching BDEs:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load BDEs' });
+  }
+};
+
+/**
+ * 4. ADMIN: List Website EPC Leads with Filters & Stats
+ * GET /admin-api/website-leads/list
+ */
+exports.list_website_leads = async (req, res) => {
+  try {
+    const {
+      search,
+      state_name,
+      status,
+      bde_id,
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    const query = { deleted_at: null };
+
+    // Search filter
+    if (search && search.trim()) {
+      const s = search.trim();
+      query.$or = [
+        { lead_id: { $regex: s, $options: 'i' } },
+        { name: { $regex: s, $options: 'i' } },
+        { company_name: { $regex: s, $options: 'i' } },
+        { contact_person: { $regex: s, $options: 'i' } },
+        { phone: { $regex: s, $options: 'i' } },
+        { mobile_number: { $regex: s, $options: 'i' } },
+        { email: { $regex: s, $options: 'i' } },
+        { state_name: { $regex: s, $options: 'i' } },
+        { pincode: { $regex: s, $options: 'i' } },
+      ];
+    }
+
+    // State filter
+    if (state_name && state_name !== 'all' && state_name.trim()) {
+      query.state_name = state_name.trim();
+    }
+
+    // Status filter
+    if (status && status !== 'all' && status.trim()) {
+      if (status === 'unassigned') {
+        query.$and = (query.$and || []).concat([
+          { $or: [{ status: 'new' }, { status: null }, { assigned_bde_id: null }] }
+        ]);
+      } else if (status === 'assigned') {
+        query.assigned_bde_id = { $ne: null };
+      } else {
+        query.$or = [{ status: status.trim() }, { lead_status: { $regex: new RegExp(`^${status.trim()}$`, 'i') } }];
+      }
+    }
+
+    // BDE filter
+    if (bde_id && bde_id !== 'all' && bde_id.trim()) {
+      if (bde_id === 'unassigned') {
+        query.assigned_bde_id = null;
+      } else if (mongoose.Types.ObjectId.isValid(bde_id)) {
+        query.$or = [{ assigned_bde_id: bde_id }, { current_bde_id: bde_id }];
+      }
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    // Fetch leads
+    const [rawLeads, totalCount] = await Promise.all([
+      WebsiteEpcLead.find(query)
+        .populate('assigned_bde_id', 'full_name bde_id mobile_number email')
+        .sort({ created_at: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      WebsiteEpcLead.countDocuments(query),
+    ]);
+
+    const leads = rawLeads.map(l => ({
+      ...l,
+      name: l.name || l.contact_person || l.company_name || 'EPC Contractor',
+      phone: l.phone || l.mobile_number || 'N/A',
+      status: l.status || (l.assigned_bde_id ? 'assigned' : 'new'),
+    }));
+
+    // Aggregate statistics across all active leads
+    const [totalAll, unassignedCount, assignedCount, convertedCount] = await Promise.all([
+      WebsiteEpcLead.countDocuments({ deleted_at: null }),
+      WebsiteEpcLead.countDocuments({ deleted_at: null, $or: [{ assigned_bde_id: null }, { status: 'new' }] }),
+      WebsiteEpcLead.countDocuments({ deleted_at: null, assigned_bde_id: { $ne: null } }),
+      WebsiteEpcLead.countDocuments({ deleted_at: null, status: 'converted' }),
+    ]);
+
+    // Distinct states in leads for quick filter dropdown
+    const availableStates = await WebsiteEpcLead.distinct('state_name', { deleted_at: null });
+
+    // Active BDEs for assignment dropdown
+    const availableBdes = await BDEProfile.find({
+      status: { $ne: 'inactive' },
+      deleted_at: null,
+    })
+      .select('_id bde_id full_name mobile_number email')
+      .sort({ full_name: 1 })
+      .lean();
+
+    return res.json({
+      success: true,
+      leads,
+      pagination: {
+        total: totalCount,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(totalCount / limitNum),
+      },
+      stats: {
+        total_leads: totalAll,
+        unassigned_count: unassignedCount,
+        assigned_count: assignedCount,
+        converted_count: convertedCount,
+      },
+      available_states: availableStates.sort(),
+      available_bdes: availableBdes,
+    });
+  } catch (error) {
+    console.error('Error listing website EPC leads:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch leads', error: error.message });
+  }
+};
+
+/**
+ * 5. ADMIN: Multi-Select Bulk Assign Leads to a BDE
+ * POST /admin-api/website-leads/bulk-assign
+ */
+exports.bulk_assign_leads = async (req, res) => {
+  try {
+    const { lead_ids, bde_id } = req.body;
+
+    if (!Array.isArray(lead_ids) || lead_ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'Please select at least one lead to assign.' });
+    }
+
+    if (!bde_id || !mongoose.Types.ObjectId.isValid(bde_id)) {
+      return res.status(400).json({ success: false, message: 'Please select a valid BDE.' });
+    }
+
+    const bde = await BDEProfile.findById(bde_id).select('_id bde_id full_name mobile_number email');
+    if (!bde) {
+      return res.status(404).json({ success: false, message: 'Selected BDE not found in system.' });
+    }
+
+    const assignedBy = req.user?.full_name || req.user?.name || 'Admin';
+    const now = new Date();
+
+    // Map lead_ids to either ObjectIds or lead_id strings
+    const idFilters = lead_ids.map(id => {
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        return { _id: id };
+      }
+      return { lead_id: id };
+    });
+
+    const result = await WebsiteEpcLead.updateMany(
+      { $or: idFilters, deleted_at: null },
+      {
+        $set: {
+          assigned_bde_id: bde._id,
+          assigned_bde_name: bde.full_name,
+          assigned_bde_phone: bde.mobile_number,
+          assigned_at: now,
+          assigned_by: assignedBy,
+          status: 'assigned',
+        },
+      }
+    );
+
+    return res.json({
+      success: true,
+      message: `Successfully assigned ${result.modifiedCount} lead(s) to BDE ${bde.full_name}.`,
+      modified_count: result.modifiedCount,
+      assigned_bde: {
+        _id: bde._id,
+        bde_id: bde.bde_id,
+        full_name: bde.full_name,
+      },
+    });
+  } catch (error) {
+    console.error('Error bulk assigning leads:', error);
+    return res.status(500).json({ success: false, message: 'Failed to assign leads', error: error.message });
+  }
+};
+
+/**
+ * 6. ADMIN: Update Single Lead Status or Remarks
+ * PATCH /admin-api/website-leads/:id
+ */
+exports.update_lead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, remarks, assigned_bde_id } = req.body;
+
+    const query = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { lead_id: id };
+    const lead = await WebsiteEpcLead.findOne(query);
+
+    if (!lead) {
+      return res.status(404).json({ success: false, message: 'Lead not found.' });
+    }
+
+    if (status) lead.status = status;
+    if (remarks !== undefined) lead.remarks = remarks;
+
+    if (assigned_bde_id) {
+      if (mongoose.Types.ObjectId.isValid(assigned_bde_id)) {
+        const bde = await BDEProfile.findById(assigned_bde_id);
+        if (bde) {
+          lead.assigned_bde_id = bde._id;
+          lead.assigned_bde_name = bde.full_name;
+          lead.assigned_bde_phone = bde.mobile_number;
+          lead.assigned_at = new Date();
+          lead.assigned_by = req.user?.full_name || 'Admin';
+          if (lead.status === 'new') lead.status = 'assigned';
+        }
+      } else if (assigned_bde_id === 'unassign') {
+        lead.assigned_bde_id = null;
+        lead.assigned_bde_name = null;
+        lead.assigned_bde_phone = null;
+        lead.assigned_at = null;
+        lead.status = 'new';
+      }
+    }
+
+    await lead.save();
+
+    return res.json({
+      success: true,
+      message: 'Lead updated successfully.',
+      lead,
+    });
+  } catch (error) {
+    console.error('Error updating lead:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update lead', error: error.message });
+  }
+};
+

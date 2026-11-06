@@ -1,15 +1,17 @@
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import axiosInstance from "../../utils/axiosInstance";
 import {
   FiArrowRight,
-  FiFacebook,
-  FiInstagram,
-  FiLinkedin,
   FiMail,
   FiMapPin,
   FiPhone,
-  FiTwitter,
-  FiYoutube,
+  FiCheckCircle,
+  FiAlertCircle,
+  FiLayers,
+  FiSend,
 } from "react-icons/fi";
 import logo from "../../assets/images/logo.png";
 
@@ -20,14 +22,14 @@ const SHOP_LINKS = [
   "Commercial Solar Kits",
 ];
 
-
 export default function Footer({ footerConfig }) {
   const navigate = useNavigate();
+  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-  const boxBadge = footerConfig?.consultation_box?.badge || "Free solar consultation";
-  const boxHeading = footerConfig?.consultation_box?.heading || "Ready to switch to solar?";
-  const boxSubtitle = footerConfig?.consultation_box?.subtitle || "Share your pincode and our expert will suggest the right solar kit.";
-  const boxBtn = footerConfig?.consultation_box?.button_text || "Get free quote";
+  const boxBadge = footerConfig?.consultation_box?.badge || "BULK ORDER & EPC INQUIRY";
+  const boxHeading = footerConfig?.consultation_box?.heading || "Want to Order Bulk Solar Kits? Send Query to Us";
+  const boxSubtitle = footerConfig?.consultation_box?.subtitle || "Direct B2B wholesale pricing, pan-India fast dispatch & dedicated BDE engineer assigned to your account.";
+  const boxBtn = footerConfig?.consultation_box?.button_text || "Send Bulk Query";
 
   const description = footerConfig?.description || "Quality solar kits, honest guidance and reliable support for homes, farms and businesses across India.";
   const phone = footerConfig?.phone || "+91 77779 39842";
@@ -37,43 +39,274 @@ export default function Footer({ footerConfig }) {
   const shopLinks = footerConfig?.shop_links && footerConfig.shop_links.length > 0 ? footerConfig.shop_links : SHOP_LINKS;
   const copyright = footerConfig?.copyright_text || `© ${new Date().getFullYear()} SolarKits™ Pvt. Ltd. All Rights Reserved.`;
 
+  // Bulk Lead Form State
+  const [formData, setFormData] = useState({
+    name: "",
+    phone: "",
+    state_name: "",
+    pincode: "",
+  });
+  const [statesList, setStatesList] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [successData, setSuccessData] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  // Fetch states live from Setup Location API
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStates = async () => {
+      try {
+        // Try active-states endpoint first, fallback to geo/states
+        const res = await axios.get(`${apiBase}/india/v1/website-leads/active-states`).catch(() => {
+          return axios.get(`${apiBase}/india/v1/geo/states`);
+        });
+        if (isMounted && res.data) {
+          const list = res.data.states || [];
+          setStatesList(list);
+        }
+      } catch (err) {
+        console.warn("Could not load states for bulk form:", err.message);
+      }
+    };
+    fetchStates();
+    return () => {
+      isMounted = false;
+    };
+  }, [apiBase]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errorMsg) setErrorMsg("");
+  };
+
+  const handleSubmitLead = async (e) => {
+    e.preventDefault();
+    setErrorMsg("");
+
+    if (!formData.name.trim()) {
+      setErrorMsg("Please enter your name or company name.");
+      return;
+    }
+    const cleanPhone = formData.phone.replace(/\D/g, "");
+    if (!cleanPhone || cleanPhone.length < 10) {
+      setErrorMsg("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+    if (!formData.state_name) {
+      setErrorMsg("Please select your state from the dropdown.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        phone: cleanPhone.slice(-10),
+        state_name: formData.state_name,
+        pincode: formData.pincode.trim() || undefined,
+        estimated_quantity: formData.pincode.trim() || "Bulk Order (5+ Kits)",
+        project_type: "Bulk Solar Combo Kits",
+      };
+
+      let res;
+      try {
+        res = await axiosInstance.post("/india/v1/website-leads/submit", payload);
+      } catch (axErr) {
+        // Fallback to direct absolute URL if axiosInstance fails
+        res = await axios.post(`${apiBase}/india/v1/website-leads/submit`, payload);
+      }
+
+      if (res.data?.success) {
+        setSuccessData(res.data.data);
+        setFormData({ name: "", phone: "", state_name: "", pincode: "" });
+      } else {
+        setErrorMsg(res.data?.message || "Failed to submit inquiry.");
+      }
+    } catch (err) {
+      console.error("Lead submission error:", err);
+      const msg = err.response?.data?.message || err.message || "Failed to submit inquiry. Please ensure server is running.";
+      setErrorMsg(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <footer className="relative overflow-hidden bg-navy text-white">
       <div className="pointer-events-none absolute -right-28 top-24 h-72 w-72 rounded-full bg-primary-500/10 blur-3xl" />
 
       <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
-        {/* Compact quote card */}
-        <div className="relative overflow-hidden rounded-3xl bg-primary-500 px-6 py-7 shadow-2xl shadow-black/15 md:px-9">
-          <div className="absolute -right-12 -top-20 h-52 w-52 rounded-full border-[36px] border-white/10" />
+        {/* Bulk Solar Kits EPC Inquiry Banner */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary-600 via-primary-500 to-navy-800 px-6 py-8 shadow-2xl shadow-black/20 md:px-10">
+          <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full border-[40px] border-white/10 pointer-events-none" />
+          <div className="absolute -left-10 -bottom-16 h-48 w-48 rounded-full bg-accent/15 blur-2xl pointer-events-none" />
+
           <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            {/* Left Content Header */}
             <div className="max-w-xl">
-              <span className="mb-2 block text-xs font-bold uppercase tracking-[0.2em] text-white/70">
-                {boxBadge}
-              </span>
-              <h3 className="font-heading text-2xl font-bold md:text-3xl">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 mb-2.5 backdrop-blur-sm">
+                <FiLayers className="text-accent text-xs" />
+                <span className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-white">
+                  {boxBadge}
+                </span>
+              </div>
+              <h3 className="font-heading text-2xl font-bold md:text-3xl tracking-tight text-white">
                 {boxHeading}
               </h3>
-              <p className="mt-2 text-sm text-white/75">
+              <p className="mt-2 text-sm leading-relaxed text-white/80">
                 {boxSubtitle}
               </p>
             </div>
 
-            <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row">
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                aria-label="Pincode"
-                placeholder="Enter 6-digit pincode"
-                className="min-w-0 flex-1 rounded-xl border border-white/25 bg-white px-4 py-3.5 text-sm text-navy outline-none placeholder:text-slate-400 focus:ring-4 focus:ring-white/20"
-              />
-              <motion.button
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.98 }}
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-accent px-5 py-3.5 text-sm font-bold text-white shadow-lg transition-colors hover:bg-accent-500 cursor-pointer"
-              >
-                {boxBtn} <FiArrowRight />
-              </motion.button>
+            {/* Right: Dynamic Bulk Lead Form */}
+            <div className="w-full lg:max-w-xl">
+              <AnimatePresence mode="wait">
+                {successData ? (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-md text-white shadow-lg"
+                  >
+                    <div className="flex items-start gap-3.5">
+                      <div className="rounded-full bg-emerald-500/20 p-2 text-emerald-400">
+                        <FiCheckCircle className="text-2xl" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-lg text-emerald-300">
+                          Bulk Inquiry Received!
+                        </h4>
+                        <p className="mt-1 text-xs text-white/85 leading-relaxed">
+                          Thank you, <span className="font-semibold text-white">{successData.name}</span>! Your bulk request for <span className="font-semibold text-white">{successData.state_name}</span> has been logged under ID <span className="font-mono font-bold text-accent">{successData.lead_id}</span>.
+                        </p>
+                        <p className="mt-2 text-[11px] text-white/70">
+                          Our Regional Business Development Executive (BDE) will contact you shortly on <span className="font-mono text-white font-medium">+91 {successData.phone}</span> with wholesale pricing & kit availability.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setSuccessData(null)}
+                          className="mt-3.5 inline-flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline cursor-pointer"
+                        >
+                          Submit another query <FiArrowRight />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <form
+                    onSubmit={handleSubmitLead}
+                    className="rounded-2xl border border-white/20 bg-white/10 p-4 sm:p-5 backdrop-blur-md shadow-lg"
+                  >
+                    {errorMsg && (
+                      <div className="mb-3 flex items-center gap-2 rounded-xl bg-rose-500/20 px-3.5 py-2 text-xs text-rose-200 border border-rose-500/30">
+                        <FiAlertCircle className="shrink-0 text-sm" />
+                        <span>{errorMsg}</span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {/* Name */}
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-1">
+                          Contractor / EPC Name *
+                        </label>
+                        <input
+                          type="text"
+                          name="name"
+                          value={formData.name}
+                          onChange={handleInputChange}
+                          placeholder="e.g. Ramesh Patel / Solar Solutions"
+                          className="w-full rounded-xl border border-white/25 bg-white px-3.5 py-2.5 text-xs text-navy outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-accent"
+                        />
+                      </div>
+
+                      {/* Mobile */}
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-1">
+                          Mobile Number *
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-500">
+                            +91
+                          </span>
+                          <input
+                            type="tel"
+                            name="phone"
+                            maxLength={10}
+                            value={formData.phone}
+                            onChange={handleInputChange}
+                            placeholder="10-digit number"
+                            className="w-full rounded-xl border border-white/25 bg-white pl-11 pr-3 py-2.5 text-xs text-navy outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-accent"
+                          />
+                        </div>
+                      </div>
+
+                      {/* State Dropdown (Live from Setup Location) */}
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-1">
+                          Delivery State *
+                        </label>
+                        <select
+                          name="state_name"
+                          value={formData.state_name}
+                          onChange={handleInputChange}
+                          className="w-full rounded-xl border border-white/25 bg-white px-3 py-2.5 text-xs text-navy outline-none focus:ring-2 focus:ring-accent cursor-pointer"
+                        >
+                          <option value="">-- Choose State --</option>
+                          {statesList.map((st) => {
+                            const name = typeof st === "string" ? st : st.name;
+                            return (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+
+                      {/* Pincode or Quantity */}
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-1">
+                          Pincode / Bulk Quantity
+                        </label>
+                        <input
+                          type="text"
+                          name="pincode"
+                          value={formData.pincode}
+                          onChange={handleInputChange}
+                          placeholder="e.g. 360001 or 5x 3kW Kits"
+                          className="w-full rounded-xl border border-white/25 bg-white px-3.5 py-2.5 text-xs text-navy outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-accent"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3.5 flex items-center justify-between gap-3 pt-1 border-t border-white/10">
+                      <span className="text-[11px] text-white/60 hidden sm:inline">
+                        ⚡ Pan-India B2B Dispatch & MNRE Empanelled Kits
+                      </span>
+                      <motion.button
+                        type="submit"
+                        disabled={loading}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="inline-flex w-full sm:w-auto items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-accent px-5 py-2.5 text-xs font-bold text-white shadow-lg transition-colors hover:bg-accent-500 cursor-pointer disabled:opacity-60"
+                      >
+                        {loading ? (
+                          <>
+                            <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            {boxBtn} <FiSend className="text-xs" />
+                          </>
+                        )}
+                      </motion.button>
+                    </div>
+                  </form>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
@@ -137,7 +370,6 @@ export default function Footer({ footerConfig }) {
                 <FiArrowRight />
               </button>
             </form>
-
           </div>
         </div>
       </div>

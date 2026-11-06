@@ -260,4 +260,6 @@ module.exports = {
   ProductPaymentMilestone,
   // --- Benchmark Price Approval Module ---
   BenchmarkApprovalConfig,
+  // --- Website EPC Bulk Leads Module ---
+  WebsiteEpcLead: require('./website_epc_leads.schema'),
 };

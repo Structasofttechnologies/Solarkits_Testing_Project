@@ -1,12 +1,14 @@
 import React, { lazy, Suspense } from "react";
 import { Route, Routes, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { FaGlobe, FaStore, FaFileContract } from "react-icons/fa";
+import { FaGlobe, FaStore, FaFileContract, FaUsersCog } from "react-icons/fa";
 import { HiCube } from "react-icons/hi";
+import { FiUsers } from "react-icons/fi";
 import Loader from "../../../components/Loader";
 
 const SolarKitsWebsite = lazy(() => import("./solar-kits/SolarKitsWebsite"));
 const FranchiseWebsite = lazy(() => import("./franchise/FranchiseWebsite"));
 const SolarStoreWebsite = lazy(() => import("./solar-store/SolarStoreWebsite"));
+const WebsiteEpcLeads = lazy(() => import("./WebsiteEpcLeads"));
 
 const TABS = [
   {
@@ -29,6 +31,13 @@ const TABS = [
     subPath: "solar-store",
     icon: <FaStore className="text-lg" />,
     badge: "Storefront",
+  },
+  {
+    name: "Website EPC Leads",
+    path: "/admin-panel/website-configurations/epc-leads",
+    subPath: "epc-leads",
+    icon: <FiUsers className="text-lg" />,
+    badge: "Bulk Inquiries",
   },
 ];
 
@@ -56,25 +65,25 @@ export default function WebsiteConfiguration() {
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-text-primary">Website Configurations</h1>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-                  Landing Pages CMS
+                  Landing Pages CMS & EPC Leads
                 </span>
               </div>
               <p className="text-sm text-text-secondary mt-1">
-                Centralized management for dynamic landing page content, banners, hero sections, and SEO across all web portals.
+                Manage landing page content, store banners, product ribbons, and assign bulk EPC inquiries to BDEs.
               </p>
             </div>
           </div>
         </div>
 
         {/* Navigation Tabs */}
-        {/* <div className="flex items-center gap-2 mt-6 pt-4 border-t border-border overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-2 mt-6 pt-4 border-t border-border overflow-x-auto scrollbar-none">
           {TABS.map((tab) => {
             const active = isTabActive(tab.subPath);
             return (
               <button
                 key={tab.name}
                 onClick={() => navigate(tab.path)}
-                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all whitespace-nowrap cursor-pointer ${
                   active
                     ? "bg-primary text-white shadow-md shadow-primary/20"
                     : "text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent hover:border-border"
@@ -92,7 +101,7 @@ export default function WebsiteConfiguration() {
               </button>
             );
           })}
-        </div> */}
+        </div>
       </div>
 
       {/* Routed Content */}
@@ -102,6 +111,8 @@ export default function WebsiteConfiguration() {
             <Route path="solar-kits/*" element={<SolarKitsWebsite />} />
             <Route path="franchise/*" element={<FranchiseWebsite />} />
             <Route path="solar-store/*" element={<SolarStoreWebsite />} />
+            <Route path="epc-leads/*" element={<WebsiteEpcLeads />} />
+            <Route path="leads/*" element={<WebsiteEpcLeads />} />
             <Route path="/" element={<Navigate to="solar-kits" replace />} />
             <Route path="*" element={<Navigate to="solar-kits" replace />} />
           </Routes>

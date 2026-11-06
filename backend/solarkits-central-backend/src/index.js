@@ -129,6 +129,7 @@ adminRouter.use('/industry-themes', require('./modules/admin-panel/routes/indust
 // Website Landing Pages Content Management System
 adminRouter.use('/website-content', require('./modules/admin-panel/routes/website.content.route'));
 adminRouter.use('/website-configurations', require('./modules/admin-panel/routes/website.content.route'));
+adminRouter.use('/website-leads', require('./modules/admin-panel/routes/website.epc.lead.route'));
 
 // ─── Phase FPO: Franchisee PO Ordering, Commission, Goal & Performance ───────
 adminRouter.use('/franchisee/po-settings', require('./modules/admin-panel/routes/franchisee.po.settings.route'));
@@ -212,8 +213,12 @@ accountRouter.use('/', require('./modules/account-panel/routes/root.route'));
 app.use('/account-api', accountRouter);
 
 // 7. Solarshop India routes
+app.use('/api/india/v1/website-leads', require('./modules/admin-panel/routes/website.epc.lead.route'));
+app.use('/india/v1/website-leads', require('./modules/admin-panel/routes/website.epc.lead.route'));
+app.use('/api/website-leads', require('./modules/admin-panel/routes/website.epc.lead.route'));
 app.use('/api/india/v1', require('./modules/solarshop-india/routes/v1.routes'));
 app.use('/api/v1', require('./modules/solarshop-india/routes/v1.routes'));
+app.use('/india/v1', require('./modules/solarshop-india/routes/v1.routes'));
 
 // 7.1 BDE Self-Service Portal routes
 app.use('/api/bde/v1', require('./modules/solarshop-india/routes/v1.routes/bde.portal.route'));

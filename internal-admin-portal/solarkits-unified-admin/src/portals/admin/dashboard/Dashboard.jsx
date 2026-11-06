@@ -25,7 +25,7 @@ import { FaMagnifyingGlassLocation, FaMapLocationDot } from "react-icons/fa6";
 import { BiSolidLayerPlus } from "react-icons/bi";
 import { GoProject } from "react-icons/go";
 import { HiCube, HiOutlineTemplate } from "react-icons/hi";
-import { FiSmartphone } from "react-icons/fi";
+import { FiSmartphone, FiUsers } from "react-icons/fi";
 import VisionDashboard from "../pages/dashboard/vision-dashboard/VisionDashboard";
 
 /* ===================== Lazy Pages ===================== */
@@ -315,8 +315,20 @@ const menus = [
           icon: <FaStore />,
           path: "/admin-panel/website-configurations/solar-store",
           unique_id: "ADM_WEBSITE_SOLARSTORE"
+        },
+        {
+          name: "Website EPC Leads",
+          icon: <FiUsers />,
+          path: "/admin-panel/website-configurations/epc-leads",
+          unique_id: "ADM_WEBSITE_LEADS"
         }
       ]
+    },
+    {
+      name: "Website EPC Leads",
+      icon: <FiUsers />,
+      path: "/admin-panel/website-configurations/epc-leads",
+      unique_id: "ADM_WEBSITE_LEADS"
     }
   ],
   [
@@ -411,6 +423,7 @@ export default function Dashboard() {
     if (path.includes('/settings')) return 'System Settings';
     if (path.includes('/manage-users')) return 'User Management';
     if (path.includes('/product-configurations')) return 'Product Configuration';
+    if (path.includes('/epc-leads')) return 'Website EPC Leads Management';
     if (path.includes('/website-configurations') || path.includes('/website-configuration')) return 'Website Configurations';
     if (path.includes('/industry-content')) return 'Industry CMS';
     if (path.includes('/profile')) return 'My Profile';
@@ -574,6 +587,10 @@ export default function Dashboard() {
                         </Suspense>
                       </PermissionGuard>
                     }
+                  />
+                  <Route
+                    path="/website-leads/*"
+                    element={<Navigate to="/admin-panel/website-configurations/epc-leads" replace />}
                   />
                   <Route
                     path="/website-configurations/*"
