@@ -1129,6 +1129,11 @@ export default function NewOrdersProcurement() {
                       </td>
                       <td className="py-2.5 px-3 font-black text-purple-900 dark:text-purple-300">
                         {o.order_number}
+                        {o.parent_po_number && (
+                          <div className="text-[9px] font-bold text-amber-700 dark:text-amber-300 font-sans">
+                            PO: {o.parent_po_number}
+                          </div>
+                        )}
                       </td>
                       <td className="py-2.5 px-3">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 text-[10px] font-bold font-mono">
@@ -1179,6 +1184,11 @@ export default function NewOrdersProcurement() {
                         >
                           {o.status}
                         </span>
+                        {o.milestone_status && (
+                          <div className="text-[9px] text-text-muted mt-0.5 whitespace-nowrap">
+                            {o.milestone_status}
+                          </div>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 text-right font-black text-text-primary font-mono">
                         ₹{(o.order_amount || 0).toLocaleString()}

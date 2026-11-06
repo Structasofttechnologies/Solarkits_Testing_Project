@@ -63,5 +63,8 @@ router.post('/refund-requests/:id/approve', check_auth, check_permissions(PERM_E
 router.post('/refund-requests/:id/reject',  check_auth, check_permissions(PERM_EDIT), h.reject_refund_request);
 router.post('/:id/settle-expiry',           check_auth, check_permissions(PERM_EDIT), h.settle_po_expiry);
 
+// Alias for direct ID lookup: GET /admin-api/franchisee/po/:id
+router.get('/:id', check_auth, check_permissions(PERM_VIEW), h.get_po_order);
+
 module.exports = router;
 

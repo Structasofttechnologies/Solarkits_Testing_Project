@@ -3420,6 +3420,7 @@ const get_eligible_new_orders = async (req, res) => {
     })
       .populate('franchisee_id', 'business_name name company_name email mobile gst_number gstin')
       .populate('epc_id', 'name company_name email whatsapp gstin')
+      .populate('warehouse_id', 'warehouse_code address level_1 level_2')
       .sort({ created_at: -1 })
       .lean();
 
@@ -3534,17 +3535,25 @@ const get_eligible_new_orders = async (req, res) => {
     // G. Transform Franchise Orders into standardized shape
     fpoOrders.forEach((o, idx) => {
       const idStr = o._id.toString();
-      const stId = o.state_id?._id || o.state_id || null;
-      const distId = o.district_id?._id || o.district_id || null;
-      const stateName = (stId ? geoStateMap[stId.toString()] : null) || 'Gujarat';
-      const distName = (distId ? geoDistMap[distId.toString()] : null) || 'Ahmedabad';
-      const pincode = o.pincode || (380001 + (idx % 25)).toString();
+      const isPoReorder = Boolean(o.po_origin?.is_po_reorder || o.is_reorder || o.parent_po_id);
+      const isEpcOrder = o.created_by_role === 'SOLAR_EPC' || Boolean(o.epc_id) || isPoReorder;
 
-      // Warehouse linkage for FPO orders (distribute across warehouses if not explicitly set)
-      const whObj = (allCompanyWarehouses && allCompanyWarehouses.length > 0)
-        ? (allCompanyWarehouses.find(w => (w.level_1?._id || w.level_1)?.toString() === (stId ? stId.toString() : '')) || allCompanyWarehouses[idx % allCompanyWarehouses.length])
-        : defaultWh;
-      const assignedWhId = whObj?._id ? whObj._id.toString() : 'wh-default';
+      // Extract delivery address correctly (respecting site delivery for PO repeat orders)
+      const siteAddr = o.delivery_address || {};
+      const stId = siteAddr.state_id?._id || siteAddr.state_id || o.state_id?._id || o.state_id || null;
+      const distId = siteAddr.district_id?._id || siteAddr.district_id || o.district_id?._id || o.district_id || null;
+      const stateName = siteAddr.state_name || (stId ? geoStateMap[stId.toString()] : null) || 'Gujarat';
+      const distName = siteAddr.district_name || (distId ? geoDistMap[distId.toString()] : null) || 'Ahmedabad';
+      const pincode = siteAddr.pincode || o.pincode || (380001 + (idx % 25)).toString();
+
+      // Warehouse linkage for FPO orders
+      const rawWhId = o.warehouse_id?._id ? o.warehouse_id._id.toString() : (o.warehouse_id ? o.warehouse_id.toString() : null);
+      const whObj = (rawWhId && whMap[rawWhId])
+        ? whMap[rawWhId]
+        : ((allCompanyWarehouses && allCompanyWarehouses.length > 0)
+            ? (allCompanyWarehouses.find(w => (w.level_1?._id || w.level_1)?.toString() === (stId ? stId.toString() : '')) || defaultWh)
+            : defaultWh);
+      const assignedWhId = whObj?._id ? whObj._id.toString() : (rawWhId || 'wh-default');
       const assignedWhCode = whObj?.warehouse_code || 'WH-IND-GJ-001';
       const assignedWhName = `${assignedWhCode} — ${whObj?.address ? whObj.address.split(',')[0] : 'Ahmedabad Hub'}`;
 
@@ -3563,17 +3572,43 @@ const get_eligible_new_orders = async (req, res) => {
       const industry = isGovtTender ? 'Govt Tender Orders' : 'Commercial Rooftop';
       const project = isGovtTender ? 'Govt Tender / KUSUM' : 'Rooftop On-Grid';
 
+      // Customer name resolution (prioritizing EPC contractor name for PO repeat orders)
+      const epcBuyerName = o.po_origin?.epc_name || o.po_origin?.epc_company || o.epc_id?.company_name || o.epc_id?.name || o.customer_details?.buyer_name || o.customer_details?.name || o.buyer_name;
+      const customerName = isEpcOrder
+        ? (epcBuyerName || 'Solar EPC Contractor')
+        : (o.franchisee_id?.business_name || o.franchisee_id?.company_name || 'Franchise Partner');
+      const customerContact = siteAddr.contact_phone || o.delivery_address?.contact_phone || o.customer_details?.phone || o.epc_id?.whatsapp || o.franchisee_id?.mobile || '-';
+      const customerGstin = o.epc_id?.gstin || o.franchisee_id?.gst_number || '-';
+
+      // Destination resolution
+      const deliveryDest = o.fulfillment_mode === 'direct_site'
+        ? 'Direct Installation Site'
+        : (isEpcOrder ? 'EPC Warehouse / Depot' : 'Franchisee Store');
+
+      // Milestones and Status resolution
+      const childMilestones = o.payment_milestones?.milestones || [];
+      const m1 = childMilestones.find(m => m.milestone_number === 1);
+      const m2 = childMilestones.find(m => m.milestone_number === 2);
+      const isM1Approved = ['APPROVED', 'CONFIRMED', 'ADVANCE_PAID', 'PROCESSING', 'PAID', 'VALIDATED'].includes(o.status) ||
+        o.payment_status === 'advance_paid' ||
+        o.payment_status === 'paid' ||
+        m1?.payment_status === 'approved' ||
+        o.offline_payment?.verification_status === 'approved';
+
+      const isM2Approved = o.status === 'PAID' || o.payment_status === 'paid' || m2?.payment_status === 'approved';
+
       const isGrouped = groupedOrderIds.has(idStr);
       let calculatedStatus = 'New Order';
       if (isGrouped) calculatedStatus = 'Sent to Procurement';
-      else if (['APPROVED', 'CONFIRMED', 'PROCESSING', 'PAID', 'VALIDATED'].includes(o.status) || o.payment_status === 'paid' || o.offline_payment?.verification_status === 'approved') calculatedStatus = 'New Order';
+      else if (isM1Approved) calculatedStatus = 'New Order';
       else calculatedStatus = 'Pending Account Processing';
 
       standardizedOrders.push({
         id: idStr,
-        order_number: o.order_number || `FPO-${String(idx + 1).padStart(4, '0')}`,
-        order_origin: (o.created_by_role === 'SOLAR_EPC' || Boolean(o.epc_id)) ? 'Solar EPC' : 'Franchisee Store',
-        order_origin_code: (o.created_by_role === 'SOLAR_EPC' || Boolean(o.epc_id)) ? 'epc' : 'franchisee',
+        order_number: o.order_number || o.po_number || `FPO-${String(idx + 1).padStart(4, '0')}`,
+        parent_po_number: o.po_origin?.parent_po_number || null,
+        order_origin: isPoReorder ? 'PO Drawdown (EPC)' : isEpcOrder ? 'Solar EPC' : 'Franchisee Store',
+        order_origin_code: isEpcOrder ? 'epc' : 'franchisee',
         order_mode: isOffline ? 'Offline Orders' : 'Online Orders',
         order_mode_code: isOffline ? 'offline' : 'online',
         order_category: isGovtTender ? 'Govt. Tenders Order' : 'Industry Kits',
@@ -3585,18 +3620,23 @@ const get_eligible_new_orders = async (req, res) => {
         project_type: project,
         kit_type: primaryKit,
         kits: kitCount,
-        customer_name: (o.created_by_role === 'SOLAR_EPC' || Boolean(o.epc_id)) ? (o.epc_id?.company_name || o.epc_id?.name || o.customer_details?.buyer_name || o.customer_details?.name || 'Solar EPC Partner') : (o.franchisee_id?.business_name || o.franchisee_id?.company_name || 'Franchise Partner'),
-        customer_contact: o.franchisee_id?.mobile || o.franchisee_id?.email || '-',
-        customer_gstin: o.franchisee_id?.gst_number || '-',
+        customer_name: customerName,
+        customer_contact: customerContact,
+        customer_gstin: customerGstin,
         state_id: stId ? stId.toString() : null,
         state_name: stateName,
         district_id: distId ? distId.toString() : null,
         district_name: distName,
         pincode: pincode,
-        delivery_destination: 'Franchisee Store',
+        delivery_destination: deliveryDest,
         route_group: `RG-${stateName.substring(0, 3).toUpperCase()}-${distName.substring(0, 3).toUpperCase()}`,
         status: calculatedStatus,
-        order_amount: Number(o.total_amount) || (kitCount * 140000),
+        milestone_status: isM2Approved ? 'Fully Paid (100%)' : isM1Approved ? 'Advance Paid (30%) - M2 Pending' : 'Advance Pending',
+        is_m1_approved: isM1Approved,
+        is_m2_approved: isM2Approved,
+        fulfillment_mode: o.fulfillment_mode || 'direct_site',
+        delivery_address: siteAddr,
+        order_amount: Number(o.total_amount) || Math.round((o.net_payable_paise || o.grand_total_paise || 0) / 100) || (kitCount * 140000),
         created_at: o.created_at || new Date(),
         raw_items: o.items || [],
         is_grouped: isGrouped,
@@ -4423,7 +4463,7 @@ const create_procurement_group = async (req, res) => {
 
     let orderNumbers = [
       ...epcList.map(o => o.order_number),
-      ...fpoList.map(o => o.order_number),
+      ...fpoList.map(o => o.order_number || o.po_number),
       ...((orders_data || []).map(o => o.order_number)),
     ].filter(Boolean);
     orderNumbers = [...new Set(orderNumbers)];

@@ -16,6 +16,7 @@ const {
   Reseller,
   EpcResellerRelationship,
   EpcOrder,
+  FpoOrder,
   EpcCheckoutLog,
   ResellerInventoryLedger,
   SolarShopSettings,
@@ -758,7 +759,20 @@ async function resubmitEpcPaymentProof({
   sender_bank_name,
   req = null,
 }) {
-  const order = await EpcOrder.findOne({ _id: order_id, epc_id });
+  let order = await EpcOrder.findOne({ _id: order_id, epc_id });
+  let isFpo = false;
+  if (!order) {
+    order = await FpoOrder.findOne({
+      _id: order_id,
+      $or: [
+        { epc_id },
+        { 'po_origin.epc_id': epc_id },
+        { buyer_id: epc_id },
+        { created_by: epc_id },
+      ],
+    });
+    if (order) isFpo = true;
+  }
   if (!order) {
     throw new Error('Order record not found or unauthorized access.');
   }
@@ -1077,7 +1091,20 @@ async function submitEpcMilestonePayment({
   payment_gateway_used = null,
   req = null,
 }) {
-  const order = await EpcOrder.findOne({ _id: order_id, epc_id });
+  let order = await EpcOrder.findOne({ _id: order_id, epc_id });
+  let isFpo = false;
+  if (!order) {
+    order = await FpoOrder.findOne({
+      _id: order_id,
+      $or: [
+        { epc_id },
+        { 'po_origin.epc_id': epc_id },
+        { buyer_id: epc_id },
+        { created_by: epc_id },
+      ],
+    });
+    if (order) isFpo = true;
+  }
   if (!order) {
     throw new Error('Order record not found or unauthorized access.');
   }
@@ -1092,7 +1119,7 @@ async function submitEpcMilestonePayment({
   }
 
   const remPct = order.payment_milestones.remaining_percentage || 70;
-  const remAmount = order.payment_milestones.remaining_amount || Math.round(((order.grand_total_paise || 0) / 100) * (remPct / 100));
+  const remAmount = order.payment_milestones.remaining_amount || Math.round(((order.grand_total_paise || order.net_payable_paise || 0) / 100) * (remPct / 100));
 
   let m2 = order.payment_milestones.milestones.find(m => m.milestone_number === Number(milestone_number));
   if (!m2) {
@@ -1139,13 +1166,24 @@ async function submitEpcMilestonePayment({
   });
   order.markModified('follow_up');
 
+  if (isFpo) {
+    order.offline_payment_m2 = {
+      utr_number: cleanUtr,
+      amount_paid: m2.amount_paid,
+      payment_date: m2.payment_date,
+      receipt_url: m2.receipt_url,
+      verification_status: 'pending',
+    };
+    order.status = 'FINAL_PAYMENT_SUBMITTED';
+  }
+
   await order.save();
 
   await logAudit({
     actor_type: 'epc_buyer',
     actor_id: epc_id,
     action: 'EPC_MILESTONE_2_PAYMENT_SUBMITTED',
-    entity_type: 'epc_orders',
+    entity_type: isFpo ? 'fpo_orders' : 'epc_orders',
     entity_id: order._id,
     after_snapshot: {
       order_number: order.order_number,

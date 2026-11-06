@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axiosInstance from '@/utils/axiosInstance';
 import {
@@ -33,6 +34,9 @@ import {
   FiChevronRight,
   FiGrid,
   FiList,
+  FiTruck,
+  FiDollarSign,
+  FiAlertTriangle,
 } from 'react-icons/fi';
 import { FaRupeeSign } from 'react-icons/fa';
 import toast from 'react-hot-toast';
@@ -398,6 +402,7 @@ function EpcPoCardItem({ order, onSelectOrder, onOpenReorder, onOpenRefund }) {
 }
 
 export default function EpcPoAllocations() {
+  const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth_slice);
 
   // Tab State: "my_pos" vs "franchisee_allocations"
@@ -410,7 +415,7 @@ export default function EpcPoAllocations() {
   const [directLoading, setDirectLoading] = useState(false);
   const [selectedDirectOrder, setSelectedDirectOrder] = useState(null);
 
-  // Reorder Modal State
+  // Reorder Modal State & 2-Step Journey
   const [reorderModal, setReorderModal] = useState(false);
   const [reorderOrder, setReorderOrder] = useState(null);
   const [reorderQty, setReorderQty] = useState(1);
@@ -422,6 +427,23 @@ export default function EpcPoAllocations() {
   const [reorderSubmitting, setReorderSubmitting] = useState(false);
   const [reorderError, setReorderError] = useState("");
   const [reorderSuccess, setReorderSuccess] = useState(null);
+
+  // Step 1: Delivery Fulfillment & Site Address
+  const [reorderFulfillmentMode, setReorderFulfillmentMode] = useState("direct_site"); // 'direct_site' | 'epc_warehouse'
+  const [reorderAddress, setReorderAddress] = useState({
+    line: "",
+    pincode: "",
+    district_name: "",
+    state_name: "",
+    contact_name: "",
+    contact_phone: "",
+  });
+
+  // Step 2: Payment Milestones & State-wise Online/Offline Option
+  const [reorderPayFull, setReorderPayFull] = useState(false); // false = 30% Advance, true = 100% Full Order
+  const [reorderPaymentMethod, setReorderPaymentMethod] = useState("offline"); // 'offline' | 'online'
+  const [reorderEffectiveMode, setReorderEffectiveMode] = useState("offline"); // 'offline' | 'online' | 'both'
+  const [reorderLoadingConfig, setReorderLoadingConfig] = useState(false);
 
   // Refund Modal State
   const [refundModal, setRefundModal] = useState(false);
@@ -818,18 +840,75 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
     setReorderSlipPreview(null);
     setReorderError("");
     setReorderSuccess(null);
+    setReorderPayFull(false);
+    setReorderFulfillmentMode(order.fulfillment_mode || "direct_site");
+
+    // Pre-populate Delivery Site Address from previous order or logged-in EPC profile
+    const defaultAddr = order.delivery_address || order.customer_address || order.billing_address || {};
+    const initialAddress = {
+      line: defaultAddr.line || defaultAddr.address_line || defaultAddr.street || user?.address || "",
+      pincode: defaultAddr.pincode || defaultAddr.pin_code || user?.pincode || "",
+      district_name: defaultAddr.district_name || defaultAddr.district || defaultAddr.city || user?.district || user?.city || "",
+      state_name: defaultAddr.state_name || defaultAddr.state || user?.state || "Gujarat",
+      contact_name: defaultAddr.contact_name || user?.name || user?.fullName || user?.contact_person || order.buyer_name || "",
+      contact_phone: defaultAddr.contact_phone || user?.whatsapp || user?.phone || user?.mobile || order.buyer_phone || "",
+    };
+    setReorderAddress(initialAddress);
+
+    // Resolve Region Payment Configuration for online payment support
+    const distName = initialAddress.district_name;
+    const stName = initialAddress.state_name;
+    setReorderLoadingConfig(true);
+    axiosInstance
+      .get(`/payment-config/resolve?order_type=fpo_order${distName ? `&district_name=${encodeURIComponent(distName)}` : ""}${stName ? `&state_name=${encodeURIComponent(stName)}` : ""}`)
+      .then((res) => {
+        const cfg = res.data?.config;
+        if (cfg) {
+          const mode = cfg.payment_mode || "offline";
+          setReorderEffectiveMode(mode);
+          setReorderPaymentMethod(mode === "online" ? "online" : "offline");
+        } else {
+          setReorderEffectiveMode("offline");
+          setReorderPaymentMethod("offline");
+        }
+      })
+      .catch(() => {
+        setReorderEffectiveMode("offline");
+        setReorderPaymentMethod("offline");
+      })
+      .finally(() => {
+        setReorderLoadingConfig(false);
+      });
+
     setReorderModal(true);
   };
 
   const handleSubmitReorder = async (e) => {
     e.preventDefault();
     setReorderError("");
-    if (!reorderUtr.trim()) {
+
+    // Validate Step 1 Delivery Site Address
+    if (!reorderAddress.line.trim()) {
+      setReorderError("Please enter the Site Street Address / Plot / Industrial Area.");
+      return;
+    }
+    if (!reorderAddress.pincode.trim() || reorderAddress.pincode.trim().length < 6) {
+      setReorderError("Please enter a valid 6-digit Delivery PIN Code.");
+      return;
+    }
+    if (!reorderAddress.contact_phone.trim()) {
+      setReorderError("Please enter the Site Contact Phone / WhatsApp number.");
+      return;
+    }
+
+    // Validate Step 2 Payment Verification (for offline transfer)
+    if (reorderPaymentMethod !== "online" && !reorderUtr.trim()) {
       setReorderError("Please enter the UTR / Payment Transaction reference number.");
       return;
     }
 
     const item = reorderOrder?.items?.[0] || {};
+    // GUARANTEED PRICE LOCK: rate is strictly anchored to parent PO snapshot
     const unitPriceINR = (item.unit_price_paise || 0) / 100;
     const gstRate = item.gst_rate || 13.85;
     const subtotal = reorderQty * unitPriceINR;
@@ -853,6 +932,9 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
     }
 
     const netPayable = Math.max(0, grossTotal - tokenAdjusted);
+    const advanceAmount = Math.round(netPayable * 0.30);
+    const remainingAmount = Math.max(0, netPayable - advanceAmount);
+    const amountDueToday = reorderPayFull ? netPayable : advanceAmount;
 
     setReorderSubmitting(true);
     try {
@@ -871,15 +953,29 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
           console.error("Receipt upload failed:", upErr);
         }
       }
+
+      const isOnline = reorderPaymentMethod === "online";
       const payload = {
         quantity: reorderQty,
         kit_id: item.kit_id || item.product_id,
+        fulfillment_mode: reorderFulfillmentMode,
+        delivery_address: {
+          line: reorderAddress.line.trim(),
+          pincode: reorderAddress.pincode.trim(),
+          district_name: reorderAddress.district_name.trim(),
+          state_name: reorderAddress.state_name.trim(),
+          contact_name: reorderAddress.contact_name.trim(),
+          contact_phone: reorderAddress.contact_phone.trim(),
+        },
+        pay_full_amount: reorderPayFull,
+        is_online_order: isOnline,
+        payment_method: isOnline ? "icici_ecollection" : "offline_bank_transfer",
         offline_payment: {
-          payment_method: "offline_bank_transfer",
-          utr_number: reorderUtr.trim().toUpperCase(),
-          amount_paid: netPayable,
+          payment_method: isOnline ? "icici_ecollection" : "offline_bank_transfer",
+          utr_number: isOnline ? ("VAN-ONLINE-" + Date.now()) : reorderUtr.trim().toUpperCase(),
+          amount_paid: amountDueToday,
           payment_date: reorderDate,
-          sender_bank_name: reorderBank || "Bank Transfer",
+          sender_bank_name: reorderBank || (isOnline ? "ICICI Virtual Account" : "Bank Transfer"),
           receipt_url: uploadedReceiptUrl,
           payment_receipt_url: uploadedReceiptUrl,
         },
@@ -891,8 +987,11 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
       if (res.data?.success) {
         setReorderSuccess({
           orderNumber: res.data.data?.order?.po_number,
-          adjusted: res.data.data?.token_adjustment?.token_adjusted_inr,
-          payable: res.data.data?.token_adjustment?.net_payable_inr,
+          adjusted: res.data.data?.token_adjustment?.token_adjusted_inr || tokenAdjusted,
+          payable: res.data.data?.token_adjustment?.net_payable_inr || netPayable,
+          paidToday: amountDueToday,
+          isFull: reorderPayFull,
+          isOnline: isOnline
         });
         fetchDirectOrders();
         fetchAllocations();
@@ -1495,7 +1594,8 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
                                             <th className="py-2.5 px-3">Token Escrow Adjusted</th>
                                             <th className="py-2.5 px-3">Net Paid</th>
                                             <th className="py-2.5 px-3">Payment UTR</th>
-                                            <th className="py-2.5 px-3 text-right">Status</th>
+                                            <th className="py-2.5 px-3">Status</th>
+                                    <th className="py-2.5 px-3 text-right">Track Live</th>
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border/60 text-[11px]">
@@ -1888,8 +1988,19 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
                                         <td className="py-2 px-3 font-mono text-text-muted text-[10px] select-all">
                                           {child.payment_utr || child.offline_payment?.utr_number || "—"}
                                         </td>
-                                        <td className="py-2 px-3 text-right">
+                                        <td className="py-2 px-3">
                                           <StatusBadge status={child.status} />
+                                        </td>
+                                        <td className="py-2 px-3 text-right">
+                                          <button
+                                            type="button"
+                                            onClick={() => navigate(`/track-status?tab=po_allocations&search=${encodeURIComponent(child.po_number || child._id)}`)}
+                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-primary/10 hover:bg-primary text-primary hover:text-white transition-all cursor-pointer shadow-2xs"
+                                            title="View real-time status & dispatch tracking"
+                                          >
+                                            <FiTruck size={12} />
+                                            <span>Track Order</span>
+                                          </button>
                                         </td>
                                       </tr>
                                     );
@@ -2148,10 +2259,10 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
         )}
       </AnimatePresence>
 
-      {/* ── REORDER FROM PO MODAL ────────────────────────────────────────────── */}
+      {/* ── REORDER FROM PO MODAL (2-STEP JOURNEY IDENTICAL TO DIRECT EPC CHECKOUT) ── */}
       <AnimatePresence>
         {reorderModal && reorderOrder && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2161,61 +2272,76 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
             />
 
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.96, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-3xl border border-border shadow-2xl overflow-hidden z-10 bg-surface"
+              exit={{ opacity: 0, scale: 0.96, y: 15 }}
+              className="relative w-full max-w-5xl max-h-[92vh] flex flex-col rounded-3xl border border-border shadow-2xl overflow-hidden z-10 bg-surface my-auto"
             >
-              <div className="p-5 border-b border-border flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                      <FiRefreshCw size={15} />
-                    </span>
-                    <h2 className="text-base font-black text-text-primary">
-                      Reorder Kits against PO: {reorderOrder.po_number}
-                    </h2>
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-surface-hover/30 shrink-0">
+                <div className="flex items-center gap-3">
+                  <span className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
+                    <FiRefreshCw size={17} />
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-base sm:text-lg font-black text-text-primary">
+                        Place Reorder under Master PO: <span className="font-mono text-primary">{reorderOrder.po_number}</span>
+                      </h2>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 text-[10px] font-black">
+                        <FiLock size={10} /> Guaranteed Rate Lock
+                      </span>
+                    </div>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      Identical 2-Step EPC Order Journey: Site Address & Payment Milestones with Pro-Rata Token Settlement
+                    </p>
                   </div>
-                  <p className="text-xs text-text-muted mt-0.5">
-                    Draw repeat kit orders against locked prices & settle your token escrow deposit.
-                  </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => !reorderSubmitting && setReorderModal(false)}
                   className="p-2 rounded-xl hover:bg-surface-hover text-text-muted hover:text-text-primary transition-colors cursor-pointer"
                 >
-                  <FiX size={18} />
+                  <FiX size={20} />
                 </button>
               </div>
 
               {reorderSuccess ? (
-                <div className="p-6 space-y-4 text-center">
-                  <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 mx-auto flex items-center justify-center">
-                    <FiCheckCircle size={32} />
+                <div className="p-8 space-y-5 text-center max-w-md mx-auto my-auto">
+                  <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 mx-auto flex items-center justify-center shadow-lg">
+                    <FiCheckCircle size={40} />
                   </div>
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-black text-text-primary">
+                  <div className="space-y-1.5">
+                    <h3 className="text-xl font-black text-text-primary">
                       Repeat Order Successfully Placed!
                     </h3>
                     <p className="text-xs text-text-muted">
                       Linked Repeat Order Generated:{" "}
-                      <span className="font-mono font-bold text-primary">{reorderSuccess.orderNumber}</span>
+                      <span className="font-mono font-bold text-primary text-sm">{reorderSuccess.orderNumber}</span>
+                    </p>
+                    <p className="text-[11px] text-text-secondary">
+                      Sent to Accounts & Warehouse for verification under Parent PO: {reorderOrder.po_number}
                     </p>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-surface-hover border border-border text-xs space-y-2 text-left">
+                  <div className="p-4 rounded-2xl bg-surface-hover border border-border text-xs space-y-2.5 text-left">
                     <div className="flex justify-between">
-                      <span className="text-text-muted">Parent PO Reference:</span>
+                      <span className="text-text-muted">Parent Master PO:</span>
                       <span className="font-mono font-bold text-text-primary">{reorderOrder.po_number}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-text-muted">Token Escrow Adjusted:</span>
                       <span className="font-bold text-emerald-600">₹{(reorderSuccess.adjusted || 0).toLocaleString("en-IN")}</span>
                     </div>
-                    <div className="flex justify-between border-t border-border pt-1">
-                      <span className="text-text-muted font-bold">Net Amount Paid:</span>
-                      <span className="font-black text-text-primary">₹{(reorderSuccess.payable || 0).toLocaleString("en-IN")}</span>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Payment Preference:</span>
+                      <span className="font-bold text-text-primary">
+                        {reorderSuccess.isFull ? "100% Full Order" : "Milestone 1 (30% Advance)"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-border pt-2">
+                      <span className="text-text-muted font-bold">Amount Paid Today:</span>
+                      <span className="font-black text-base text-primary">₹{(reorderSuccess.paidToday || reorderSuccess.payable || 0).toLocaleString("en-IN")}</span>
                     </div>
                   </div>
 
@@ -2224,22 +2350,23 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
                       setReorderModal(false);
                       setReorderSuccess(null);
                     }}
-                    className="w-full py-2.5 rounded-xl bg-primary text-white text-xs font-black shadow-md hover:opacity-90 transition-all cursor-pointer"
+                    className="w-full py-3 rounded-xl bg-primary text-white text-xs font-black shadow-lg hover:opacity-90 transition-all cursor-pointer"
                   >
                     Done & Return to PO List
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleSubmitReorder} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+                <form onSubmit={handleSubmitReorder} className="flex-1 overflow-y-auto p-4 sm:p-6 text-xs space-y-5">
                   {reorderError && (
-                    <div className="p-3 rounded-xl bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 text-xs flex items-center gap-2">
-                      <FiAlertCircle size={15} className="shrink-0" />
-                      <span>{reorderError}</span>
+                    <div className="p-3.5 rounded-xl bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 text-xs flex items-center gap-2">
+                      <FiAlertCircle size={16} className="shrink-0" />
+                      <span className="font-semibold">{reorderError}</span>
                     </div>
                   )}
 
                   {(() => {
                     const it = reorderOrder.items?.[0] || {};
+                    // GUARANTEED PRICE LOCK: rate is strictly anchored to parent PO snapshot
                     const unitPrice = (it.unit_price_paise || 0) / 100;
                     const gstRate = it.gst_rate || 13.85;
                     const committed = Number(reorderOrder.total_booked_quantity || it.quantity || 100);
@@ -2267,284 +2394,743 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
                     }
                     const netPayable = Math.max(0, grossTotal - tokenToDeduct);
 
+                    // Milestone breakdown: 30% Advance (M1) and 70% Final (M2)
+                    const advanceAmount = Math.round(netPayable * 0.30);
+                    const remainingAmount = Math.max(0, netPayable - advanceAmount);
+                    const amountDueToday = reorderPayFull ? netPayable : advanceAmount;
+
+                    const kitCapacityKw = reorderOrder.system_capacity_kw || 3;
+                    const totalKw = (reorderQty * kitCapacityKw).toFixed(1);
+                    const totalWeightKg = (reorderQty * 75).toFixed(0);
+
+                    const userPhone = user?.whatsapp || user?.registered_whatsapp || user?.mobile || "9876543210";
+                    const vanAccount = iciciVanDetails?.account_number || iciciVanDetails?.van_account_number || `SLRK${userPhone}`;
+                    const vanIfsc = iciciVanDetails?.ifsc_code || "ICIC0000104";
+
                     return (
-                      <>
-                        <div className="p-3.5 rounded-2xl bg-surface-hover border border-border space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-text-primary text-xs line-clamp-1">
-                              {it.item_name || "Solar Combo Kit"}
-                            </span>
-                            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 text-xs font-black">
-                              <FiLock size={11} className="text-emerald-600" />
-                              <span>Locked Rate: ₹{unitPrice.toLocaleString("en-IN")}/kit + GST</span>
-                            </div>
-                          </div>
-                          <div className="text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-500/5 px-2.5 py-1 rounded-lg border border-emerald-500/15 flex items-center justify-between">
-                            <span>🔒 Guaranteed PO Price Lock Active</span>
-                            <span className="font-medium">Valid until quota completed or PO expired</span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/60 text-center">
-                            <div>
-                              <div className="text-[10px] text-text-muted">Total Committed</div>
-                              <div className="font-black text-text-primary">{committed} Kits</div>
-                            </div>
-                            <div className="border-x border-border/60">
-                              <div className="text-[10px] text-text-muted">Remaining Quota</div>
-                              <div className="font-black text-emerald-600">{remaining} Kits</div>
-                            </div>
-                            <div>
-                              <div className="text-[10px] text-text-muted">Escrow Balance</div>
-                              <div className="font-black text-emerald-600">₹{tokenBalance.toLocaleString("en-IN")}</div>
-                            </div>
-                          </div>
-                        </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                        {/* ── LEFT COLUMN: 2-Step Order Journey (8 Cols) ── */}
+                        <div className="lg:col-span-8 space-y-5">
 
-                        {/* Configured Loose Order Quantities Selector */}
-                        <div className="space-y-2.5 p-3.5 rounded-2xl bg-surface-hover/50 border border-border">
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <div className="text-[11px] font-black text-text-primary flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
-                                Select Configured Loose Quantity:
-                              </div>
-                              <div className="text-[10px] text-text-muted mt-0.5">
-                                Choose bundle preset configured for this combo kit (Max: {remaining} kits)
+                          {/* 1. Review Selected Solar Kits with Guaranteed Price Lock */}
+                          <div className="p-4 rounded-2xl bg-surface border border-border shadow-xs space-y-3">
+                            <div className="flex items-center justify-between pb-2 border-b border-border">
+                              <h3 className="font-extrabold text-sm text-text-primary flex items-center gap-2">
+                                <FiPackage className="text-primary" /> Review Selected Solar Kits ({reorderQty} Units)
+                              </h3>
+                              <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 text-xs font-black">
+                                <FiLock size={12} className="text-emerald-600" />
+                                <span>Locked Rate: ₹{unitPrice.toLocaleString("en-IN")}/kit + GST</span>
                               </div>
                             </div>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-surface border border-border text-text-muted">
-                              Mode: {settlementMode}
-                            </span>
-                          </div>
 
-                          {/* Loose Quantity Chips matching Combo Kit Configuration & Reseller Portal */}
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            {(() => {
-                              const configuredLoose = (Array.isArray(it.loose_order_quantities) && it.loose_order_quantities.length > 0)
-                                ? it.loose_order_quantities
-                                : (Array.isArray(reorderOrder.loose_order_quantities) && reorderOrder.loose_order_quantities.length > 0)
-                                  ? reorderOrder.loose_order_quantities
-                                  : [5, 10, 15, 20, 25, 30];
-
-                              return (
-                                <>
-                                  {configuredLoose.map((lq) => {
-                                    const isAvailable = lq <= remaining;
-                                    const isSelected = reorderQty === lq;
-                                    return (
-                                      <button
-                                        key={lq}
-                                        type="button"
-                                        disabled={!isAvailable}
-                                        onClick={() => setReorderQty(lq)}
-                                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${isSelected
-                                          ? "bg-sky-600 text-white border-sky-600 shadow-md scale-105"
-                                          : isAvailable
-                                            ? "bg-sky-500/10 text-sky-800 dark:text-sky-300 hover:bg-sky-500/20 border-sky-500/30"
-                                            : "bg-surface text-text-muted/40 border-border/40 cursor-not-allowed opacity-40 line-through"
-                                          }`}
-                                      >
-                                        {lq} KITS
-                                      </button>
-                                    );
-                                  })}
-
-                                  {/* All Remaining Quota Option */}
-                                  {remaining > 0 && !configuredLoose.includes(remaining) && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setReorderQty(remaining)}
-                                      className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${reorderQty === remaining
-                                        ? "bg-primary text-white border-primary shadow-md scale-105"
-                                        : "bg-surface hover:bg-surface-hover text-text-primary border-border"
-                                        }`}
-                                    >
-                                      All Remaining ({remaining} KITS)
-                                    </button>
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </div>
-
-                          {/* Selected Quantity Indicator */}
-                          <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
-                            <span className="text-[11px] text-text-muted">Selected Reorder Quantity:</span>
-                            <span className="font-black text-sm text-sky-600 dark:text-sky-400">
-                              {reorderQty} Kits
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Real-time Financial Breakdown */}
-                        <div className="p-3.5 rounded-2xl bg-surface-hover/80 border border-border space-y-2">
-                          <div className="text-[10px] font-black uppercase tracking-wider text-text-muted">
-                            Financial Settlement Breakdown
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-text-muted">
-                              <span>Kit Subtotal ({reorderQty} kits × ₹{unitPrice.toLocaleString("en-IN")}):</span>
-                              <span>₹{subtotal.toLocaleString("en-IN")}</span>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-surface-hover/70 border border-border/80">
+                              <div>
+                                <span className="font-bold text-sm text-text-primary block">
+                                  {it.item_name || "Solarkits DCR Combo Kit"}
+                                </span>
+                                <span className="text-[11px] text-text-muted mt-0.5 block">
+                                  Basic Kit • {kitCapacityKw} kW System • Guaranteed PO Price Locked
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="font-mono font-black text-sm text-text-primary block">
+                                  ₹{grossTotal.toLocaleString("en-IN")}
+                                </span>
+                                <span className="text-[10px] text-text-muted font-bold block">
+                                  Qty: {reorderQty} Kits (₹{unitPrice.toLocaleString("en-IN")} ea + GST)
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex justify-between text-text-muted">
-                              <span>GST @ {gstRate}%:</span>
-                              <span>₹{tax.toLocaleString("en-IN")}</span>
-                            </div>
-                            <div className="flex justify-between font-bold text-text-primary pt-1 border-t border-border/40">
-                              <span>Order Gross Total:</span>
-                              <span>₹{grossTotal.toLocaleString("en-IN")}</span>
-                            </div>
-                            <div className="flex justify-between font-bold text-emerald-600 dark:text-emerald-400">
-                              <span className="flex items-center gap-1">
-                                <FaRupeeSign size={11} /> Less: Escrow Token Adjustment ({isClosing ? "Final Order" : settlementMode}):
+
+                            {/* Guaranteed Price Lock Guarantee Banner */}
+                            <div className="text-[11px] text-emerald-800 dark:text-emerald-200 bg-emerald-500/10 px-3.5 py-2 rounded-xl border border-emerald-500/20 flex items-center justify-between flex-wrap gap-2">
+                              <span className="font-bold flex items-center gap-1.5">
+                                🔒 <span>Guaranteed PO Price Lock Active:</span>
                               </span>
-                              <span>- ₹{tokenToDeduct.toLocaleString("en-IN")}</span>
+                              <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
+                                Market price fluctuations will NOT affect this order quota.
+                              </span>
                             </div>
-                            <div className="flex justify-between font-black text-sm text-text-primary pt-1.5 border-t-2 border-border">
-                              <span>Net Amount Payable Now:</span>
-                              <span className="text-primary font-mono text-base">₹{netPayable.toLocaleString("en-IN")}</span>
+
+                            {/* Quota & Escrow Stats Row */}
+                            <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/60 text-center text-xs">
+                              <div className="p-2 rounded-xl bg-surface-hover/50 border border-border/60">
+                                <div className="text-[10px] text-text-muted font-medium">Total Committed</div>
+                                <div className="font-black text-text-primary text-sm">{committed} Kits</div>
+                              </div>
+                              <div className="p-2 rounded-xl bg-surface-hover/50 border border-border/60">
+                                <div className="text-[10px] text-text-muted font-medium">Remaining Quota</div>
+                                <div className="font-black text-emerald-600 dark:text-emerald-400 text-sm">{remaining} Kits</div>
+                              </div>
+                              <div className="p-2 rounded-xl bg-surface-hover/50 border border-border/60">
+                                <div className="text-[10px] text-text-muted font-medium">Escrow Balance</div>
+                                <div className="font-black text-emerald-600 dark:text-emerald-400 text-sm">₹{tokenBalance.toLocaleString("en-IN")}</div>
+                              </div>
+                            </div>
+
+                            {/* Configured Loose Quantity Presets */}
+                            <div className="space-y-2 pt-2 border-t border-border">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[11px] font-black text-text-primary">
+                                  Select Configured Loose Quantity:
+                                </span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-surface border border-border text-text-muted">
+                                  Mode: {settlementMode}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {(() => {
+                                  const configuredLoose = (Array.isArray(it.loose_order_quantities) && it.loose_order_quantities.length > 0)
+                                    ? it.loose_order_quantities
+                                    : (Array.isArray(reorderOrder.loose_order_quantities) && reorderOrder.loose_order_quantities.length > 0)
+                                      ? reorderOrder.loose_order_quantities
+                                      : [5, 10, 15, 20, 25, 30];
+
+                                  return (
+                                    <>
+                                      {configuredLoose.map((lq) => {
+                                        const isAvailable = lq <= remaining;
+                                        const isSelected = reorderQty === lq;
+                                        return (
+                                          <button
+                                            key={lq}
+                                            type="button"
+                                            disabled={!isAvailable}
+                                            onClick={() => setReorderQty(lq)}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${isSelected
+                                              ? "bg-sky-600 text-white border-sky-600 shadow-md scale-105"
+                                              : isAvailable
+                                                ? "bg-sky-500/10 text-sky-800 dark:text-sky-300 hover:bg-sky-500/20 border-sky-500/30"
+                                                : "bg-surface text-text-muted/40 border-border/40 cursor-not-allowed opacity-40 line-through"
+                                              }`}
+                                          >
+                                            {lq} KITS
+                                          </button>
+                                        );
+                                      })}
+                                      {remaining > 0 && !configuredLoose.includes(remaining) && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setReorderQty(remaining)}
+                                          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${reorderQty === remaining
+                                            ? "bg-primary text-white border-primary shadow-md scale-105"
+                                            : "bg-surface hover:bg-surface-hover text-text-primary border-border"
+                                            }`}
+                                        >
+                                          All Remaining ({remaining} KITS)
+                                        </button>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Escrow Bank Info */}
-                        <div className="p-3 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 space-y-1.5 text-[11px]">
-                          <div className="font-bold text-blue-900 dark:text-blue-300 flex items-center justify-between">
-                            <span>Transfer to Company Escrow Account:</span>
-                            <span className="text-[10px] text-text-muted">ICICI Corporate</span>
-                          </div>
-                          <div className="flex items-center justify-between font-mono">
-                            <span>A/C: {escrowBank.account_number}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopyText(escrowBank.account_number, "reorder_acc")}
-                              className="text-primary cursor-pointer hover:underline text-[10px]"
-                            >
-                              {copiedField === "reorder_acc" ? "Copied!" : "Copy"}
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between font-mono">
-                            <span>IFSC: {escrowBank.ifsc_code}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopyText(escrowBank.ifsc_code, "reorder_ifsc")}
-                              className="text-primary cursor-pointer hover:underline text-[10px]"
-                            >
-                              {copiedField === "reorder_ifsc" ? "Copied!" : "Copy"}
-                            </button>
-                          </div>
-                        </div>
+                          {/* 2. Region Payment Mode Switcher (if state supports online or both) */}
+                          {reorderEffectiveMode === "both" && (
+                            <div className="bg-surface p-2 rounded-2xl border border-border shadow-xs flex flex-col sm:flex-row gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setReorderPaymentMethod("online")}
+                                className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${reorderPaymentMethod === "online"
+                                  ? "bg-[#264baa] text-white shadow-md shadow-[#264baa]/30"
+                                  : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+                                  }`}
+                              >
+                                <FiDollarSign className="text-sm" />
+                                <span>Instant Online Transfer (ICICI VAN)</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setReorderPaymentMethod("offline")}
+                                className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${reorderPaymentMethod === "offline"
+                                  ? "bg-primary text-white shadow-md shadow-primary/30"
+                                  : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+                                  }`}
+                              >
+                                <FiUploadCloud className="text-sm" />
+                                <span>Offline Bank Transfer (UTR + Receipt)</span>
+                              </button>
+                            </div>
+                          )}
 
-                        {/* Payment UTR & Details */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[11px] font-bold text-text-primary mb-1">
-                              Payment UTR / Reference <span className="text-rose-500">*</span>
-                            </label>
-                            <input
-                              type="text"
-                              required
-                              value={reorderUtr}
-                              onChange={(e) => setReorderUtr(e.target.value)}
-                              placeholder="e.g. ICICR24098123456"
-                              className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary font-mono text-xs outline-none focus:border-primary"
-                            />
-                          </div>
+                          {/* 3. Official ICICI Bank eCollection Virtual Account (VAN) Card */}
+                          <div className="bg-gradient-to-br from-[#264baa]/10 via-surface to-[#264baa]/5 p-5 rounded-2xl border-2 border-[#264baa]/40 shadow-xs space-y-3.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#264baa]/20 pb-2.5">
+                              <div>
+                                <span className="text-[10px] font-black uppercase tracking-wider text-[#264baa] dark:text-blue-400">
+                                  Official ICICI Bank eCollection Virtual Account (VAN)
+                                </span>
+                                <h4 className="text-sm font-black text-text-primary flex items-center gap-1.5 mt-0.5">
+                                  <FiDollarSign className="text-[#264baa] dark:text-blue-400" /> Transfer to ICICI Virtual Account
+                                </h4>
+                              </div>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                Zero Gateway Fees • Real-Time Auto Confirmation
+                              </span>
+                            </div>
 
-                          <div>
-                            <label className="block text-[11px] font-bold text-text-primary mb-1">
-                              Sender Bank Name
-                            </label>
-                            <input
-                              type="text"
-                              value={reorderBank}
-                              onChange={(e) => setReorderBank(e.target.value)}
-                              placeholder="e.g. HDFC / SBI"
-                              className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs outline-none focus:border-primary"
-                            />
-                          </div>
-                        </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                              <div className="p-3 bg-surface rounded-xl border border-border">
+                                <span className="text-[10px] text-text-muted uppercase font-bold block">Beneficiary Name</span>
+                                <span className="font-extrabold text-text-primary text-xs truncate block mt-0.5">
+                                  {iciciVanDetails?.beneficiary_name || "SolarKits Technologies Pvt Ltd"}
+                                </span>
+                              </div>
+                              <div className="p-3 bg-surface rounded-xl border border-border">
+                                <span className="text-[10px] text-text-muted uppercase font-bold block">Bank & Branch</span>
+                                <span className="font-extrabold text-text-primary text-xs truncate block mt-0.5">
+                                  {iciciVanDetails?.bank_name || "ICICI Bank, CMS Branch, Mumbai"}
+                                </span>
+                              </div>
+                            </div>
 
-                        {/* Payment Transfer Slip Upload */}
-                        <div>
-                          <label className="block text-[11px] font-bold text-text-primary mb-1">
-                            Bank Transfer Slip / Payment Proof (Optional / Recommended)
-                          </label>
-                          <div className="flex items-center gap-3">
-                            <label className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-sky-400 bg-sky-500/5 hover:bg-sky-500/10 text-sky-600 dark:text-sky-400 font-bold text-xs cursor-pointer transition-all">
-                              <FiUploadCloud size={14} />
-                              <span>{reorderSlipFile ? "Change Slip" : "Upload Transfer Slip / Receipt"}</span>
-                              <input
-                                type="file"
-                                accept="image/*,application/pdf"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    setReorderSlipFile(file);
-                                    if (file.type.startsWith("image/")) {
-                                      setReorderSlipPreview(URL.createObjectURL(file));
-                                    } else {
-                                      setReorderSlipPreview(null);
-                                    }
-                                  }
-                                }}
-                              />
-                            </label>
-                            {reorderSlipFile && (
-                              <div className="flex items-center gap-2 text-xs text-text-secondary bg-surface-hover px-2.5 py-1.5 rounded-lg border border-border">
-                                {reorderSlipPreview ? (
-                                  <img src={reorderSlipPreview} alt="Receipt preview" className="w-6 h-6 object-cover rounded border border-border" />
-                                ) : (
-                                  <FiFileText size={14} className="text-sky-500" />
-                                )}
-                                <span className="truncate max-w-[140px] font-mono text-[11px]">{reorderSlipFile.name}</span>
+                            <div className="p-3.5 bg-surface rounded-xl border border-[#264baa]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-text-muted block">
+                                  Your Unique Virtual Account No (VAN)
+                                </span>
+                                <span className="font-mono text-base font-black text-[#264baa] dark:text-blue-400 tracking-wider">
+                                  {vanAccount}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyText(vanAccount, "reorder_van")}
+                                className="px-3.5 py-1.5 bg-[#264baa]/10 hover:bg-[#264baa]/20 text-[#264baa] dark:text-blue-400 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer"
+                              >
+                                <FiCopy size={13} />
+                                <span>{copiedField === "reorder_van" ? "Copied!" : "Copy VAN"}</span>
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                              <div className="p-3 bg-surface rounded-xl border border-border flex items-center justify-between">
+                                <div>
+                                  <span className="text-[10px] text-text-muted uppercase font-bold block">IFSC Code</span>
+                                  <span className="font-mono font-bold text-text-primary">{vanIfsc}</span>
+                                </div>
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setReorderSlipFile(null);
-                                    setReorderSlipPreview(null);
-                                  }}
-                                  className="text-rose-500 hover:text-rose-700 ml-1 cursor-pointer"
-                                  title="Remove receipt"
+                                  onClick={() => handleCopyText(vanIfsc, "reorder_ifsc")}
+                                  className="text-primary hover:underline text-[11px] font-bold cursor-pointer"
                                 >
-                                  <FiX size={13} />
+                                  {copiedField === "reorder_ifsc" ? "Copied!" : "Copy"}
                                 </button>
                               </div>
-                            )}
+                              <div className="p-2.5 bg-emerald-500/10 rounded-xl border border-emerald-500/25 flex items-center gap-2 text-[10px] text-emerald-800 dark:text-emerald-300">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                                <span><strong>Real-time Listener Active:</strong> Transfer ₹{amountDueToday.toLocaleString("en-IN")} from netbanking/UPI to confirm automatically.</span>
+                              </div>
+                            </div>
                           </div>
-                          <p className="text-[10px] text-text-muted mt-1">
-                            Accounts team will review and verify this payment slip before allocating inventory.
-                          </p>
+
+                          {/* 4. Step 1: Delivery Site Address */}
+                          <div className="p-5 rounded-2xl bg-surface border border-border shadow-xs space-y-4">
+                            <div className="flex items-center justify-between pb-3 border-b border-border">
+                              <div>
+                                <h3 className="font-black text-sm sm:text-base text-text-primary flex items-center gap-2">
+                                  <FiTruck className="text-primary" /> Step 1: Delivery Site Address
+                                </h3>
+                                <p className="text-[11px] text-text-muted mt-0.5">
+                                  Physical site location where the solar kit equipment will be dispatched and delivered.
+                                </p>
+                              </div>
+                              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 bg-primary/10 text-primary rounded-md">
+                                Required
+                              </span>
+                            </div>
+
+                            {/* Select Delivery Fulfillment Mode */}
+                            <div className="space-y-2.5">
+                              <label className="block text-[11px] font-black uppercase tracking-wider text-text-secondary">
+                                Select Delivery Fulfillment Mode <span className="text-rose-500">*</span>
+                              </label>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {/* Mode 1: Direct Site Delivery */}
+                                <div
+                                  onClick={() => setReorderFulfillmentMode("direct_site")}
+                                  className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${reorderFulfillmentMode === "direct_site"
+                                    ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/20"
+                                    : "border-border bg-surface hover:border-primary/50"
+                                    }`}
+                                >
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-2xl">🚚</span>
+                                      <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${reorderFulfillmentMode === "direct_site" ? "border-primary bg-primary text-white" : "border-border"}`}>
+                                        {reorderFulfillmentMode === "direct_site" && <FiCheck size={10} />}
+                                      </span>
+                                    </div>
+                                    <h4 className="font-extrabold text-xs text-text-primary">Direct Site Delivery</h4>
+                                    <p className="text-[10px] text-text-secondary leading-relaxed">
+                                      Transport directly unloaded at the installation site address or pincode.
+                                    </p>
+                                  </div>
+                                  <div className="mt-2.5 pt-1.5 border-t border-border/60 text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                                    <FiCheckCircle size={11} /> Site Pincode Delivery
+                                  </div>
+                                </div>
+
+                                {/* Mode 2: EPC Warehouse / Self Depot */}
+                                <div
+                                  onClick={() => setReorderFulfillmentMode("epc_warehouse")}
+                                  className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer relative flex flex-col justify-between ${reorderFulfillmentMode === "epc_warehouse"
+                                    ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/20"
+                                    : "border-border bg-surface hover:border-primary/50"
+                                    }`}
+                                >
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-2xl">🏭</span>
+                                      <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${reorderFulfillmentMode === "epc_warehouse" ? "border-primary bg-primary text-white" : "border-border"}`}>
+                                        {reorderFulfillmentMode === "epc_warehouse" && <FiCheck size={10} />}
+                                      </span>
+                                    </div>
+                                    <h4 className="font-extrabold text-xs text-text-primary">EPC Warehouse / Self Depot</h4>
+                                    <p className="text-[10px] text-text-secondary leading-relaxed">
+                                      Direct bulk dispatch to your company depot or contractor warehouse.
+                                    </p>
+                                  </div>
+                                  <div className="mt-2.5 pt-1.5 border-t border-border/60 text-[10px] text-text-muted">
+                                    Central Direct Dispatch
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Order Load Metrics Pill */}
+                              <div className="bg-surface-hover/60 p-2.5 rounded-xl border border-border flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <span className="text-text-muted font-medium">Order Load Metrics:</span>
+                                <div className="flex items-center gap-3 font-semibold text-text-primary text-[11px]">
+                                  <span>📦 <strong>{reorderQty}</strong> Kits</span>
+                                  <span>⚡ <strong>{totalKw}</strong> kW</span>
+                                  <span>⚖️ <strong>{totalWeightKg}</strong> kg Payload</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Address Form Inputs */}
+                            <div className="space-y-3 pt-2">
+                              <div>
+                                <label className="block text-[11px] font-bold text-text-primary mb-1">
+                                  Site Street Address / Plot / Industrial Area <span className="text-rose-500">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="e.g. Survey No. 42, GIDC Industrial Estate, Ring Road"
+                                  value={reorderAddress.line}
+                                  onChange={(e) => setReorderAddress((prev) => ({ ...prev, line: e.target.value }))}
+                                  className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs outline-none focus:border-primary"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                  <label className="block text-[11px] font-bold text-text-primary mb-1">
+                                    Delivery PIN Code <span className="text-rose-500">*</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    required
+                                    maxLength={6}
+                                    placeholder="e.g. 380001"
+                                    value={reorderAddress.pincode}
+                                    onChange={(e) => setReorderAddress((prev) => ({ ...prev, pincode: e.target.value.replace(/\D/g, "") }))}
+                                    className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary font-mono font-bold text-xs outline-none focus:border-primary"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-[11px] font-bold text-text-primary mb-1">
+                                    District / City
+                                  </label>
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. Devbhoomi Dwarka"
+                                    value={reorderAddress.district_name}
+                                    onChange={(e) => setReorderAddress((prev) => ({ ...prev, district_name: e.target.value }))}
+                                    className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs outline-none focus:border-primary"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-[11px] font-bold text-text-primary mb-1">
+                                    State
+                                  </label>
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. Gujarat"
+                                    value={reorderAddress.state_name}
+                                    onChange={(e) => setReorderAddress((prev) => ({ ...prev, state_name: e.target.value }))}
+                                    className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs outline-none focus:border-primary"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[11px] font-bold text-text-primary mb-1">
+                                    Site Contact Person
+                                  </label>
+                                  <input
+                                    type="text"
+                                    placeholder="Receiver / Site Engineer Name"
+                                    value={reorderAddress.contact_name}
+                                    onChange={(e) => setReorderAddress((prev) => ({ ...prev, contact_name: e.target.value }))}
+                                    className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs outline-none focus:border-primary"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-[11px] font-bold text-text-primary mb-1">
+                                    Site Contact Phone / WhatsApp <span className="text-rose-500">*</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="e.g. 9876543210"
+                                    value={reorderAddress.contact_phone}
+                                    onChange={(e) => setReorderAddress((prev) => ({ ...prev, contact_phone: e.target.value }))}
+                                    className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs outline-none focus:border-primary"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 5. Step 2: Payment Milestones & Receipt Upload */}
+                          <div className="p-5 rounded-2xl bg-surface border border-border shadow-xs space-y-4">
+                            <div className="flex items-center justify-between pb-3 border-b border-border">
+                              <div>
+                                <h3 className="font-black text-sm sm:text-base text-text-primary flex items-center gap-2">
+                                  <FiUploadCloud className="text-primary" /> Step 2: Payment Milestones & Receipt Upload
+                                </h3>
+                                <p className="text-[11px] text-text-muted mt-0.5">
+                                  Admin-configured payment milestones applied. Pay advance to confirm order; remaining balance due before warehouse dispatch.
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Official Payment Milestone Policy Schedule Card */}
+                            <div className="bg-gradient-to-br from-amber-500/10 via-surface to-blue-500/10 p-4 sm:p-5 rounded-2xl border border-amber-500/30 space-y-4">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
+                                <div>
+                                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-md">
+                                    Official Payment Milestone Policy
+                                  </span>
+                                  <h4 className="text-sm font-black text-text-primary mt-1">
+                                    Product Payment Milestone Schedule
+                                  </h4>
+                                </div>
+                                <span className="text-xs font-bold text-text-secondary bg-surface px-2.5 py-1 rounded-lg border border-border">
+                                  Total Order Value: <strong className="text-text-primary">₹{grossTotal.toLocaleString("en-IN")}</strong>
+                                </span>
+                              </div>
+
+                              {/* Milestone Stepper (M1 30% Advance & M2 70% Final) */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                {/* Milestone 1 (Advance 30%) */}
+                                <div className={`p-3.5 rounded-xl border-2 transition-all ${!reorderPayFull ? "bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20 shadow-xs" : "bg-surface border-border"}`}>
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <span className="font-extrabold uppercase tracking-wider text-[11px] text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                                      Milestone 1 — Advance Payment (30%)
+                                    </span>
+                                    <span className="font-black text-amber-800 dark:text-amber-200 text-sm">
+                                      ₹{advanceAmount.toLocaleString("en-IN")}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-text-secondary leading-relaxed">
+                                    Advance payment to confirm order & reserve warehouse inventory.
+                                  </p>
+                                  <div className="mt-2 text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                                    ● Status: Due Now at Order Placement
+                                  </div>
+                                </div>
+
+                                {/* Milestone 2 (Before Dispatch 70%) */}
+                                <div className={`p-3.5 rounded-xl border transition-all ${reorderPayFull ? "bg-blue-500/10 border-blue-500 ring-2 ring-blue-500/20 shadow-xs" : "bg-surface border-border"}`}>
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <span className="font-extrabold uppercase tracking-wider text-[11px] text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                                      Milestone 2 — Final Payment (70%)
+                                    </span>
+                                    <span className="font-black text-blue-800 dark:text-blue-200 text-sm">
+                                      ₹{remainingAmount.toLocaleString("en-IN")}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-text-secondary leading-relaxed">
+                                    Remaining balance payable before warehouse dispatch clearance.
+                                  </p>
+                                  <div className="mt-2 text-[10px] font-bold text-blue-700 dark:text-blue-400">
+                                    ○ Status: Due Before Warehouse Dispatch
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Milestone Selection Radio Options */}
+                              <div className="pt-2 border-t border-border/60 flex flex-col sm:flex-row gap-3">
+                                <label
+                                  onClick={() => setReorderPayFull(false)}
+                                  className={`flex-1 flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${!reorderPayFull ? "border-amber-500 bg-amber-500/5 font-bold text-amber-900 dark:text-amber-200 shadow-xs" : "border-border bg-surface text-text-secondary"}`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="reorder_payment_plan"
+                                    checked={!reorderPayFull}
+                                    onChange={() => setReorderPayFull(false)}
+                                    className="text-amber-600 focus:ring-amber-500"
+                                  />
+                                  <div className="text-xs">
+                                    <span className="block font-bold">Pay 30% Advance (₹{advanceAmount.toLocaleString("en-IN")})</span>
+                                    <span className="text-[10px] font-normal opacity-80">Remaining ₹{remainingAmount.toLocaleString("en-IN")} payable before dispatch</span>
+                                  </div>
+                                </label>
+
+                                <label
+                                  onClick={() => setReorderPayFull(true)}
+                                  className={`flex-1 flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${reorderPayFull ? "border-blue-500 bg-blue-500/5 font-bold text-blue-900 dark:text-blue-200 shadow-xs" : "border-border bg-surface text-text-secondary"}`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="reorder_payment_plan"
+                                    checked={reorderPayFull}
+                                    onChange={() => setReorderPayFull(true)}
+                                    className="text-blue-600 focus:ring-blue-500"
+                                  />
+                                  <div className="text-xs">
+                                    <span className="block font-bold">Pay 100% Full Order (₹{netPayable.toLocaleString("en-IN")})</span>
+                                    <span className="text-[10px] font-normal opacity-80">Clear full payment now for direct express dispatch</span>
+                                  </div>
+                                </label>
+                              </div>
+                            </div>
+
+                            {/* Payment Input Fields */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                              <div>
+                                <label className="block text-[11px] font-bold text-text-primary mb-1">
+                                  UTR / Transaction Ref No. <span className="text-rose-500">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  required={reorderPaymentMethod !== "online"}
+                                  placeholder="e.g. HDFC0001928374 or 239847192834"
+                                  value={reorderUtr}
+                                  onChange={(e) => setReorderUtr(e.target.value.toUpperCase())}
+                                  className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary font-mono uppercase font-bold text-xs outline-none focus:border-primary"
+                                />
+                              </div>
+
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="block text-[11px] font-bold text-text-primary">
+                                    Amount Paid (₹) <span className="text-rose-500">*</span>
+                                  </label>
+                                  <span className="text-[10px] text-text-muted font-bold flex items-center gap-1">
+                                    🔒 Fixed / System Calculated
+                                  </span>
+                                </div>
+                                <input
+                                  type="text"
+                                  readOnly
+                                  value={`₹${amountDueToday.toLocaleString("en-IN")}`}
+                                  className="w-full px-3 py-2 rounded-xl border border-border bg-surface-hover text-text-primary font-mono font-bold text-xs outline-none cursor-not-allowed"
+                                />
+                                <p className="text-[10px] text-text-muted mt-1">
+                                  Amount locked based on preference ({!reorderPayFull ? "30% Advance" : "100% Full Payment"}).
+                                </p>
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-bold text-text-primary mb-1">
+                                  Payment Date <span className="text-rose-500">*</span>
+                                </label>
+                                <input
+                                  type="date"
+                                  required
+                                  value={reorderDate}
+                                  onChange={(e) => setReorderDate(e.target.value)}
+                                  className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs outline-none focus:border-primary"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-bold text-text-primary mb-1">
+                                  Sender Bank Name
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. State Bank of India / ICICI"
+                                  value={reorderBank}
+                                  onChange={(e) => setReorderBank(e.target.value)}
+                                  className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs outline-none focus:border-primary"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Payment Transfer Slip Upload Box */}
+                            <div className="space-y-2 pt-1">
+                              <label className="block text-[11px] font-bold text-text-primary">
+                                Upload Payment Transfer Receipt / Screenshot <span className="text-rose-500">*</span>
+                              </label>
+
+                              <div className="border-2 border-dashed border-border hover:border-primary rounded-2xl p-4 text-center transition-colors bg-surface-hover cursor-pointer relative">
+                                <input
+                                  type="file"
+                                  accept="image/*,application/pdf"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      setReorderSlipFile(file);
+                                      if (file.type.startsWith("image/")) {
+                                        setReorderSlipPreview(URL.createObjectURL(file));
+                                      } else {
+                                        setReorderSlipPreview(null);
+                                      }
+                                    }
+                                  }}
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                />
+                                {reorderSlipPreview ? (
+                                  <div className="space-y-2">
+                                    <img src={reorderSlipPreview} alt="Receipt preview" className="max-h-32 mx-auto rounded-lg object-contain border border-border" />
+                                    <p className="text-xs font-bold text-primary">{reorderSlipFile?.name}</p>
+                                    <p className="text-[10px] text-text-muted">Click or drag file to change receipt</p>
+                                  </div>
+                                ) : reorderSlipFile ? (
+                                  <div className="space-y-1">
+                                    <FiFileText size={24} className="mx-auto text-primary" />
+                                    <p className="text-xs font-bold text-primary">{reorderSlipFile.name}</p>
+                                    <p className="text-[10px] text-text-muted">Click to change receipt file</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1.5 py-1">
+                                    <FiUploadCloud size={24} className="mx-auto text-primary" />
+                                    <p className="text-xs font-bold text-text-primary">
+                                      Drag & Drop payment receipt or <span className="text-primary underline">browse</span>
+                                    </p>
+                                    <p className="text-[10px] text-text-muted">Supports JPG, PNG, PDF (Max 10MB)</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="pt-2 border-t border-border flex items-center justify-end gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setReorderModal(false)}
-                            disabled={reorderSubmitting}
-                            className="px-4 py-2.5 rounded-xl border border-border text-xs font-bold text-text-secondary hover:bg-surface-hover transition-all cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={reorderSubmitting || !reorderUtr.trim()}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-black shadow-lg hover:opacity-90 transition-all cursor-pointer disabled:opacity-50"
-                          >
-                            {reorderSubmitting ? (
-                              <>
-                                <FiLoader size={14} className="animate-spin" />
-                                <span>Placing Reorder...</span>
-                              </>
-                            ) : (
-                              <>
-                                <FiCheck size={14} />
-                                <span>Place Reorder & Settle ₹{netPayable.toLocaleString("en-IN")}</span>
-                              </>
-                            )}
-                          </button>
+                        {/* ── RIGHT COLUMN: Order Pricing Summary Sidebar (4 Cols) ── */}
+                        <div className="lg:col-span-4 space-y-4 lg:sticky lg:top-0">
+                          <div className="p-4 sm:p-5 rounded-2xl bg-surface border border-border shadow-md space-y-4">
+                            <h3 className="font-extrabold text-sm text-text-primary border-b border-border pb-2.5 flex items-center justify-between">
+                              <span>Order Pricing Summary</span>
+                              <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                                {reorderQty} Kits
+                              </span>
+                            </h3>
+
+                            {/* Kit item snapshot */}
+                            <div className="border-b border-border/60 pb-3 space-y-1">
+                              <div className="font-bold text-xs text-text-primary line-clamp-1">
+                                {it.item_name || "Solarkits DCR Combo Kit"}
+                              </div>
+                              <div className="flex justify-between text-[11px] text-text-muted">
+                                <span>{reorderQty} Kits × ₹{unitPrice.toLocaleString("en-IN")}/kit</span>
+                                <span className="font-mono font-medium">₹{subtotal.toLocaleString("en-IN")}</span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 text-xs">
+                              <div className="flex justify-between text-text-muted">
+                                <span>Items Base Subtotal (Excl. GST)</span>
+                                <span className="font-mono">₹{subtotal.toLocaleString("en-IN")}</span>
+                              </div>
+                              <div className="flex justify-between text-text-muted">
+                                <span>GST ({gstRate}%)</span>
+                                <span className="font-mono">₹{tax.toLocaleString("en-IN")}</span>
+                              </div>
+                              <div className="flex justify-between font-bold text-text-primary pt-1 border-t border-border/60">
+                                <span>Subtotal (Incl. GST)</span>
+                                <span className="font-mono">₹{grossTotal.toLocaleString("en-IN")}</span>
+                              </div>
+                              <div className="flex justify-between text-text-muted">
+                                <span>Total Capacity</span>
+                                <span className="font-semibold text-text-primary">{totalKw} kW</span>
+                              </div>
+                              <div className="flex justify-between font-black text-text-primary pt-1 border-t border-border/60">
+                                <span>Total Order Value</span>
+                                <span className="font-mono text-sm">₹{grossTotal.toLocaleString("en-IN")}</span>
+                              </div>
+
+                              {tokenToDeduct > 0 && (
+                                <div className="flex justify-between font-bold text-emerald-600 dark:text-emerald-400 pt-1">
+                                  <span>Less: Escrow Token Deduction</span>
+                                  <span className="font-mono">- ₹{tokenToDeduct.toLocaleString("en-IN")}</span>
+                                </div>
+                              )}
+
+                              {/* Milestone schedule breakdown */}
+                              <div className="p-3 rounded-xl bg-surface-hover/80 border border-border/60 space-y-1.5 mt-2 text-[11px]">
+                                <div className="flex justify-between text-amber-700 dark:text-amber-300 font-bold">
+                                  <span>Milestone 1 Advance Due Now (30%):</span>
+                                  <span className="font-mono">₹{advanceAmount.toLocaleString("en-IN")}</span>
+                                </div>
+                                <div className="flex justify-between text-text-muted">
+                                  <span>Milestone 2 Before Dispatch (70%):</span>
+                                  <span className="font-mono">₹{remainingAmount.toLocaleString("en-IN")}</span>
+                                </div>
+                              </div>
+
+                              {/* Large Amount Due Today Card */}
+                              <div className="p-3.5 rounded-2xl bg-primary/10 border-2 border-primary/30 text-center space-y-1 mt-3">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-primary block">
+                                  Amount Due Today ({!reorderPayFull ? "30% Advance" : "100% Full Order"})
+                                </span>
+                                <div className="text-xl sm:text-2xl font-black text-primary font-mono">
+                                  ₹{amountDueToday.toLocaleString("en-IN")}
+                                </div>
+                                <span className="text-[10px] text-text-muted block">
+                                  {!reorderPayFull
+                                    ? `Balance ₹${remainingAmount.toLocaleString("en-IN")} due before dispatch`
+                                    : "Zero balance due. Cleared for priority dispatch."}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Modal Actions */}
+                            <div className="pt-3 border-t border-border space-y-2">
+                              <button
+                                type="submit"
+                                disabled={reorderSubmitting || (reorderPaymentMethod !== "online" && !reorderUtr.trim())}
+                                className="w-full py-3 rounded-xl bg-primary text-white text-xs font-black shadow-lg hover:opacity-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                              >
+                                {reorderSubmitting ? (
+                                  <>
+                                    <FiLoader size={15} className="animate-spin" />
+                                    <span>Placing Reorder...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <FiCheck size={15} />
+                                    <span>Submit Payment for Accounts Verification</span>
+                                  </>
+                                )}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setReorderModal(false)}
+                                disabled={reorderSubmitting}
+                                className="w-full py-2.5 rounded-xl border border-border text-xs font-bold text-text-secondary hover:bg-surface-hover transition-all cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      </>
+                      </div>
                     );
                   })()}
                 </form>

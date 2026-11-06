@@ -3405,7 +3405,7 @@ const checkout_warehouse_capacity_check = async (req, res) => {
  */
 const calculate_pincode_delivery_cost = async (req, res) => {
   try {
-    const { pincode, kit_id, quantity = 1 } = req.query;
+    const { pincode, kit_id, quantity = 1, order_type = 'loose' } = req.query;
 
     if (!pincode || !String(pincode).trim()) {
       return res.status(400).json({
@@ -3422,9 +3422,16 @@ const calculate_pincode_delivery_cost = async (req, res) => {
       });
     }
 
+    // Normalize order type: loose, po, trial
+    const rawOrderType = String(order_type || 'loose').toLowerCase();
+    const normalizedOrderType = rawOrderType.includes('trial')
+      ? 'trial'
+      : (rawOrderType.includes('po') ? 'po' : 'loose');
+
     const qty = Math.max(1, parseInt(quantity, 10) || 1);
     const { PincodeDeliveryCost } = require("../../../admin-panel/models/india_solarshop_db");
     const ComboKit = require("../../../admin-panel/models/india_solarshop_db/combo_kits.schema");
+    const { GeoLevel2 } = require("../../../admin-panel/models/geolocation_db");
 
     let kitDoc = null;
     let targetKitId = null;
@@ -3461,10 +3468,60 @@ const calculate_pincode_delivery_cost = async (req, res) => {
       }).lean();
     }
 
+    // 4. District Master Fallback: Look up district of this pincode from Geolocation master
+    let geoDistrict = null;
+    if (!rateRule) {
+      try {
+        geoDistrict = await GeoLevel2.findOne({
+          'pincodes.pincode': cleanPincode,
+          is_active: true,
+          $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }],
+        }).populate('level_1', 'name').lean();
+
+        if (geoDistrict) {
+          if (targetKitId) {
+            rateRule = await PincodeDeliveryCost.findOne({
+              district_id: geoDistrict._id,
+              combo_kit_id: targetKitId,
+              is_active: true,
+            }).lean();
+          }
+
+          if (!rateRule) {
+            rateRule = await PincodeDeliveryCost.findOne({
+              district_id: geoDistrict._id,
+              combo_kit_id: null,
+              is_active: true,
+            }).lean();
+          }
+        }
+      } catch (geoErr) {
+        console.warn('Geolocation fallback lookup warning:', geoErr.message);
+      }
+    }
+
+    // Resolve order-type specific delivery cost
+    let resolvedDeliveryCost = 0;
+    if (rateRule) {
+      if (normalizedOrderType === 'trial') {
+        resolvedDeliveryCost = rateRule.trial_delivery_cost !== undefined && rateRule.trial_delivery_cost !== null && rateRule.trial_delivery_cost > 0
+          ? Number(rateRule.trial_delivery_cost)
+          : Number(rateRule.delivery_cost || 0);
+      } else if (normalizedOrderType === 'po') {
+        resolvedDeliveryCost = rateRule.po_delivery_cost !== undefined && rateRule.po_delivery_cost !== null && rateRule.po_delivery_cost > 0
+          ? Number(rateRule.po_delivery_cost)
+          : Number(rateRule.delivery_cost || 0);
+      } else {
+        resolvedDeliveryCost = rateRule.loose_delivery_cost !== undefined && rateRule.loose_delivery_cost !== null && rateRule.loose_delivery_cost > 0
+          ? Number(rateRule.loose_delivery_cost)
+          : Number(rateRule.delivery_cost || 0);
+      }
+    }
+
     const isServiceable = Boolean(rateRule);
-    const deliveryCost = rateRule ? Number(rateRule.delivery_cost) : 0;
-    const stateName = rateRule?.state_name || locationFallback?.state_name || null;
-    const districtName = rateRule?.district_name || locationFallback?.district_name || null;
+    const deliveryCost = resolvedDeliveryCost;
+    const stateName = rateRule?.state_name || locationFallback?.state_name || geoDistrict?.level_1?.name || null;
+    const districtName = rateRule?.district_name || locationFallback?.district_name || geoDistrict?.name || null;
     const estMin = rateRule?.estimated_days_min || 3;
     const estMax = rateRule?.estimated_days_max || 7;
 
@@ -3505,10 +3562,23 @@ const calculate_pincode_delivery_cost = async (req, res) => {
       success: true,
       data: {
         pincode: cleanPincode,
+        order_type: normalizedOrderType,
         is_serviceable: isServiceable,
         state_name: stateName,
         district_name: districtName,
+        warehouse: rateRule?.warehouse_name ? {
+          code: rateRule.warehouse_code,
+          name: rateRule.warehouse_name,
+          type: rateRule.warehouse_type || 'master',
+        } : null,
+        pricing_mode: rateRule?.pricing_mode || 'fixed',
+        distance_km: rateRule?.distance_km || 0,
         delivery_cost: deliveryCost,
+        rates_breakdown: {
+          loose: rateRule ? Number(rateRule.loose_delivery_cost ?? rateRule.delivery_cost ?? 0) : 0,
+          po: rateRule ? Number(rateRule.po_delivery_cost ?? rateRule.delivery_cost ?? 0) : 0,
+          trial: rateRule ? Number(rateRule.trial_delivery_cost ?? rateRule.delivery_cost ?? 0) : 0,
+        },
         formatted_delivery_cost: `₹${deliveryCost.toLocaleString("en-IN")}`,
         estimated_days_min: estMin,
         estimated_days_max: estMax,
@@ -3523,7 +3593,7 @@ const calculate_pincode_delivery_cost = async (req, res) => {
           gst_amount: gstAmount,
         },
         message: isServiceable
-          ? `Delivery available to ${districtName ? districtName + ', ' : ''}${stateName || ''} (${cleanPincode})`
+          ? `Delivery available to ${districtName ? districtName + ', ' : ''}${stateName || ''} (${cleanPincode}) for ${normalizedOrderType.toUpperCase()} order`
           : `Delivery charge not configured for PIN ${cleanPincode}. Standard rates may apply.`,
       },
     });
@@ -3760,11 +3830,21 @@ const get_epc_order_invoice_data = async (req, res) => {
     const epc_id = req.user?.account_id || req.user?.id;
     const { id } = req.params;
 
-    const { EpcOrder } = require("../../../admin-panel/models/india_solarshop_db");
-    const order = await EpcOrder.findOne({ _id: id, epc_id })
+    const { EpcOrder, FpoOrder } = require("../../../admin-panel/models/india_solarshop_db");
+    let order = await EpcOrder.findOne({ _id: id, epc_id })
       .populate('epc_id', 'name email whatsapp gstin company_name address')
       .populate('reseller_id', 'business_name gst_number address mobile email')
       .lean();
+
+    if (!order && FpoOrder) {
+      order = await FpoOrder.findOne({
+        _id: id,
+        $or: [{ epc_id }, { 'po_origin.epc_id': epc_id }, { buyer_id: epc_id }]
+      })
+        .populate('epc_id', 'name email whatsapp gstin company_name address')
+        .populate('franchisee_id', 'name business_name gst_number address mobile email')
+        .lean();
+    }
 
     if (!order) {
       return res.status(404).json({ success: false, message: "Order record not found." });
@@ -4372,18 +4452,27 @@ const get_epc_po_allocations = async (req, res) => {
     }
 
     const { FpoOrder } = require("../../../admin-panel/models/india_solarshop_db");
+    const accountObjId = mongoose.Types.ObjectId.isValid(accountId) ? new mongoose.Types.ObjectId(accountId) : null;
+    const epcMatches = accountObjId ? [accountId, accountObjId] : [accountId];
 
-    // Find all top-level FPO orders where this account is allocated in any item
+    // Find all top-level FPO orders where this account is allocated or assigned
     const orders = await FpoOrder.find({
-      "items.epc_allocations.epc_buyer_id": accountId,
+      $or: [
+        { epc_id: { $in: epcMatches } },
+        { "items.epc_allocations.epc_buyer_id": { $in: epcMatches } },
+      ],
       parent_po_id: null,
       deleted_at: null,
     }).populate('franchisee_id', 'business_name mobile email contact_person').sort({ created_at: -1 }).lean();
 
+    let childOrders = [];
     if (orders.length > 0) {
       const parentIds = orders.map((o) => o._id);
-      const childOrders = await FpoOrder.find({
-        parent_po_id: { $in: parentIds },
+      childOrders = await FpoOrder.find({
+        $or: [
+          { parent_po_id: { $in: parentIds } },
+          { epc_id: { $in: epcMatches }, parent_po_id: { $ne: null } },
+        ],
         deleted_at: null,
       }).sort({ created_at: -1 }).lean();
 
@@ -4399,10 +4488,15 @@ const get_epc_po_allocations = async (req, res) => {
       });
     }
 
-    // Collect kit IDs to enrich with image, description, capacity
+    // Collect kit IDs to enrich BOTH parent orders and child repeat orders
     const kitIds = [];
     orders.forEach(o => {
-      o.items?.forEach(item => {
+      (o.items || []).forEach(item => {
+        if (item.kit_id) kitIds.push(item.kit_id);
+      });
+    });
+    childOrders.forEach(co => {
+      (co.items || []).forEach(item => {
         if (item.kit_id) kitIds.push(item.kit_id);
       });
     });
@@ -4412,11 +4506,12 @@ const get_epc_po_allocations = async (req, res) => {
       const kitMap = new Map();
       kits.forEach(k => kitMap.set(k._id.toString(), k));
 
-      orders.forEach(o => {
-        o.items?.forEach(item => {
+      const enrichItems = (items) => {
+        (items || []).forEach(item => {
           if (item.kit_id && kitMap.has(item.kit_id.toString())) {
             const k = kitMap.get(item.kit_id.toString());
             item.kit_image = k.kit_image || (k.images && k.images[0]) || null;
+            item.image = item.kit_image;
             item.capacity = k.capacity || k.capacity_kw || null;
             item.description = k.description || null;
             item.brand_name = k.brand_name || null;
@@ -4427,9 +4522,17 @@ const get_epc_po_allocations = async (req, res) => {
             item.loose_order_quantities = validLooseQtys;
           }
         });
+      };
+
+      orders.forEach(o => {
+        enrichItems(o.items);
         if (o.items?.[0]?.loose_order_quantities) {
           o.loose_order_quantities = o.items[0].loose_order_quantities;
         }
+      });
+
+      childOrders.forEach(co => {
+        enrichItems(co.items);
       });
     }
 
@@ -4503,6 +4606,16 @@ const submit_epc_po_receipt = async (req, res) => {
         }
       });
     });
+
+    if (!updated && (String(order.epc_id) === String(accountId) || order.parent_po_id)) {
+      if (!order.offline_payment) order.offline_payment = {};
+      order.offline_payment.receipt_url = receiptUrl;
+      order.offline_payment.verification_status = 'pending';
+      if (order.status === 'DRAFT' || order.status === 'PAYMENT_PENDING') {
+        order.status = 'SUBMITTED';
+      }
+      updated = true;
+    }
 
     if (!updated) {
       return res.status(404).json({ status: "error", message: "Allocation for this EPC not found in the PO." });
@@ -5302,21 +5415,73 @@ const reorder_against_epc_po = async (req, res) => {
       destination_type,
       destination_address,
       destination_pincode,
+      delivery_address,
+      fulfillment_mode,
+      payment_milestones,
+      pay_full_amount,
+      is_online_order,
+      payment_method,
       offline_payment,
     } = req.body;
 
-    const { FpoOrder } = require('../../../admin-panel/models/india_solarshop_db');
+    const { FpoOrder, RegionPaymentConfig } = require('../../../admin-panel/models/india_solarshop_db');
     const parentPo = await FpoOrder.findById(id).lean();
     if (!parentPo) {
-      return res.status(404).json({ success: false, status: "error", message: "Parent PO not found" });
+      return res.status(404).json({ success: false, status: 'error', message: 'Parent PO not found' });
     }
 
+    // Allow validated, started, confirmed, or processing POs
+    const activeStatuses = ['VALIDATED', 'PO_STARTED', 'CONFIRMED', 'APPROVED', 'STOCK_ALLOCATED', 'PROCESSING'];
+    if (!activeStatuses.includes(parentPo.status)) {
+      return res.status(400).json({
+        success: false,
+        status: 'error',
+        message: 'Parent PO is not active (current status: ' + parentPo.status + '). Price lock and kit drawdowns activate once the PO is started / token deposit is verified.'
+      });
+    }
+
+    // ── Enforce PO Guaranteed Price Lock Validity Period ──
+    const now = new Date();
+    const poExpiryDate = parentPo.lock_expires_at || parentPo.expires_at;
+    if (poExpiryDate && now > new Date(poExpiryDate)) {
+      return res.status(400).json({
+        success: false,
+        status: 'error',
+        message: 'The price lock on PO #' + parentPo.po_number + ' expired on ' + new Date(poExpiryDate).toLocaleDateString('en-IN') + '. Cannot place reorder under this PO.'
+      });
+    }
+
+    const reorderRequestedQty = Number(quantity) || (Array.isArray(items) ? items.reduce((s, i) => s + (Number(i.quantity) || 0), 0) : 1);
+    const accountStr = accountId ? accountId.toString() : '';
+
+    // Enforce individual EPC quota in Combine PO (multi-EPC)
+    if (parentPo.po_category === 'COMBINE_PO' && Array.isArray(parentPo.items?.[0]?.epc_allocations)) {
+      const epcAlloc = parentPo.items[0].epc_allocations.find(a => 
+        (a.epc_buyer_id?._id || a.epc_buyer_id || a.buyer_id || a._id)?.toString() === accountStr
+      );
+      if (epcAlloc) {
+        const allocCap = Number(epcAlloc.allocated_quantity || 0);
+        const alreadyFulfilled = Number(epcAlloc.fulfilled_quantity || 0);
+        const epcRemaining = Math.max(0, allocCap - alreadyFulfilled);
+        if (reorderRequestedQty > epcRemaining) {
+          return res.status(400).json({
+            success: false,
+            status: 'error',
+            message: 'Requested quantity (' + reorderRequestedQty + ' kits) exceeds your remaining allocated quota (' + epcRemaining + ' kits remaining out of ' + allocCap + ' allocated).'
+          });
+        }
+      }
+    }
+
+    // ── Enforce Immutable Locked Price from Parent PO ──
+    const parentItem = parentPo.items?.[0] || {};
+    const lockedUnitPricePaise = parentItem.unit_price_paise || 0;
+    const lockedGstRate = parentItem.gst_rate != null ? parentItem.gst_rate : 13.85;
+    const targetKitId = kit_id || parentItem.kit_id || parentItem.product_id;
+
     if (!Array.isArray(items) || items.length === 0) {
-      const parentItem = parentPo.items?.[0] || {};
-      const reorderQty = Number(quantity) || 1;
-      const targetKitId = kit_id || parentItem.kit_id || parentItem.product_id;
       if (!targetKitId) {
-        return res.status(400).json({ success: false, status: "error", message: "Kit ID or Items array is required for reorder" });
+        return res.status(400).json({ success: false, status: 'error', message: 'Kit ID or Items array is required for reorder' });
       }
 
       items = [{
@@ -5324,12 +5489,34 @@ const reorder_against_epc_po = async (req, res) => {
         product_id: targetKitId,
         item_name: parentItem.item_name || 'Solar Kit',
         item_code: parentItem.item_code || null,
-        quantity: reorderQty,
-        unit_price_paise: parentItem.unit_price_paise || 0,
-        gst_rate: parentItem.gst_rate || 13.85,
+        quantity: reorderRequestedQty,
+        unit_price_paise: lockedUnitPricePaise,
+        gst_rate: lockedGstRate,
         project_type_id: parentItem.project_type_id || null,
       }];
+    } else {
+      // Force locked unit price on all items
+      items = items.map(it => ({
+        ...it,
+        unit_price_paise: lockedUnitPricePaise,
+        gst_rate: lockedGstRate,
+      }));
     }
+
+    // ── Check if delivery state allows online orders ──
+    let onlineAllowedForState = false;
+    const stateIdToCheck = delivery_address?.state_id || parentPo.state_id;
+    if (stateIdToCheck) {
+      try {
+        const rCfg = await RegionPaymentConfig.findOne({ state_id: stateIdToCheck, is_active: { $ne: false } }).lean();
+        if (rCfg && (rCfg.payment_mode === 'online' || rCfg.payment_mode === 'both' || rCfg.online_enabled)) {
+          onlineAllowedForState = true;
+        }
+      } catch (errCfg) {
+        console.warn('Error checking region payment config:', errCfg.message);
+      }
+    }
+    const finalIsOnlineOrder = Boolean(is_online_order && onlineAllowedForState);
 
     const { createPoDraft, submitPo } = require('../../../admin-panel/services/franchisee.po.service');
 
@@ -5340,9 +5527,15 @@ const reorder_against_epc_po = async (req, res) => {
       items,
       order_type: 'loose_kit_order',
       parent_po_id: id,
-      destination_type: destination_type || 'direct',
-      destination_address: destination_address || parentPo.destination_address || null,
-      destination_pincode: destination_pincode || parentPo.destination_pincode || null,
+      destination_type: destination_type || (fulfillment_mode === 'epc_warehouse' ? 'warehouse' : 'direct'),
+      destination_address: delivery_address?.line || destination_address || parentPo.destination_address || null,
+      destination_pincode: delivery_address?.pincode || destination_pincode || parentPo.destination_pincode || null,
+      delivery_address: delivery_address || null,
+      fulfillment_mode: fulfillment_mode || 'direct_site',
+      is_online_order: finalIsOnlineOrder,
+      online_order_state_id: stateIdToCheck || null,
+      payment_method: finalIsOnlineOrder ? 'icici_ecollection' : (payment_method || (offline_payment ? 'offline_bank_transfer' : 'bank_transfer')),
+      pay_full_amount: Boolean(pay_full_amount),
       offline_payment: offline_payment || null,
       actor_id: accountId,
       req,
@@ -5360,10 +5553,13 @@ const reorder_against_epc_po = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      status: "success",
-      message: "Linked reorder placed successfully against PO",
+      status: 'success',
+      message: 'Linked reorder placed successfully against PO',
       data: {
         order: finalOrder,
+        price_lock: finalOrder.price_lock,
+        payment_milestones: finalOrder.payment_milestones,
+        po_origin: finalOrder.po_origin,
         token_adjustment: {
           token_adjusted_inr: Math.round((finalOrder.token_adjusted_paise || 0) / 100),
           net_payable_inr: Math.round((finalOrder.net_payable_paise || finalOrder.grand_total_paise || 0) / 100),
@@ -5371,8 +5567,8 @@ const reorder_against_epc_po = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("reorder_against_epc_po error:", error);
-    return res.status(400).json({ success: false, status: "error", message: error.message || "Failed to place reorder" });
+    console.error('reorder_against_epc_po error:', error);
+    return res.status(400).json({ success: false, status: 'error', message: error.message || 'Failed to place reorder' });
   }
 };
 

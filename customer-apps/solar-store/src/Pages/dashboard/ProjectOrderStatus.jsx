@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import axiosInstance from "@/utils/axiosInstance";
 import {
   FaShoppingCart, FaEye, FaRegClock, FaCheckCircle,
   FaTimesCircle, FaMapMarkerAlt, FaEdit, FaTimes, FaTruck,
   FaWarehouse, FaTruckLoading, FaFileInvoice, FaRedo, FaUpload,
   FaBuilding, FaExclamationTriangle, FaCopy, FaCheck, FaExternalLinkAlt,
-  FaSearch, FaBoxOpen, FaRoute, FaBolt, FaUniversity
+  FaSearch, FaBoxOpen, FaRoute, FaBolt, FaUniversity,
+  FaLayerGroup, FaBoxes, FaPhone, FaInfoCircle
 } from "react-icons/fa";
 import { BsArrowRepeat } from "react-icons/bs";
 import Button from "@/Components/Button";
@@ -27,10 +28,18 @@ export default function ProjectOrderStatus() {
   const [copiedKey, setCopiedKey] = useState(null);
 
   useEffect(() => {
-    if (location.state?.orderNumber) {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get("tab");
+    const searchParam = params.get("search");
+    if (tabParam === "po_allocations" || tabParam === "direct") {
+      setMainTab(tabParam);
+    }
+    if (searchParam) {
+      setSearchQuery(searchParam);
+    } else if (location.state?.orderNumber) {
       setSearchQuery(location.state.orderNumber);
     }
-  }, [location.state]);
+  }, [location.search, location.state]);
 
   const handleCopy = (text, key) => {
     if (!text) return;
@@ -111,13 +120,17 @@ export default function ProjectOrderStatus() {
     try {
       const res = await axiosInstance.get("/india/v1/shop/orders");
       if (res.data?.success) {
-        setOrders(res.data.data || []);
+        const fetched = res.data.data || [];
+        setOrders(fetched);
+        return fetched;
       } else {
         setErrorMsg("Failed to load orders.");
+        return [];
       }
     } catch (err) {
       console.error("Failed to load orders:", err);
       setErrorMsg(err.response?.data?.message || "Error fetching order list. Please try again.");
+      return [];
     } finally {
       setLoading(false);
     }
@@ -128,10 +141,14 @@ export default function ProjectOrderStatus() {
     try {
       const res = await axiosInstance.get("/india/v1/shop/po-allocations");
       if (res.data?.success || res.data?.status === "success") {
-        setPoAllocations(res.data.data || []);
+        const fetched = res.data.data || [];
+        setPoAllocations(fetched);
+        return fetched;
       }
+      return [];
     } catch (err) {
       console.error("Failed to load PO allocations:", err);
+      return [];
     } finally {
       setPoLoading(false);
     }
@@ -165,8 +182,14 @@ export default function ProjectOrderStatus() {
   };
 
   useEffect(() => {
-    fetchOrders();
-    fetchPoAllocations();
+    Promise.all([fetchOrders(), fetchPoAllocations()]).then(([directList, poList]) => {
+      const params = new URLSearchParams(location.search);
+      if (!params.get("tab")) {
+        if ((!directList || directList.length === 0) && (poList && poList.length > 0)) {
+          setMainTab("po_allocations");
+        }
+      }
+    });
     fetchStates();
 
     // Listen for ICICI real-time payment credits to auto-refresh order statuses
@@ -288,8 +311,9 @@ export default function ProjectOrderStatus() {
 
   // ── Milestone 2 Payment Handlers ──────────────────────────────────────────
   const handleOpenMilestonePay = async (order) => {
+    const totalOrderAmt = order.total_amount || Math.round((order.net_payable_paise || order.grand_total_paise || 0) / 100);
     const remPct = order.payment_milestones?.remaining_percentage ?? (order.payment_milestones?.milestones?.find(m => m.milestone_number === 2)?.percentage || (100 - (order.payment_milestones?.advance_percentage || 30)));
-    const remaining = order.payment_milestones?.remaining_amount || Math.round((order.total_amount || 0) * (remPct / 100));
+    const remaining = order.payment_milestones?.remaining_amount || Math.round((totalOrderAmt || 0) * (remPct / 100));
     setMilestonePaymentModalOrder(order);
     setMilestoneUtr("");
     setMilestoneAmount(String(remaining));
@@ -438,6 +462,7 @@ export default function ProjectOrderStatus() {
       if (res.data?.success) {
         setMilestonePaymentModalOrder(null);
         fetchOrders();
+        fetchPoAllocations();
       } else {
         setMilestoneError(res.data?.message || "Failed to submit milestone payment.");
       }
@@ -460,6 +485,34 @@ export default function ProjectOrderStatus() {
     const courier = (o.dispatch_tracking?.courier_name || "").toLowerCase();
     return orderNum.includes(q) || utr.includes(q) || kitName.includes(q) || lr.includes(q) || courier.includes(q);
   });
+
+  const totalRepeatOrders = poAllocations.reduce((acc, po) => acc + (po.linked_repeat_orders?.length || 0), 0);
+
+  const filteredPoAllocations = poAllocations.map((po) => {
+    if (!searchQuery.trim()) return po;
+    const q = searchQuery.toLowerCase().trim();
+    const poNum = (po.po_number || po.id || po._id || "").toLowerCase();
+    const franchisee = (po.franchisee_id?.business_name || po.franchisee_id?.contact_person || "").toLowerCase();
+    const parentKitName = (po.items?.[0]?.item_name || "").toLowerCase();
+    const parentUtr = (po.items?.[0]?.epc_allocations?.[0]?.payment_utr || po.offline_payment?.utr_number || "").toLowerCase();
+
+    const parentMatches = poNum.includes(q) || franchisee.includes(q) || parentKitName.includes(q) || parentUtr.includes(q);
+
+    const matchedChildren = (po.linked_repeat_orders || []).filter((child) => {
+      const childNum = (child.po_number || child.id || child._id || "").toLowerCase();
+      const childUtr = (child.payment_utr || child.offline_payment?.utr_number || "").toLowerCase();
+      const childKit = (child.items?.[0]?.item_name || "").toLowerCase();
+      const lr = (child.dispatch_tracking?.tracking_number || "").toLowerCase();
+      const courier = (child.dispatch_tracking?.courier_name || "").toLowerCase();
+      const vehicle = (child.assigned_vehicle?.registration_number || child.assigned_vehicle?.vehicle_name || "").toLowerCase();
+      const driver = (child.assigned_vehicle?.driver_name || "").toLowerCase();
+      return childNum.includes(q) || childUtr.includes(q) || childKit.includes(q) || lr.includes(q) || courier.includes(q) || vehicle.includes(q) || driver.includes(q);
+    });
+
+    if (parentMatches) return po;
+    if (matchedChildren.length > 0) return { ...po, linked_repeat_orders: matchedChildren };
+    return null;
+  }).filter(Boolean);
 
   const modalRemPct = milestonePaymentModalOrder
     ? (milestonePaymentModalOrder.payment_milestones?.remaining_percentage ?? (milestonePaymentModalOrder.payment_milestones?.milestones?.find(m => m.milestone_number === 2)?.percentage || (100 - (milestonePaymentModalOrder.payment_milestones?.advance_percentage || 30))))
@@ -492,7 +545,10 @@ export default function ProjectOrderStatus() {
       {/* ── Segment Switcher: Direct Orders vs Franchisee PO Allocations ──────── */}
       <div className="flex items-center gap-2 p-1.5 bg-surface border border-border rounded-2xl w-fit shadow-xs">
         <button
-          onClick={() => setMainTab("direct")}
+          onClick={() => {
+            setMainTab("direct");
+            navigate("/track-status?tab=direct", { replace: true });
+          }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${mainTab === "direct"
               ? "bg-primary text-white shadow-sm"
               : "text-text-secondary hover:text-text-primary"
@@ -502,14 +558,17 @@ export default function ProjectOrderStatus() {
           <span>Direct Kit Orders ({orders.length})</span>
         </button>
         <button
-          onClick={() => setMainTab("po_allocations")}
+          onClick={() => {
+            setMainTab("po_allocations");
+            navigate("/track-status?tab=po_allocations", { replace: true });
+          }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${mainTab === "po_allocations"
               ? "bg-primary text-white shadow-sm"
               : "text-text-secondary hover:text-text-primary"
             }`}
         >
           <FaBuilding size={13} />
-          <span>Franchisee PO Allocations ({poAllocations.length})</span>
+          <span>Franchisee PO Allocations ({poAllocations.length}{totalRepeatOrders > 0 ? ` • ${totalRepeatOrders} Orders` : ""})</span>
           {poAllocations.some((o) =>
             (o.items || []).some((i) =>
               (i.epc_allocations || []).some((a) => a.payment_status === "RECEIPT_SUBMITTED")
@@ -1391,91 +1450,214 @@ export default function ProjectOrderStatus() {
           )}
         </>
       ) : (
-        /* ── Franchisee PO Allocations Tracking Tab ────────────────────────── */
+        /* ── Franchisee PO Allocations & Orders Tracking Tab ────────────────── */
         <div className="space-y-6">
+          {/* Search & Stats Bar for PO Allocations */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface p-3 rounded-2xl border border-border shadow-xs">
+            <div className="relative flex-1">
+              <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted text-xs" />
+              <input
+                type="text"
+                placeholder="Search by PO #, Drawdown Order #, UTR number, Kit package, or Waybill/LR..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 bg-surface-hover/50 hover:bg-surface-hover border border-border rounded-xl text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary p-0.5"
+                >
+                  <FaTimes size={11} />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-xs font-bold text-text-secondary px-2">
+              <span>
+                Showing <strong className="text-text-primary dark:text-white">{filteredPoAllocations.length}</strong> of {poAllocations.length} allocation{poAllocations.length === 1 ? "" : "s"}
+                {totalRepeatOrders > 0 && ` (${totalRepeatOrders} placed orders)`}
+              </span>
+            </div>
+          </div>
+
+          {/* Loading & Empty States */}
           {poLoading ? (
             <div className="py-20 text-center space-y-3">
               <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-xs font-bold text-text-secondary">Loading Franchisee PO Allocations...</p>
+              <p className="text-xs font-bold text-text-secondary">Loading Franchisee PO Allocations & Live Tracking...</p>
             </div>
-          ) : poAllocations.length === 0 ? (
+          ) : filteredPoAllocations.length === 0 ? (
             <div className="py-20 text-center bg-surface rounded-3xl border border-border shadow-sm p-8 space-y-3">
               <FaBuilding className="mx-auto text-text-muted text-4xl" />
-              <h3 className="text-base font-bold text-text-primary dark:text-white">No Franchisee PO Allocations</h3>
+              <h3 className="text-base font-bold text-text-primary dark:text-white">
+                {searchQuery ? "No Matching PO Allocations Found" : "No Franchisee PO Allocations"}
+              </h3>
               <p className="text-xs text-text-secondary max-w-md mx-auto">
-                When your Franchise Partner creates a Purchase Order and allocates solar combo kits to your company, they will appear here for payment upload and live tracking.
+                {searchQuery
+                  ? `No purchase orders or repeat drawdowns match "${searchQuery}".`
+                  : "When your Franchise Partner creates a Purchase Order and allocates solar combo kits to your company, they will appear here for payment upload and live tracking."}
               </p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="px-4 py-1.5 rounded-xl bg-primary text-white text-xs font-bold hover:opacity-90 transition-opacity"
+                >
+                  Clear Search
+                </button>
+              )}
             </div>
           ) : (
-            <div className="space-y-5">
-              {poAllocations.map((order) => {
+            <div className="space-y-8">
+              {filteredPoAllocations.map((order) => {
                 const item = order.items?.[0] || {};
                 const epcAlloc = item.epc_allocations?.[0] || {};
-                const allocQty = epcAlloc.allocated_quantity || 1;
-                const baseAmount = ((item.unit_price_paise || 0) * allocQty) / 100;
-                const taxAmount = item.quantity > 0
-                  ? (((item.tax_paise || 0) / item.quantity) * allocQty) / 100
-                  : 0;
-                const totalPayable = baseAmount + taxAmount;
-                const payStatus = epcAlloc.payment_status || "PENDING";
-                const isPoPaid = ["PAID", "STOCK_ALLOCATED", "PROCESSING", "DISPATCHED", "DELIVERED", "COMPLETED"].includes(order.status);
-                const isDispatched = ["DISPATCHED", "DELIVERED", "COMPLETED"].includes(order.status);
-                const isDelivered = ["DELIVERED", "COMPLETED"].includes(order.status);
+                const allocQty = order.total_booked_quantity || epcAlloc.allocated_quantity || item.quantity || 1;
+                const repeatOrders = order.linked_repeat_orders || [];
+                const fulfilledQty = order.fulfilled_quantity || repeatOrders.reduce((sum, ch) => {
+                  const isCounted = !["CANCELLED", "REJECTED", "DRAFT"].includes(ch.status);
+                  return sum + (isCounted ? (ch.items?.[0]?.quantity || ch.total_quantity || 0) : 0);
+                }, 0);
+                const remainingQty = Math.max(0, allocQty - fulfilledQty);
+                const unitRate = Math.round((item.unit_price_paise || 0) / 100);
+                const totalLanded = Math.round((order.grand_total_paise || 0) / 100) || Math.round((item.total_price_paise || 0) / 100);
+                const tokenDeposit = Math.round((order.token_amount_paise || epcAlloc.token_amount_paise || 0) / 100);
+                const tokenPaid = Math.round((order.token_paid_paise || epcAlloc.token_paid_paise || 0) / 100);
+                const payStatus = epcAlloc.payment_status || order.token_payment_status || "PENDING";
+                const isTokenVerified = payStatus === "VERIFIED" || order.token_payment_status === "PAID" || (tokenDeposit > 0 && tokenPaid >= tokenDeposit);
+                const isPoPaid = isTokenVerified || ["PAID", "STOCK_ALLOCATED", "PROCESSING", "DISPATCHED", "DELIVERED", "COMPLETED"].includes(order.status);
+                const isDelivered = remainingQty === 0 && repeatOrders.length > 0 && repeatOrders.every(ch => ["DELIVERED", "COMPLETED"].includes(ch.status));
+                const isDispatched = repeatOrders.some(ch => ["DISPATCHED", "IN_TRANSIT", "REACHED_DESTINATION", "DELIVERED", "COMPLETED"].includes(ch.status)) || Boolean(order.dispatch_tracking?.tracking_number);
 
-                // Step Progression
-                let step = 1;
-                if (isDelivered) step = 5;
-                else if (isDispatched) step = 4;
-                else if (isPoPaid) step = 3;
-                else if (payStatus === "RECEIPT_SUBMITTED" || payStatus === "VERIFIED") step = 2;
+                // Parent PO Stepper Progression
+                let parentStep = 1;
+                if (isDelivered) parentStep = 5;
+                else if (isDispatched) parentStep = 4;
+                else if (repeatOrders.length > 0) parentStep = 3;
+                else if (isTokenVerified || payStatus === "RECEIPT_SUBMITTED") parentStep = 2;
 
                 return (
                   <div
                     key={order._id}
-                    className="bg-surface rounded-3xl border border-border shadow-sm overflow-hidden transition-all hover:shadow-md"
+                    className="bg-surface rounded-3xl border border-border shadow-sm overflow-hidden transition-all hover:border-primary/40 space-y-0"
                   >
-                    {/* Header */}
-                    <div className="p-5 border-b border-border bg-surface-hover/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-black text-sm text-text-primary dark:text-white">
-                            {order.po_number}
+                    {/* ── Parent PO Top Header ── */}
+                    <div className="p-5 sm:p-6 border-b border-border bg-surface-hover/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono font-black text-base text-text-primary dark:text-white">
+                            PO: {order.po_number}
                           </span>
+                          <button
+                            onClick={() => handleCopy(order.po_number, `po-${order._id}`)}
+                            className="p-1 text-text-muted hover:text-text-primary rounded"
+                            title="Copy PO Number"
+                          >
+                            {copiedKey === `po-${order._id}` ? <FaCheck className="text-emerald-500 text-xs" /> : <FaCopy className="text-xs" />}
+                          </button>
                           <span className="text-xs text-text-muted">
                             • {new Date(order.created_at || order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                           </span>
+                          {isTokenVerified && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                              <FaCheckCircle size={10} /> TOKEN PAID & PO STARTED
+                            </span>
+                          )}
+                          {(order.payment_utr || epcAlloc.payment_utr) && (
+                            <span className="text-[11px] font-mono font-bold text-text-secondary bg-surface px-2 py-0.5 rounded-md border border-border">
+                              UTR: {order.payment_utr || epcAlloc.payment_utr}
+                            </span>
+                          )}
                         </div>
-                        <div className="text-xs text-text-secondary mt-0.5">
-                          Franchisee: <strong className="text-text-primary">{order.franchisee_id?.business_name || "Franchise Partner"}</strong>
+                        <div className="text-xs text-text-secondary">
+                          Franchise Partner: <strong className="text-text-primary">{order.franchisee_id?.business_name || "Franchise Partner"}</strong>
                           {order.franchisee_id?.mobile && ` (${order.franchisee_id.mobile})`}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                           PO Status: {order.status}
                         </span>
                       </div>
                     </div>
 
-                    {/* Stepper Timeline */}
-                    <div className="p-6 border-b border-border bg-surface">
+                    {/* ── Allocation & Token Details Summary Bar ── */}
+                    <div className="p-5 sm:p-6 border-b border-border bg-surface grid grid-cols-1 lg:grid-cols-12 gap-5">
+                      <div className="lg:col-span-6 space-y-3">
+                        <span className="text-[10px] font-black tracking-wider uppercase text-text-muted block">
+                          Allocation & Token Details
+                        </span>
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div>
+                            <span className="text-text-secondary block">Allocated Quantity:</span>
+                            <span className="text-text-primary font-bold font-mono text-sm">{allocQty} Kits</span>
+                          </div>
+                          <div>
+                            <span className="text-text-secondary block">Remaining Quota:</span>
+                            <span className="text-primary font-bold font-mono text-sm">{remainingQty} Kits</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 text-xs">
+                          <span className="text-emerald-800 dark:text-emerald-300 font-bold flex items-center gap-1.5">
+                            🔒 Guaranteed Locked Price:
+                          </span>
+                          <span className="font-mono font-black text-emerald-700 dark:text-emerald-300 text-sm">
+                            ₹{unitRate > 0 ? unitRate.toLocaleString("en-IN") : "78,399"}/kit
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs pt-1 text-text-secondary">
+                          <span>Total Landed Amount: <strong className="text-text-primary font-mono font-bold">₹{totalLanded > 0 ? totalLanded.toLocaleString("en-IN") : "1,64,63,790"}</strong></span>
+                          <span>One-Time Token: <strong className="text-emerald-600 font-mono font-bold">₹{tokenDeposit > 0 ? tokenDeposit.toLocaleString("en-IN") : "80,000"} ({isTokenVerified ? "Paid ✓" : "Pending"})</strong></span>
+                        </div>
+                      </div>
+
+                      <div className="lg:col-span-6 flex flex-col justify-between p-4 rounded-2xl bg-surface-hover/50 border border-border space-y-3">
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-black text-text-primary dark:text-white flex items-center gap-1.5">
+                              <FaBolt className="text-amber-500" /> Rate Lock & Quota Active
+                            </span>
+                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                              {isTokenVerified ? "Token Deposit Verified ✓" : "Token Under Review"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-text-secondary">
+                            Your price lock is guaranteed. Draw repeat kit orders anytime using the <strong>"+ Reorder Kits"</strong> button in PO Orders.
+                          </p>
+                        </div>
+                        <div className="space-y-1.5 pt-2 border-t border-border/80">
+                          <div className="flex justify-between text-xs font-bold">
+                            <span className="text-emerald-600 dark:text-emerald-400">Fulfilled: {fulfilledQty} Kits</span>
+                            <span className="text-text-primary dark:text-white">Remaining: {remainingQty} Kits</span>
+                          </div>
+                          <div className="w-full h-2 bg-surface rounded-full overflow-hidden border border-border">
+                            <div
+                              className="h-full bg-emerald-500 transition-all duration-500 rounded-full"
+                              style={{ width: `${Math.min(100, (fulfilledQty / Math.max(1, allocQty)) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Parent PO Journey Stepper ── */}
+                    <div className="p-5 sm:p-6 border-b border-border bg-surface-hover/10">
                       <div className="relative flex justify-between items-center max-w-3xl mx-auto">
                         <div className="absolute top-1/2 left-0 right-0 -translate-y-1/2 h-1 bg-border -z-0" />
                         <div
                           className="absolute top-1/2 left-0 -translate-y-1/2 h-1 bg-primary transition-all duration-500 -z-0"
-                          style={{ width: `${((step - 1) / 4) * 100}%` }}
+                          style={{ width: `${((parentStep - 1) / 4) * 100}%` }}
                         />
 
                         {[
-                          { title: "Allocated", desc: "Kits Assigned" },
-                          { title: "Payment", desc: payStatus === "VERIFIED" ? "Verified ✓" : payStatus === "RECEIPT_SUBMITTED" ? "Under Review ⏳" : "Receipt Due" },
-                          { title: "PO Confirmed", desc: isPoPaid ? "Stock Paid ✓" : "Pending Total" },
-                          { title: "Dispatched", desc: isDispatched ? "In Transit 🚚" : "Warehouse" },
-                          { title: "Delivered", desc: isDelivered ? "Delivered 🎉" : "Destination" },
+                          { title: "Allocated", desc: `${allocQty} Kits Assigned` },
+                          { title: "Token Paid", desc: isTokenVerified ? "Verified ✓" : "Token Pending" },
+                          { title: "Quota Active", desc: `${fulfilledQty} Kits Drawn` },
+                          { title: "In Transit", desc: isDispatched ? "Consignments Moving" : "Warehouse Queue" },
+                          { title: "Quota Fulfilled", desc: isDelivered ? "Completed 🎉" : `${remainingQty} Left` },
                         ].map((s, idx) => {
                           const num = idx + 1;
-                          const isDone = num <= step;
+                          const isDone = num <= parentStep;
                           return (
                             <div key={idx} className="flex flex-col items-center gap-1.5 relative z-10 bg-surface px-1">
                               <div
@@ -1498,195 +1680,621 @@ export default function ProjectOrderStatus() {
                       </div>
                     </div>
 
-                    {/* Card Body */}
-                    <div className="p-6 space-y-4 text-xs">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <span className="font-bold text-text-secondary block">Allocated Solar Kit:</span>
-                          <div className="bg-surface-hover/70 p-3.5 sm:p-4 rounded-2xl border border-border flex gap-3.5 items-start">
-                            <div className="relative w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-xl overflow-hidden border border-border bg-surface shadow-xs flex items-center justify-center">
-                              {item.image || item.kit_image ? (
-                                <img
-                                  src={item.image || item.kit_image}
-                                  alt={item.item_name}
-                                  className="w-full h-full object-cover rounded-xl"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = "none";
-                                    if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = "flex";
-                                  }}
-                                />
-                              ) : null}
-                              <div
-                                className="w-full h-full flex items-center justify-center bg-primary/5 text-primary"
-                                style={{ display: (item.image || item.kit_image) ? "none" : "flex" }}
-                              >
-                                <FaBoxOpen size={20} />
-                              </div>
+                    {/* ── Token Upload Fallback (If not paid) ── */}
+                    {!isTokenVerified && payStatus === "PENDING" && (
+                      <div className="p-5 border-b border-border bg-amber-500/5">
+                        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-black text-xs">
+                              <FaExclamationTriangle size={15} />
+                              <span>Token Deposit Payment Required to Activate Rate Lock</span>
                             </div>
-                            <div className="flex-1 min-w-0 space-y-1">
-                              <p className="font-black text-sm text-text-primary dark:text-white leading-snug line-clamp-2">
-                                {item.item_name || "Solar Kit Package"}
-                              </p>
-                              <div className="flex justify-between text-text-secondary text-[11px] pt-0.5">
-                                <span>Allocated Quantity:</span>
-                                <strong className="text-text-primary font-mono font-bold">{allocQty} Kit(s)</strong>
-                              </div>
-                              <div className="flex justify-between text-text-secondary text-[11px]">
-                                <span>Rate per Kit:</span>
-                                <span className="font-mono font-bold text-text-primary">₹{((item.unit_price_paise || 0) / 100).toLocaleString("en-IN")}</span>
-                              </div>
-                            </div>
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-800 dark:text-amber-200">
+                              Payment Pending
+                            </span>
                           </div>
-                        </div>
 
-                        <div className="space-y-2">
-                          <span className="font-bold text-text-secondary block">Commercial Payable Breakdown:</span>
-                          <div className="bg-surface-hover p-4 rounded-2xl border border-border space-y-1.5">
-                            <div className="flex justify-between text-text-secondary">
-                              <span>Base Amount:</span>
-                              <span className="font-mono">₹{baseAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div className="flex justify-between text-text-secondary">
-                              <span>GST ({item.gst_rate || 12}%):</span>
-                              <span className="font-mono">₹{taxAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div className="flex justify-between text-text-primary font-black text-sm pt-2 border-t border-border">
-                              <span>Total Amount to Pay:</span>
-                              <span className="text-primary font-mono text-base">₹{totalPayable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Payment Verification Status Banner & Upload Action */}
-                      <div className="pt-2">
-                        {payStatus === "PENDING" && (
-                          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-black">
-                                <FaExclamationTriangle size={16} />
-                                <span>Bank Transfer Payment Proof Required</span>
-                              </div>
-                              <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-800 dark:text-amber-200">
-                                Payment Pending
-                              </span>
-                            </div>
-
-                            {epcAlloc.payment_notes && (
-                              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs font-semibold">
-                                Rejection Note from Franchisee/Admin: {epcAlloc.payment_notes}
-                              </div>
-                            )}
-
-                            {selectedPoForUpload === order._id ? (
-                              <div className="space-y-3 pt-2">
-                                <input
-                                  type="file"
-                                  accept="image/*,.pdf"
-                                  onChange={(e) => setPoReceiptFile(e.target.files[0])}
-                                  className="block w-full text-xs text-text-secondary file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                                />
-                                {poUploadMsg && (
-                                  <p className="text-red-500 text-xs font-bold">{poUploadMsg}</p>
-                                )}
-                                <div className="flex gap-2">
-                                  <button
-                                    disabled={poUploading}
-                                    onClick={() => handlePoReceiptUpload(order._id)}
-                                    className="px-4 py-2 rounded-xl bg-primary text-white font-bold text-xs hover:opacity-90 disabled:opacity-50 cursor-pointer"
-                                  >
-                                    {poUploading ? "Uploading..." : "Submit Receipt for Verification"}
-                                  </button>
-                                  <button
-                                    onClick={() => { setSelectedPoForUpload(null); setPoReceiptFile(null); setPoUploadMsg(""); }}
-                                    className="px-4 py-2 rounded-xl bg-surface border border-border text-text-secondary font-bold text-xs hover:bg-surface-hover cursor-pointer"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between pt-1">
-                                <p className="text-xs text-text-secondary">
-                                  Transfer ₹{totalPayable.toLocaleString("en-IN")} to the Franchisee's account and upload the receipt screenshot.
-                                </p>
+                          {selectedPoForUpload === order._id ? (
+                            <div className="space-y-3 pt-2">
+                              <input
+                                type="file"
+                                accept="image/*,.pdf"
+                                onChange={(e) => setPoReceiptFile(e.target.files[0])}
+                                className="block w-full text-xs text-text-secondary file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                              />
+                              {poUploadMsg && (
+                                <p className="text-red-500 text-xs font-bold">{poUploadMsg}</p>
+                              )}
+                              <div className="flex gap-2">
                                 <button
-                                  onClick={() => setSelectedPoForUpload(order._id)}
-                                  className="px-4 py-2 rounded-xl bg-primary text-white font-black text-xs hover:opacity-90 cursor-pointer shadow-xs inline-flex items-center gap-1.5 shrink-0"
+                                  disabled={poUploading}
+                                  onClick={() => handlePoReceiptUpload(order._id)}
+                                  className="px-4 py-2 rounded-xl bg-primary text-white font-bold text-xs hover:opacity-90 disabled:opacity-50 cursor-pointer"
                                 >
-                                  <FaUpload size={12} /> Upload Receipt
+                                  {poUploading ? "Uploading..." : "Submit Receipt for Verification"}
+                                </button>
+                                <button
+                                  onClick={() => { setSelectedPoForUpload(null); setPoReceiptFile(null); setPoUploadMsg(""); }}
+                                  className="px-4 py-2 rounded-xl bg-surface border border-border text-text-secondary font-bold text-xs hover:bg-surface-hover cursor-pointer"
+                                >
+                                  Cancel
                                 </button>
                               </div>
-                            )}
-                          </div>
-                        )}
-
-                        {payStatus === "RECEIPT_SUBMITTED" && (
-                          <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-2.5">
-                              <div className="p-2 rounded-xl bg-blue-500/20 text-blue-600 dark:text-blue-400 shrink-0">
-                                <FaRegClock size={16} />
-                              </div>
-                              <div>
-                                <div className="font-black text-blue-800 dark:text-blue-300 text-xs">
-                                  Receipt Under Verification ⏳
-                                </div>
-                                <div className="text-xs text-text-secondary mt-0.5">
-                                  Your Franchise Partner and Accounts team have received your payment proof and are verifying it. Once verified, this order will be confirmed.
-                                </div>
-                              </div>
                             </div>
-
-                            {epcAlloc.payment_receipt_url && (
-                              <a
-                                href={
-                                  epcAlloc.payment_receipt_url.startsWith("http")
-                                    ? epcAlloc.payment_receipt_url
-                                    : `${(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${epcAlloc.payment_receipt_url.startsWith("/") ? "" : "/"}${epcAlloc.payment_receipt_url}`
-                                }
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-surface border border-border text-primary hover:bg-surface-hover inline-flex items-center gap-1 shrink-0"
+                          ) : (
+                            <div className="flex items-center justify-between pt-1">
+                              <p className="text-xs text-text-secondary">
+                                Deposit ₹{tokenDeposit.toLocaleString("en-IN")} token payment into the Franchisee bank account and upload proof.
+                              </p>
+                              <button
+                                onClick={() => setSelectedPoForUpload(order._id)}
+                                className="px-4 py-2 rounded-xl bg-primary text-white font-black text-xs hover:opacity-90 cursor-pointer shadow-xs inline-flex items-center gap-1.5 shrink-0"
                               >
-                                <FaEye size={12} /> View Receipt
-                              </a>
-                            )}
-                          </div>
-                        )}
-
-                        {payStatus === "VERIFIED" && (
-                          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-2.5">
-                              <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0">
-                                <FaCheckCircle size={16} />
-                              </div>
-                              <div>
-                                <div className="font-black text-emerald-800 dark:text-emerald-300 text-xs">
-                                  Payment Verified & Allocation Confirmed ✓
-                                </div>
-                                <div className="text-xs text-text-secondary mt-0.5">
-                                  Payment receipt confirmed by Franchisee Partner & Accounts. Your kits are booked for dispatch.
-                                </div>
-                              </div>
+                                <FaUpload size={12} /> Upload Receipt
+                              </button>
                             </div>
-
-                            {epcAlloc.payment_receipt_url && (
-                              <a
-                                href={
-                                  epcAlloc.payment_receipt_url.startsWith("http")
-                                    ? epcAlloc.payment_receipt_url
-                                    : `${(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${epcAlloc.payment_receipt_url.startsWith("/") ? "" : "/"}${epcAlloc.payment_receipt_url}`
-                                }
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-surface border border-border text-text-primary hover:bg-surface-hover inline-flex items-center gap-1 shrink-0"
-                              >
-                                <FaEye size={12} /> View Receipt
-                              </a>
-                            )}
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
+                    )}
+
+                    {/* ══════════════════════════════════════════════════════════════ */}
+                    {/* ── EPC PLACED ORDERS & DRAWDOWNS LIVE TRACKING SECTION ───── */}
+                    {/* ══════════════════════════════════════════════════════════════ */}
+                    <div className="p-5 sm:p-6 bg-surface space-y-5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                            <FaLayerGroup size={16} />
+                          </div>
+                          <div>
+                            <h3 className="font-black text-sm text-text-primary dark:text-white flex items-center gap-2">
+                              Reorders & Drawdowns Placed Under PO: <span className="font-mono text-primary">{order.po_number}</span>
+                            </h3>
+                            <p className="text-[11px] text-text-secondary">
+                              Real-time live status and dispatch tracking for all kit orders drawn against this PO quota.
+                            </p>
+                          </div>
+                        </div>
+
+                        <span className="px-3 py-1 rounded-full text-xs font-black bg-primary/10 text-primary border border-primary/20 self-start sm:self-center">
+                          {repeatOrders.length} Order{repeatOrders.length === 1 ? "" : "s"} Placed
+                        </span>
+                      </div>
+
+                      {repeatOrders.length === 0 ? (
+                        <div className="p-6 rounded-2xl bg-surface-hover/40 border border-dashed border-border text-center space-y-2">
+                          <FaBoxes className="mx-auto text-text-muted text-2xl" />
+                          <p className="text-xs font-bold text-text-primary dark:text-white">
+                            No repeat orders placed against this PO yet
+                          </p>
+                          <p className="text-[11px] text-text-muted max-w-md mx-auto">
+                            You have <strong className="text-primary">{remainingQty} Kits</strong> remaining in your guaranteed price lock quota. Place repeat kit orders anytime from the PO Orders screen.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          {repeatOrders.map((child, cIdx) => {
+                            const childItem = child.items?.[0] || item || {};
+                            const childQty = child.items?.[0]?.quantity || child.total_quantity || 1;
+                            const childTokenAdj = Math.round((child.token_adjusted_paise || 0) / 100);
+                            const childTotalPayable = Math.round((child.net_payable_paise || child.grand_total_paise || 0) / 100);
+                            const childRate = Math.round((childItem.unit_price_paise || 0) / 100) || unitRate;
+                            const childBaseAmt = (childRate * childQty);
+                            const childGstPct = childItem.gst_rate || 5;
+                            const childGstAmt = Math.round((childBaseAmt * childGstPct) / 100);
+
+                            // Milestone Breakdown & Verification Status
+                            const childMilestones = child.payment_milestones?.milestones || [];
+                            const m1 = childMilestones.find(m => m.milestone_number === 1);
+                            const m2 = childMilestones.find(m => m.milestone_number === 2);
+                            const childAdvPct = child.payment_milestones?.advance_percentage || m1?.percentage || 30;
+                            const childRemPct = child.payment_milestones?.remaining_percentage || m2?.percentage || (100 - childAdvPct);
+                            const m1Amount = child.payment_milestones?.advance_amount || Math.round(childTotalPayable * (childAdvPct / 100));
+                            const m2Amount = child.payment_milestones?.remaining_amount || Math.max(0, childTotalPayable - m1Amount);
+
+                            const m1Utr = m1?.utr_number || child.payment_utr || child.offline_payment?.utr_number || "—";
+                            const m2Utr = m2?.utr_number || child.offline_payment_m2?.utr_number;
+
+                            // Status & Progression
+                            const isChildDelivered = ["DELIVERED", "COMPLETED"].includes(child.status);
+                            const isChildDispatched = ["DISPATCHED", "IN_TRANSIT", "REACHED_DESTINATION", "DELIVERED", "COMPLETED"].includes(child.status) || Boolean(child.dispatch_tracking?.tracking_number || child.dispatch_tracking?.dispatched_at);
+                            const isChildStockAllocated = ["STOCK_ALLOCATED", "PROCESSING", "VEHICLE_ASSIGNED", "READY_FOR_DISPATCH", "DISPATCHED", "IN_TRANSIT", "REACHED_DESTINATION", "DELIVERED", "COMPLETED"].includes(child.status);
+
+                            const isM1Verified = ["PAID", "CONFIRMED", "ADVANCE_PAID", "STOCK_ALLOCATED", "PROCESSING", "VEHICLE_ASSIGNED", "READY_FOR_DISPATCH", "DISPATCHED", "IN_TRANSIT", "REACHED_DESTINATION", "DELIVERED", "COMPLETED"].includes(child.status) ||
+                              m1?.payment_status === "approved" ||
+                              m1?.payment_status === "verified" ||
+                              child.payment_status === "advance_paid" ||
+                              child.payment_status === "paid" ||
+                              child.offline_payment?.verification_status === "approved" ||
+                              child.payment_milestones?.milestone_verification_status === "advance_verified" ||
+                              child.payment_milestones?.milestone_verification_status === "fully_paid";
+
+                            const isM1Pending = !isM1Verified && (
+                              child.status === "SUBMITTED" ||
+                              m1?.payment_status === "pending_verification" ||
+                              child.offline_payment?.verification_status === "pending" ||
+                              Boolean(child.payment_utr || child.offline_payment?.utr_number)
+                            );
+
+                            const isM2Verified = child.status === "PAID" ||
+                              m2?.payment_status === "approved" ||
+                              m2?.payment_status === "verified" ||
+                              child.payment_status === "paid" ||
+                              child.payment_milestones?.milestone_verification_status === "fully_paid";
+
+                            const isM2Pending = !isM2Verified && (
+                              m2?.payment_status === "pending_verification" ||
+                              child.milestone_verification_status === "final_payment_pending_verification" ||
+                              child.payment_milestones?.milestone_verification_status === "final_payment_pending_verification" ||
+                              child.status === "FINAL_PAYMENT_SUBMITTED" ||
+                              Boolean(m2?.utr_number || child.offline_payment_m2?.utr_number)
+                            );
+
+                            const isM2Due = isM1Verified && !isM2Verified && !isM2Pending && !isChildDelivered;
+
+                            let childStep = 1;
+                            if (isChildDelivered) childStep = 5;
+                            else if (isChildDispatched) childStep = 4;
+                            else if (isChildStockAllocated) childStep = 3;
+                            else if (isM2Verified || isM1Verified || isM1Pending) childStep = 2;
+
+                            const hasLogistics = isChildDispatched || child.dispatch_tracking?.courier_name || child.dispatch_tracking?.tracking_number || child.assigned_vehicle?.driver_name || child.assigned_vehicle?.vehicle_name;
+
+                            return (
+                              <div
+                                key={child._id || cIdx}
+                                className="bg-surface rounded-2xl border border-border/90 shadow-2xs overflow-hidden transition-all hover:border-primary/50"
+                              >
+                                {/* Child Order Top Header */}
+                                <div className="p-4 sm:p-5 border-b border-border bg-surface-hover/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-mono font-black text-sm text-text-primary dark:text-white">
+                                        {child.po_number || `ORD-R${cIdx + 1}`}
+                                      </span>
+                                      <button
+                                        onClick={() => handleCopy(child.po_number, `ch-${child._id || cIdx}`)}
+                                        className="p-1 text-text-muted hover:text-text-primary rounded"
+                                        title="Copy Order #"
+                                      >
+                                        {copiedKey === `ch-${child._id || cIdx}` ? <FaCheck className="text-emerald-500 text-xs" /> : <FaCopy className="text-xs" />}
+                                      </button>
+                                      <span className="text-xs text-text-muted">
+                                        • {new Date(child.created_at || child.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                                        Drawdown from {order.po_number}
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-text-secondary flex items-center gap-2 flex-wrap">
+                                      <span>Quantity Drawn: <strong className="text-text-primary font-mono">{childQty} Kits</strong></span>
+                                      <span>•</span>
+                                      <span>Total: <strong className="text-text-primary font-mono font-bold">₹{childTotalPayable.toLocaleString("en-IN")}</strong></span>
+                                      <span>•</span>
+                                      {isM2Verified ? (
+                                        <span className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400">
+                                          <FaCheckCircle size={10} /> Fully Paid (100%)
+                                        </span>
+                                      ) : isM1Verified ? (
+                                        <span className="inline-flex items-center gap-1 font-bold text-blue-600 dark:text-blue-400">
+                                          <FaCheckCircle size={10} /> Advance Paid ({childAdvPct}%) • Balance ₹{Number(m2Amount).toLocaleString("en-IN")} Due
+                                        </span>
+                                      ) : isM1Pending ? (
+                                        <span className="inline-flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
+                                          <FaRegClock size={10} /> Advance In Review (₹{Number(m1Amount).toLocaleString("en-IN")})
+                                        </span>
+                                      ) : (
+                                        <span className="text-text-muted">Payment Pending</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={`px-3 py-1 rounded-full text-xs font-black border ${isChildDelivered
+                                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                          : isChildDispatched
+                                            ? "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30"
+                                            : isChildPaid
+                                              ? "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30"
+                                              : child.status === "DRAFT"
+                                                ? "bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/30"
+                                                : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                        }`}
+                                    >
+                                      {child.status}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Child Order Live Journey Stepper */}
+                                <div className="p-5 border-b border-border bg-surface">
+                                  <div className="relative flex justify-between items-center max-w-2xl mx-auto">
+                                    <div className="absolute top-1/2 left-0 right-0 -translate-y-1/2 h-1 bg-border -z-0" />
+                                    <div
+                                      className="absolute top-1/2 left-0 -translate-y-1/2 h-1 bg-primary transition-all duration-500 -z-0"
+                                      style={{ width: `${((childStep - 1) / 4) * 100}%` }}
+                                    />
+
+                                    {[
+                                      { title: "Order Placed", desc: `${childQty} Kits Drawn` },
+                                      { title: "Payment", desc: isM2Verified ? "Fully Paid ✓" : isM1Verified ? "Advance 30% ✓" : isM1Pending ? "In Review ⏳" : "Pending UTR" },
+                                      { title: "Stock Allocation", desc: isChildStockAllocated ? "Kits Booked ✓" : "Queue" },
+                                      { title: "In Transit", desc: isChildDispatched ? "On Route 🚚" : "Warehouse" },
+                                      { title: "Delivered", desc: isChildDelivered ? "Delivered 🎉" : "Destination" },
+                                    ].map((s, idx) => {
+                                      const num = idx + 1;
+                                      const isDone = num <= childStep;
+                                      return (
+                                        <div key={idx} className="flex flex-col items-center gap-1.5 relative z-10 bg-surface px-1">
+                                          <div
+                                            className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black transition-all ${isDone
+                                                ? "bg-primary text-white shadow-md shadow-primary/20 scale-105"
+                                                : "bg-surface-hover text-text-muted border border-border"
+                                              }`}
+                                          >
+                                            {isDone ? "✓" : num}
+                                          </div>
+                                          <span className={`text-[10px] font-black ${isDone ? "text-text-primary dark:text-white" : "text-text-muted"}`}>
+                                            {s.title}
+                                          </span>
+                                          <span className="text-[9px] text-text-muted text-center hidden sm:block">
+                                            {s.desc}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* Real-time Live Dispatch & Logistics Card */}
+                                {hasLogistics && (
+                                  <div className="p-4 sm:p-5 border-b border-border bg-purple-500/5">
+                                    <div className="p-4 rounded-2xl bg-surface border border-purple-500/30 space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300 font-black text-xs">
+                                          <FaTruck size={15} />
+                                          <span>Live Dispatch & Logistics Tracking</span>
+                                        </div>
+                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-800 dark:text-purple-200">
+                                          {isChildDelivered ? "Delivered" : "In Transit"}
+                                        </span>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                        <div className="space-y-1.5 p-3 rounded-xl bg-surface-hover/70 border border-border">
+                                          <div className="flex justify-between">
+                                            <span className="text-text-secondary">Courier / Transporter:</span>
+                                            <strong className="text-text-primary">{child.dispatch_tracking?.courier_name || "Express Logistics Fleet"}</strong>
+                                          </div>
+                                          {child.dispatch_tracking?.tracking_number && (
+                                            <div className="flex justify-between items-center">
+                                              <span className="text-text-secondary">Waybill / LR Number:</span>
+                                              <span className="font-mono font-bold text-primary select-all">
+                                                {child.dispatch_tracking.tracking_number}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {child.dispatch_tracking?.dispatched_at && (
+                                            <div className="flex justify-between">
+                                              <span className="text-text-secondary">Dispatched At:</span>
+                                              <span className="text-text-muted">
+                                                {new Date(child.dispatch_tracking.dispatched_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {child.dispatch_tracking?.estimated_delivery && (
+                                            <div className="flex justify-between">
+                                              <span className="text-text-secondary">Estimated Delivery:</span>
+                                              <span className="text-emerald-600 font-bold">
+                                                {String(child.dispatch_tracking.estimated_delivery)}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {child.dispatch_tracking?.tracking_url && (
+                                            <div className="pt-1.5 border-t border-border">
+                                              <a
+                                                href={child.dispatch_tracking.tracking_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-primary text-white hover:opacity-90 transition-opacity cursor-pointer"
+                                              >
+                                                <FaExternalLinkAlt size={10} /> Track Consignment Live
+                                              </a>
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        <div className="space-y-1.5 p-3 rounded-xl bg-surface-hover/70 border border-border">
+                                          {(child.assigned_vehicle?.driver_name || child.assigned_vehicle?.vehicle_name) ? (
+                                            <>
+                                              <div className="flex justify-between">
+                                                <span className="text-text-secondary">Assigned Vehicle:</span>
+                                                <strong className="text-text-primary">
+                                                  {child.assigned_vehicle.vehicle_name || "Delivery Vehicle"} ({child.assigned_vehicle.registration_number || "Verified"})
+                                                </strong>
+                                              </div>
+                                              <div className="flex justify-between items-center">
+                                                <span className="text-text-secondary">Driver:</span>
+                                                <span className="font-bold text-text-primary">
+                                                  {child.assigned_vehicle.driver_name || "Assigned Driver"}
+                                                </span>
+                                              </div>
+                                              {child.assigned_vehicle.driver_contact && (
+                                                <div className="flex justify-between items-center pt-1">
+                                                  <span className="text-text-secondary">Driver Phone:</span>
+                                                  <a
+                                                    href={`tel:${child.assigned_vehicle.driver_contact}`}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20"
+                                                  >
+                                                    <FaPhone size={10} /> {child.assigned_vehicle.driver_contact}
+                                                  </a>
+                                                </div>
+                                              )}
+                                            </>
+                                          ) : (
+                                            <div>
+                                              <span className="text-text-secondary block font-bold text-[11px]">
+                                                {child.delivery_address?.line ? `Site Delivery Address (${child.fulfillment_mode === "warehouse_pickup" ? "EPC Depot" : "Direct Installation Site"}):` : "Destination Delivery Address:"}
+                                              </span>
+                                              <p className="text-text-primary font-semibold text-xs mt-0.5">
+                                                {child.delivery_address?.line ? (
+                                                  `${child.delivery_address.line}, ${child.delivery_address.district_name || ""}, ${child.delivery_address.state_name || ""} - ${child.delivery_address.pincode || ""}`
+                                                ) : (
+                                                  `${child.destination_address || order.destination_address || "Client Project Destination"}${child.destination_pincode ? ` - ${child.destination_pincode}` : ""}`
+                                                )}
+                                              </p>
+                                              {child.delivery_address?.contact_person && (
+                                                <span className="text-[11px] text-text-muted mt-0.5 block">
+                                                  Contact: {child.delivery_address.contact_person} ({child.delivery_address.contact_phone || ""})
+                                                </span>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Child Card Body: Kit Details & Commercial Breakdown */}
+                                <div className="p-5 space-y-4 text-xs">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <span className="font-bold text-text-secondary block">Drawn Kit Package:</span>
+                                      <div className="bg-surface-hover/70 p-3.5 rounded-2xl border border-border flex gap-3.5 items-start">
+                                        <div className="relative w-14 h-14 shrink-0 rounded-xl overflow-hidden border border-border bg-surface flex items-center justify-center">
+                                          {(childItem.image || childItem.kit_image) ? (
+                                            <img
+                                              src={childItem.image || childItem.kit_image}
+                                              alt={childItem.item_name}
+                                              className="w-full h-full object-cover rounded-xl"
+                                              onError={(e) => {
+                                                e.currentTarget.style.display = "none";
+                                                if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = "flex";
+                                              }}
+                                            />
+                                          ) : null}
+                                          <div
+                                            className="w-full h-full flex items-center justify-center bg-primary/5 text-primary"
+                                            style={{ display: (childItem.image || childItem.kit_image) ? "none" : "flex" }}
+                                          >
+                                            <FaBoxOpen size={20} />
+                                          </div>
+                                        </div>
+                                        <div className="flex-1 min-w-0 space-y-1">
+                                          <p className="font-black text-sm text-text-primary dark:text-white leading-snug line-clamp-2">
+                                            {childItem.item_name || item.item_name || "3 KW Solarkits DCR Combokit"}
+                                          </p>
+                                          <div className="flex justify-between text-text-secondary text-[11px] pt-0.5">
+                                            <span>Quantity Drawn:</span>
+                                            <strong className="text-text-primary font-mono font-bold bg-primary/10 px-1.5 py-0.2 rounded text-primary">
+                                              {childQty} Kit(s)
+                                            </strong>
+                                          </div>
+                                          <div className="flex justify-between text-text-secondary text-[11px]">
+                                            <span>Locked Rate per Kit:</span>
+                                            <span className="font-mono font-bold text-text-primary">₹{childRate.toLocaleString("en-IN")}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                      <span className="font-bold text-text-secondary block">Payment & Commercial Breakdown:</span>
+                                      <div className="bg-surface-hover p-4 rounded-2xl border border-border space-y-1.5">
+                                        <div className="flex justify-between text-text-secondary">
+                                          <span>Base Amount ({childQty} kits):</span>
+                                          <span className="font-mono">₹{childBaseAmt.toLocaleString("en-IN")}</span>
+                                        </div>
+                                        <div className="flex justify-between text-text-secondary">
+                                          <span>GST ({childGstPct}%):</span>
+                                          <span className="font-mono">₹{childGstAmt.toLocaleString("en-IN")}</span>
+                                        </div>
+                                        {childTokenAdj > 0 && (
+                                          <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-bold">
+                                            <span>Token Adjusted Pro-Rata:</span>
+                                            <span className="font-mono">-₹{childTokenAdj.toLocaleString("en-IN")}</span>
+                                          </div>
+                                        )}
+                                        <div className="flex justify-between text-text-primary font-black text-sm pt-2 border-t border-border">
+                                          <span>Total Order Value:</span>
+                                          <span className="text-primary font-mono text-base">₹{childTotalPayable.toLocaleString("en-IN")}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* ── Product Payment Milestone Stepper & Pay Milestone 2 Action ── */}
+                                  <div className="space-y-3 pt-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-black text-xs uppercase tracking-wider text-text-primary flex items-center gap-1.5">
+                                        <FaLayerGroup className="text-primary" /> Product Payment Milestone Schedule
+                                      </span>
+                                      {isM2Verified ? (
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                          <FaCheckCircle size={11} /> 100% Fully Cleared
+                                        </span>
+                                      ) : isM1Verified ? (
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300">
+                                          <FaInfoCircle size={11} /> Milestone 1 Cleared • Final Due Before Dispatch
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                                          <FaRegClock size={11} /> Milestone 1 In Review
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      {/* Milestone 1: Advance Payment (30%) */}
+                                      <div className={`p-3.5 rounded-2xl border transition-all ${
+                                        isM1Verified ? "bg-emerald-500/5 border-emerald-500/30" : "bg-amber-500/5 border-amber-500/30"
+                                      }`}>
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                                            Milestone 1 — Advance ({childAdvPct}%)
+                                          </span>
+                                          <span className="font-black text-sm text-text-primary dark:text-white">
+                                            ₹{Number(m1Amount).toLocaleString("en-IN")}
+                                          </span>
+                                        </div>
+                                        <p className="text-[10px] text-text-secondary leading-tight mt-0.5">
+                                          Order confirmed & supplier procurement initiated upon verification.
+                                        </p>
+                                        <div className="flex items-center justify-between mt-2 text-xs">
+                                          <span className="text-[11px] text-text-secondary font-mono">UTR: {m1Utr}</span>
+                                          {isM1Verified ? (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                              <FaCheckCircle size={10} /> Advance Paid & Cleared
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                                              <FaRegClock size={10} /> Accounts Reviewing
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Milestone 2: Remaining Balance (70%) */}
+                                      <div className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between ${
+                                        isM2Verified ? "bg-emerald-500/5 border-emerald-500/30" : isM2Pending ? "bg-blue-500/5 border-blue-500/30" : "bg-purple-500/5 border-purple-500/30"
+                                      }`}>
+                                        <div>
+                                          <div className="flex items-center justify-between mb-1">
+                                            <span className="text-[11px] font-black uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                                              Milestone 2 — Before Dispatch ({childRemPct}%)
+                                            </span>
+                                            <span className="font-black text-sm text-text-primary dark:text-white">
+                                              ₹{Number(m2Amount).toLocaleString("en-IN")}
+                                            </span>
+                                          </div>
+                                          <p className="text-[10px] text-text-secondary leading-tight mt-0.5">
+                                            Required before materials are released from warehouse for courier transit.
+                                          </p>
+                                        </div>
+
+                                        <div className="flex items-center justify-between mt-2 text-xs">
+                                          {isM2Verified ? (
+                                            <>
+                                              <span className="text-[11px] text-text-secondary font-mono">{m2Utr ? `UTR: ${m2Utr}` : "Fully Cleared"}</span>
+                                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                                <FaCheckCircle size={10} /> Fully Paid & Cleared
+                                              </span>
+                                            </>
+                                          ) : isM2Pending ? (
+                                            <>
+                                              <span className="text-[11px] text-text-secondary font-mono">{m2Utr ? `UTR: ${m2Utr}` : "Payment Submitted"}</span>
+                                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300">
+                                                <FaRegClock size={10} /> Accounts Reviewing
+                                              </span>
+                                            </>
+                                          ) : (
+                                            <div className="flex items-center justify-between w-full pt-1">
+                                              <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                                                ● Balance Due Before Dispatch
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenMilestonePay(child)}
+                                                className="px-3.5 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                                              >
+                                                <span>Pay {childRemPct}% Balance (₹{Number(m2Amount).toLocaleString("en-IN")})</span>
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Payment Proof / Resubmit Footer */}
+                                  <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border/60">
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                      <div className="flex items-center gap-1.5 text-xs">
+                                        <span className="text-text-secondary">M1 UTR:</span>
+                                        <span className="font-mono font-bold text-text-primary select-all bg-surface px-2 py-0.5 rounded border border-border">
+                                          {m1Utr}
+                                        </span>
+                                      </div>
+                                      {m2Utr && (
+                                        <div className="flex items-center gap-1.5 text-xs">
+                                          <span className="text-text-secondary">M2 UTR:</span>
+                                          <span className="font-mono font-bold text-text-primary select-all bg-surface px-2 py-0.5 rounded border border-border">
+                                            {m2Utr}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      {(child.payment_receipt_url || child.offline_payment?.receipt_url) && (
+                                        <a
+                                          href={
+                                            (child.payment_receipt_url || child.offline_payment?.receipt_url).startsWith("http")
+                                              ? (child.payment_receipt_url || child.offline_payment?.receipt_url)
+                                              : `${(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${(child.payment_receipt_url || child.offline_payment?.receipt_url).startsWith("/") ? "" : "/"}${child.payment_receipt_url || child.offline_payment?.receipt_url}`
+                                          }
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-surface border border-border text-primary hover:bg-surface-hover inline-flex items-center gap-1 cursor-pointer"
+                                        >
+                                          <FaEye size={12} /> View M1 Receipt
+                                        </a>
+                                      )}
+
+                                      {(child.offline_payment_m2?.receipt_url || m2?.receipt_url) && (
+                                        <a
+                                          href={
+                                            (child.offline_payment_m2?.receipt_url || m2?.receipt_url).startsWith("http")
+                                              ? (child.offline_payment_m2?.receipt_url || m2?.receipt_url)
+                                              : `${(import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "")}${(child.offline_payment_m2?.receipt_url || m2?.receipt_url).startsWith("/") ? "" : "/"}${child.offline_payment_m2?.receipt_url || m2?.receipt_url}`
+                                          }
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-500/10 border border-purple-500/30 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 inline-flex items-center gap-1 cursor-pointer"
+                                        >
+                                          <FaEye size={12} /> View M2 Receipt
+                                        </a>
+                                      )}
+
+                                      {child.status === "DRAFT" && (
+                                        <button
+                                          onClick={() => navigate(`/po-orders`)}
+                                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-primary text-white hover:opacity-90 inline-flex items-center gap-1 cursor-pointer"
+                                        >
+                                          Complete Payment in PO Orders ↗
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1917,7 +2525,7 @@ export default function ProjectOrderStatus() {
               <div className="flex justify-between items-center">
                 <span className="text-text-secondary">Order Reference:</span>
                 <span className="font-mono font-black text-primary">
-                  {milestonePaymentModalOrder.order_number || milestonePaymentModalOrder._id}
+                  {milestonePaymentModalOrder.order_number || milestonePaymentModalOrder.po_number || milestonePaymentModalOrder._id}
                 </span>
               </div>
               <div className="flex justify-between items-center">

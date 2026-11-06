@@ -4023,81 +4023,9 @@ const request_po_refund = async (req, res) => {
 
 const reorder_against_po = async (req, res) => {
   try {
-    const resellerId = req.reseller?._id || req.reseller?.id;
-    const { id } = req.params;
-    let {
-      items,
-      quantity,
-      kit_id,
-      destination_type,
-      destination_address,
-      destination_pincode,
-      offline_payment,
-    } = req.body;
-
-    const { FpoOrder } = require('../../admin-panel/models/india_solarshop_db');
-    const parentPo = await FpoOrder.findById(id).lean();
-    if (!parentPo) {
-      return res.status(404).json({ status: 'error', message: 'Parent PO not found' });
-    }
-
-    if (!Array.isArray(items) || items.length === 0) {
-      const parentItem = parentPo.items?.[0] || {};
-      const reorderQty = Number(quantity) || 1;
-      const targetKitId = kit_id || parentItem.kit_id || parentItem.product_id;
-      if (!targetKitId) {
-        return res.status(400).json({ status: 'error', message: 'Kit ID or Items array is required for reorder' });
-      }
-
-      items = [{
-        kit_id: targetKitId,
-        product_id: targetKitId,
-        item_name: parentItem.item_name || 'Solar Kit',
-        item_code: parentItem.item_code || null,
-        quantity: reorderQty,
-        unit_price_paise: parentItem.unit_price_paise || 0,
-        gst_rate: parentItem.gst_rate || 13.85,
-        project_type_id: parentItem.project_type_id || null,
-      }];
-    }
-
-    const { createPoDraft, submitPo } = require('../../admin-panel/services/franchisee.po.service');
-
-    const result = await createPoDraft({
-      franchisee_id: resellerId,
-      items,
-      order_type: 'loose_kit_order',
-      parent_po_id: id,
-      destination_type: destination_type || 'hub_stock',
-      destination_address: destination_address || parentPo.destination_address || null,
-      destination_pincode: destination_pincode || parentPo.destination_pincode || null,
-      offline_payment: offline_payment || null,
-      actor_id: resellerId,
-      req,
-    });
-
-    let finalOrder = result.order;
-    if (finalOrder?._id) {
-      finalOrder = await submitPo({
-        po_id: finalOrder._id,
-        franchisee_id: resellerId,
-        actor_id: resellerId,
-        req,
-      });
-    }
-
-    clearResellerPoCache(resellerId);
-
-    return res.status(201).json({
-      status: 'success',
-      message: 'Linked reorder placed successfully against PO',
-      data: {
-        order: finalOrder,
-        token_adjustment: {
-          token_adjusted_inr: Math.round((finalOrder.token_adjusted_paise || 0) / 100),
-          net_payable_inr: Math.round((finalOrder.net_payable_paise || finalOrder.grand_total_paise || 0) / 100),
-        },
-      },
+    return res.status(403).json({
+      status: 'error',
+      message: 'Franchisees cannot place direct kit orders against Purchase Orders. Quotas must be fulfilled directly by the assigned Solar EPC partner.',
     });
   } catch (error) {
     console.error('[reseller.portal] reorder_against_po error:', error);

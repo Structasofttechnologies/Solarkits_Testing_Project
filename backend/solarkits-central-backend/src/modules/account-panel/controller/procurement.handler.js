@@ -485,6 +485,7 @@ exports.calculate_procurement_bom = async (req, res) => {
           totalKits = (fpo.items || []).reduce((acc, it) => acc + (Number(it.quantity) || 1), 0);
           orderNumbers = [fpo.order_number || fpo.po_number];
           customerOrderIds = [fpo._id];
+          targetWarehouseId = targetWarehouseId || fpo.warehouse_id;
         }
       }
     }
@@ -1683,11 +1684,21 @@ async function syncDeliveryOrderFromPi(pi, reqUser = null) {
       deliveryOrderId = `DO-${year}-${String(doSeq).padStart(4, '0')}`;
     }
 
+    const resolvedPoOrigin = epcOrderDoc?.po_origin || (epcOrderDoc?.parent_po_number ? {
+      is_po_drawdown: true,
+      parent_po_id: epcOrderDoc.parent_po_id || null,
+      parent_po_number: epcOrderDoc.parent_po_number,
+      epc_id: epcOrderDoc.buyer_id || epcOrderDoc.customer_id || null,
+      epc_name: customerName,
+      epc_company: epcOrderDoc.buyer_company || null,
+    } : null);
+
     deliveryOrder = new WarehouseDeliveryOrder({
       delivery_order_id: deliveryOrderId,
       delivery_number: deliveryOrderId,
       order_id: pi.customer_order_id ? pi.customer_order_id.toString() : orderNumberToMatch,
       order_number: orderNumberToMatch,
+      po_origin: resolvedPoOrigin,
       warehouse_id: warehouseId,
       warehouse_code: warehouseCode,
       customer_name: customerName,
@@ -2435,9 +2446,10 @@ exports.handover_to_delivery_manager = async (req, res) => {
         }
       ),
       FpoOrder.updateMany(
-        { order_number: { $in: orderNums } },
+        { $or: [{ order_number: { $in: orderNums } }, { po_number: { $in: orderNums } }] },
         {
           $set: {
+            status: 'STOCK_ALLOCATED',
             account_processing_status: 'Transferred to Delivery',
             procurement_readiness_status: readinessState,
             'procurement_status.readiness_status': readinessState

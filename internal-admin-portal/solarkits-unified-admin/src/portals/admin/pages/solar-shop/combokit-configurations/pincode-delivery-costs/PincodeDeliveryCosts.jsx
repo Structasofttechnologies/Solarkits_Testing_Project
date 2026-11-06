@@ -42,6 +42,9 @@ import {
   FaTimes,
   FaTimesCircle,
   FaFileAlt,
+  FaWarehouse,
+  FaRoad,
+  FaCalculator,
 } from "react-icons/fa";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -60,6 +63,22 @@ const resolveImageUrl = (url) => {
   }
   const cleanBase = (API_URL || "http://localhost:5000").replace(/\/admin-api|\/api/g, "");
   return `${cleanBase}/${url.startsWith("/") ? url.slice(1) : url}`;
+};
+
+
+const calculateHaversineKm = (lat1, lon1, lat2, lon2) => {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return 0;
+  const R = 6371;
+  const dLat = ((Number(lat2) - Number(lat1)) * Math.PI) / 180;
+  const dLon = ((Number(lon2) - Number(lon1)) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((Number(lat1) * Math.PI) / 180) *
+      Math.cos((Number(lat2) * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
 };
 
 export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
@@ -100,6 +119,60 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
   const [comboKits, setComboKits] = useState([]);
   const [kitStats, setKitStats] = useState({});
 
+    const [warehouses, setWarehouses] = useState([]);
+  const [warehousesLoading, setWarehousesLoading] = useState(false);
+
+  // Fetch real fulfillment warehouses
+  const fetchWarehouses = async () => {
+    try {
+      setWarehousesLoading(true);
+      const res = await axios.get(`${API_URL}/pincode-delivery-costs/fulfillment-warehouses`, {
+        headers: authHeaderObj()
+      });
+      if (res.data?.status === 'success' && Array.isArray(res.data?.data)) {
+        setWarehouses(res.data.data);
+      }
+    } catch (e) {
+      console.warn("Failed to load warehouses:", e.message);
+    } finally {
+      setWarehousesLoading(false);
+    }
+  };
+
+  // Apply District Rates Modal State
+  const [showDistrictModal, setShowDistrictModal] = useState(false);
+  const [districtModalLoading, setDistrictModalLoading] = useState(false);
+  const [districtModalDistricts, setDistrictModalDistricts] = useState([]);
+  const [districtModalFetchingDistricts, setDistrictModalFetchingDistricts] = useState(false);
+  const [districtFormData, setDistrictFormData] = useState({
+    combo_kit_id: "",
+    combo_kit_name: "",
+    state_id: "",
+    state_name: "",
+    warehouse_id: "",
+    warehouse_code: "",
+    warehouse_name: "",
+    warehouse_type: "",
+    warehouse_lat: null,
+    warehouse_lng: null,
+    pricing_mode: "fixed",
+    selected_states: [],
+    rate_per_km_loose: 15,
+    rate_per_km_po: 10,
+    rate_per_km_trial: 12,
+    base_delivery_cost: 0,
+    distance_km: 0,
+    apply_to_all_districts: false,
+    selected_district_ids: [],
+    loose_delivery_cost: 1500,
+    po_delivery_cost: 800,
+    trial_delivery_cost: 1200,
+    estimated_days_min: 3,
+    estimated_days_max: 7,
+    is_active: true,
+    notes: "",
+  });
+
   // Add / Edit Modal State
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -112,7 +185,20 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
     pincode: "",
     combo_kit_id: "",
     combo_kit_name: "",
+    warehouse_id: "",
+    warehouse_code: "",
+    warehouse_name: "",
+    warehouse_type: "",
+    pricing_mode: "fixed",
+    rate_per_km_loose: 15,
+    rate_per_km_po: 10,
+    rate_per_km_trial: 12,
+    base_delivery_cost: 0,
+    distance_km: 0,
     delivery_cost: 1500,
+    loose_delivery_cost: 1500,
+    po_delivery_cost: 800,
+    trial_delivery_cost: 1200,
     estimated_days_min: 3,
     estimated_days_max: 7,
     is_active: true,
@@ -197,6 +283,7 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
   useEffect(() => {
     fetchKits();
     fetchKitStats();
+    fetchWarehouses();
   }, [moduleUniqueId, countryName]);
 
   // 4. Filter Districts when filterState changes
@@ -251,6 +338,41 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
     };
     fetchModalDistricts();
   }, [formData.state_name, formData.state_id, states, moduleUniqueId]);
+
+  
+  
+  // Get all states mapped to the currently selected warehouse
+  const currentWarehouseMappedStates = useMemo(() => {
+    if (!districtFormData.warehouse_code) return [];
+    const wh = warehouses.find(w => w.warehouse_code === districtFormData.warehouse_code);
+    return wh?.states || [];
+  }, [districtFormData.warehouse_code, warehouses]);
+
+  // Calculate preview distance (KM) from warehouse to selected district
+  const activePreviewDistance = useMemo(() => {
+    if (!districtFormData.warehouse_lat || !districtFormData.warehouse_lng) return 0;
+    let targetDist = null;
+    if (districtFormData.selected_district_ids?.length > 0) {
+      targetDist = districtModalDistricts.find(d => districtFormData.selected_district_ids.includes(d._id || d.id));
+    } else if (districtModalDistricts?.length > 0) {
+      targetDist = districtModalDistricts[0];
+    }
+    if (targetDist && targetDist.lat && targetDist.lng) {
+      return calculateHaversineKm(districtFormData.warehouse_lat, districtFormData.warehouse_lng, targetDist.lat, targetDist.lng);
+    }
+    return 0;
+  }, [districtFormData.warehouse_lat, districtFormData.warehouse_lng, districtFormData.selected_district_ids, districtModalDistricts]);
+
+  // Live computed prices based on preview distance
+  const livePreviewPrices = useMemo(() => {
+    const base = Number(districtFormData.base_delivery_cost) || 0;
+    const dist = activePreviewDistance || 0;
+    return {
+      loose: Math.round(base + (dist * (Number(districtFormData.rate_per_km_loose) || 0))),
+      po: Math.round(base + (dist * (Number(districtFormData.rate_per_km_po) || 0))),
+      trial: Math.round(base + (dist * (Number(districtFormData.rate_per_km_trial) || 0))),
+    };
+  }, [activePreviewDistance, districtFormData.base_delivery_cost, districtFormData.rate_per_km_loose, districtFormData.rate_per_km_po, districtFormData.rate_per_km_trial]);
 
   // 6. Fetch Delivery Cost Records
   const fetchRecords = async (targetKit = selectedKit) => {
@@ -348,6 +470,177 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
     fetchKitStats();
   };
 
+  // Detect total pincodes in selected districts for the District Rate Modal
+  const detectedPincodeCount = useMemo(() => {
+    if (!districtModalDistricts || districtModalDistricts.length === 0) return 0;
+    if (districtFormData.apply_to_all_districts) {
+      return districtModalDistricts.reduce((sum, d) => sum + (d.pincodes?.length || d.pincodes_count || 0), 0);
+    }
+    const selectedSet = new Set(districtFormData.selected_district_ids || []);
+    return districtModalDistricts
+      .filter((d) => selectedSet.has(d._id || d.id))
+      .reduce((sum, d) => sum + (d.pincodes?.length || d.pincodes_count || 0), 0);
+  }, [districtModalDistricts, districtFormData.apply_to_all_districts, districtFormData.selected_district_ids]);
+
+  // Fetch districts for ALL selected states in District Modal
+  useEffect(() => {
+    const statesToFetch = Array.isArray(districtFormData.selected_states) && districtFormData.selected_states.length > 0
+      ? districtFormData.selected_states
+      : (districtFormData.state_name ? [districtFormData.state_name] : []);
+
+    if (statesToFetch.length === 0) {
+      setDistrictModalDistricts([]);
+      return;
+    }
+
+    const fetchAllDistrictsForModal = async () => {
+      try {
+        setDistrictModalFetchingDistricts(true);
+        const resolvedIds = statesToFetch
+          .map(stName => {
+            const clean = String(stName).replace(/\s*\(.*?\)/, '').trim().toLowerCase();
+            const matched = states.find(s => s.name?.toLowerCase().includes(clean) || clean.includes(s.name?.toLowerCase()));
+            return matched?._id || matched?.id;
+          })
+          .filter(Boolean);
+
+        if (resolvedIds.length === 0) {
+          setDistrictModalDistricts([]);
+          return;
+        }
+
+        const promises = resolvedIds.map(stId =>
+          axios.get(`${API_URL}/geolocation/districts?unique_id=${moduleUniqueId}&req_for=view&state_id=${stId}`, {
+            headers: authHeaderObj()
+          }).then(res => res.data?.districts || res.data?.data || [])
+            .catch(() => [])
+        );
+
+        const results = await Promise.all(promises);
+        const combined = results.flat();
+        setDistrictModalDistricts(combined);
+      } catch (err) {
+        console.error("Failed to load district modal districts for multi-states:", err);
+      } finally {
+        setDistrictModalFetchingDistricts(false);
+      }
+    };
+    fetchAllDistrictsForModal();
+  }, [districtFormData.selected_states, districtFormData.state_name, states, moduleUniqueId]);
+
+  // Open District Modal
+  const handleOpenDistrictModal = (kit = selectedKit) => {
+    const targetKitId = kit && kit !== "default" ? kit._id || kit.id : "";
+    const targetKitName = kit && kit !== "default" ? kit.name : (kit === "default" ? "All Products (Default Rate)" : "");
+
+    // Default to first available warehouse or Ahmedabad Sub-Depot if available
+    const defaultWh = warehouses.find(w => w.warehouse_code === 'WH-AHM-02') || (warehouses.length > 0 ? warehouses[0] : null);
+    const defaultStates = defaultWh?.states || [];
+
+    setDistrictFormData({
+      combo_kit_id: targetKitId,
+      combo_kit_name: targetKitName,
+      warehouse_id: defaultWh ? (defaultWh.warehouse_id || defaultWh.id) : "",
+      warehouse_code: defaultWh ? defaultWh.warehouse_code : "",
+      warehouse_name: defaultWh ? defaultWh.warehouse_name : "",
+      warehouse_type: defaultWh ? defaultWh.warehouse_type : "master",
+      warehouse_lat: defaultWh ? defaultWh.lat : null,
+      warehouse_lng: defaultWh ? defaultWh.lng : null,
+      pricing_mode: "fixed",
+      rate_per_km_loose: 15,
+      rate_per_km_po: 10,
+      rate_per_km_trial: 12,
+      base_delivery_cost: 0,
+      distance_km: 0,
+      selected_states: [...defaultStates],
+      state_id: "",
+      state_name: defaultStates[0] || "",
+      apply_to_all_districts: true,
+      selected_district_ids: [],
+      loose_delivery_cost: 1500,
+      po_delivery_cost: 800,
+      trial_delivery_cost: 1200,
+      estimated_days_min: 3,
+      estimated_days_max: 7,
+      is_active: true,
+      notes: "",
+    });
+    setDistrictModalDistricts([]);
+    setShowDistrictModal(true);
+  };
+
+  // Save District Rates (Applies Uniform Rates across all pincodes)
+  const handleSaveDistrictRates = async (e) => {
+    e.preventDefault();
+    const hasStates = (districtFormData.selected_states && districtFormData.selected_states.length > 0) || districtFormData.state_name;
+    if (!hasStates) {
+      dispatch(setAlert({ type: "warning", message: "Please select at least one fulfillment state." }));
+      return;
+    }
+    if (!districtFormData.apply_to_all_districts && (!districtFormData.selected_district_ids || districtFormData.selected_district_ids.length === 0)) {
+      dispatch(setAlert({ type: "warning", message: "Please select at least one district or check 'All Districts in State'." }));
+      return;
+    }
+
+    setDistrictModalLoading(true);
+    try {
+      const isKm = districtFormData.pricing_mode === 'per_km';
+      const payload = {
+        combo_kit_id: districtFormData.combo_kit_id || null,
+        selected_states: districtFormData.selected_states || [],
+        state_names: districtFormData.selected_states || [],
+        state_id: districtFormData.state_id || null,
+        state_name: districtFormData.selected_states?.[0] || districtFormData.state_name || "",
+        district_ids: districtFormData.apply_to_all_districts ? "all" : districtFormData.selected_district_ids,
+        apply_to_all_districts: Boolean(districtFormData.apply_to_all_districts),
+        warehouse_id: districtFormData.warehouse_id || null,
+        warehouse_code: districtFormData.warehouse_code || null,
+        warehouse_name: districtFormData.warehouse_name || null,
+        warehouse_type: districtFormData.warehouse_type || null,
+        warehouse_lat: districtFormData.warehouse_lat != null ? districtFormData.warehouse_lat : null,
+        warehouse_lng: districtFormData.warehouse_lng != null ? districtFormData.warehouse_lng : null,
+        pricing_mode: districtFormData.pricing_mode || 'fixed',
+        distance_km: activePreviewDistance || 0,
+        rate_per_km_loose: Number(districtFormData.rate_per_km_loose) || 0,
+        rate_per_km_po: Number(districtFormData.rate_per_km_po) || 0,
+        rate_per_km_trial: Number(districtFormData.rate_per_km_trial) || 0,
+        base_delivery_cost: Number(districtFormData.base_delivery_cost) || 0,
+        loose_delivery_cost: isKm ? livePreviewPrices.loose : (Number(districtFormData.loose_delivery_cost) || 0),
+        po_delivery_cost: isKm ? livePreviewPrices.po : (Number(districtFormData.po_delivery_cost) || 0),
+        trial_delivery_cost: isKm ? livePreviewPrices.trial : (Number(districtFormData.trial_delivery_cost) || 0),
+        delivery_cost: isKm ? livePreviewPrices.loose : (Number(districtFormData.loose_delivery_cost) || 0),
+        estimated_days_min: Number(districtFormData.estimated_days_min) || 3,
+        estimated_days_max: Number(districtFormData.estimated_days_max) || 7,
+        is_active: Boolean(districtFormData.is_active),
+        notes: districtFormData.notes?.trim() || null,
+      };
+
+      const res = await axios.post(
+        `${API_URL}/pincode-delivery-costs/apply-district-rates?unique_id=${moduleUniqueId}&req_for=add`,
+        payload,
+        { headers: authHeaderObj() }
+      );
+
+      if (res.data?.status === "success") {
+        dispatch(setAlert({
+          type: "success",
+          message: res.data.message || "Uniform district delivery rates successfully applied!"
+        }));
+        setShowDistrictModal(false);
+        fetchRecords(selectedKit);
+        fetchKitStats();
+      }
+    } catch (err) {
+      console.error("Apply district rates error:", err);
+      dispatch(setAlert({
+        type: "error",
+        message: err.response?.data?.message || "Failed to apply uniform district delivery rates."
+      }));
+    } finally {
+      setDistrictModalLoading(false);
+    }
+  };
+
   // Open Modal for Add
   const handleOpenAddForKit = (kit = selectedKit) => {
     setEditingItem(null);
@@ -363,6 +656,9 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
       combo_kit_id: targetKitId,
       combo_kit_name: targetKitName,
       delivery_cost: 1500,
+      loose_delivery_cost: 1500,
+      po_delivery_cost: 800,
+      trial_delivery_cost: 1200,
       estimated_days_min: 3,
       estimated_days_max: 7,
       is_active: true,
@@ -382,7 +678,20 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
       pincode: item.pincode || "",
       combo_kit_id: item.combo_kit_id?._id || item.combo_kit_id?.id || item.combo_kit_id || "",
       combo_kit_name: item.combo_kit_name || item.combo_kit_id?.name || "",
+      warehouse_id: item.warehouse_id || "",
+      warehouse_code: item.warehouse_code || "",
+      warehouse_name: item.warehouse_name || "",
+      warehouse_type: item.warehouse_type || "master",
+      pricing_mode: item.pricing_mode || "fixed",
+      rate_per_km_loose: item.rate_per_km_loose || 15,
+      rate_per_km_po: item.rate_per_km_po || 10,
+      rate_per_km_trial: item.rate_per_km_trial || 12,
+      base_delivery_cost: item.base_delivery_cost || 0,
+      distance_km: item.distance_km || 0,
       delivery_cost: item.delivery_cost || 0,
+      loose_delivery_cost: item.loose_delivery_cost !== undefined ? item.loose_delivery_cost : (item.delivery_cost || 0),
+      po_delivery_cost: item.po_delivery_cost !== undefined ? item.po_delivery_cost : (item.delivery_cost || 0),
+      trial_delivery_cost: item.trial_delivery_cost !== undefined ? item.trial_delivery_cost : (item.delivery_cost || 0),
       estimated_days_min: item.estimated_days_min || 3,
       estimated_days_max: item.estimated_days_max || 7,
       is_active: item.is_active !== false,
@@ -419,7 +728,20 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
         district_name: formData.district_name.trim(),
         pincode: String(formData.pincode).trim(),
         combo_kit_id: formData.combo_kit_id || null,
-        delivery_cost: Number(formData.delivery_cost),
+        warehouse_id: formData.warehouse_id || null,
+        warehouse_code: formData.warehouse_code || null,
+        warehouse_name: formData.warehouse_name || null,
+        warehouse_type: formData.warehouse_type || null,
+        pricing_mode: formData.pricing_mode || 'fixed',
+        distance_km: Number(formData.distance_km) || 0,
+        rate_per_km_loose: Number(formData.rate_per_km_loose) || 0,
+        rate_per_km_po: Number(formData.rate_per_km_po) || 0,
+        rate_per_km_trial: Number(formData.rate_per_km_trial) || 0,
+        base_delivery_cost: Number(formData.base_delivery_cost) || 0,
+        delivery_cost: Number(formData.delivery_cost || formData.loose_delivery_cost || 0),
+        loose_delivery_cost: Number(formData.loose_delivery_cost || formData.delivery_cost || 0),
+        po_delivery_cost: Number(formData.po_delivery_cost || formData.delivery_cost || 0),
+        trial_delivery_cost: Number(formData.trial_delivery_cost || formData.delivery_cost || 0),
         estimated_days_min: Number(formData.estimated_days_min) || 3,
         estimated_days_max: Number(formData.estimated_days_max) || 7,
         is_active: Boolean(formData.is_active),
@@ -1075,10 +1397,19 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                 <Button
                   variant="primary"
                   size="md"
+                  onClick={() => handleOpenDistrictModal(selectedKit)}
+                  leftIcon={<FaMapMarkerAlt />}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                >
+                  Apply District Rates
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
                   onClick={() => handleOpenAddForKit(selectedKit)}
                   leftIcon={<FaPlus />}
                 >
-                  Add Delivery Freight
+                  Add Single PIN Rate
                 </Button>
               </div>
             </div>
@@ -1179,7 +1510,10 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                   <tr className="bg-surface-hover/60 border-b border-border text-[11px] font-black uppercase tracking-wider text-text-secondary">
                     <th className="px-6 py-4">State & District</th>
                     <th className="px-6 py-4">PIN Code</th>
-                    <th className="px-6 py-4">Delivery Freight</th>
+                    <th className="px-5 py-4">Fulfillment Hub</th>
+                    <th className="px-5 py-4">Loose Rate</th>
+                    <th className="px-5 py-4">Bulk PO Rate</th>
+                    <th className="px-5 py-4">Trial Kit Rate</th>
                     <th className="px-6 py-4">Est. Transit</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4 text-right">Actions</th>
@@ -1188,7 +1522,7 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                 <tbody className="divide-y divide-border/60 text-xs">
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-16 text-center">
+                      <td colSpan={10} className="px-6 py-16 text-center">
                         <div className="flex flex-col items-center justify-center gap-3">
                           <div className="animate-spin rounded-full h-9 w-9 border-3 border-primary border-t-transparent" />
                           <p className="text-xs font-bold text-text-secondary">
@@ -1227,10 +1561,50 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                           </span>
                         </td>
 
-                        {/* Delivery Freight */}
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="font-black text-sm text-emerald-700 dark:text-emerald-400">
-                            ₹{Number(item.delivery_cost || 0).toLocaleString("en-IN")}
+                        {/* Fulfillment Hub */}
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          {item.warehouse_name ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-bold text-xs text-text-primary flex items-center gap-1">
+                                <FaWarehouse className="text-primary text-[10px]" />
+                                {item.warehouse_name}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold">
+                                  {item.warehouse_code}
+                                </span>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                                  item.pricing_mode === 'per_km'
+                                    ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20'
+                                    : 'bg-surface-hover text-text-muted border border-border'
+                                }`}>
+                                  {item.pricing_mode === 'per_km' ? `KM (~ ${item.distance_km || 0} km)` : 'Fixed Rate'}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-text-muted text-[11px] italic">Default Route</span>
+                          )}
+                        </td>
+
+                        {/* Loose Rate */}
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className="font-black text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20">
+                            ₹{Number(item.loose_delivery_cost ?? item.delivery_cost ?? 0).toLocaleString("en-IN")}
+                          </span>
+                        </td>
+
+                        {/* PO Rate */}
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className="font-black text-xs text-indigo-700 dark:text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-md border border-indigo-500/20">
+                            ₹{Number(item.po_delivery_cost ?? item.delivery_cost ?? 0).toLocaleString("en-IN")}
+                          </span>
+                        </td>
+
+                        {/* Trial Rate */}
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className="font-black text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">
+                            ₹{Number(item.trial_delivery_cost ?? item.delivery_cost ?? 0).toLocaleString("en-IN")}
                           </span>
                         </td>
 
@@ -1287,7 +1661,7 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-6 py-16 text-center">
+                      <td colSpan={8} className="px-6 py-16 text-center">
                         <div className="flex flex-col items-center justify-center gap-3 max-w-sm mx-auto">
                           <div className="w-14 h-14 rounded-2xl bg-surface-hover flex items-center justify-center text-text-muted">
                             <FaTruck size={24} className="opacity-40" />
@@ -1381,6 +1755,17 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                   className="w-full h-10 pl-9 pr-3 bg-surface border-2 border-border focus:border-primary rounded-xl text-xs font-bold text-text-primary placeholder:text-text-muted outline-none transition-colors"
                 />
               </div>
+
+              {/* Apply District Rates Global Button */}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => handleOpenDistrictModal(null)}
+                leftIcon={<FaMapMarkerAlt />}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs h-10 px-4 text-xs font-black"
+              >
+                Apply District Rates
+              </Button>
 
               {/* Switch View (Cards vs Master Table) */}
               <div className="flex items-center bg-surface-hover/80 p-1 rounded-xl border border-border">
@@ -1531,7 +1916,10 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                         <th className="px-6 py-4">State & District</th>
                         <th className="px-6 py-4">PIN Code</th>
                         <th className="px-6 py-4">Applicable Product / Kit</th>
-                        <th className="px-6 py-4">Delivery Freight</th>
+                        <th className="px-5 py-4">Fulfillment Hub</th>
+                        <th className="px-5 py-4">Loose Rate</th>
+                        <th className="px-5 py-4">Bulk PO Rate</th>
+                        <th className="px-5 py-4">Trial Kit Rate</th>
                         <th className="px-6 py-4">Est. Transit</th>
                         <th className="px-6 py-4">Status</th>
                         <th className="px-6 py-4 text-right">Actions</th>
@@ -1540,7 +1928,7 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                     <tbody className="divide-y divide-border/60 text-xs">
                       {loading ? (
                         <tr>
-                          <td colSpan={7} className="px-6 py-16 text-center">
+                          <td colSpan={9} className="px-6 py-16 text-center">
                             <div className="flex flex-col items-center justify-center gap-3">
                               <div className="animate-spin rounded-full h-9 w-9 border-3 border-primary border-t-transparent" />
                               <p className="text-xs font-bold text-text-secondary">
@@ -1603,9 +1991,50 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                               )}
                             </td>
 
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="font-black text-sm text-emerald-700 dark:text-emerald-400">
-                                ₹{Number(item.delivery_cost || 0).toLocaleString("en-IN")}
+                            {/* Fulfillment Hub */}
+                            <td className="px-5 py-4 whitespace-nowrap">
+                              {item.warehouse_name ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-bold text-xs text-text-primary flex items-center gap-1">
+                                    <FaWarehouse className="text-primary text-[10px]" />
+                                    {item.warehouse_name}
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold">
+                                      {item.warehouse_code}
+                                    </span>
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                                      item.pricing_mode === 'per_km'
+                                        ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20'
+                                        : 'bg-surface-hover text-text-muted border border-border'
+                                    }`}>
+                                      {item.pricing_mode === 'per_km' ? `KM (~ ${item.distance_km || 0} km)` : 'Fixed Rate'}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-text-muted text-[11px] italic">Default Route</span>
+                              )}
+                            </td>
+
+                            {/* Loose Rate */}
+                            <td className="px-5 py-4 whitespace-nowrap">
+                              <span className="font-black text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20">
+                                ₹{Number(item.loose_delivery_cost ?? item.delivery_cost ?? 0).toLocaleString("en-IN")}
+                              </span>
+                            </td>
+
+                            {/* PO Rate */}
+                            <td className="px-5 py-4 whitespace-nowrap">
+                              <span className="font-black text-xs text-indigo-700 dark:text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-md border border-indigo-500/20">
+                                ₹{Number(item.po_delivery_cost ?? item.delivery_cost ?? 0).toLocaleString("en-IN")}
+                              </span>
+                            </td>
+
+                            {/* Trial Rate */}
+                            <td className="px-5 py-4 whitespace-nowrap">
+                              <span className="font-black text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">
+                                ₹{Number(item.trial_delivery_cost ?? item.delivery_cost ?? 0).toLocaleString("en-IN")}
                               </span>
                             </td>
 
@@ -1659,7 +2088,7 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={7} className="px-6 py-16 text-center">
+                          <td colSpan={9} className="px-6 py-16 text-center">
                             <p className="text-xs font-bold text-text-secondary">
                               No delivery cost records found.
                             </p>
@@ -1881,6 +2310,18 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                               Manage Pincodes ({stats.total_pincodes})
                             </Button>
                             <Button
+                              variant="outline"
+                              size="sm"
+                              title="Apply uniform rate for entire district"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenDistrictModal(kit);
+                              }}
+                              className="text-indigo-600 border-indigo-500/30 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-xs px-2.5 font-bold"
+                            >
+                              + District
+                            </Button>
+                            <Button
                               variant="primary"
                               size="sm"
                               leftIcon={<FaPlus />}
@@ -1889,7 +2330,7 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                                 handleOpenAddForKit(kit);
                               }}
                             >
-                              Add Freight
+                              Add Rate
                             </Button>
                           </div>
                         </div>
@@ -1926,6 +2367,722 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
       )}
 
       {/* ──────────────────────────────────────────────────────────────────────────
+          APPLY DISTRICT / STATE RATES MODAL (AUTO PINCODE FETCH & UNIFORM PRICING)
+          ────────────────────────────────────────────────────────────────────────── */}
+      <Dialog
+        isOpen={showDistrictModal}
+        onClose={() => setShowDistrictModal(false)}
+        title={
+          districtFormData.combo_kit_id
+            ? `Apply District Delivery Rates for ${districtFormData.combo_kit_name || "Selected Kit"}`
+            : "Apply Uniform District Delivery Rates (All Products / Fallback)"
+        }
+        size="lg"
+      >
+        <form onSubmit={handleSaveDistrictRates} className="space-y-5 p-1 max-h-[80vh] overflow-y-auto pr-1">
+          {/* Explanation Banner */}
+          <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+              <FaMapMarkerAlt size={20} />
+            </div>
+            <div className="text-xs">
+              <p className="font-black text-text-primary text-sm">
+                District-Wise Uniform Pincode Rate Configuration
+              </p>
+              <p className="text-text-secondary mt-1 leading-relaxed">
+                Select a State and District. All PIN codes belonging to the chosen district(s) are automatically fetched from the system's Geolocation master. Set one uniform delivery freight for Loose, PO, and Trial orders across all pincodes at once.
+              </p>
+            </div>
+          </div>
+
+          {/* Applicable Product / Combo Kit */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-black uppercase tracking-wider text-text-secondary">
+              Target Product / Combo Kit
+            </label>
+            <DropdownWithSearchInput
+              options={[
+                { text: "All Products (General / Fallback Rate)", label: "All Products (General / Fallback Rate)", value: "" },
+                ...comboKits.map((k) => ({
+                  text: `${k.name} (${k.capacity || 0}kW)`,
+                  label: `${k.name} (${k.capacity || 0}kW)`,
+                  value: k._id || k.id,
+                })),
+              ]}
+              value={districtFormData.combo_kit_id}
+              onChange={(val) => {
+                const kObj = comboKits.find((k) => (k._id || k.id) === val);
+                setDistrictFormData((prev) => ({
+                  ...prev,
+                  combo_kit_id: val,
+                  combo_kit_name: kObj ? kObj.name : "All Products (General / Fallback Rate)",
+                }));
+              }}
+              placeholder="All Products (General Fallback)"
+            />
+          </div>
+
+          {/* Fulfillment Warehouse Selection */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
+                <FaWarehouse className="text-primary" /> Fulfillment Warehouse / Hub <span className="text-rose-500">*</span>
+              </label>
+              {districtFormData.warehouse_code && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  {districtFormData.warehouse_type === "master" ? "Master Central Hub" : "Regional Sub-Depot"}
+                </span>
+              )}
+            </div>
+            <DropdownWithSearchInput
+              options={warehouses.map((w) => ({
+                text: `${w.warehouse_name} [${w.warehouse_code}] - ${w.cluster_name}`,
+                label: `${w.warehouse_name} [${w.warehouse_code}] - ${w.cluster_name}`,
+                value: w.warehouse_code,
+              }))}
+              value={districtFormData.warehouse_code}
+              onChange={(val) => {
+                const wh = warehouses.find((w) => w.warehouse_code === val);
+                if (wh) {
+                  setDistrictFormData((prev) => {
+                    const whStates = wh.states || [];
+                    return {
+                      ...prev,
+                      warehouse_id: wh.warehouse_id || wh.id,
+                      warehouse_code: wh.warehouse_code,
+                      warehouse_name: wh.warehouse_name,
+                      warehouse_type: wh.warehouse_type,
+                      warehouse_lat: wh.lat,
+                      warehouse_lng: wh.lng,
+                      selected_states: [...whStates],
+                      state_name: whStates[0] || "",
+                      state_id: "",
+                      selected_district_ids: [],
+                      apply_to_all_districts: true,
+                    };
+                  });
+                }
+              }}
+              placeholder="Select Dispatch Warehouse (e.g. Ahmedabad Sub-Depot, Bhiwandi, Bengaluru...)"
+            />
+            {districtFormData.warehouse_name && (
+              <p className="text-[10px] text-text-muted">
+                Assigned States for this Hub:{" "}
+                <strong className="text-text-primary">
+                  {warehouses.find((w) => w.warehouse_code === districtFormData.warehouse_code)?.states?.join(", ") || "Pan-India"}
+                </strong>
+              </p>
+            )}
+          </div>
+
+          {/* Target Fulfillment States (Multi-select with Auto-Select of Warehouse Mapped States) */}
+          <div className="space-y-2.5 p-3.5 bg-surface-hover/50 rounded-2xl border-2 border-border/80">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-black uppercase tracking-wider text-text-primary flex items-center gap-1.5">
+                  <FaMapMarkerAlt className="text-primary" /> Fulfillment States <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  {(districtFormData.selected_states || []).length} States Selected
+                </span>
+              </div>
+
+              {/* Quick Actions: Select All Mapped / Clear */}
+              <div className="flex items-center gap-2 text-xs">
+                {currentWarehouseMappedStates.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDistrictFormData((prev) => ({
+                        ...prev,
+                        selected_states: [...currentWarehouseMappedStates],
+                        state_name: currentWarehouseMappedStates[0] || "",
+                        selected_district_ids: [],
+                        apply_to_all_districts: true,
+                      }));
+                    }}
+                    className="text-[11px] font-black text-primary hover:underline flex items-center gap-1"
+                  >
+                    <FaCheck size={10} /> Select All Mapped ({currentWarehouseMappedStates.length})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDistrictFormData((prev) => ({
+                      ...prev,
+                      selected_states: [],
+                      state_name: "",
+                      selected_district_ids: [],
+                      apply_to_all_districts: false,
+                    }));
+                  }}
+                  className="text-[11px] font-bold text-text-muted hover:text-rose-500 transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+
+            {/* Interactive State Badges: Mapped Hub States */}
+            <div className="flex flex-wrap gap-2 pt-1">
+              {currentWarehouseMappedStates.map((stName) => {
+                const isSelected = (districtFormData.selected_states || []).some(
+                  (s) => s.toLowerCase() === stName.toLowerCase()
+                );
+                return (
+                  <button
+                    key={stName}
+                    type="button"
+                    onClick={() => {
+                      setDistrictFormData((prev) => {
+                        const cur = prev.selected_states || [];
+                        const exists = cur.some((s) => s.toLowerCase() === stName.toLowerCase());
+                        const updated = exists
+                          ? cur.filter((s) => s.toLowerCase() !== stName.toLowerCase())
+                          : [...cur, stName];
+                        return {
+                          ...prev,
+                          selected_states: updated,
+                          state_name: updated[0] || "",
+                          selected_district_ids: [],
+                        };
+                      });
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black transition-all ${
+                      isSelected
+                        ? "bg-primary text-white border-primary shadow-xs"
+                        : "bg-surface hover:bg-surface-hover text-text-secondary border-border"
+                    }`}
+                  >
+                    <span
+                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black ${
+                        isSelected ? "bg-white/20 text-white" : "border border-border text-text-muted"
+                      }`}
+                    >
+                      {isSelected ? "✓" : "+"}
+                    </span>
+                    <span>{stName}</span>
+                    <span
+                      className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
+                        isSelected ? "bg-white/20 text-white" : "bg-primary/10 text-primary font-bold"
+                      }`}
+                    >
+                      Hub Mapped
+                    </span>
+                  </button>
+                );
+              })}
+
+              {/* Extra States added manually */}
+              {(districtFormData.selected_states || [])
+                .filter(
+                  (st) =>
+                    !currentWarehouseMappedStates.some((m) => m.toLowerCase() === st.toLowerCase())
+                )
+                .map((extraSt) => (
+                  <span
+                    key={extraSt}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white border border-indigo-700 text-xs font-black shadow-xs"
+                  >
+                    <span>✓ {extraSt}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDistrictFormData((prev) => ({
+                          ...prev,
+                          selected_states: (prev.selected_states || []).filter((s) => s !== extraSt),
+                          selected_district_ids: [],
+                        }));
+                      }}
+                      className="hover:text-rose-200 ml-1 text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+            </div>
+
+            {/* Quick Dropdown to Add Additional States */}
+            <div className="pt-1.5">
+              <DropdownWithSearchInput
+                options={states
+                  .filter(
+                    (s) =>
+                      !(districtFormData.selected_states || []).some(
+                        (sel) => sel.toLowerCase() === s.name.toLowerCase()
+                      )
+                  )
+                  .map((s) => ({
+                    text: `+ Add ${s.name}`,
+                    label: `+ Add ${s.name}`,
+                    value: s.name,
+                    id: s._id || s.id,
+                  }))}
+                value=""
+                onChange={(val) => {
+                  if (!val) return;
+                  setDistrictFormData((prev) => {
+                    const cur = prev.selected_states || [];
+                    if (cur.some((s) => s.toLowerCase() === val.toLowerCase())) return prev;
+                    return {
+                      ...prev,
+                      selected_states: [...cur, val],
+                      state_name: prev.state_name || val,
+                      selected_district_ids: [],
+                    };
+                  });
+                }}
+                placeholder="+ Add other states to this route..."
+              />
+            </div>
+          </div>
+
+          {/* District Selection Options */}
+          {(districtFormData.selected_states?.length > 0 || districtFormData.state_name) && (
+            <div className="p-4 bg-surface-hover/40 border-2 border-border/70 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-text-primary">
+                    District Selection Scope
+                  </h4>
+                  <p className="text-[11px] text-text-secondary">
+                    Apply to all districts across {(districtFormData.selected_states || [districtFormData.state_name]).join(", ")} or choose specific districts
+                  </p>
+                </div>
+
+                {/* All Districts Toggle */}
+                <label className="flex items-center gap-2 cursor-pointer bg-surface px-3 py-1.5 rounded-xl border border-border text-xs font-bold text-text-primary">
+                  <input
+                    type="checkbox"
+                    checked={districtFormData.apply_to_all_districts}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setDistrictFormData((prev) => ({
+                        ...prev,
+                        apply_to_all_districts: checked,
+                        selected_district_ids: checked ? districtModalDistricts.map((d) => d._id || d.id) : [],
+                      }));
+                    }}
+                    className="rounded text-primary focus:ring-primary w-4 h-4"
+                  />
+                  <span>All Districts in Selected States ({(districtFormData.selected_states || [districtFormData.state_name]).length} States)</span>
+                </label>
+              </div>
+
+              {districtModalFetchingDistricts ? (
+                <div className="py-6 text-center text-xs text-text-muted flex items-center justify-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+                  <span>Loading districts and postal pincodes...</span>
+                </div>
+              ) : !districtFormData.apply_to_all_districts ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-text-secondary">
+                    Select Specific District(s):
+                  </label>
+                  <div className="max-h-48 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 p-2 bg-surface rounded-xl border border-border">
+                    {districtModalDistricts.map((d) => {
+                      const dId = d._id || d.id;
+                      const isSelected = districtFormData.selected_district_ids.includes(dId);
+                      const pinCount = d.pincodes?.length || d.pincodes_count || 0;
+
+                      return (
+                        <label
+                          key={dId}
+                          className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-all ${
+                            isSelected
+                              ? "bg-primary/10 border-primary/40 text-primary font-black"
+                              : "bg-surface hover:bg-surface-hover border-border text-text-primary font-medium"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setDistrictFormData((prev) => {
+                                  const cur = prev.selected_district_ids || [];
+                                  const updated = checked ? [...cur, dId] : cur.filter((id) => id !== dId);
+                                  return { ...prev, selected_district_ids: updated };
+                                });
+                              }}
+                              className="rounded text-primary focus:ring-primary w-3.5 h-3.5"
+                            />
+                            <span className="truncate">{d.name}</span>
+                          </div>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-hover font-mono font-bold text-text-secondary shrink-0">
+                            {pinCount} PINs
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Detected Pincodes Pill */}
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                <div className="flex items-center gap-2">
+                  <FaCheckCircle className="text-emerald-600" />
+                  <span>
+                    Detected Pincodes in Selection:
+                  </span>
+                </div>
+                <span className="font-mono text-sm font-black bg-emerald-500/20 px-2.5 py-0.5 rounded-md">
+                  {detectedPincodeCount} PIN Codes
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Delivery Pricing Calculation Mode Switcher */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label className="text-xs font-black uppercase tracking-wider text-text-primary flex items-center gap-1.5">
+                <FaRupeeSign className="text-primary" /> Delivery Pricing Mode
+              </label>
+
+              {/* Toggle: Fixed vs KM-Wise */}
+              <div className="flex items-center bg-surface-hover p-1 rounded-xl border border-border">
+                <button
+                  type="button"
+                  onClick={() => setDistrictFormData((prev) => ({ ...prev, pricing_mode: "fixed" }))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    districtFormData.pricing_mode === "fixed"
+                      ? "bg-primary text-white shadow-xs"
+                      : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  Fixed Price (₹)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDistrictFormData((prev) => ({ ...prev, pricing_mode: "per_km" }))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                    districtFormData.pricing_mode === "per_km"
+                      ? "bg-primary text-white shadow-xs"
+                      : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  <FaRoad size={11} /> Kilometer (KM) Wise
+                </button>
+              </div>
+            </div>
+
+            {/* Mode 1: Fixed Flat Rate Inputs */}
+            {districtFormData.pricing_mode === "fixed" ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Loose Order */}
+                <div className="p-3 bg-surface-hover/50 rounded-xl border-2 border-border/80 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-black uppercase text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                      <FaBoxOpen size={11} /> Loose Order
+                    </label>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 font-bold">
+                      Standard
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-text-muted font-bold text-sm">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="50"
+                      value={districtFormData.loose_delivery_cost}
+                      onChange={(e) => setDistrictFormData((prev) => ({ ...prev, loose_delivery_cost: e.target.value }))}
+                      placeholder="e.g. 1500"
+                      className="w-full h-10 pl-7 pr-3 bg-surface border-2 border-border focus:border-emerald-500 rounded-lg text-sm font-black text-text-primary outline-none"
+                      required
+                    />
+                  </div>
+                  <p className="text-[10px] text-text-muted leading-tight">
+                    Applied to single / loose kit orders
+                  </p>
+                </div>
+
+                {/* Bulk PO Order */}
+                <div className="p-3 bg-surface-hover/50 rounded-xl border-2 border-border/80 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-black uppercase text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
+                      <FaFileAlt size={11} /> Bulk PO Order
+                    </label>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-700 font-bold">
+                      Bulk
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-text-muted font-bold text-sm">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="50"
+                      value={districtFormData.po_delivery_cost}
+                      onChange={(e) => setDistrictFormData((prev) => ({ ...prev, po_delivery_cost: e.target.value }))}
+                      placeholder="e.g. 800"
+                      className="w-full h-10 pl-7 pr-3 bg-surface border-2 border-border focus:border-indigo-500 rounded-lg text-sm font-black text-text-primary outline-none"
+                      required
+                    />
+                  </div>
+                  <p className="text-[10px] text-text-muted leading-tight">
+                    Applied to bulk Purchase Orders
+                  </p>
+                </div>
+
+                {/* Trial Kit Order */}
+                <div className="p-3 bg-surface-hover/50 rounded-xl border-2 border-border/80 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-black uppercase text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                      <FaBolt size={11} /> Trial Kit Order
+                    </label>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 font-bold">
+                      Trial
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-text-muted font-bold text-sm">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="50"
+                      value={districtFormData.trial_delivery_cost}
+                      onChange={(e) => setDistrictFormData((prev) => ({ ...prev, trial_delivery_cost: e.target.value }))}
+                      placeholder="e.g. 1200"
+                      className="w-full h-10 pl-7 pr-3 bg-surface border-2 border-border focus:border-amber-500 rounded-lg text-sm font-black text-text-primary outline-none"
+                      required
+                    />
+                  </div>
+                  <p className="text-[10px] text-text-muted leading-tight">
+                    Applied in Trial Order Modal (Image 3)
+                  </p>
+                </div>
+              </div>
+            ) : (
+              /* Mode 2: Kilometer (KM) Wise Rate Inputs & Live Preview */
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  {/* Base Freight */}
+                  <div className="p-3 bg-surface-hover/50 rounded-xl border-2 border-border/80 space-y-1">
+                    <label className="text-[11px] font-black uppercase text-text-secondary">
+                      Base Freight (₹)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-text-muted font-bold text-xs">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="50"
+                        value={districtFormData.base_delivery_cost}
+                        onChange={(e) => setDistrictFormData((prev) => ({ ...prev, base_delivery_cost: e.target.value }))}
+                        placeholder="0"
+                        className="w-full h-9 pl-6 pr-2 bg-surface border-2 border-border focus:border-primary rounded-lg text-xs font-black text-text-primary outline-none"
+                      />
+                    </div>
+                    <p className="text-[9px] text-text-muted">Minimum fixed charge</p>
+                  </div>
+
+                  {/* Loose Rate per KM */}
+                  <div className="p-3 bg-surface-hover/50 rounded-xl border-2 border-border/80 space-y-1">
+                    <label className="text-[11px] font-black uppercase text-emerald-700 dark:text-emerald-400">
+                      Loose (₹ / KM)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-text-muted font-bold text-xs">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={districtFormData.rate_per_km_loose}
+                        onChange={(e) => setDistrictFormData((prev) => ({ ...prev, rate_per_km_loose: e.target.value }))}
+                        placeholder="15"
+                        className="w-full h-9 pl-6 pr-2 bg-surface border-2 border-border focus:border-emerald-500 rounded-lg text-xs font-black text-text-primary outline-none"
+                        required
+                      />
+                    </div>
+                    <p className="text-[9px] text-text-muted">Per KM rate for loose</p>
+                  </div>
+
+                  {/* Bulk PO Rate per KM */}
+                  <div className="p-3 bg-surface-hover/50 rounded-xl border-2 border-border/80 space-y-1">
+                    <label className="text-[11px] font-black uppercase text-indigo-700 dark:text-indigo-400">
+                      Bulk PO (₹ / KM)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-text-muted font-bold text-xs">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={districtFormData.rate_per_km_po}
+                        onChange={(e) => setDistrictFormData((prev) => ({ ...prev, rate_per_km_po: e.target.value }))}
+                        placeholder="10"
+                        className="w-full h-9 pl-6 pr-2 bg-surface border-2 border-border focus:border-indigo-500 rounded-lg text-xs font-black text-text-primary outline-none"
+                        required
+                      />
+                    </div>
+                    <p className="text-[9px] text-text-muted">Per KM rate for PO</p>
+                  </div>
+
+                  {/* Trial Kit Rate per KM */}
+                  <div className="p-3 bg-surface-hover/50 rounded-xl border-2 border-border/80 space-y-1">
+                    <label className="text-[11px] font-black uppercase text-amber-700 dark:text-amber-400">
+                      Trial Kit (₹ / KM)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-text-muted font-bold text-xs">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={districtFormData.rate_per_km_trial}
+                        onChange={(e) => setDistrictFormData((prev) => ({ ...prev, rate_per_km_trial: e.target.value }))}
+                        placeholder="12"
+                        className="w-full h-9 pl-6 pr-2 bg-surface border-2 border-border focus:border-amber-500 rounded-lg text-xs font-black text-text-primary outline-none"
+                        required
+                      />
+                    </div>
+                    <p className="text-[9px] text-text-muted">Per KM rate for Trial</p>
+                  </div>
+                </div>
+
+                {/* Live Distance & Price Calculation Card */}
+                <div className="p-4 bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-blue-500/10 border-2 border-indigo-500/30 rounded-2xl space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-black text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                      <FaCalculator /> Live Distance & Rate Calculation Preview
+                    </span>
+                    <span className="font-mono font-black text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-800 dark:text-indigo-200">
+                      ~{activePreviewDistance} KM Aerial Distance
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-text-secondary leading-relaxed">
+                    Dispatch: <strong className="text-text-primary">{districtFormData.warehouse_name || "Primary Warehouse Hub"}</strong> ➔ Destination: <strong className="text-text-primary">{districtModalDistricts.find((d) => (districtFormData.selected_district_ids || []).includes(d._id || d.id))?.name || districtFormData.state_name || "Selected District"}</strong>
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-indigo-500/20">
+                    <div className="bg-surface/90 p-2.5 rounded-xl border border-border text-center shadow-xs">
+                      <span className="text-[10px] text-text-muted font-black uppercase block">Loose Order Freight</span>
+                      <span className="text-base font-black text-emerald-600 block mt-0.5">
+                        ₹{livePreviewPrices.loose.toLocaleString("en-IN")}
+                      </span>
+                      <span className="text-[9px] text-text-muted block">
+                        Base ₹{districtFormData.base_delivery_cost || 0} + ({activePreviewDistance}km × ₹{districtFormData.rate_per_km_loose}/km)
+                      </span>
+                    </div>
+
+                    <div className="bg-surface/90 p-2.5 rounded-xl border border-border text-center shadow-xs">
+                      <span className="text-[10px] text-text-muted font-black uppercase block">Bulk PO Order Freight</span>
+                      <span className="text-base font-black text-indigo-600 block mt-0.5">
+                        ₹{livePreviewPrices.po.toLocaleString("en-IN")}
+                      </span>
+                      <span className="text-[9px] text-text-muted block">
+                        Base ₹{districtFormData.base_delivery_cost || 0} + ({activePreviewDistance}km × ₹{districtFormData.rate_per_km_po}/km)
+                      </span>
+                    </div>
+
+                    <div className="bg-surface/90 p-2.5 rounded-xl border border-border text-center shadow-xs">
+                      <span className="text-[10px] text-text-muted font-black uppercase block">Trial Kit Order Freight</span>
+                      <span className="text-base font-black text-amber-600 block mt-0.5">
+                        ₹{livePreviewPrices.trial.toLocaleString("en-IN")}
+                      </span>
+                      <span className="text-[9px] text-text-muted block">
+                        Base ₹{districtFormData.base_delivery_cost || 0} + ({activePreviewDistance}km × ₹{districtFormData.rate_per_km_trial}/km)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Transit Days & Route Active */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-text-secondary">Min Transit Days</label>
+              <input
+                type="number"
+                min="1"
+                max="30"
+                value={districtFormData.estimated_days_min}
+                onChange={(e) => setDistrictFormData((prev) => ({ ...prev, estimated_days_min: e.target.value }))}
+                className="w-full h-10 px-3 bg-surface border-2 border-border focus:border-primary rounded-xl text-xs font-bold text-text-primary outline-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-text-secondary">Max Transit Days</label>
+              <input
+                type="number"
+                min="1"
+                max="60"
+                value={districtFormData.estimated_days_max}
+                onChange={(e) => setDistrictFormData((prev) => ({ ...prev, estimated_days_max: e.target.value }))}
+                className="w-full h-10 px-3 bg-surface border-2 border-border focus:border-primary rounded-xl text-xs font-bold text-text-primary outline-none"
+              />
+            </div>
+
+            <div className="pt-4 flex items-center gap-3">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(districtFormData.is_active)}
+                  onChange={(e) => setDistrictFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-surface-hover peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+              </label>
+              <span className="text-xs font-bold text-text-primary">
+                {districtFormData.is_active ? "Active Routes" : "Disabled Routes"}
+              </span>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-text-secondary">Logistics Notes</label>
+            <input
+              type="text"
+              value={districtFormData.notes}
+              onChange={(e) => setDistrictFormData((prev) => ({ ...prev, notes: e.target.value }))}
+              placeholder="e.g. Uniform dispatch from Regional Central Hub"
+              className="w-full h-10 px-3 bg-surface border-2 border-border focus:border-primary rounded-xl text-xs text-text-primary outline-none"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 pt-3 border-t border-border">
+            <Button type="button" variant="secondary" onClick={() => setShowDistrictModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              loading={districtModalLoading}
+              leftIcon={<FaCheck />}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              Apply Uniform Rates ({detectedPincodeCount} PIN Codes)
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* ──────────────────────────────────────────────────────────────────────────
           ADD / EDIT MODAL
           ────────────────────────────────────────────────────────────────────────── */}
       <Dialog
@@ -1935,6 +3092,41 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
         size="lg"
       >
         <form onSubmit={handleSaveRecord} className="space-y-5 p-1">
+          {/* Fulfillment Warehouse Selection */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
+                <FaWarehouse className="text-primary" /> Fulfillment Warehouse / Hub
+              </label>
+              {formData.warehouse_code && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  {formData.warehouse_type === "master" ? "Master Hub" : "Sub-Depot"}
+                </span>
+              )}
+            </div>
+            <DropdownWithSearchInput
+              options={warehouses.map((w) => ({
+                text: `${w.warehouse_name} [${w.warehouse_code}] - ${w.cluster_name}`,
+                label: `${w.warehouse_name} [${w.warehouse_code}] - ${w.cluster_name}`,
+                value: w.warehouse_code,
+              }))}
+              value={formData.warehouse_code}
+              onChange={(val) => {
+                const wh = warehouses.find((w) => w.warehouse_code === val);
+                if (wh) {
+                  setFormData((prev) => ({
+                    ...prev,
+                    warehouse_id: wh.warehouse_id || wh.id,
+                    warehouse_code: wh.warehouse_code,
+                    warehouse_name: wh.warehouse_name,
+                    warehouse_type: wh.warehouse_type,
+                  }));
+                }
+              }}
+              placeholder="Select Fulfillment Hub (Optional)"
+            />
+          </div>
+
           {/* Target Combo Kit Badge in Modal */}
           {formData.combo_kit_id || (selectedKit && selectedKit !== "default") ? (
             <div className="p-3 bg-primary/10 border-2 border-primary/20 rounded-xl flex items-center justify-between">
@@ -2058,10 +3250,10 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
               <p className="text-[10px] text-text-muted">Must be exact 6-digit postal PIN code</p>
             </div>
 
-            {/* Delivery Freight Cost */}
+            {/* Loose Order Delivery Cost */}
             <div className="space-y-1.5">
-              <label className="text-xs font-black uppercase tracking-wider text-text-secondary">
-                Delivery Cost (₹ INR) <span className="text-rose-500">*</span>
+              <label className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                <FaBoxOpen size={11} /> Loose Order Rate (₹) <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-text-muted font-bold text-sm">
@@ -2071,13 +3263,58 @@ export default function PincodeDeliveryCosts({ moduleUniqueId = MODULE_UID }) {
                   type="number"
                   min="0"
                   step="50"
-                  value={formData.delivery_cost}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, delivery_cost: e.target.value }))}
+                  value={formData.loose_delivery_cost}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, loose_delivery_cost: e.target.value, delivery_cost: e.target.value }))}
                   placeholder="e.g. 1500"
-                  className="w-full h-11 pl-8 pr-4 bg-surface border-2 border-border focus:border-primary rounded-xl text-sm font-black text-text-primary outline-none transition-colors"
+                  className="w-full h-11 pl-8 pr-4 bg-surface border-2 border-border focus:border-emerald-500 rounded-xl text-sm font-black text-text-primary outline-none transition-colors"
                 />
               </div>
-              <p className="text-[10px] text-text-muted">Total freight charge added at checkout for this PIN</p>
+              <p className="text-[10px] text-text-muted">Freight for single/loose orders</p>
+            </div>
+          </div>
+
+          {/* PO Order & Trial Order Costs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
+                <FaFileAlt size={11} /> Bulk PO Order Rate (₹) <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-text-muted font-bold text-sm">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="50"
+                  value={formData.po_delivery_cost}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, po_delivery_cost: e.target.value }))}
+                  placeholder="e.g. 800"
+                  className="w-full h-11 pl-8 pr-4 bg-surface border-2 border-border focus:border-indigo-500 rounded-xl text-sm font-black text-text-primary outline-none transition-colors"
+                />
+              </div>
+              <p className="text-[10px] text-text-muted">Freight for bulk PO procurement</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                <FaBolt size={11} /> Trial Kit Order Rate (₹) <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-text-muted font-bold text-sm">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="50"
+                  value={formData.trial_delivery_cost}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, trial_delivery_cost: e.target.value }))}
+                  placeholder="e.g. 1200"
+                  className="w-full h-11 pl-8 pr-4 bg-surface border-2 border-border focus:border-amber-500 rounded-xl text-sm font-black text-text-primary outline-none transition-colors"
+                />
+              </div>
+              <p className="text-[10px] text-text-muted">Freight in Trial Order Modal (Image 3)</p>
             </div>
           </div>
 

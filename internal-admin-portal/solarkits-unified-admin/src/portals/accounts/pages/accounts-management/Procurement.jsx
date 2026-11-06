@@ -332,7 +332,7 @@ export default function Procurement() {
     try {
       const orderNumber = selectedOrder?.order_number || selectedBatch?.order_numbers?.[0] || "ORD-COMBINED-01";
       const payload = {
-        warehouse_id: bomData?.destination_warehouse?.id || "670000000000000000000001",
+        warehouse_id: bomData?.destination_warehouse?.id || selectedBatch?.warehouse_id || selectedBatch?.supplier_groups?.[0]?.warehouse_id || "670000000000000000000001",
         sku_code: bomItem.sku_code,
         sku_id: bomItem.sku_id,
         product_name: bomItem.product_name,

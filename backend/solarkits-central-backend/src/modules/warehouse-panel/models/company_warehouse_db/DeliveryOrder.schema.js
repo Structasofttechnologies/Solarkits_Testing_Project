@@ -266,7 +266,16 @@ const schema = new mongoose.Schema({
   }],
   procurement_requested:      { type: Boolean, default: false },
   procurement_request_number: { type: String, default: '' },
-  procurement_details:        { type: mongoose.Schema.Types.Mixed, default: null }
+  procurement_details:        { type: mongoose.Schema.Types.Mixed, default: null },
+  // PO Allocation Origin Linkage (for PO Drawdowns / Loose Kit Orders placed under Parent PO)
+  po_origin: {
+    is_po_drawdown:   { type: Boolean, default: false },
+    parent_po_id:     { type: mongoose.Schema.Types.ObjectId, default: null },
+    parent_po_number: { type: String, default: null },
+    epc_id:           { type: mongoose.Schema.Types.ObjectId, default: null },
+    epc_name:         { type: String, default: null },
+    epc_company:      { type: String, default: null },
+  }
 }, {
   collection: 'delivery_orders',
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
