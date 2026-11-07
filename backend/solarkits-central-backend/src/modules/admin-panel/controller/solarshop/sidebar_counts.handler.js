@@ -25,6 +25,7 @@ const {
   KitDeliveryCostRule,
   DeliveryRouteSetting,
   FranchiseLead,
+  WebsiteEpcLead,
 } = require('../../models/india_solarshop_db');
 const { CompanyMargin: CoreCompanyMargin } = require('../../models/core_db');
 const WarehouseKitActivation = require('../../../solarshop-india/models/india_core_db/warehouse_kit_activations.schema');
@@ -39,10 +40,15 @@ const get_sidebar_counts = async (req, res) => {
   try {
     const isIndia = (req.query.country || 'india').toLowerCase() === 'india';
 
-    // 1. Approve New EPC (pending signup / verification requests)
-    const epcApprovalPromise = EpcSignupRequest.countDocuments({
-      status: 'pending',
-    }).catch(() => 0);
+    // 1. Approve New EPC / Website EPC Leads (pending inquiries & un-onboarded EPCs)
+    const epcApprovalPromise = Promise.all([
+      EpcSignupRequest.countDocuments({ status: 'pending' }).catch(() => 0),
+      WebsiteEpcLead.countDocuments({
+        deleted_at: null,
+        status: { $nin: ['onboarded', 'converted'] },
+        lead_status: { $nin: ['Onboarded', 'Converted', 'Assigned to Franchisee'] },
+      }).catch(() => 0),
+    ]).then(([signups, leads]) => signups + leads).catch(() => 0);
 
     // 2. Solar Kit Configurations (total active configured combo kits)
     const kitConfigsPromise = IndiaComboKit.countDocuments({
@@ -309,6 +315,10 @@ const get_sidebar_counts = async (req, res) => {
 
     // Sub-menu breakdown counts mapped by last segment, unique_id, and badgeKey
     const sub_counts = {
+      // ── Website EPC Leads ────────────────────────────────────
+      "website-epc-leads": { count: epcApprovals, is_urgent: epcApprovals > 0, tooltip: `${epcApprovals} Website EPC Lead(s) pending onboarding` },
+      "approve-new-epc": { count: epcApprovals, is_urgent: epcApprovals > 0, tooltip: `${epcApprovals} Website EPC Lead(s) pending onboarding` },
+      "ADM_APPROVE_EPC": { count: epcApprovals, is_urgent: epcApprovals > 0, tooltip: `${epcApprovals} Website EPC Lead(s) pending onboarding` },
       // ── Solar Kit Configurations ─────────────────────────────
       "combo-kits": { count: kitConfigs, is_urgent: false, tooltip: `${kitConfigs} standard combo kit(s) configured` },
       "ADM_COMBO_KITS": { count: kitConfigs, is_urgent: false, tooltip: `${kitConfigs} standard combo kit(s) configured` },

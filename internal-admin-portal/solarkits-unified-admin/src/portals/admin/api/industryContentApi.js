@@ -206,3 +206,37 @@ export const deleteIndustryTheme = async (industryTypeId, moduleUniqueId = "ADM_
   });
   return res.data;
 };
+
+// ── Geo & Solar Kits for Content Targeting ──────────────────────────────────
+export const getActiveStatesList = async () => {
+  try {
+    const res = await axios.get(`${API_URL}/geolocation/get-active-states`, { headers: authHeaderObj() });
+    return res.data?.states || res.data?.data || [];
+  } catch (_) {
+    try {
+      const res = await axios.get(`${API_URL}/geolocation/get-states`, { headers: authHeaderObj() });
+      return res.data?.states || res.data?.data || [];
+    } catch (_) {
+      return [];
+    }
+  }
+};
+
+export const getDistrictsByState = async (stateId) => {
+  if (!stateId) return [];
+  try {
+    const res = await axios.get(`${API_URL}/geolocation/get-districts?state_id=${stateId}`, { headers: authHeaderObj() });
+    return res.data?.districts || res.data?.data || [];
+  } catch (_) {
+    return [];
+  }
+};
+
+export const getProductConfigKits = async (moduleUniqueId = "ADM_SOLAR_KITS") => {
+  try {
+    const res = await axios.get(`${API_URL}/solar-kits/get-kits?unique_id=${moduleUniqueId}&req_for=view`, { headers: authHeaderObj() });
+    return res.data?.data || res.data?.kits || res.data || [];
+  } catch (_) {
+    return [];
+  }
+};

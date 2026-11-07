@@ -33,28 +33,38 @@ export default function BdeLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [sidebarCounts, setSidebarCounts] = useState({ unread_notifications: 0, epc_leads: 0, franchisee_leads: 0 });
 
-  const fetchUnreadCount = async () => {
+  const fetchCounts = async () => {
     try {
-      const res = await api.get('/notifications');
-      setUnreadCount(res.data?.unread_count || 0);
+      const [notifRes, countsRes] = await Promise.all([
+        api.get('/notifications').catch(() => null),
+        api.get('/sidebar-counts').catch(() => null),
+      ]);
+      const notifs = notifRes?.data?.unread_count || countsRes?.data?.counts?.unread_notifications || 0;
+      setUnreadCount(notifs);
+      if (countsRes?.data?.counts) {
+        setSidebarCounts(countsRes.data.counts);
+      }
     } catch {
       // ignore
     }
   };
 
   useEffect(() => {
-    fetchUnreadCount();
+    fetchCounts();
 
     const handleUpdate = () => {
-      fetchUnreadCount();
+      fetchCounts();
     };
 
     window.addEventListener('bde_notifications_updated', handleUpdate);
-    const interval = setInterval(fetchUnreadCount, 30000);
+    window.addEventListener('focus', handleUpdate);
+    const interval = setInterval(fetchCounts, 30000);
 
     return () => {
       window.removeEventListener('bde_notifications_updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
       clearInterval(interval);
     };
   }, []);
@@ -220,13 +230,28 @@ export default function BdeLayout() {
                     <Icon className="w-4 h-4" />
                     <span>{item.name}</span>
                   </div>
-                  {item.path === '/notifications' && unreadCount > 0 ? (
-                    <span className="px-2 py-0.5 text-[10px] font-black bg-blue-600 text-white rounded-full leading-none">
-                      {unreadCount}
-                    </span>
-                  ) : (
-                    <ChevronRight className="w-3.5 h-3.5 opacity-40" />
-                  )}
+                  {(() => {
+                    let badgeCount = 0;
+                    let badgeColor = "bg-blue-600 text-white";
+                    if (item.path === '/notifications' && unreadCount > 0) {
+                      badgeCount = unreadCount;
+                    } else if (item.path === '/epc-leads' && sidebarCounts.epc_leads > 0) {
+                      badgeCount = sidebarCounts.epc_leads;
+                      badgeColor = "bg-amber-500 text-white font-bold";
+                    } else if (item.path === '/leads' && sidebarCounts.franchisee_leads > 0) {
+                      badgeCount = sidebarCounts.franchisee_leads;
+                      badgeColor = "bg-blue-600 text-white";
+                    }
+
+                    if (badgeCount > 0) {
+                      return (
+                        <span className={`px-2 py-0.5 text-[10px] font-black rounded-full leading-none shadow-xs ${badgeColor}`}>
+                          {badgeCount}
+                        </span>
+                      );
+                    }
+                    return <ChevronRight className="w-3.5 h-3.5 opacity-40" />;
+                  })()}
                 </NavLink>
               );
             })}

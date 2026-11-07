@@ -2295,7 +2295,7 @@ exports.get_territory_order_history = async (req, res) => {
 
     const resellerQuery = { deleted_at: null };
     if (stateName) {
-      resellerQuery.$or = [{ bde_id: bdeId }, { 'address.state_name': new RegExp(`^${stateName}$`, 'i') }];
+      resellerQuery.$or = [{ bde_id: bdeId }, { 'address.state_name': new RegExp('^' + stateName + '$', 'i') }];
     } else {
       resellerQuery.bde_id = bdeId;
     }
@@ -2307,6 +2307,7 @@ exports.get_territory_order_history = async (req, res) => {
     });
     const fIds = franchisees.map((f) => f._id);
 
+    // 1. Franchisee FPO Orders
     const matchQuery = { reseller_id: { $in: fIds } };
     if (status && status !== 'all') matchQuery.status = status.toUpperCase();
 
@@ -2316,15 +2317,52 @@ exports.get_territory_order_history = async (req, res) => {
       matchQuery.createdAt = { $gte: start, $lte: end };
     }
 
-    const orders = await FpoOrder.find(matchQuery).sort({ createdAt: -1 }).limit(100).lean();
+    // 2. Direct EPC Orders
+    const epcOrFilters = [{ reseller_id: { $in: fIds } }];
+    if (stateName) {
+      epcOrFilters.push({ 'delivery_address.state_name': new RegExp('^' + stateName + '$', 'i') });
+    }
+    const territoryEpcs = await EpcAccount.find({
+      deleted_at: null,
+      $or: [
+        { bde_id: bdeId },
+        ...(stateName ? [{ 'primaryLocation.state': new RegExp('^' + stateName + '$', 'i') }, { working_states: new RegExp('^' + stateName + '$', 'i') }] : [])
+      ]
+    }).select('_id name company_name business_name primaryLocation').lean();
+
+    const epcMap = {};
+    const epcIds = territoryEpcs.map(e => {
+      epcMap[e._id.toString()] = e;
+      return e._id;
+    });
+    if (epcIds.length > 0) {
+      epcOrFilters.push({ epc_id: { $in: epcIds } });
+    }
+
+    const epcOrderMatch = { $or: epcOrFilters };
+    if (status && status !== 'all') {
+      epcOrderMatch.order_status = status.toLowerCase();
+    }
+    if (month && year) {
+      const start = new Date(Number(year), Number(month) - 1, 1);
+      const end = new Date(Number(year), Number(month), 0, 23, 59, 59);
+      epcOrderMatch.$and = [{ createdAt: { $gte: start, $lte: end } }];
+    }
+
+    const [fpoOrders, epcOrders] = await Promise.all([
+      FpoOrder.find(matchQuery).sort({ createdAt: -1 }).limit(100).lean().catch(() => []),
+      EpcOrder.find(epcOrderMatch).sort({ createdAt: -1 }).limit(100).lean().catch(() => []),
+    ]);
 
     const flattened = [];
-    orders.forEach((o) => {
+
+    // Map Franchisee Orders
+    fpoOrders.forEach((o) => {
       const f = fMap[o.reseller_id?.toString()] || {};
       (o.items || []).forEach((item) => {
         flattened.push({
           order_id: o._id,
-          po_number: o.po_number || `PO-${o._id.toString().slice(-6).toUpperCase()}`,
+          po_number: o.po_number || ('PO-' + o._id.toString().slice(-6).toUpperCase()),
           order_date: o.createdAt,
           franchisee_name: f.business_name || 'Partner',
           franchisee_code: f.reseller_code || 'RS-N/A',
@@ -2341,6 +2379,34 @@ exports.get_territory_order_history = async (req, res) => {
         });
       });
     });
+
+    // Map Direct EPC Orders
+    epcOrders.forEach((o) => {
+      const f = fMap[o.reseller_id?.toString()] || {};
+      const epcObj = epcMap[o.epc_id?.toString()] || {};
+      const epcName = epcObj.company_name || epcObj.business_name || epcObj.name || 'Direct EPC';
+      (o.items || []).forEach((item) => {
+        flattened.push({
+          order_id: o._id,
+          po_number: o.order_number || ('SKO-' + o._id.toString().slice(-6).toUpperCase()),
+          order_date: o.createdAt || o.created_at || new Date(),
+          franchisee_name: f.business_name || (epcName + ' (Direct EPC)'),
+          franchisee_code: f.reseller_code || 'DIRECT-EPC',
+          district: o.delivery_address?.district_name || epcObj.primaryLocation?.district || f.address?.district_name || 'Territory',
+          item_name: item.item_name || 'Solar Combo Kit',
+          kit_type: item.item_name || 'Solar Combo Kit',
+          project_type: item.capacity || 'Residential On-Grid',
+          capacity: item.capacity || '2.2 kW',
+          quantity: item.quantity,
+          unit_price: (item.unit_price_paise || 0) / 100,
+          order_value: (item.total_price_paise || o.grand_total_paise || 0) / 100,
+          order_status: o.order_status ? o.order_status.toUpperCase() : 'PENDING',
+          epc_source: o.routing_source === 'primary_reseller' ? 'Franchisee Partner' : 'Direct EPC (HO/BDE)',
+        });
+      });
+    });
+
+    flattened.sort((a, b) => new Date(b.order_date).getTime() - new Date(a.order_date).getTime());
 
     return res.status(200).json({ status: 'success', data: flattened });
   } catch (err) {
@@ -3994,3 +4060,52 @@ exports.get_bde_po_detail = async (req, res) => {
   }
 };
 
+
+
+/**
+ * 11. BDE Sidebar Counts & Live Badges
+ * GET /api/india/v1/bde/sidebar-counts
+ */
+exports.get_sidebar_counts = async (req, res) => {
+  try {
+    const bdeId = req.bde?._id;
+    if (!bdeId) {
+      return res.status(401).json({ success: false, message: 'BDE unauthorized' });
+    }
+
+    const [unreadNotifs, epcLeadsCount, franchiseeLeadsCount] = await Promise.all([
+      BDENotification.countDocuments({
+        bde_id: bdeId,
+        is_read: false,
+      }).catch(() => 0),
+
+      EPCLead.countDocuments({
+        $or: [{ assigned_bde_id: bdeId }, { current_bde_id: bdeId }],
+        deleted_at: null,
+        status: { $nin: ['onboarded', 'converted'] },
+      }).catch(() => 0),
+
+      BDELead.countDocuments({
+        bde_id: bdeId,
+        stage: { $nin: ['converted_won', 'lost'] },
+        deleted_at: null,
+      }).catch(() => 0),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      counts: {
+        unread_notifications: unreadNotifs,
+        epc_leads: epcLeadsCount,
+        franchisee_leads: franchiseeLeadsCount,
+      },
+    });
+  } catch (error) {
+    console.error('[get_sidebar_counts Error]', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve BDE sidebar counts',
+      error: error.message,
+    });
+  }
+};

@@ -45,6 +45,14 @@ const QUICK_LINKS = [
     color: "text-primary",
     bg: "bg-info-soft",
   },
+  {
+    label: "Flagship Excluded Districts & Policy",
+    description: "Exclude company flagship store districts from franchisee applications and manage agreements",
+    icon: FiShield,
+    path: "/admin-panel/solar-shop/reseller-management/settings",
+    color: "text-amber-500",
+    bg: "bg-amber-500/10",
+  },
 
   // ── Onboarding & Pipeline ──
   {

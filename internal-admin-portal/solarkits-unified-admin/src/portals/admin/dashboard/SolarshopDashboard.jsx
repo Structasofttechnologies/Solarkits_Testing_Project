@@ -84,8 +84,7 @@ const AdminOrderApprovalDashboard = lazy(() => import("../pages/solar-shop/order
 const menus = [
     [{ step: "01", badgeKey: "01", name: "Dashboard", icon: <FaHome />, path: "/admin-panel/solar-shop/home", unique_id: "00000000" }],
     [
-        { step: "02", badgeKey: "02", name: "Approve New EPC", icon: <FaUserCheck />, path: "/admin-panel/solar-shop/approve-new-epc", unique_id: "ADM_APPROVE_EPC" },
-        { step: "02B", badgeKey: "website-leads", name: "Website EPC Leads", icon: <FaUsers />, path: "/admin-panel/solar-shop/website-epc-leads", unique_id: "ADM_APPROVE_EPC" },
+        { step: "02", badgeKey: "02", name: "Website EPC Leads", icon: <FaUsers />, path: "/admin-panel/solar-shop/approve-new-epc", unique_id: "ADM_APPROVE_EPC" },
         {
             step: "03",
             badgeKey: "03",

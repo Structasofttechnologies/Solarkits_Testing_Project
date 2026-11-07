@@ -1302,7 +1302,83 @@ const verify_epc_email_otp = async (req, res) => {
     }
 };
 
+/**
+ * 🔒 Reset 4-Digit Security PIN
+ * POST /api/india/v1/auth/reset-pin
+ */
+const reset_pin = async (req, res) => {
+    try {
+        const { identifier, pin, confirm_pin } = req.body;
+        if (!identifier || !pin) {
+            return res.status(400).json({
+                success: false,
+                message: "Identifier (Email/Phone) and 4-digit Security PIN are required"
+            });
+        }
+
+        const cleanPin = String(pin).trim();
+        if (!/^\d{4}$/.test(cleanPin)) {
+            return res.status(400).json({
+                success: false,
+                message: "PIN must be exactly 4 numeric digits (e.g. 1234)"
+            });
+        }
+
+        if (confirm_pin && String(confirm_pin).trim() !== cleanPin) {
+            return res.status(400).json({
+                success: false,
+                message: "PIN and Confirm PIN do not match"
+            });
+        }
+
+        const cleanId = String(identifier).trim();
+        const isEmail = cleanId.includes("@");
+        const filter = isEmail
+            ? { email: cleanId.toLowerCase(), deleted_at: null }
+            : { whatsapp: cleanId.replace(/\D/g, "").slice(-10), deleted_at: null };
+
+        let account = await EpcAccount.findOne(filter);
+        if (!account) {
+            account = await EpcAccount.findOne({
+                $or: [
+                    { email: cleanId.toLowerCase() },
+                    { whatsapp: { $regex: cleanId.slice(-10) } },
+                    { phone: { $regex: cleanId.slice(-10) } },
+                    { mobile: { $regex: cleanId.slice(-10) } },
+                ],
+                deleted_at: null
+            });
+        }
+
+        if (!account) {
+            return res.status(404).json({
+                success: false,
+                message: "No registered EPC account found with this Email or Mobile Number"
+            });
+        }
+
+        const hash = await bcrypt.hash(cleanPin, 10);
+        await EpcAccount.updateOne(
+            { _id: account._id },
+            { $set: { password_hash: hash } }
+        );
+
+        return res.json({
+            success: true,
+            message: "4-Digit Security PIN reset successfully! You can now sign in using your new PIN."
+        });
+    } catch (err) {
+        console.error("reset_pin error:", err);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to reset PIN",
+            error: err.message
+        });
+    }
+};
+
 module.exports = {
+    reset_pin,
     get_epcs_by_state,
     send_signup_otp,
     verify_signup_otp,

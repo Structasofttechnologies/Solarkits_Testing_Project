@@ -201,6 +201,16 @@ CLAUSE 6 — GOVERNING LAW & JURISDICTION
 By digitally signing below, the Franchise Partner certifies that they have read, understood, and accept all terms and conditions of this Franchise Agreement.`,
   },
 
+  // ── Flagship Store / Excluded Districts (Territories blocked for prospective franchisees) ──
+  flagship_excluded_districts: [
+    {
+      state: { type: String, required: true, trim: true },
+      district: { type: String, required: true, trim: true },
+      reason: { type: String, default: 'Company Flagship Store', trim: true },
+      added_at: { type: Date, default: Date.now },
+    }
+  ],
+
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
 }, {

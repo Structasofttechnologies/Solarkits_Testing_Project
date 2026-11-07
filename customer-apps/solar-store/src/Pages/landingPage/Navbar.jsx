@@ -64,7 +64,6 @@ const BROWSE_SECTORS = [
 const NAV_LINKS = [
   { label: "Home", href: "#hero", icon: FiHome },
   { label: "Why SolarKits", href: "#why-choose", icon: FiCheckCircle },
-  { label: "Brand Partners", href: "#brands", icon: FiPackage },
   { label: "Customer Reviews", href: "#testimonials", icon: FiStar },
 ];
 export default function Navbar() {

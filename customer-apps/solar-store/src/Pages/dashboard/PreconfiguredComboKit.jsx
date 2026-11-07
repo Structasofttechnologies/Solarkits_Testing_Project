@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
+import { useSearchParams } from "react-router-dom";
 import KitCard from "./components/KitCard";
 import SelectedKitCard from "./components/SelectedKitCard";
 import KitFilters, { options } from "./components/KitFilters";
@@ -57,9 +58,14 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
   const [showInStockOnly, setShowInStockOnly] = useState(false);
   const [selectedTiers, setSelectedTiers] = useState([]);
 
+  const [searchParams] = useSearchParams();
+  const urlIndustry = searchParams.get("industry") || searchParams.get("sector");
+  const urlKitId = searchParams.get("kit") || searchParams.get("kit_id");
+  const urlCategory = searchParams.get("category");
+
   const [filters, setFilters] = useState({
-    industryType: "all",
-    category: "all",
+    industryType: urlIndustry || "all",
+    category: urlCategory || "all",
     subCategory: "all",
     systemType: "all",
     subProjectType: "all",
@@ -82,6 +88,26 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
     batteryType: "all",
     batteryCapacity: "all",
   });
+
+  useEffect(() => {
+    if (urlIndustry) {
+      setFilters((prev) => ({ ...prev, industryType: urlIndustry }));
+    }
+    if (urlCategory) {
+      setFilters((prev) => ({ ...prev, category: urlCategory }));
+    }
+  }, [urlIndustry, urlCategory]);
+
+  useEffect(() => {
+    if (urlKitId && availableKits.length > 0) {
+      const match = availableKits.find(
+        (k) => String(k.id) === String(urlKitId) || String(k._id) === String(urlKitId)
+      );
+      if (match) {
+        setSelected(String(match.id));
+      }
+    }
+  }, [urlKitId, availableKits]);
 
   const selectedDistrict = useSelector((state) => state.slice?.selectedDistrict);
   const selectedState = useSelector((state) => state.slice?.selectedState);

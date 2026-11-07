@@ -6,7 +6,7 @@ const schema = new mongoose.Schema({
   message: { type: String, required: true, trim: true, maxlength: 1000 },
   category: {
     type: String,
-    enum: ['configuration', 'orders', 'payments', 'inventory', 'service_tickets', 'system', 'general'],
+    enum: ['configuration', 'orders', 'payments', 'inventory', 'service_tickets', 'system', 'general', 'epc', 'bde', 'leads'],
     default: 'general',
     index: true,
   },

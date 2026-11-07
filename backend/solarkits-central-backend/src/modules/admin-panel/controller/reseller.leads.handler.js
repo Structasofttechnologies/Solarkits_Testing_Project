@@ -298,6 +298,9 @@ const submit_lead = async (req, res) => {
     if (!mobile) {
       return res.status(400).json({ status: 'error', message: 'Mobile number is required' });
     }
+    if ((source === 'storefront_modal' || selectedSolution === 'Header Fast Application') && (!gstin || !gstin.trim() || gstin.trim().length < 15)) {
+      return res.status(400).json({ status: 'error', message: 'GSTIN is compulsory for franchisee enquiry' });
+    }
 
     const company = (businessName || business_name || `${name} Solar Enterprise`).trim();
     const mail = (email || '').trim().toLowerCase() || `${mobile}@inbound.solarkits.in`;
@@ -1131,10 +1134,26 @@ const assign_lead_to_bde = async (req, res) => {
   }
 };
 
+
+// ── GET EXCLUDED FLAGSHIP STORE DISTRICTS ────────────────────────────────────
+const get_excluded_districts = async (req, res) => {
+  try {
+    const settings = await SolarShopSettings.findOne().lean();
+    return res.status(200).json({
+      status: 'success',
+      data: settings?.flagship_excluded_districts || [],
+    });
+  } catch (error) {
+    console.error('[reseller.leads] get_excluded_districts error:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to retrieve excluded districts' });
+  }
+};
+
 module.exports = {
   generate_lead_gst_otp,
   verify_lead_gst_otp,
   submit_lead,
+  get_excluded_districts,
   list_leads,
   update_lead_status,
   approve_lead_as_franchisee,

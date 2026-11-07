@@ -22,6 +22,9 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginMethod, setLoginMethod] = useState("email");
+  const [showResetPinModal, setShowResetPinModal] = useState(false);
+  const [resetPinData, setResetPinData] = useState({ identifier: "", pin: "", confirmPin: "" });
+  const [resetPinLoading, setResetPinLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
@@ -46,19 +49,19 @@ export default function Login() {
       {
         role: "Rajkot GST Onboarded EPC (Ravi Harsoda)",
         email: "ravi.s@sunnovative.com",
-        password: "Password@123",
+        password: "1234",
         tag: "Gujarat - Rajkot (GST 24AHUPH9736P2ZB)"
       },
       {
         role: "Devbhumi Dwarka EPC Partner",
         email: "dwarka.epc@solarkits.com",
-        password: "Password@123",
+        password: "1234",
         tag: "Gujarat - Devbhumi Dwarka"
       },
       {
         role: "Demo EPC Contractor",
         email: "ravi.s@gmail.com",
-        password: "Password@123",
+        password: "1234",
         tag: "Franchise / EPC"
       }
     ];
@@ -134,7 +137,9 @@ export default function Login() {
     }
 
     if (!formData.password) {
-      newErrors.password = "Password is required";
+      newErrors.password = "4-digit Security PIN is required";
+    } else if (!/^\d{4}$/.test(formData.password.trim())) {
+      newErrors.password = "PIN must be exactly 4 numeric digits (e.g. 1234)";
     }
 
     setErrors(newErrors);
@@ -447,7 +452,7 @@ export default function Login() {
                     {cred.email}
                   </p>
                   <p className="text-[11px] text-text-muted font-mono">
-                    Pass: <span className="text-text-secondary font-semibold">{cred.password}</span>
+                    PIN: <span className="text-text-secondary font-semibold font-mono tracking-wider">{cred.password}</span>
                   </p>
                 </div>
               </button>
@@ -479,7 +484,45 @@ export default function Login() {
     );
   };
 
+  
+  const handleResetPinSubmit = async (e) => {
+    e.preventDefault();
+    if (!resetPinData.identifier.trim()) {
+      dispatch(setAlert({ type: "error", message: "Please enter your Email or 10-digit Mobile number" }));
+      return;
+    }
+    if (!/^\d{4}$/.test(resetPinData.pin.trim())) {
+      dispatch(setAlert({ type: "error", message: "PIN must be exactly 4 numeric digits (e.g. 1234)" }));
+      return;
+    }
+    if (resetPinData.pin.trim() !== resetPinData.confirmPin.trim()) {
+      dispatch(setAlert({ type: "error", message: "PIN and Confirm PIN do not match" }));
+      return;
+    }
+
+    setResetPinLoading(true);
+    try {
+      const res = await axios.post(`${API_URL}/india/v1/auth/reset-pin`, {
+        identifier: resetPinData.identifier.trim(),
+        pin: resetPinData.pin.trim(),
+        confirm_pin: resetPinData.confirmPin.trim(),
+      });
+      if (res.data.success) {
+        dispatch(setAlert({ type: "success", message: res.data.message || "4-Digit PIN reset successfully! You can now log in." }));
+        setFormData(prev => ({ ...prev, password: resetPinData.pin.trim() }));
+        setShowResetPinModal(false);
+        setResetPinData({ identifier: "", pin: "", confirmPin: "" });
+      }
+    } catch (err) {
+      dispatch(setAlert({ type: "error", message: err.response?.data?.message || "Failed to reset PIN" }));
+    } finally {
+      setResetPinLoading(false);
+    }
+  };
+
   const handleForgotPassword = () => {
+    setShowResetPinModal(true);
+    return;
     navigate("/auth/forgot-password");
   };
 
@@ -676,11 +719,16 @@ export default function Login() {
                     <div className="relative">
                       <CustomInput
                         name="password"
-                        label="Password"
-                        placeholder="Enter your password"
+                        label="4-Digit Security PIN"
+                        placeholder="Enter 4-digit PIN (e.g. 1234)"
                         value={formData.password}
-                        onChange={handleInputChange}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                          handleInputChange({ target: { name: 'password', value: val } });
+                        }}
                         type={showPassword ? "text" : "password"}
+                        maxLength={4}
+                        inputMode="numeric"
                         error={errors.password}
                         required
                       />
@@ -708,7 +756,7 @@ export default function Login() {
                       size="sm"
                       className="text-primary dark:text-info font-medium"
                     >
-                      Forgot Password?
+                      Forgot / Reset PIN?
                     </Button>
                   </div>
                 </div>
@@ -758,6 +806,96 @@ export default function Login() {
           </div>
         </div>
       </div>
+    
+      {/* 🔒 Reset Security PIN Modal */}
+      {showResetPinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fadeIn">
+            <div className="flex items-center justify-between pb-4 border-b border-border">
+              <h3 className="text-base font-bold text-text-primary">Reset 4-Digit Security PIN</h3>
+              <button
+                type="button"
+                onClick={() => setShowResetPinModal(false)}
+                className="text-text-muted hover:text-text-primary p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleResetPinSubmit} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">
+                  Registered Email or 10-Digit Mobile Number
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. ravi.s@sunnovative.com or 9876543210"
+                  value={resetPinData.identifier}
+                  onChange={(e) => setResetPinData(prev => ({ ...prev, identifier: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">
+                  New 4-Digit Security PIN
+                </label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  inputMode="numeric"
+                  placeholder="e.g. 1234"
+                  value={resetPinData.pin}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    setResetPinData(prev => ({ ...prev, pin: val }));
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono tracking-widest text-center focus:ring-2 focus:ring-primary focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">
+                  Confirm 4-Digit PIN
+                </label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  inputMode="numeric"
+                  placeholder="Re-enter 4-digit PIN"
+                  value={resetPinData.confirmPin}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    setResetPinData(prev => ({ ...prev, confirmPin: val }));
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono tracking-widest text-center focus:ring-2 focus:ring-primary focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowResetPinModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold border border-border hover:bg-surface-hover transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetPinLoading}
+                  className="px-5 py-2 rounded-xl text-xs font-bold gradient-primary text-white shadow-sm hover:opacity-95 transition disabled:opacity-50"
+                >
+                  {resetPinLoading ? "Resetting..." : "Save New PIN"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

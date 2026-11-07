@@ -197,7 +197,7 @@ function NavigationDrawer({
         } else {
           const n = item.name?.toLowerCase() || "";
           const p = item.path?.toLowerCase() || "";
-          if (n.includes("epc") && n.includes("approve")) count = sidebarCounts["02"] || 0;
+          if ((n.includes("epc") && (n.includes("approve") || n.includes("lead") || n.includes("website"))) || p.includes("approve-new-epc") || p.includes("website-epc")) count = sidebarCounts["02"] || 0;
           else if (n.includes("po order") || p.includes("po-orders")) count = sidebarCounts["04"] || 0;
           else if (n.includes("loose order") || p.includes("loose-orders")) count = sidebarCounts["05"] || 0;
           else if (n.includes("epc order") || p.includes("epc-orders")) count = sidebarCounts["06"] || 0;
@@ -248,8 +248,8 @@ function NavigationDrawer({
       // 3E. Format tooltip and urgency if count > 0
       if (count > 0) {
         if (!tooltip) {
-          if (item.step === "02") {
-            tooltip = `${count} EPC registration(s) pending approval`;
+          if (item.step === "02" || item.unique_id === "ADM_APPROVE_EPC" || item.name?.toLowerCase().includes("epc")) {
+            tooltip = `${count} Website EPC Lead(s) pending onboarding`;
             isUrgent = true;
           } else if (item.step === "04") {
             tooltip = `${count} PO Order(s) in active pipeline`;

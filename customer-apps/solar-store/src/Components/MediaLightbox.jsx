@@ -16,6 +16,7 @@ import {
   FiLayers,
   FiMaximize,
   FiInfo,
+  FiPackage,
 } from "react-icons/fi";
 
 function isYouTube(url) {
@@ -481,6 +482,20 @@ export default function MediaLightbox({
                   </span>
                 ))}
               </div>
+            )}
+
+            {/* Explore Tender Kits CTA */}
+            {(currentItem.content_category === "GOVT_TENDER" || currentItem.industries?.length > 0) && (
+              <a
+                href={`/shop?industry=${encodeURIComponent(currentItem.industries?.[0]?.name || "")}${
+                  currentItem.related_kit_ids?.[0] ? `&kit=${currentItem.related_kit_ids[0]}` : ""
+                }`}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-black shadow-md transition-all shrink-0 ml-auto cursor-pointer"
+              >
+                <FiPackage size={13} />
+                <span>Explore This Tender Kits</span>
+                <FiChevronRight size={13} />
+              </a>
             )}
           </div>
         )}

@@ -57,6 +57,22 @@ export default function LeadCaptureModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [availableDistricts, setAvailableDistricts] = useState([]);
+  const [excludedDistricts, setExcludedDistricts] = useState([]);
+
+  useEffect(() => {
+    const fetchExcluded = async () => {
+      try {
+        const res = await api.get('/india/v1/reseller/leads/excluded-districts');
+        if (res.data?.status === 'success' && Array.isArray(res.data?.data)) {
+          setExcludedDistricts(res.data.data);
+        }
+      } catch (err) {
+        // Fallback default flagship store district
+        setExcludedDistricts([{ state: 'Maharashtra', district: 'Pune', reason: 'Company Flagship Store' }]);
+      }
+    };
+    fetchExcluded();
+  }, []);
 
   useEffect(() => {
     if (initialContext) {
@@ -75,12 +91,19 @@ export default function LeadCaptureModal({
 
   useEffect(() => {
     if (formData.state && INDIAN_STATES_DISTRICTS[formData.state]) {
-      setAvailableDistricts(INDIAN_STATES_DISTRICTS[formData.state]);
-      if (!INDIAN_STATES_DISTRICTS[formData.state].includes(formData.district)) {
-        setFormData((prev) => ({ ...prev, district: INDIAN_STATES_DISTRICTS[formData.state][0] || "" }));
+      const allDistricts = INDIAN_STATES_DISTRICTS[formData.state] || [];
+      const stateExcluded = (excludedDistricts || [])
+        .filter(ex => (ex.state || '').trim().toLowerCase() === (formData.state || '').trim().toLowerCase())
+        .map(ex => (ex.district || '').trim().toLowerCase());
+
+      const filtered = allDistricts.filter(d => !stateExcluded.includes((d || '').trim().toLowerCase()));
+      setAvailableDistricts(filtered);
+
+      if (!filtered.includes(formData.district)) {
+        setFormData((prev) => ({ ...prev, district: filtered[0] || "" }));
       }
     }
-  }, [formData.state]);
+  }, [formData.state, excludedDistricts]);
 
   // ── QuickeKYC GST-Linked Mobile OTP Generate ─────────────────────────────
   const handleSendGstOtp = async () => {
@@ -166,6 +189,10 @@ export default function LeadCaptureModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.gstin || !formData.gstin.trim() || formData.gstin.trim().length < 15) {
+      setGstErrorMsg("GSTIN is compulsory for franchisee enquiry. Please enter a valid 15-character GST number.");
+      return;
+    }
     setSubmitting(true);
 
     const payload = {
@@ -338,27 +365,12 @@ export default function LeadCaptureModal({
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 {modalMeta.title}
               </h2>
-              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                {modalMeta.subtitle}
-              </p>
+              
             </div>
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Context Kit Banner if specified */}
-              {formData.requiredKitConfig && (
-                <div className="p-3 rounded-2xl bg-sky-50 border border-sky-200/80 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2 text-slate-700">
-                    <FiPackage className="text-[#253880] shrink-0" size={16} />
-                    <span>
-                      Selected Solution: <strong className="text-[#253880]">{formData.requiredKitConfig}</strong>
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase bg-white px-2 py-0.5 rounded border border-slate-200">
-                    Pre-selected
-                  </span>
-                </div>
-              )}
+              
 
               {/* Row 1: Name & Business Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -451,7 +463,7 @@ export default function LeadCaptureModal({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-slate-700">
-                      GSTIN <span className="text-[10px] text-slate-400 font-normal">(QuickeKYC Verified)</span>
+                      GSTIN <span className="text-red-500">*</span> <span className="text-[10px] text-slate-400 font-normal">(QuickeKYC Verified)</span>
                     </label>
                     {gstVerified ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
@@ -472,6 +484,7 @@ export default function LeadCaptureModal({
                   </div>
                   <input
                     type="text"
+                    required
                     maxLength={15}
                     value={formData.gstin}
                     onChange={(e) => {
@@ -599,55 +612,25 @@ export default function LeadCaptureModal({
                 </div>
               </div>
 
-              {/* Row 5: Business Profile & Expected Order Qty */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Business Profile
-                  </label>
-                  <select
-                    value={formData.businessType}
-                    onChange={(e) => setFormData({ ...formData, businessType: e.target.value })}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-[#253880]"
-                  >
-                    <option value="Solar EPC Contractor">Solar EPC Contractor</option>
-                    <option value="Solar Equipment Dealer / Trader">Solar Equipment Dealer / Trader</option>
-                    <option value="Electrical Hardware Retailer">Electrical Hardware Retailer</option>
-                    <option value="Franchise Applicant / Entrepreneur">Franchise Applicant / Entrepreneur</option>
-                    <option value="Commercial / Industrial Business Owner">Commercial / Industrial Business Owner</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Expected Order / Project Volume
-                  </label>
-                  <select
-                    value={formData.expectedOrderQty}
-                    onChange={(e) => setFormData({ ...formData, expectedOrderQty: e.target.value })}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-[#253880]"
-                  >
-                    <option value="1 - 3 Kits / Month (Starter)">1 - 3 Kits / Month (Starter)</option>
-                    <option value="4 - 10 Kits / Month (Active Dealer)">4 - 10 Kits / Month (Active Dealer)</option>
-                    <option value="10 - 25 Kits / Month (Regional Hub)">10 - 25 Kits / Month (Regional Hub)</option>
-                    <option value="50+ kW Bulk Container (EPC Project)">50+ kW Bulk Container (EPC Project)</option>
-                  </select>
-                </div>
+              {/* Row 5: Business Profile */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Business Profile
+                </label>
+                <select
+                  value={formData.businessType}
+                  onChange={(e) => setFormData({ ...formData, businessType: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-[#253880]"
+                >
+                  <option value="Solar EPC Contractor">Solar EPC Contractor</option>
+                  <option value="Solar Equipment Dealer / Trader">Solar Equipment Dealer / Trader</option>
+                  <option value="Electrical Hardware Retailer">Electrical Hardware Retailer</option>
+                  <option value="Franchise Applicant / Entrepreneur">Franchise Applicant / Entrepreneur</option>
+                  <option value="Commercial / Industrial Business Owner">Commercial / Industrial Business Owner</option>
+                </select>
               </div>
 
               {/* Custom Notes / Specific Requirements */}
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Specific Requirements / Remarks
-                </label>
-                <textarea
-                  rows={2}
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Mention desired panel wattage (e.g. 550W DCR), inverter brand, mounting structure type, or target DISCOM name..."
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-[#253880]"
-                />
-              </div>
 
               {/* Consent checkbox */}
               <div className="flex items-start gap-2 pt-1">
