@@ -15,6 +15,9 @@ import {
   duplicateIndustryContent,
   bulkActionIndustryContent,
   getIndustryTypes,
+  getActiveStatesList,
+  getDistrictsByState,
+  getProductConfigKits,
 } from "../../../api/industryContentApi";
 import ContentStatusBadge from "../../../components/industry/ContentStatusBadge";
 import MediaUploadZone from "../../../components/industry/MediaUploadZone";
@@ -54,10 +57,24 @@ import {
   FiChevronUp,
   FiZap,
   FiSun,
+  FiMapPin,
+  FiNavigation,
+  FiPackage,
+  FiGlobe,
 } from "react-icons/fi";
 import { MdOutlineDashboardCustomize, MdOutlineFactory } from "react-icons/md";
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+const INDIAN_STATES_FALLBACK = [
+  "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar",
+  "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi",
+  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand",
+  "Karnataka", "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra",
+  "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab",
+  "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
+  "Uttarakhand", "West Bengal"
+];
+
+// ΓöÇΓöÇΓöÇ Constants ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const CONTENT_TYPES = [
   { value: "", label: "All Types", icon: FiGrid },
@@ -91,7 +108,7 @@ const STATUS_FILTERS = [
   { value: "ARCHIVED", label: "Archived" },
 ];
 
-// ─── Industry icon helper ─────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Industry icon helper ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const INDUSTRY_ICONS = [FiSun, MdOutlineFactory, FiZap, FiMonitor, FiLayers, FiVideo];
 function getIndustryIcon(index) {
   return INDUSTRY_ICONS[index % INDUSTRY_ICONS.length];
@@ -106,7 +123,7 @@ const INDUSTRY_COLORS = [
   { bg: "bg-cyan-50 dark:bg-cyan-900/20", icon: "text-cyan-600 dark:text-cyan-400", ring: "ring-cyan-400" },
 ];
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Sub-components ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 function FormField({ label, required, children, hint }) {
   return (
@@ -146,7 +163,7 @@ function FieldSelect({ value, onChange, children, ...rest }) {
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Main Component ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 export default function IndustryContentManagement() {
   const configSectionRef = useRef(null);
@@ -196,12 +213,27 @@ export default function IndustryContentManagement() {
   // Filter: browse tab category
   const [selectedCategory, setSelectedCategory] = useState(""); // "" = All, "INDUSTRY", "GOVT_TENDER"
 
+  // Location targeting state
+  const [isAllStates, setIsAllStates] = useState(true);
+  const [applicableStates, setApplicableStates] = useState([]);
+  const [applicableDistricts, setApplicableDistricts] = useState([]);
+  const [statesList, setStatesList] = useState([]);
+  const [districtsList, setDistrictsList] = useState([]);
+  const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [stateSearchText, setStateSearchText] = useState("");
+  const [districtSearchText, setDistrictSearchText] = useState("");
+
+  // Product Configurations Kit Linkage
+  const [allSolarKits, setAllSolarKits] = useState([]);
+  const [relatedKitIds, setRelatedKitIds] = useState([]);
+  const [kitSearchText, setKitSearchText] = useState("");
+
   const showAlert = (type, message) => {
     setAlert({ type, message });
     setTimeout(() => setAlert(null), 4500);
   };
 
-  // ── Data Fetching ─────────────────────────────────────────────────────────
+  // ΓöÇΓöÇ Data Fetching ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   const fetchIndustries = useCallback(async () => {
     try {
@@ -239,7 +271,57 @@ export default function IndustryContentManagement() {
   useEffect(() => { fetchIndustries(); }, [fetchIndustries]);
   useEffect(() => { fetchContents(); }, [fetchContents]);
 
-  // ── Industry card click ───────────────────────────────────────────────────
+  // Load active states and solar kits on mount
+  useEffect(() => {
+    getActiveStatesList().then((res) => {
+      if (Array.isArray(res) && res.length > 0) {
+        setStatesList(res);
+      } else {
+        setStatesList(INDIAN_STATES_FALLBACK.map((name) => ({ id: name, name })));
+      }
+    });
+
+    getProductConfigKits().then((res) => {
+      setAllSolarKits(Array.isArray(res) ? res : []);
+    });
+  }, []);
+
+  // Fetch districts for selected states
+  useEffect(() => {
+    if (isAllStates || applicableStates.length === 0) {
+      setDistrictsList([]);
+      return;
+    }
+    setLoadingDistricts(true);
+    Promise.all(
+      applicableStates.map(async (stName) => {
+        const matched = statesList.find(
+          (s) =>
+            s.name?.toLowerCase() === stName.toLowerCase() ||
+            String(s.id) === String(stName) ||
+            String(s._id) === String(stName)
+        );
+        const stateParam = matched?.id || matched?._id || stName;
+        return getDistrictsByState(stateParam);
+      })
+    )
+      .then((results) => {
+        const combined = results.flat();
+        const seen = new Set();
+        const unique = [];
+        combined.forEach((d) => {
+          const name = d.name || d.text || d;
+          if (name && !seen.has(name.toLowerCase())) {
+            seen.add(name.toLowerCase());
+            unique.push(d);
+          }
+        });
+        setDistrictsList(unique);
+      })
+      .finally(() => setLoadingDistricts(false));
+  }, [applicableStates, isAllStates, statesList]);
+
+  // ΓöÇΓöÇ Industry card click ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   const handleSelectIndustry = (id) => {
     setSelectedIndustryId(id);
@@ -264,7 +346,7 @@ export default function IndustryContentManagement() {
     return map;
   }, [contentList]);
 
-  // ── Form Reset ────────────────────────────────────────────────────────────
+  // ΓöÇΓöÇ Form Reset ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   const resetForm = () => {
     setEditingContent(null);
@@ -286,6 +368,13 @@ export default function IndustryContentManagement() {
     setAssignedIndustryIds(selectedIndustryId ? [String(selectedIndustryId)] : []);
     setActiveMediaList([]);
     setCtaExpanded(false);
+    setIsAllStates(true);
+    setApplicableStates([]);
+    setApplicableDistricts([]);
+    setRelatedKitIds([]);
+    setStateSearchText("");
+    setDistrictSearchText("");
+    setKitSearchText("");
   };
 
   const handleOpenCreateModal = () => {
@@ -311,6 +400,10 @@ export default function IndustryContentManagement() {
     setPriority(item.priority || 0);
     setDisplayOrder(item.display_order || 0);
     setIsFeatured(Boolean(item.is_featured));
+    setIsAllStates(item.is_all_states !== false && (!item.applicable_states || item.applicable_states.length === 0));
+    setApplicableStates(item.applicable_states || []);
+    setApplicableDistricts(item.applicable_districts || []);
+    setRelatedKitIds(item.related_kit_ids || []);
 
     const extractId = (x) => {
       if (!x) return null;
@@ -338,6 +431,10 @@ export default function IndustryContentManagement() {
           const detailIndIds = d.industries.map(extractId).filter(Boolean);
           setAssignedIndustryIds(detailIndIds);
         }
+        if (d.applicable_states) setApplicableStates(d.applicable_states);
+        if (d.applicable_districts) setApplicableDistricts(d.applicable_districts);
+        if (d.related_kit_ids) setRelatedKitIds(d.related_kit_ids);
+        if (d.is_all_states !== undefined) setIsAllStates(d.is_all_states);
       }
     } catch (_) {
       setActiveMediaList(item.media || []);
@@ -345,7 +442,7 @@ export default function IndustryContentManagement() {
     setIsEditorOpen(true);
   };
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  // ΓöÇΓöÇ Save ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   const handleSaveContent = async (publishAfterSave = false) => {
     if (!title.trim()) {
@@ -378,6 +475,10 @@ export default function IndustryContentManagement() {
         is_featured: isFeatured,
         industry_ids: assignedIndustryIds,
         industry_type_ids: assignedIndustryIds,
+        is_all_states: isAllStates,
+        applicable_states: isAllStates ? [] : applicableStates,
+        applicable_districts: isAllStates ? [] : applicableDistricts,
+        related_kit_ids: relatedKitIds,
       };
 
       let savedId = editingContent?._id || editingContent?.id;
@@ -416,7 +517,7 @@ export default function IndustryContentManagement() {
     }
   };
 
-  // ── Media handlers ────────────────────────────────────────────────────────
+  // ΓöÇΓöÇ Media handlers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   const handleUploadFile = async (formData) => {
     const id = editingContent?._id || editingContent?.id;
@@ -467,7 +568,7 @@ export default function IndustryContentManagement() {
     }
   };
 
-  // ── Quick Actions ─────────────────────────────────────────────────────────
+  // ΓöÇΓöÇ Quick Actions ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   const handleToggleActive = async (item) => {
     try {
@@ -528,7 +629,7 @@ export default function IndustryContentManagement() {
     }
   };
 
-  // ── Bulk Actions ──────────────────────────────────────────────────────────
+  // ΓöÇΓöÇ Bulk Actions ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -557,20 +658,20 @@ export default function IndustryContentManagement() {
     }
   };
 
-  // ── Active industry name ───────────────────────────────────────────────────
+  // ΓöÇΓöÇ Active industry name ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   const activeIndustry = industries.find(
     (ind) => (ind._id || ind.id) === selectedIndustryId
   );
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   // RENDER
-  // ─────────────────────────────────────────────────────────────────────────
+  // ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
 
-      {/* ── Alert Toast ─────────────────────────────────────────────────────── */}
+      {/* ΓöÇΓöÇ Alert Toast ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
       {alert && (
         <div
           className={`fixed top-5 right-5 z-[9999] p-4 rounded-2xl border flex items-center gap-3 text-xs font-bold shadow-xl animate-in slide-in-from-top-2 duration-300 ${alert.type === "success"
@@ -586,9 +687,9 @@ export default function IndustryContentManagement() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          SECTION 1 — HEADER
-      ════════════════════════════════════════════════════════════════════════ */}
+      {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+          SECTION 1 ΓÇö HEADER
+      ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl px-6 py-5 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -614,9 +715,9 @@ export default function IndustryContentManagement() {
         </button>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          SECTION 2 — INDUSTRY SELECTOR
-      ════════════════════════════════════════════════════════════════════════ */}
+      {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+          SECTION 2 ΓÇö INDUSTRY SELECTOR
+      ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -707,9 +808,9 @@ export default function IndustryContentManagement() {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          SECTION 3 — CONFIGURATION PANEL
-      ════════════════════════════════════════════════════════════════════════ */}
+      {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+          SECTION 3 ΓÇö CONFIGURATION PANEL
+      ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
       <div ref={configSectionRef} className="space-y-4">
 
         {/* Config Header */}
@@ -863,7 +964,7 @@ export default function IndustryContentManagement() {
             </button>
           </div>
         ) : viewMode === "GRID" ? (
-          /* ─── Grid View ──────────────────────────────────────── */
+          /* ΓöÇΓöÇΓöÇ Grid View ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {contentList.map((item) => {
               const id = item.id || item._id;
@@ -948,6 +1049,22 @@ export default function IndustryContentManagement() {
                       )}
                     </div>
 
+                    {/* Geolocation & Linked Kits Tags */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                        <FiMapPin size={9} className="text-[#185ADB]" />
+                        {item.is_all_states !== false && (!item.applicable_states || item.applicable_states.length === 0)
+                          ? "Pan-India"
+                          : item.applicable_states.slice(0, 2).join(", ") + (item.applicable_states.length > 2 ? ` +${item.applicable_states.length - 2}` : "")}
+                      </span>
+                      {item.related_kit_ids?.length > 0 && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200/40 flex items-center gap-1">
+                          <FiPackage size={9} />
+                          {item.related_kit_ids.length} Kit(s) Linked
+                        </span>
+                      )}
+                    </div>
+
                     {/* Actions */}
                     <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                       <button
@@ -988,7 +1105,7 @@ export default function IndustryContentManagement() {
             })}
           </div>
         ) : (
-          /* ─── Table View ─────────────────────────────────────── */
+          /* ΓöÇΓöÇΓöÇ Table View ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -1029,7 +1146,7 @@ export default function IndustryContentManagement() {
                           </div>
                           <div>
                             <div className="font-bold text-slate-900 dark:text-white text-xs">{item.title}</div>
-                            <div className="text-[10px] text-slate-400 font-medium">{item.heading || "—"}</div>
+                            <div className="text-[10px] text-slate-400 font-medium">{item.heading || "ΓÇö"}</div>
                           </div>
                         </div>
                       </td>
@@ -1055,9 +1172,9 @@ export default function IndustryContentManagement() {
         )}
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
+      {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
           CONTENT FORM MODAL (Simplified Single-Page)
-      ════════════════════════════════════════════════════════════════════════ */}
+      ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
       {isEditorOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col my-8">
@@ -1083,7 +1200,7 @@ export default function IndustryContentManagement() {
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-7">
 
-              {/* ─── Section A: Content Info ─────────────────────────────── */}
+              {/* ΓöÇΓöÇΓöÇ Section A: Content Info ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                   <span className="w-5 h-5 rounded-md bg-[#185ADB] text-white text-[10px] font-black flex items-center justify-center">A</span>
@@ -1151,7 +1268,7 @@ export default function IndustryContentManagement() {
                   </FormField>
                 </div>
 
-                <FormField label="Headline (shown to partners)" hint="6–9 words recommended">
+                <FormField label="Headline (shown to partners)" hint="6ΓÇô9 words recommended">
                   <FieldInput
                     value={heading}
                     onChange={(e) => setHeading(e.target.value)}
@@ -1175,7 +1292,7 @@ export default function IndustryContentManagement() {
                 </FormField>
               </div>
 
-              {/* ─── Section B: Targeting & Industries ──────────────────────── */}
+              {/* ΓöÇΓöÇΓöÇ Section B: Targeting & Industries ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                   <span className="w-5 h-5 rounded-md bg-violet-600 text-white text-[10px] font-black flex items-center justify-center">B</span>
@@ -1267,6 +1384,322 @@ export default function IndustryContentManagement() {
                   </div>
                 </FormField>
 
+                {/* ─── State & District Geolocation Targeting ─── */}
+                <FormField
+                  label="Target States & Districts"
+                  hint={isAllStates ? "Applies to all Indian States & Districts (Pan-India)" : `${applicableStates.length} State(s), ${applicableDistricts.length} District(s) selected`}
+                >
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-3">
+                    {/* Mode toggle */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAllStates(true);
+                          setApplicableStates([]);
+                          setApplicableDistricts([]);
+                        }}
+                        className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex items-center gap-2 ${
+                          isAllStates
+                            ? "border-[#185ADB] bg-blue-50/70 dark:bg-blue-950/40 text-[#185ADB]"
+                            : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                        }`}
+                      >
+                        <FiGlobe size={15} className="shrink-0" />
+                        <div>
+                          <div className="text-xs font-black">Pan-India</div>
+                          <div className="text-[10px] text-slate-400">All States & Districts</div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsAllStates(false)}
+                        className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex items-center gap-2 ${
+                          !isAllStates
+                            ? "border-[#185ADB] bg-blue-50/70 dark:bg-blue-950/40 text-[#185ADB]"
+                            : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                        }`}
+                      >
+                        <FiMapPin size={15} className="shrink-0" />
+                        <div>
+                          <div className="text-xs font-black">Specific Region</div>
+                          <div className="text-[10px] text-slate-400">Target States & Districts</div>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Specific States Selection */}
+                    {!isAllStates && (
+                      <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                        {/* States Selector */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                              <FiMapPin size={12} className="text-[#185ADB]" />
+                              Select States ({applicableStates.length} selected)
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setApplicableStates(
+                                    applicableStates.length === statesList.length
+                                      ? []
+                                      : statesList.map((s) => s.name || s.text || s)
+                                  )
+                                }
+                                className="text-[10px] font-bold text-[#185ADB] hover:underline cursor-pointer"
+                              >
+                                {applicableStates.length === statesList.length ? "Clear States" : "Select All States"}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Quick search state */}
+                          <div className="relative">
+                            <FiSearch size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="text"
+                              value={stateSearchText}
+                              onChange={(e) => setStateSearchText(e.target.value)}
+                              placeholder="Search state..."
+                              className="w-full pl-7 pr-7 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 outline-none"
+                            />
+                            {stateSearchText && (
+                              <button
+                                type="button"
+                                onClick={() => setStateSearchText("")}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                              >
+                                <FiX size={11} />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="max-h-36 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+                            {statesList
+                              .filter((s) => {
+                                const name = s.name || s.text || s;
+                                return !stateSearchText.trim() || name.toLowerCase().includes(stateSearchText.toLowerCase());
+                              })
+                              .map((st) => {
+                                const stName = st.name || st.text || st;
+                                const isChecked = applicableStates.includes(stName);
+                                return (
+                                  <label
+                                    key={st.id || st._id || stName}
+                                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-medium cursor-pointer transition-colors ${
+                                      isChecked
+                                        ? "bg-blue-50 dark:bg-blue-900/30 text-[#185ADB] font-bold"
+                                        : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() =>
+                                        setApplicableStates((prev) =>
+                                          prev.includes(stName)
+                                            ? prev.filter((x) => x !== stName)
+                                            : [...prev, stName]
+                                        )
+                                      }
+                                      className="rounded text-[#185ADB] shrink-0"
+                                    />
+                                    <span className="truncate">{stName}</span>
+                                  </label>
+                                );
+                              })}
+                          </div>
+                        </div>
+
+                        {/* Districts Selector (Available when states are selected) */}
+                        {applicableStates.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <FiNavigation size={12} className="text-[#185ADB]" />
+                                Select Districts ({applicableDistricts.length === 0 ? "All Districts in selected states" : `${applicableDistricts.length} specific district(s)`})
+                                {loadingDistricts && <span className="text-[10px] text-amber-500">(Loading...)</span>}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setApplicableDistricts(
+                                      applicableDistricts.length === districtsList.length
+                                        ? []
+                                        : districtsList.map((d) => d.name || d.text || d)
+                                    )
+                                  }
+                                  className="text-[10px] font-bold text-[#185ADB] hover:underline cursor-pointer"
+                                >
+                                  {applicableDistricts.length === districtsList.length ? "Clear Districts" : "Select All Districts"}
+                                </button>
+                              </div>
+                            </div>
+
+                            {districtsList.length > 0 && (
+                              <>
+                                <div className="relative">
+                                  <FiSearch size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                  <input
+                                    type="text"
+                                    value={districtSearchText}
+                                    onChange={(e) => setDistrictSearchText(e.target.value)}
+                                    placeholder="Search district..."
+                                    className="w-full pl-7 pr-7 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 outline-none"
+                                  />
+                                  {districtSearchText && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setDistrictSearchText("")}
+                                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    >
+                                      <FiX size={11} />
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="max-h-36 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+                                  {districtsList
+                                    .filter((d) => {
+                                      const name = d.name || d.text || d;
+                                      return !districtSearchText.trim() || name.toLowerCase().includes(districtSearchText.toLowerCase());
+                                    })
+                                    .map((dst) => {
+                                      const dName = dst.name || dst.text || dst;
+                                      const isChecked = applicableDistricts.includes(dName);
+                                      return (
+                                        <label
+                                          key={dst.id || dst._id || dName}
+                                          className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-medium cursor-pointer transition-colors ${
+                                            isChecked
+                                              ? "bg-blue-50 dark:bg-blue-900/30 text-[#185ADB] font-bold"
+                                              : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                          }`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() =>
+                                              setApplicableDistricts((prev) =>
+                                                prev.includes(dName)
+                                                  ? prev.filter((x) => x !== dName)
+                                                  : [...prev, dName]
+                                              )
+                                            }
+                                            className="rounded text-[#185ADB] shrink-0"
+                                          />
+                                          <span className="truncate">{dName}</span>
+                                        </label>
+                                      );
+                                    })}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </FormField>
+
+                {/* ─── Product Configurations Kits Linkage ─── */}
+                <FormField
+                  label="Link Kits (Product Configurations)"
+                  hint="Website & tender banners show an 'Explore This Tender Kits' button pointing to these configured kits"
+                >
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <FiPackage size={13} className="text-[#185ADB]" />
+                        Select Configured Kits ({relatedKitIds.length} linked)
+                      </span>
+                      {relatedKitIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setRelatedKitIds([])}
+                          className="text-[10px] font-bold text-[#185ADB] hover:underline cursor-pointer"
+                        >
+                          Clear Kits
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Search kits */}
+                    <div className="relative">
+                      <FiSearch size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={kitSearchText}
+                        onChange={(e) => setKitSearchText(e.target.value)}
+                        placeholder="Search product configuration kits by name or category..."
+                        className="w-full pl-7 pr-7 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] text-slate-800 dark:text-slate-200 outline-none"
+                      />
+                      {kitSearchText && (
+                        <button
+                          type="button"
+                          onClick={() => setKitSearchText("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          <FiX size={11} />
+                        </button>
+                      )}
+                    </div>
+
+                    {allSolarKits.length === 0 ? (
+                      <p className="text-[11px] text-slate-500 py-2">
+                        No product configuration kits loaded yet. Create kits in Product Configurations &gt; Solar Kits to link them here.
+                      </p>
+                    ) : (
+                      <div className="max-h-44 overflow-y-auto space-y-1.5 p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+                        {allSolarKits
+                          .filter((kit) => {
+                            if (!kitSearchText.trim()) return true;
+                            const q = kitSearchText.toLowerCase();
+                            const kName = (kit.name || "").toLowerCase();
+                            const catName = (kit.category_id?.name || kit.category || "").toLowerCase();
+                            return kName.includes(q) || catName.includes(q);
+                          })
+                          .map((kit) => {
+                            const kid = String(kit.id || kit._id);
+                            const isChecked = relatedKitIds.includes(kid);
+                            const catName = kit.category_id?.name || kit.category || "Solar Kit";
+                            return (
+                              <label
+                                key={kid}
+                                className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-colors text-xs ${
+                                  isChecked
+                                    ? "border-[#185ADB]/50 bg-blue-50/70 dark:bg-blue-900/30 text-[#185ADB] font-bold"
+                                    : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() =>
+                                      setRelatedKitIds((prev) =>
+                                        prev.includes(kid) ? prev.filter((x) => x !== kid) : [...prev, kid]
+                                      )
+                                    }
+                                    className="rounded text-[#185ADB] shrink-0"
+                                  />
+                                  <span className="truncate">{kit.name}</span>
+                                </div>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold shrink-0 ml-2">
+                                  {catName}
+                                </span>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                </FormField>
+
                 {/* CTA Section (collapsible) */}
                 <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                   <button
@@ -1281,12 +1714,12 @@ export default function IndustryContentManagement() {
                     <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <p className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Franchisee CTA</p>
-                        <FieldInput value={resellerCtaLabel} onChange={(e) => setResellerCtaLabel(e.target.value)} placeholder="Button label (e.g. View Kit →)" />
+                        <FieldInput value={resellerCtaLabel} onChange={(e) => setResellerCtaLabel(e.target.value)} placeholder="Button label (e.g. View Kit ΓåÆ)" />
                         <FieldInput value={resellerCtaUrl} onChange={(e) => setResellerCtaUrl(e.target.value)} placeholder="URL (e.g. /catalog)" />
                       </div>
                       <div className="space-y-2">
                         <p className="text-[10px] font-black uppercase text-cyan-600 tracking-wider">EPC CTA</p>
-                        <FieldInput value={distributorCtaLabel} onChange={(e) => setDistributorCtaLabel(e.target.value)} placeholder="Button label (e.g. View EPC Portal →)" />
+                        <FieldInput value={distributorCtaLabel} onChange={(e) => setDistributorCtaLabel(e.target.value)} placeholder="Button label (e.g. View EPC Portal ΓåÆ)" />
                         <FieldInput value={distributorCtaUrl} onChange={(e) => setDistributorCtaUrl(e.target.value)} placeholder="URL (e.g. /epc/portal)" />
                       </div>
                     </div>
@@ -1294,7 +1727,7 @@ export default function IndustryContentManagement() {
                 </div>
               </div>
 
-              {/* ─── Section C: Media ─────────────────────────────────── */}
+              {/* ΓöÇΓöÇΓöÇ Section C: Media ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                   <span className="w-5 h-5 rounded-md bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center">C</span>

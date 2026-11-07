@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { authHeaderObj } from "@/app/authHeader";
+import { INDIAN_STATES_DISTRICTS } from "./territoryData";
 import {
   FiSettings,
   FiShield,
@@ -18,6 +19,8 @@ import {
   FiBook,
   FiCopy,
   FiCheck,
+  FiTrash2,
+  FiPlus,
 } from "react-icons/fi";
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -123,6 +126,56 @@ export default function ResellerSettings({ moduleUniqueId }) {
   const [toast, setToast] = useState(null);
   const [showAgreementPreview, setShowAgreementPreview] = useState(false);
 
+  // ── Flagship Store Excluded Districts State ──
+  const [newExcludedState, setNewExcludedState] = useState("Maharashtra");
+  const [newExcludedDistrict, setNewExcludedDistrict] = useState("Pune");
+  const [newExcludedReason, setNewExcludedReason] = useState("Company Flagship Store");
+
+  const availableDistrictsForNew = useMemo(() => {
+    return INDIAN_STATES_DISTRICTS[newExcludedState] || [];
+  }, [newExcludedState]);
+
+  const handleStateChange = (stateName) => {
+    setNewExcludedState(stateName);
+    const firstDistrict = (INDIAN_STATES_DISTRICTS[stateName] || [])[0] || "";
+    setNewExcludedDistrict(firstDistrict);
+  };
+
+  const handleAddExcludedDistrict = () => {
+    if (!newExcludedState || !newExcludedDistrict) return;
+    const currentList = settings?.flagship_excluded_districts || [];
+    const exists = currentList.some(
+      (item) =>
+        item.state?.toLowerCase() === newExcludedState.toLowerCase() &&
+        item.district?.toLowerCase() === newExcludedDistrict.toLowerCase()
+    );
+    if (exists) {
+      showToast("error", `${newExcludedDistrict} (${newExcludedState}) is already marked as excluded.`);
+      return;
+    }
+    const updated = [
+      ...currentList,
+      {
+        state: newExcludedState,
+        district: newExcludedDistrict,
+        reason: newExcludedReason.trim() || "Company Flagship Store",
+        added_at: new Date().toISOString(),
+      },
+    ];
+    handleChange("flagship_excluded_districts", updated);
+    showToast("success", `Added ${newExcludedDistrict} (${newExcludedState}) to excluded districts. Click "Save Changes" to save.`);
+  };
+
+  const handleRemoveExcludedDistrict = (index) => {
+    const currentList = settings?.flagship_excluded_districts || [];
+    const removedItem = currentList[index];
+    const updated = currentList.filter((_, idx) => idx !== index);
+    handleChange("flagship_excluded_districts", updated);
+    if (removedItem) {
+      showToast("success", `Removed ${removedItem.district} from excluded districts. Click "Save Changes" to save.`);
+    }
+  };
+
   const showToast = (type, message) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 4000);
@@ -217,10 +270,10 @@ export default function ResellerSettings({ moduleUniqueId }) {
         <div>
           <h1 className="text-xl font-black text-text-primary flex items-center gap-2">
             <FiFileText className="text-primary" size={22} />
-            Franchise Agreement Settings
+            Franchise Policy & Store Settings
           </h1>
           <p className="text-xs text-text-muted mt-1">
-            Master Franchise Agreement Template, clauses & dynamic placeholder configuration.
+            Manage Territory Exclusions for Flagship Stores, Franchise Agreements & Commercial Settings.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -435,6 +488,111 @@ export default function ResellerSettings({ moduleUniqueId }) {
         ))}
       </div>
       */}
+
+      {/* ─── Company Flagship Store Districts (Territory Exclusions) ──────── */}
+      <div className="bg-bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm">
+        <div className="flex items-start justify-between flex-wrap gap-2">
+          <SectionHeader
+            icon={FiMapPin}
+            title="Company Flagship Store Districts (Franchisee Exclusions)"
+            subtitle="Districts where SolarKits operates a flagship company store. Prospective franchisees cannot apply for these excluded territories in the storefront application modal."
+          />
+          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+            {(settings.flagship_excluded_districts || []).length} Excluded Districts
+          </span>
+        </div>
+
+        {/* Add new excluded district box */}
+        <div className="p-4 rounded-xl bg-bg border border-border space-y-3">
+          <div className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
+            <FiPlus className="text-primary" /> Add Flagship Store Territory Exclusion
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+            <div>
+              <label className="text-[11px] font-semibold text-text-muted block mb-1">State</label>
+              <select
+                value={newExcludedState}
+                onChange={(e) => handleStateChange(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-border bg-bg-card text-xs text-text-primary font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {Object.keys(INDIAN_STATES_DISTRICTS).map((st) => (
+                  <option key={st} value={st}>{st}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-text-muted block mb-1">District</label>
+              <select
+                value={newExcludedDistrict}
+                onChange={(e) => setNewExcludedDistrict(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-border bg-bg-card text-xs text-text-primary font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {availableDistrictsForNew.map((dst) => (
+                  <option key={dst} value={dst}>{dst}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-text-muted block mb-1">Reason / Note</label>
+              <input
+                type="text"
+                value={newExcludedReason}
+                onChange={(e) => setNewExcludedReason(e.target.value)}
+                placeholder="e.g. Flagship Store"
+                className="w-full px-3 py-2 rounded-xl border border-border bg-bg-card text-xs text-text-primary font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <div>
+              <button
+                type="button"
+                onClick={handleAddExcludedDistrict}
+                className="w-full px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <FiPlus size={14} /> Exclude District
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* List of currently excluded districts */}
+        <div className="space-y-2">
+          <div className="text-xs font-bold text-text-muted uppercase tracking-wider">
+            Active Excluded Districts List
+          </div>
+          {(!settings.flagship_excluded_districts || settings.flagship_excluded_districts.length === 0) ? (
+            <div className="p-4 rounded-xl border border-dashed border-border text-center text-xs text-text-muted">
+              No districts excluded yet. All territories are currently open for prospective franchisees.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+              {settings.flagship_excluded_districts.map((item, idx) => (
+                <div
+                  key={`${item.state}-${item.district}-${idx}`}
+                  className="p-3 rounded-xl bg-bg border border-border flex items-center justify-between gap-2 group hover:border-border-hover transition-all"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                      <span className="text-xs font-bold text-text-primary truncate">{item.district}</span>
+                    </div>
+                    <div className="text-[11px] text-text-muted truncate mt-0.5">
+                      {item.state} • <span className="text-text-secondary">{item.reason || "Flagship Store"}</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveExcludedDistrict(idx)}
+                    title="Remove exclusion"
+                    className="p-1.5 rounded-lg text-text-muted hover:text-red-600 hover:bg-red-500/10 transition-colors cursor-pointer shrink-0"
+                  >
+                    <FiTrash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ─── 6. Franchise Partner Master Agreement Template & Legal Content ──────── */}
       <div className="bg-bg-card border border-border rounded-2xl p-5 space-y-4 shadow-sm">

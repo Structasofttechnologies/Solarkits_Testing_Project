@@ -18,7 +18,7 @@ import {
 import api from '../services/api';
 
 export default function BdeOrderHistoryAndKits() {
-  const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'kit_analytics'
+  const [activeTab, setActiveTab] = useState('franchisee'); // 'franchisee' | 'direct_epc' | 'kit_analytics'
 
   // Tab 1: Orders State
   const [orders, setOrders] = useState([]);
@@ -64,12 +64,25 @@ export default function BdeOrderHistoryAndKits() {
   }, [districtFilter]);
 
   useEffect(() => {
-    if (activeTab === 'orders') {
+    if (activeTab === 'franchisee' || activeTab === 'direct_epc') {
       fetchOrders();
     } else {
       fetchKitAnalytics();
     }
   }, [activeTab, fetchOrders, fetchKitAnalytics]);
+
+  // Separate Franchisee Orders vs Direct EPC Orders (bina franchise ke direct aane wale)
+  const isDirectOrder = (o) => {
+    return o.epc_source === 'Direct EPC (HO/BDE)' ||
+      o.franchisee_code === 'DIRECT-EPC' ||
+      String(o.po_number || '').startsWith('SKO-') ||
+      String(o.po_number || '').startsWith('ORD-EPC') ||
+      String(o.franchisee_name || '').toLowerCase().includes('direct epc');
+  };
+
+  const franchiseeOrders = orders.filter((o) => !isDirectOrder(o));
+  const directEpcOrders = orders.filter((o) => isDirectOrder(o));
+  const displayedOrders = activeTab === 'direct_epc' ? directEpcOrders : franchiseeOrders;
 
   return (
     <div className="space-y-6">
@@ -85,23 +98,48 @@ export default function BdeOrderHistoryAndKits() {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex items-center bg-white p-1 rounded-2xl border border-slate-200 shadow-xs self-start sm:self-auto">
+        <div className="flex items-center bg-white p-1 rounded-2xl border border-slate-200 shadow-xs self-start sm:self-auto gap-1">
           <button
-            onClick={() => setActiveTab('orders')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
-              activeTab === 'orders'
+            type="button"
+            onClick={() => setActiveTab('franchisee')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'franchisee'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                : 'text-slate-600 hover:text-slate-900'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
-            Franchisee Order History
+            <span>Franchisee Order History</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+              activeTab === 'franchisee' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {franchiseeOrders.length}
+            </span>
           </button>
+
           <button
+            type="button"
+            onClick={() => setActiveTab('direct_epc')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'direct_epc'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            <span>Direct EPC Orders</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+              activeTab === 'direct_epc' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+            }`}>
+              {directEpcOrders.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('kit_analytics')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
               activeTab === 'kit_analytics'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                : 'text-slate-600 hover:text-slate-900'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
             Kit Sales Performance
@@ -109,8 +147,8 @@ export default function BdeOrderHistoryAndKits() {
         </div>
       </div>
 
-      {/* TAB 1: FRANCHISEE ORDER HISTORY */}
-      {activeTab === 'orders' && (
+      {/* TAB 1 & 2: ORDERS (FRANCHISEE OR DIRECT EPC) */}
+      {(activeTab === 'franchisee' || activeTab === 'direct_epc') && (
         <div className="space-y-4">
           {/* Filter Bar */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -120,7 +158,7 @@ export default function BdeOrderHistoryAndKits() {
                 type="text"
                 value={orderSearch}
                 onChange={(e) => setOrderSearch(e.target.value)}
-                placeholder="Search by PO number, Franchisee name, code, kit name, or district..."
+                placeholder={activeTab === 'direct_epc' ? "Search by Order ID, EPC contractor, kit name, or district..." : "Search by PO number, Franchisee name, code, kit name, or district..."}
                 className="w-full bg-transparent text-slate-800 focus:outline-none placeholder-slate-400"
               />
             </div>
@@ -154,8 +192,8 @@ export default function BdeOrderHistoryAndKits() {
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-bold tracking-wider">
                   <tr>
-                    <th className="px-4 py-3.5">PO Number / Date</th>
-                    <th className="px-4 py-3.5">Franchisee Store</th>
+                    <th className="px-4 py-3.5">{activeTab === "direct_epc" ? "Order ID / Date" : "PO Number / Date"}</th>
+                    <th className="px-4 py-3.5">{activeTab === "direct_epc" ? "EPC Contractor" : "Franchisee Store"}</th>
                     <th className="px-4 py-3.5">District</th>
                     <th className="px-4 py-3.5">Kit Details</th>
                     <th className="px-4 py-3.5 text-center">Capacity</th>
@@ -176,11 +214,11 @@ export default function BdeOrderHistoryAndKits() {
                   ) : orders.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="px-4 py-12 text-center text-slate-400 italic">
-                        No purchase orders found matching your search.
+                        {activeTab === 'direct_epc' ? 'No Direct EPC orders found.' : 'No Franchisee purchase orders found.'}
                       </td>
                     </tr>
                   ) : (
-                    orders.map((o, idx) => (
+                    displayedOrders.map((o, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/80 transition">
                         <td className="px-4 py-3.5">
                           <div className="font-mono font-bold text-blue-600">{o.po_number}</div>

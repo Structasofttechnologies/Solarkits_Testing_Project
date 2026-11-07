@@ -16,6 +16,7 @@ const {
   IndustryContentMedia,
   IndustryType,
   IndustryContentAnalytics,
+  SolarKit,
 } = require('../models/core_db');
 const { delete_uploaded_files } = require('../utils/upload.files');
 
@@ -157,11 +158,37 @@ const get_content_detail = async (req, res) => {
 
     if (!content) return res.status(404).json({ status: 'error', message: 'Content not found' });
 
+    let relatedKits = [];
+    if (content.related_kit_ids && content.related_kit_ids.length > 0) {
+      const validKitIds = content.related_kit_ids.filter(kid => kid && mongoose.Types.ObjectId.isValid(kid));
+      if (validKitIds.length > 0) {
+        const foundKits = await SolarKit.find({ _id: { $in: validKitIds }, deleted_at: null })
+          .populate('category_id', 'name')
+          .populate('subcategory_id', 'name')
+          .select('name description category_id subcategory_id image')
+          .lean();
+        relatedKits = foundKits.map(k => ({
+          id: k._id,
+          _id: k._id,
+          name: k.name,
+          description: k.description,
+          category: k.category_id?.name || '',
+          subCategory: k.subcategory_id?.name || '',
+          image: k.image || null,
+        }));
+      }
+    }
+
     return res.json({
       status: 'success',
       data: {
         ...content,
         id: content._id,
+        is_all_states: content.is_all_states !== false,
+        applicable_states: content.applicable_states || [],
+        applicable_districts: content.applicable_districts || [],
+        related_kit_ids: content.related_kit_ids || [],
+        related_kits: relatedKits,
         media: media.map(m => ({ ...m, id: m._id })),
         industries: maps.filter(m => m.industry_type_id).map(m => ({
           map_id: m._id,
@@ -188,6 +215,7 @@ const create_content = async (req, res) => {
       is_featured, priority, display_order, start_at, end_at, status, is_active,
       autoplay, show_controls, muted, loop, allow_download, allow_share, allow_fullscreen,
       focal_position, related_kit_ids,
+      is_all_states, applicable_states, applicable_districts,
     } = req.body;
 
     if (!title || !internal_name || !content_type || !target_audience) {
@@ -205,6 +233,11 @@ const create_content = async (req, res) => {
     const safe_heading = sanitize_html(heading);
     const safe_desc    = sanitize_html(short_description);
     const safe_cta_url = sanitize_url(cta_url);
+
+    const safe_states = Array.isArray(applicable_states) ? applicable_states.map(s => String(s).trim()).filter(Boolean) : [];
+    const safe_districts = Array.isArray(applicable_districts) ? applicable_districts.map(d => String(d).trim()).filter(Boolean) : [];
+    const safe_kit_ids = Array.isArray(related_kit_ids) ? related_kit_ids.map(k => String(k).trim()).filter(Boolean) : [];
+    const is_all_states_val = is_all_states !== undefined ? !!is_all_states : (safe_states.length === 0);
 
     let initial_status = status || 'DRAFT';
     if (initial_status === 'PUBLISHED' && valid_ids.length === 0) {
@@ -239,7 +272,10 @@ const create_content = async (req, res) => {
       allow_share:       allow_share !== false,
       allow_fullscreen:  allow_fullscreen !== false,
       focal_position:    focal_position || 'center',
-      related_kit_ids:   Array.isArray(related_kit_ids) ? related_kit_ids : [],
+      related_kit_ids:   safe_kit_ids,
+      is_all_states:     is_all_states_val,
+      applicable_states: safe_states,
+      applicable_districts: safe_districts,
       status:            initial_status,
       is_active:         is_active !== undefined ? !!is_active : true,
       created_by:        req.user?.id,
@@ -283,7 +319,8 @@ const update_content = async (req, res) => {
       'reseller_cta_label', 'reseller_cta_url', 'distributor_cta_label', 'distributor_cta_url',
       'is_featured', 'priority', 'display_order', 'status', 'is_active',
       'start_at', 'end_at', 'autoplay', 'show_controls', 'muted', 'loop',
-      'allow_download', 'allow_share', 'allow_fullscreen', 'focal_position', 'related_kit_ids'
+      'allow_download', 'allow_share', 'allow_fullscreen', 'focal_position', 'related_kit_ids',
+      'is_all_states', 'applicable_states', 'applicable_districts'
     ];
 
     const update = {};
@@ -295,6 +332,10 @@ const update_content = async (req, res) => {
           update[field] = sanitize_url(req.body[field]);
         } else if (['start_at', 'end_at'].includes(field)) {
           update[field] = req.body[field] ? new Date(req.body[field]) : null;
+        } else if (field === 'applicable_states' || field === 'applicable_districts' || field === 'related_kit_ids') {
+          update[field] = Array.isArray(req.body[field]) ? req.body[field].map(x => String(x).trim()).filter(Boolean) : [];
+        } else if (field === 'is_all_states') {
+          update[field] = !!req.body[field];
         } else {
           update[field] = req.body[field];
         }
@@ -961,6 +1002,13 @@ const list_public_content = async (req, res) => {
       placement,
       is_featured,
       search,
+      scheme,
+      state,
+      state_id,
+      state_name,
+      district,
+      district_id,
+      district_name,
       sort = 'featured', // 'featured' | 'newest' | 'popular'
     } = req.query;
 
@@ -995,12 +1043,44 @@ const list_public_content = async (req, res) => {
     if (is_featured !== undefined && is_featured !== '') {
       filter.is_featured = is_featured === 'true' || is_featured === true;
     }
-    if (search && search.trim()) {
-      filter.$or = [
-        { title: { $regex: search.trim(), $options: 'i' } },
-        { heading: { $regex: search.trim(), $options: 'i' } },
-        { short_description: { $regex: search.trim(), $options: 'i' } },
-      ];
+    const searchParam = (scheme || search || '').trim();
+    if (searchParam) {
+      filter.$and.push({
+        $or: [
+          { title: { $regex: searchParam, $options: 'i' } },
+          { heading: { $regex: searchParam, $options: 'i' } },
+          { short_description: { $regex: searchParam, $options: 'i' } },
+          { internal_name: { $regex: searchParam, $options: 'i' } },
+        ],
+      });
+    }
+
+    // Geolocation state & district filtering
+    const stateFilterVal = (state || state_name || state_id || '').trim();
+    if (stateFilterVal && stateFilterVal.toLowerCase() !== 'all') {
+      const stateEscaped = stateFilterVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.$and.push({
+        $or: [
+          { is_all_states: true },
+          { applicable_states: { $size: 0 } },
+          { applicable_states: { $exists: false } },
+          { applicable_states: { $regex: new RegExp(`^${stateEscaped}$`, 'i') } },
+          { applicable_states: stateFilterVal },
+        ],
+      });
+    }
+
+    const districtFilterVal = (district || district_name || district_id || '').trim();
+    if (districtFilterVal && districtFilterVal.toLowerCase() !== 'all') {
+      const distEscaped = districtFilterVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.$and.push({
+        $or: [
+          { applicable_districts: { $size: 0 } },
+          { applicable_districts: { $exists: false } },
+          { applicable_districts: { $regex: new RegExp(`^${distEscaped}$`, 'i') } },
+          { applicable_districts: districtFilterVal },
+        ],
+      });
     }
 
     // Resolve industry filter
@@ -1053,6 +1133,40 @@ const list_public_content = async (req, res) => {
       }).sort({ is_primary: -1, sort_order: 1, created_at: 1 }).lean(),
     ]);
 
+    // Fetch related kits details for these items
+    const allKitIds = [];
+    items.forEach(i => {
+      if (Array.isArray(i.related_kit_ids)) {
+        i.related_kit_ids.forEach(kid => {
+          if (kid && mongoose.Types.ObjectId.isValid(kid)) allKitIds.push(kid);
+        });
+      }
+    });
+
+    const kitsMap = {};
+    if (allKitIds.length > 0) {
+      try {
+        const foundKits = await SolarKit.find({ _id: { $in: allKitIds }, deleted_at: null })
+          .populate('category_id', 'name')
+          .populate('subcategory_id', 'name')
+          .select('name description category_id subcategory_id image')
+          .lean();
+        foundKits.forEach(k => {
+          kitsMap[k._id.toString()] = {
+            id: k._id,
+            _id: k._id,
+            name: k.name,
+            description: k.description,
+            category: k.category_id?.name || '',
+            subCategory: k.subcategory_id?.name || '',
+            image: k.image || null,
+          };
+        });
+      } catch (kitErr) {
+        console.error('[industry.content] error populating kits:', kitErr);
+      }
+    }
+
     const mapByContent = {};
     maps.forEach(m => {
       const cid = m.content_id.toString();
@@ -1079,6 +1193,9 @@ const list_public_content = async (req, res) => {
       const primaryMedia = contentMedia.find(m => m.is_primary) || contentMedia[0] || null;
       const thumbnail = primaryMedia?.thumbnail_url || primaryMedia?.poster_url || primaryMedia?.url || null;
 
+      const itemRelatedKitIds = Array.isArray(item.related_kit_ids) ? item.related_kit_ids : [];
+      const itemRelatedKits = itemRelatedKitIds.map(kid => kitsMap[kid?.toString()]).filter(Boolean);
+
       return {
         id: item._id,
         _id: item._id,
@@ -1102,6 +1219,11 @@ const list_public_content = async (req, res) => {
         download_count: item.download_count || 0,
         share_count: item.share_count || 0,
         published_at: item.published_at,
+        is_all_states: item.is_all_states !== false,
+        applicable_states: item.applicable_states || [],
+        applicable_districts: item.applicable_districts || [],
+        related_kit_ids: itemRelatedKitIds,
+        related_kits: itemRelatedKits,
         industries: mapByContent[item._id.toString()] || [],
         media: contentMedia,
         thumbnail,

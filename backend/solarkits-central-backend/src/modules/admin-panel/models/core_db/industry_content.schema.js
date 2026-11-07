@@ -99,6 +99,11 @@ const schema = new mongoose.Schema({
   // Optional Product / Kit associations
   related_kit_ids:  [{ type: String, trim: true }],
 
+  // Geolocation targeting (Pan-India or specific States & Districts)
+  is_all_states:        { type: Boolean, default: true },
+  applicable_states:    [{ type: String, trim: true }],
+  applicable_districts: [{ type: String, trim: true }],
+
   // Audit
   created_by:   { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
   approved_by:  { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },

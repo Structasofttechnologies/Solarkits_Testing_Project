@@ -3114,6 +3114,7 @@ export default function BdePoOrders() {
                 const reorderGstRate = reorderItem.gst_rate != null ? Number(reorderItem.gst_rate) : 0;
                 const reorderUnitPrice = (reorderItem.unit_price_paise || 0) / 100;
                 const reorderTaxPerKit = Math.round((reorderUnitPrice * reorderGstRate) / 100);
+                const reorderUnitPriceWithTax = reorderUnitPrice + reorderTaxPerKit;
                 const totalPoCommitted = Number(reorderOrder.total_booked_quantity || reorderOrder.target_committed_quantity || reorderItem.quantity || 1);
                 const totalPoTokenInr = Number(reorderOrder.token_amount_paise || reorderOrder.token_paid_paise || 0) / 100;
                 const reorderTokenPerKit = totalPoCommitted > 0 ? Math.round(totalPoTokenInr / totalPoCommitted) : 0;

@@ -27,6 +27,7 @@ router.post('/auth/change-password', verify_bde_auth, handler.change_password);
 router.get('/profile/me', verify_bde_auth, handler.get_bde_me);
 router.put('/profile/update', verify_bde_auth, handler.update_me || handler.update_bde_me);
 router.get('/dashboard', verify_bde_auth, handler.get_bde_dashboard);
+router.get('/sidebar-counts', verify_bde_auth, handler.get_sidebar_counts);
 
 // Notifications
 router.get('/notifications', verify_bde_auth, handler.get_notifications);

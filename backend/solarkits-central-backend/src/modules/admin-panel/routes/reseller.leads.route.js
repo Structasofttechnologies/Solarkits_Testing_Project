@@ -14,6 +14,7 @@ const check_permissions = require('../middlewares/check.permissions');
 const handler = require('../controller/reseller.leads.handler');
 
 router.post('/submit', handler.submit_lead);
+router.get('/excluded-districts', handler.get_excluded_districts);
 router.post('/gst-otp/generate', handler.generate_lead_gst_otp);
 router.post('/gst-otp/verify', handler.verify_lead_gst_otp);
 

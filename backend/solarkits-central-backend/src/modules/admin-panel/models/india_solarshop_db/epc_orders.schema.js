@@ -71,7 +71,7 @@ const schema = new mongoose.Schema({
   },
   routing_source: {
     type: String,
-    enum: ['primary_reseller', 'territory_match', 'direct_fallback'],
+    enum: ['primary_reseller', 'territory_match', 'direct_fallback', 'bde_direct'],
     default: 'territory_match',
   },
   items: [epcOrderItemSchema],

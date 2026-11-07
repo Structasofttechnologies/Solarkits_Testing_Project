@@ -266,11 +266,11 @@ export default function WebsiteEpcLeads() {
           </div>
         </div>
 
-        {/* Converted / Contacted */}
+        {/* Onboarded by BDE */}
         <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
-              Converted
+              Onboarded EPCs
             </span>
             <div className="rounded-xl bg-emerald-100 dark:bg-emerald-900/50 p-2 text-emerald-600 dark:text-emerald-400">
               <FiCheckCircle className="text-lg" />
@@ -278,9 +278,9 @@ export default function WebsiteEpcLeads() {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300">
-              {stats.converted_count}
+              {stats.onboarded_count || stats.converted_count || 0}
             </span>
-            <span className="text-xs font-medium text-emerald-600">Deals closed</span>
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">By BDE Panel</span>
           </div>
         </div>
       </div>
@@ -398,6 +398,7 @@ export default function WebsiteEpcLeads() {
               <option value="assigned">⚡ Assigned to BDE</option>
               <option value="contacted">📞 Contacted</option>
               <option value="in_progress">🔄 In Progress</option>
+              <option value="onboarded">🎉 Onboarded</option>
               <option value="converted">✅ Converted</option>
               <option value="rejected">❌ Closed / Rejected</option>
             </select>

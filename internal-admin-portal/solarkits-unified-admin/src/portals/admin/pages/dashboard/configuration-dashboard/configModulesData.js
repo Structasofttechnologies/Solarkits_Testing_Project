@@ -28,7 +28,7 @@ export const CONFIG_MODULES = [
   // ──────────────────────────────────────────────────────────────────────────
   {
     id: 'ss-approve-epc',
-    title: 'Approve New EPC',
+    title: 'Website EPC Leads',
     category: 'solarshop',
     categoryLabel: 'SolarShop',
     description: 'Review and approve pending EPC contractor applications and onboarding verification.',

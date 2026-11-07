@@ -2720,7 +2720,7 @@ exports.convert_to_order = async (req, res) => {
         order_number: orderNumber,
         epc_id: quote.epc_id,
         reseller_id: quote.franchisee_id || null,
-        routing_source: quote.franchisee_id ? 'primary_reseller' : 'bde_direct',
+        routing_source: quote.franchisee_id ? 'primary_reseller' : 'direct_fallback',
         items: [{
           scope_type: 'kit',
           kit_id: quote.combo_kit_id,
@@ -2830,7 +2830,7 @@ exports.convert_to_order = async (req, res) => {
     });
   } catch (err) {
     console.error('[convert_to_order]', err.message);
-    return res.status(500).json({ status: 'error', message: 'Failed to convert quote to order' });
+    return res.status(500).json({ status: 'error', message: err.message || 'Failed to convert quote to order' });
   }
 };
 

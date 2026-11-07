@@ -9,7 +9,8 @@
  */
 
 const mongoose = require('mongoose');
-const { WebsiteEpcLead, BDEProfile } = require('../models/india_solarshop_db');
+const { WebsiteEpcLead, BDEProfile, BDENotification } = require('../models/india_solarshop_db');
+const { sendAdminNotification } = require('../services/admin.notification.service');
 const { GeoLevel1 } = require('../models/geolocation_db');
 
 // Helper to generate unique Lead ID
@@ -97,6 +98,24 @@ exports.submit_website_lead = async (req, res) => {
       lead_source: 'portal',
       source: 'solar-store-bulk-banner',
     });
+
+    // Real-time notification to Admin bell icon
+    try {
+      await sendAdminNotification({
+        title: 'New Website EPC Lead Received',
+        message: `${newLead.name} (${newLead.state_name}${newLead.district_name ? ', ' + newLead.district_name : ''}) submitted a new bulk inquiry for ${newLead.estimated_quantity}.`,
+        category: 'epc',
+        priority: 'high',
+        action_url: '/admin-panel/solar-shop/india/approve-new-epc',
+        metadata: {
+          lead_id: newLead.lead_id,
+          phone: newLead.phone,
+          state: newLead.state_name,
+        },
+      });
+    } catch (notifErr) {
+      console.warn('Failed to send admin notification for new EPC lead:', notifErr.message);
+    }
 
     return res.status(201).json({
       success: true,
@@ -265,11 +284,26 @@ exports.list_website_leads = async (req, res) => {
     }));
 
     // Aggregate statistics across all active leads
-    const [totalAll, unassignedCount, assignedCount, convertedCount] = await Promise.all([
+    const [totalAll, unassignedCount, assignedCount, onboardedCount] = await Promise.all([
       WebsiteEpcLead.countDocuments({ deleted_at: null }),
-      WebsiteEpcLead.countDocuments({ deleted_at: null, $or: [{ assigned_bde_id: null }, { status: 'new' }] }),
-      WebsiteEpcLead.countDocuments({ deleted_at: null, assigned_bde_id: { $ne: null } }),
-      WebsiteEpcLead.countDocuments({ deleted_at: null, status: 'converted' }),
+      WebsiteEpcLead.countDocuments({
+        deleted_at: null,
+        $or: [
+          { assigned_bde_id: null, current_bde_id: null },
+          { status: 'new' },
+        ],
+      }),
+      WebsiteEpcLead.countDocuments({
+        deleted_at: null,
+        $or: [{ assigned_bde_id: { $ne: null } }, { current_bde_id: { $ne: null } }],
+      }),
+      WebsiteEpcLead.countDocuments({
+        deleted_at: null,
+        $or: [
+          { status: { $in: ['onboarded', 'converted'] } },
+          { lead_status: { $in: ['Onboarded', 'Assigned to Franchisee', 'Converted'] } },
+        ],
+      }),
     ]);
 
     // Distinct states in leads for quick filter dropdown
@@ -297,7 +331,8 @@ exports.list_website_leads = async (req, res) => {
         total_leads: totalAll,
         unassigned_count: unassignedCount,
         assigned_count: assignedCount,
-        converted_count: convertedCount,
+        onboarded_count: onboardedCount,
+        converted_count: onboardedCount,
       },
       available_states: availableStates.sort(),
       available_bdes: availableBdes,
@@ -345,14 +380,51 @@ exports.bulk_assign_leads = async (req, res) => {
       {
         $set: {
           assigned_bde_id: bde._id,
+          current_bde_id: bde._id,
           assigned_bde_name: bde.full_name,
           assigned_bde_phone: bde.mobile_number,
           assigned_at: now,
           assigned_by: assignedBy,
           status: 'assigned',
+          lead_status: 'New',
+          lead_source: 'head_office_assigned',
         },
       }
     );
+
+    // Real-time notification to Admin bell icon
+    try {
+      await sendAdminNotification({
+        title: 'EPC Leads Assigned to BDE',
+        message: `${result.modifiedCount} EPC lead(s) assigned to BDE ${bde.full_name}.`,
+        category: 'bde',
+        priority: 'normal',
+        action_url: '/admin-panel/solar-shop/india/approve-new-epc',
+        metadata: {
+          bde_id: bde._id,
+          count: result.modifiedCount,
+        },
+      });
+    } catch (notifErr) {
+      console.warn('Failed to send admin notification for bulk assignment:', notifErr.message);
+    }
+
+    // Real-time notification to BDE portal bell icon
+    try {
+      if (BDENotification) {
+        await BDENotification.create({
+          bde_id: bde._id,
+          title: 'New EPC Leads Assigned',
+          message: `Head Office assigned ${result.modifiedCount} new EPC contractor lead(s) to you. Please follow up.`,
+          type: 'epc_lead',
+          link: '/epc-leads',
+          action_label: 'View EPC Leads',
+          entity_type: 'website_epc_leads',
+        });
+      }
+    } catch (bdeNotifErr) {
+      console.warn('Failed to send BDE notification:', bdeNotifErr.message);
+    }
 
     return res.json({
       success: true,
@@ -410,6 +482,33 @@ exports.update_lead = async (req, res) => {
     }
 
     await lead.save();
+
+    if (assigned_bde_id && assigned_bde_id !== 'unassign' && lead.assigned_bde_id) {
+      try {
+        if (BDENotification) {
+          await BDENotification.create({
+            bde_id: lead.assigned_bde_id,
+            title: 'New EPC Lead Assigned',
+            message: `Head Office assigned lead ${lead.lead_id} (${lead.name}, ${lead.state_name}) to you.`,
+            type: 'epc_lead',
+            link: '/epc-leads',
+            action_label: 'View Lead',
+            entity_type: 'website_epc_leads',
+            entity_id: lead.lead_id,
+          });
+        }
+        await sendAdminNotification({
+          title: 'EPC Lead Assigned to BDE',
+          message: `Lead ${lead.lead_id} assigned to BDE ${lead.assigned_bde_name || 'BDE'}.`,
+          category: 'bde',
+          priority: 'normal',
+          action_url: '/admin-panel/solar-shop/india/approve-new-epc',
+          metadata: { lead_id: lead.lead_id },
+        });
+      } catch (bdeErr) {
+        console.warn('Failed to create notification for single lead assignment:', bdeErr.message);
+      }
+    }
 
     return res.json({
       success: true,

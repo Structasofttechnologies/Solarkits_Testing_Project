@@ -104,6 +104,7 @@ export default function BdeEpcLeads() {
   const [leads, setLeads] = useState([]);
   const [stageCounts, setStageCounts] = useState({});
   const [totalAllCount, setTotalAllCount] = useState(0);
+  const [companyAssignedCount, setCompanyAssignedCount] = useState(0);
   const [territory, setTerritory] = useState(null);
   const [territories, setTerritories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -176,6 +177,7 @@ export default function BdeEpcLeads() {
         setStageCounts(res.data.stage_counts || {});
         setEpcTypeCounts(res.data.epc_type_counts || {});
         setTotalAllCount(res.data.total_all_leads || res.data.pagination?.total || 0);
+        setCompanyAssignedCount(res.data.company_assigned_count || 0);
 
         const activeTerritories = Array.isArray(res.data.territories) && res.data.territories.length > 0
           ? res.data.territories
@@ -706,6 +708,17 @@ export default function BdeEpcLeads() {
               }`}
           >
             All Leads ({totalLeadsCount})
+          </button>
+          <button
+            onClick={() => setStageFilter('company_assigned')}
+            className={`px-3 py-1 rounded-lg font-bold shrink-0 transition flex items-center gap-1.5 ${stageFilter === 'company_assigned' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100'
+              }`}
+          >
+            <Sparkles className="w-3 h-3 text-amber-400" />
+            <span>Company Assigned</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${stageFilter === 'company_assigned' ? 'bg-white/20 text-white' : 'bg-blue-200 text-blue-900'}`}>
+              {companyAssignedCount}
+            </span>
           </button>
           {STAGES.map((st) => (
             <button

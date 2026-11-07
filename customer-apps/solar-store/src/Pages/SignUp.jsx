@@ -901,23 +901,15 @@ export default function SignUp() {
     let isValid = true;
 
     if (!formData.password) {
-      newErrors.password = "Password is required";
+      newErrors.password = "4-digit Security PIN is required";
       isValid = false;
-    } else {
-      if (formData.password.length < 6) {
-        newErrors.password = "Password must be at least 6 characters";
-        isValid = false;
-      } else if (!/[A-Z]/.test(formData.password)) {
-        newErrors.password = "Password must contain at least one uppercase letter";
-        isValid = false;
-      } else if (!/[0-9]/.test(formData.password)) {
-        newErrors.password = "Password must contain at least one number";
-        isValid = false;
-      }
+    } else if (!/^\d{4}$/.test(formData.password.trim())) {
+      newErrors.password = "PIN must be exactly 4 numeric digits (e.g. 1234)";
+      isValid = false;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = "Passwords do not match";
+      newErrors.confirmPassword = "PINs do not match";
       isValid = false;
     }
 
@@ -1108,7 +1100,7 @@ export default function SignUp() {
                     <p className={`font-medium ${currentStep >= 3 ? "text-text-primary dark:text-info" : "text-text-secondary"}`}>
                       Security
                     </p>
-                    <p className="text-xs text-text-secondary">Set password</p>
+                    <p className="text-xs text-text-secondary">Set 4-Digit PIN</p>
                   </div>
                 </div>
               </div>
@@ -1575,11 +1567,16 @@ export default function SignUp() {
                     <div className="relative">
                       <CustomInput
                         name="password"
-                        label="Password"
-                        placeholder="Create a password"
+                        label="Set 4-Digit Security PIN"
+                        placeholder="Enter 4-digit PIN (e.g. 1234)"
                         value={formData.password}
-                        onChange={handleInputChange}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                          handleInputChange({ target: { name: 'password', value: val } });
+                        }}
                         type={showPassword ? "text" : "password"}
+                        maxLength={4}
+                        inputMode="numeric"
                         className={errors.password ? "border-danger" : ""}
                       />
                       <IconButton
@@ -1596,11 +1593,16 @@ export default function SignUp() {
                     <div className="relative">
                       <CustomInput
                         name="confirmPassword"
-                        label="Confirm Password"
-                        placeholder="Re-enter your password"
+                        label="Confirm 4-Digit PIN"
+                        placeholder="Re-enter 4-digit PIN"
                         value={formData.confirmPassword}
-                        onChange={handleInputChange}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                          handleInputChange({ target: { name: 'confirmPassword', value: val } });
+                        }}
                         type={showConfirmPassword ? "text" : "password"}
+                        maxLength={4}
+                        inputMode="numeric"
                         className={errors.confirmPassword ? "border-danger" : ""}
                       />
                       <IconButton
@@ -1615,22 +1617,15 @@ export default function SignUp() {
                     </div>
 
                     <div className="bg-surface-hover p-3 rounded-lg border border-border">
-                      <p className="text-xs text-text-secondary mb-2">Password must contain:</p>
+                      <p className="text-xs text-text-secondary mb-2">Security PIN Rules:</p>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="flex items-center gap-1">
-                          <div className={`w-2 h-2 rounded-full ${formData.password.length >= 6 ? "bg-success" : "bg-gray-300"
-                            }`}></div>
-                          <span className="text-xs text-text-secondary">6+ characters</span>
+                          <div className={`w-2 h-2 rounded-full ${/^\d{4}$/.test(formData.password) ? "bg-success" : "bg-gray-300"}`}></div>
+                          <span className="text-xs text-text-secondary">Exactly 4 numeric digits</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <div className={`w-2 h-2 rounded-full ${/[A-Z]/.test(formData.password) ? "bg-success" : "bg-gray-300"
-                            }`}></div>
-                          <span className="text-xs text-text-secondary">Uppercase letter</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className={`w-2 h-2 rounded-full ${/[0-9]/.test(formData.password) ? "bg-success" : "bg-gray-300"
-                            }`}></div>
-                          <span className="text-xs text-text-secondary">Number</span>
+                          <div className={`w-2 h-2 rounded-full ${formData.password && formData.password === formData.confirmPassword ? "bg-success" : "bg-gray-300"}`}></div>
+                          <span className="text-xs text-text-secondary">Both PINs match</span>
                         </div>
                       </div>
                     </div>
