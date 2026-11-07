@@ -12,6 +12,7 @@ const permissionCodes = [
 ];
 
 router.get('/fulfillment-warehouses', check_auth, check_permissions(permissionCodes), handler.get_fulfillment_warehouses);
+router.get('/warehouse-summary', check_auth, check_permissions(permissionCodes), handler.get_warehouse_delivery_summary);
 router.get('/', check_auth, check_permissions(permissionCodes), handler.get_delivery_costs);
 router.get('/kit-stats', check_auth, check_permissions(permissionCodes), handler.get_kit_stats);
 router.post('/apply-district-rates', check_auth, check_permissions(permissionCodes), handler.apply_district_rates);

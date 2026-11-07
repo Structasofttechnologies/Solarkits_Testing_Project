@@ -159,9 +159,9 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
 
   const menuItems = [
     { icon: <HiUser />, name: "Profile", action: () => { navigate("/profile"); } },
-    { icon: <HiUserAdd />, name: "Create Users", action: () => { navigate("/users/create"); } },
-    { icon: <MdSettings />, name: "Settings", action: () => { navigate("/settings"); } },
-    { icon: <FaWarehouse />, name: "Add Warehouse", action: () => { navigate("/warehouse/add"); } },
+    // { icon: <HiUserAdd />, name: "Create Users", action: () => { navigate("/users/create"); } },
+    // { icon: <MdSettings />, name: "Settings", action: () => { navigate("/settings"); } },
+    // { icon: <FaWarehouse />, name: "Add Warehouse", action: () => { navigate("/warehouse/add"); } },
     { icon: <MdLogout />, name: "Logout", action: handleLogout },
   ];
 
@@ -211,7 +211,7 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
 
         {/* Middle - Geolocation Selector */}
         <div className="flex items-center space-x-2.5 bg-surface-hover px-4 py-1.5 rounded-full border border-border shadow-inner">
-          <div 
+          <div
             onClick={() => !isEpcUser && setPincodeModalOpen(true)}
             className="flex items-center space-x-1.5 text-text-secondary cursor-pointer hover:opacity-80"
             title="Click to enter Pincode"
@@ -461,22 +461,21 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
               <div className="hidden sm:block">
                 <div className="flex items-center gap-1.5">
                   <p className="text-sm font-semibold text-text-primary dark:text-info">{user?.name}</p>
-                  <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                    user?.is_owner !== false && !user?.parent_account_id
+                  <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${user?.is_owner !== false && !user?.parent_account_id
                       ? "bg-purple-500/10 text-purple-600 border-purple-500/20"
                       : user?.role === "admin"
-                      ? "bg-indigo-500/10 text-indigo-600 border-indigo-500/20"
-                      : user?.role === "account"
-                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                      : "bg-blue-500/10 text-blue-600 border-blue-500/20"
-                  }`}>
+                        ? "bg-indigo-500/10 text-indigo-600 border-indigo-500/20"
+                        : user?.role === "account"
+                          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                          : "bg-blue-500/10 text-blue-600 border-blue-500/20"
+                    }`}>
                     {user?.is_owner !== false && !user?.parent_account_id
                       ? "Owner"
                       : user?.role === "admin"
-                      ? "Co-Admin"
-                      : user?.role === "account"
-                      ? "Finance"
-                      : "Shopper"}
+                        ? "Co-Admin"
+                        : user?.role === "account"
+                          ? "Finance"
+                          : "Shopper"}
                   </span>
                 </div>
                 <p className="text-xs text-text-secondary">{user?.email}</p>

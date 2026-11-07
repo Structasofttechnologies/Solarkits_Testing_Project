@@ -86,62 +86,132 @@ export default function KitFilters({
     const makeUnique = (arr) =>
       Array.from(new Map(arr.map((item) => [item.value, item])).values());
 
-    const panelBrands = [];
+    const parseNumber = (val) => {
+      if (val === null || val === undefined) return null;
+      if (typeof val === "number" && !isNaN(val)) return val;
+      if (typeof val === "string") {
+        const cleaned = val.replace(/,/g, "").match(/[\d.]+/);
+        if (cleaned) {
+          const num = parseFloat(cleaned[0]);
+          return isNaN(num) ? null : num;
+        }
+      }
+      return null;
+    };
+
+    const getPanel = (kit) => {
+      if (kit.panel) return kit.panel;
+      if (Array.isArray(kit.includedComponents)) {
+        return kit.includedComponents.find((c) => c.actualType === "panel" || c.componentType?.toLowerCase().includes("panel"));
+      }
+      return null;
+    };
+
+    const getInverter = (kit) => {
+      if (kit.inverter) return kit.inverter;
+      if (Array.isArray(kit.includedComponents)) {
+        return kit.includedComponents.find((c) => c.actualType === "inverter" || c.componentType?.toLowerCase().includes("inverter"));
+      }
+      return null;
+    };
+
     const panelTechnologies = [];
-    const inverterBrands = [];
-    const inverterTypes = [];
-    const batteryBrands = [];
-    const batteryTypes = [];
     const panelWattagesSet = new Set();
     const panelWarrantiesSet = new Set();
+    const panelEfficienciesSet = new Set();
+
+    const inverterTypes = [];
     const inverterCapacitiesSet = new Set();
+    const inverterWarrantiesSet = new Set();
+    const inverterEfficienciesSet = new Set();
 
     availableKits?.forEach((kit) => {
-      if (kit.panel?.brandName) panelBrands.push({ text: kit.panel.brandName, value: kit.panel.brandName.toLowerCase() });
-      if (kit.panel?.technologyType) panelTechnologies.push({ text: kit.panel.technologyType, value: kit.panel.technologyType.toLowerCase() });
-      if (kit.panel?.wattPerPanel) panelWattagesSet.add(Number(kit.panel.wattPerPanel));
-      if (kit.panel?.warrantyYears) panelWarrantiesSet.add(Number(kit.panel.warrantyYears));
-      if (kit.inverter?.brandName) inverterBrands.push({ text: kit.inverter.brandName, value: kit.inverter.brandName.toLowerCase() });
-      if (kit.inverter?.type) inverterTypes.push({ text: kit.inverter.type, value: kit.inverter.type.toLowerCase() });
-      if (kit.inverter?.capacityKW) inverterCapacitiesSet.add(Number(kit.inverter.capacityKW));
-      if (kit.battery?.brandName) batteryBrands.push({ text: kit.battery.brandName, value: kit.battery.brandName.toLowerCase() });
-      if (kit.battery?.type) batteryTypes.push({ text: kit.battery.type, value: kit.battery.type.toLowerCase() });
+      const panel = getPanel(kit);
+      if (panel) {
+        const tech = (panel.technologyType || panel.technology || "").trim();
+        if (tech) {
+          panelTechnologies.push({ text: tech, value: tech.toLowerCase() });
+        }
+        const watt = parseNumber(panel.wattPerPanel);
+        if (watt !== null && watt > 0) panelWattagesSet.add(watt);
+
+        const warranty = parseNumber(panel.warrantyYears);
+        if (warranty !== null && warranty > 0) panelWarrantiesSet.add(warranty);
+
+        const eff = parseNumber(panel.efficiencyPercent);
+        if (eff !== null && eff > 0) panelEfficienciesSet.add(eff);
+      }
+
+      const inverter = getInverter(kit);
+      if (inverter) {
+        const type = (inverter.type || inverter.category || "").trim();
+        if (type) {
+          inverterTypes.push({ text: type, value: type.toLowerCase() });
+        }
+        const cap = parseNumber(inverter.capacityKW) || parseNumber(kit.capacityKW) || parseNumber(kit.capacity);
+        if (cap !== null && cap > 0) inverterCapacitiesSet.add(cap);
+
+        const warranty = parseNumber(inverter.warrantyYears);
+        if (warranty !== null && warranty > 0) inverterWarrantiesSet.add(warranty);
+
+        const eff = parseNumber(inverter.efficiencyPercent);
+        if (eff !== null && eff > 0) inverterEfficienciesSet.add(eff);
+      }
     });
 
-    // Build dynamic exact-value options from real data
     const wattSorted = Array.from(panelWattagesSet).sort((a, b) => a - b);
-    const dynamicWatts = wattSorted.length > 0
-      ? [{ text: "All Wattages", value: "all" }, ...wattSorted.map((w) => ({ text: `${w}W`, value: String(w) }))]
-      : options.wattPerPanel;
+    const dynamicWatts = [
+      { text: "All Wattages", value: "all" },
+      ...wattSorted.map((w) => ({ text: `${w}W`, value: String(w) }))
+    ];
 
     const warrantySorted = Array.from(panelWarrantiesSet).sort((a, b) => a - b);
-    const dynamicPanelWarranties = warrantySorted.length > 0
-      ? [{ text: "All Warranties", value: "all" }, ...warrantySorted.map((w) => ({ text: `${w} years`, value: String(w) }))]
-      : options.warranty;
+    const dynamicPanelWarranties = [
+      { text: "All Warranties", value: "all" },
+      ...warrantySorted.map((w) => ({ text: `${w} Years`, value: String(w) }))
+    ];
+
+    const panelEffSorted = Array.from(panelEfficienciesSet).sort((a, b) => a - b);
+    const dynamicPanelEfficiencies = [
+      { text: "All Efficiency", value: "all" },
+      ...panelEffSorted.map((e) => ({ text: `${e}%`, value: String(e) }))
+    ];
 
     const capSorted = Array.from(inverterCapacitiesSet).sort((a, b) => a - b);
-    const dynamicInverterCapacities = capSorted.length > 0
-      ? [{ text: "All Capacities", value: "all" }, ...capSorted.map((c) => ({ text: `${c} kW`, value: String(c) }))]
-      : options.inverterCapacity;
+    const dynamicInverterCapacities = [
+      { text: "All Capacities", value: "all" },
+      ...capSorted.map((c) => ({ text: `${c} kW`, value: String(c) }))
+    ];
+
+    const invWarrantySorted = Array.from(inverterWarrantiesSet).sort((a, b) => a - b);
+    const dynamicInverterWarranties = [
+      { text: "All Warranties", value: "all" },
+      ...invWarrantySorted.map((w) => ({ text: `${w} Years`, value: String(w) }))
+    ];
+
+    const invEffSorted = Array.from(inverterEfficienciesSet).sort((a, b) => a - b);
+    const dynamicInverterEfficiencies = [
+      { text: "All Efficiency", value: "all" },
+      ...invEffSorted.map((e) => ({ text: `${e}%`, value: String(e) }))
+    ];
 
     return {
-      panelBrands: [{ text: "All Brands", value: "all" }, ...makeUnique(panelBrands)],
       panelTechnologies: [{ text: "All Technologies", value: "all" }, ...makeUnique(panelTechnologies)],
       panelWattages: dynamicWatts,
       panelWarranties: dynamicPanelWarranties,
-      inverterBrands: [{ text: "All Brands", value: "all" }, ...makeUnique(inverterBrands)],
+      panelEfficiencies: dynamicPanelEfficiencies,
       inverterTypes: [{ text: "All Types", value: "all" }, ...makeUnique(inverterTypes)],
       inverterCapacities: dynamicInverterCapacities,
-      batteryBrands: [{ text: "All Brands", value: "all" }, ...makeUnique(batteryBrands)],
-      batteryTypes: [{ text: "All Types", value: "all" }, ...makeUnique(batteryTypes)],
+      inverterWarranties: dynamicInverterWarranties,
+      inverterEfficiencies: dynamicInverterEfficiencies,
     };
   }, [availableKits]);
 
   const getActiveFiltersCount = useMemo(() => {
     const sectionFilters = {
-      panel: ["panelBrand", "panelTechnology", "panelWattage", "panelWarranty", "panelEfficiency"],
-      inverter: ["inverterBrand", "inverterType", "inverterCapacity", "inverterWarranty", "inverterEfficiency"],
-      battery: ["batteryBrand", "batteryType", "batteryCapacity"],
+      panel: [/* "panelBrand", */ "panelTechnology", "panelWattage", "panelWarranty", "panelEfficiency"],
+      inverter: [/* "inverterBrand", */ "inverterType", "inverterCapacity", "inverterWarranty", "inverterEfficiency"],
+      // battery: ["batteryBrand", "batteryType", "batteryCapacity"],
     };
     const counts = {};
     Object.entries(sectionFilters).forEach(([section, keys]) => {
@@ -166,33 +236,33 @@ export default function KitFilters({
       title: "Panel",
       key: "panel",
       filters: [
-        { label: "Brand", key: "panelBrand", options: dynamicOptions.panelBrands },
+        // { label: "Brand", key: "panelBrand", options: dynamicOptions.panelBrands },
         { label: "Technology", key: "panelTechnology", options: dynamicOptions.panelTechnologies },
         { label: "Watt per Panel", key: "panelWattage", options: dynamicOptions.panelWattages },
         { label: "Panel Warranty", key: "panelWarranty", options: dynamicOptions.panelWarranties },
-        { label: "Efficiency", key: "panelEfficiency", options: options.efficiency },
+        { label: "Efficiency", key: "panelEfficiency", options: dynamicOptions.panelEfficiencies },
       ],
     },
     {
       title: "Inverter",
       key: "inverter",
       filters: [
-        { label: "Brand", key: "inverterBrand", options: dynamicOptions.inverterBrands },
+        // { label: "Brand", key: "inverterBrand", options: dynamicOptions.inverterBrands },
         { label: "Type", key: "inverterType", options: dynamicOptions.inverterTypes },
         { label: "Capacity", key: "inverterCapacity", options: dynamicOptions.inverterCapacities },
-        { label: "Warranty", key: "inverterWarranty", options: options.warranty },
-        { label: "Efficiency", key: "inverterEfficiency", options: options.efficiency },
+        { label: "Warranty", key: "inverterWarranty", options: dynamicOptions.inverterWarranties },
+        { label: "Efficiency", key: "inverterEfficiency", options: dynamicOptions.inverterEfficiencies },
       ],
     },
-    {
-      title: "Battery",
-      key: "battery",
-      filters: [
-        { label: "Brand", key: "batteryBrand", options: dynamicOptions.batteryBrands },
-        { label: "Type", key: "batteryType", options: dynamicOptions.batteryTypes },
-        { label: "Capacity", key: "batteryCapacity", options: options.batteryCapacity },
-      ],
-    },
+    // {
+    //   title: "Battery",
+    //   key: "battery",
+    //   filters: [
+    //     { label: "Brand", key: "batteryBrand", options: dynamicOptions.batteryBrands },
+    //     { label: "Type", key: "batteryType", options: dynamicOptions.batteryTypes },
+    //     { label: "Capacity", key: "batteryCapacity", options: options.batteryCapacity },
+    //   ],
+    // },
   ];
 
   return (

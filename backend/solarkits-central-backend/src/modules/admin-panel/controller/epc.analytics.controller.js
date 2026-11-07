@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const {
   EpcAccount,
+  EpcType,
   EpcOrder,
   EpcQuote,
   Reseller,
@@ -8,6 +9,7 @@ const {
   BDEProfile,
   EpcLead,
 } = require('../models/india_solarshop_db');
+const shopAnalyticsHandler = require('../../solarshop-india/controller/v1.handlers/epc.analytics.handler');
 const UserRefreshToken = require('../../solarshop-india/models/india_solarshop_db/user_refresh_tokens.schema');
 
 /**
@@ -1140,5 +1142,72 @@ exports.update_epc_profile_behavior = async (req, res) => {
   } catch (err) {
     console.error('update_epc_profile_behavior error:', err);
     return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
+ * GET /admin-api/epc-analytics/epc-buying-analytics/:id
+ * Fetches the complete 8-feature EPC Buying Behavior & Order Analytics suite for Admin
+ */
+exports.get_epc_buying_analytics = async (req, res) => {
+  try {
+    return shopAnalyticsHandler.get_epc_analytics(req, res);
+  } catch (err) {
+    console.error('get_epc_buying_analytics error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * PUT /admin-api/epc-analytics/epc-profile/:id/epc-type
+ * Allows Admin to assign or reclassify an EPC's EPC Type
+ */
+exports.update_epc_type = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { epc_type_id } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid EPC Account ID' });
+    }
+
+    let typeDoc = null;
+    if (epc_type_id && mongoose.Types.ObjectId.isValid(epc_type_id)) {
+      typeDoc = await EpcType.findById(epc_type_id).lean();
+    }
+
+    const typeName = typeDoc ? typeDoc.name : (req.body.epc_type || 'Solar EPC Contractor');
+
+    const updatedAccount = await EpcAccount.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          epc_type_id: typeDoc ? typeDoc._id : null,
+          epc_type: typeName,
+          updated_at: new Date(),
+        },
+      },
+      { new: true }
+    )
+      .populate('epc_type_id')
+      .lean();
+
+    if (!updatedAccount) {
+      return res.status(404).json({ success: false, message: 'EPC Account not found' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'EPC Classification Type updated successfully',
+      data: {
+        id: updatedAccount._id.toString(),
+        epc_type_id: updatedAccount.epc_type_id?._id || updatedAccount.epc_type_id || null,
+        epc_type: updatedAccount.epc_type,
+        epc_type_details: updatedAccount.epc_type_id || typeDoc || null,
+      },
+    });
+  } catch (err) {
+    console.error('update_epc_type error:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };

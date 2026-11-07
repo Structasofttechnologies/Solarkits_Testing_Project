@@ -17,8 +17,16 @@ const schema = new mongoose.Schema({
   warehouse_name: { type: String, default: null, trim: true }, // e.g. "Ahmedabad Sub-Depot (WH-02)"
   warehouse_type: { type: String, enum: ['master', 'sub', null], default: null },
 
-  // Pricing Mode: 'fixed' | 'per_km'
+  // Pricing Mode: 'fixed' | 'per_km' (legacy/fallback)
   pricing_mode: { type: String, enum: ['fixed', 'per_km'], default: 'fixed' },
+
+  // Order Type Enabled Flags & Independent Pricing Modes
+  is_loose_enabled: { type: Boolean, default: true },
+  is_po_enabled: { type: Boolean, default: true },
+  is_trial_enabled: { type: Boolean, default: true },
+  loose_pricing_mode: { type: String, enum: ['fixed', 'per_km'], default: 'fixed' },
+  po_pricing_mode: { type: String, enum: ['fixed', 'per_km'], default: 'fixed' },
+  trial_pricing_mode: { type: String, enum: ['fixed', 'per_km'], default: 'fixed' },
 
   // Distance & KM Rate Parameters
   distance_km: { type: Number, default: 0, min: 0 },

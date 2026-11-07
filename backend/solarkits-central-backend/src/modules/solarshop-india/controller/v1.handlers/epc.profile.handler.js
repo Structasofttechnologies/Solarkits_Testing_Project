@@ -6,6 +6,7 @@ const EpcCompanyGst = require('../../models/india_core_db/epc_company_gst.schema
 const EpcOffice = require('../../models/india_solarshop_db/epc_offices.schema');
 const GeoLevel1 = require('../../models/geolocation_db/geo_level_1.schema');
 const GeoLevel2 = require('../../models/geolocation_db/geo_level_2.schema');
+const EpcType = require('../../../admin-panel/models/india_solarshop_db/epc_types.schema');
 const { validateGstStateMatch } = require('../../../../utils/gstStateCodes');
 
 /**
@@ -133,6 +134,20 @@ const get_epc_profile = async (req, res) => {
       ]
     });
 
+    // 5. Resolve EPC Classification Type
+    let epcTypeDoc = null;
+    if (account.epc_type_id) {
+      epcTypeDoc = await EpcType.findById(account.epc_type_id).lean();
+    } else if (account.epc_type) {
+      epcTypeDoc = await EpcType.findOne({
+        $or: [
+          { name: new RegExp(`^${account.epc_type.trim()}$`, 'i') },
+          { code: account.epc_type.trim().toLowerCase() }
+        ],
+        deleted_at: null
+      }).lean();
+    }
+
     return res.status(200).json({
       success: true,
       account: {
@@ -144,6 +159,15 @@ const get_epc_profile = async (req, res) => {
         status: account.status,
         company_id: account.company_id,
         onboarding_source: account.onboarding_source,
+        epc_type: account.epc_type || epcTypeDoc?.name || 'Solar EPC Contractor',
+        epc_type_id: account.epc_type_id || epcTypeDoc?._id || null,
+        epc_type_details: epcTypeDoc ? {
+          id: epcTypeDoc._id,
+          name: epcTypeDoc.name,
+          code: epcTypeDoc.code,
+          badge_color: epcTypeDoc.badge_color || 'emerald',
+          description: epcTypeDoc.description || '',
+        } : null,
       },
       company: company ? {
         id: company._id,

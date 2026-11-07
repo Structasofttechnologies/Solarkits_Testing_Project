@@ -541,63 +541,121 @@ export default function BulkKits() {
                         return k.subProjectType?.toLowerCase() === value.toLowerCase();
 
                     // Panel filters
-                    case "panelBrand":
-                        return k.panel?.brandName?.toLowerCase() === value;
-                    case "panelTechnology":
-                        return k.panel?.technologyType?.toLowerCase() === value;
+                    case "panelBrand": {
+                        const panel = k.panel || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "panel"));
+                        return panel?.brandName?.toLowerCase() === value.toLowerCase();
+                    }
+                    case "panelTechnology": {
+                        const panel = k.panel || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "panel"));
+                        const tech = (panel?.technologyType || panel?.technology || "").toLowerCase().trim();
+                        return tech === value.toLowerCase().trim();
+                    }
                     case "panelWattage": {
-                        const watt = k.panel?.wattPerPanel || 0;
+                        const panel = k.panel || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "panel"));
+                        const watt = parseFloat(panel?.wattPerPanel);
+                        const numVal = parseFloat(value);
+                        if (!isNaN(numVal) && !isNaN(watt)) {
+                            return watt === numVal;
+                        }
                         const ranges = {
                             "under-300": [0, 300], "300-400": [300, 400], "400-500": [400, 500], "500-600": [500, 600], "600+": [600, Infinity],
                         };
-                        const [min, max] = ranges[value] || [0, Infinity];
-                        return watt >= min && watt <= max;
+                        if (ranges[value]) {
+                            const [min, max] = ranges[value];
+                            return (watt || 0) >= min && (watt || 0) <= max;
+                        }
+                        return String(panel?.wattPerPanel || "").toLowerCase() === value.toLowerCase();
                     }
                     case "panelWarranty": {
-                        const warranty = k.panel?.warrantyYears || 0;
+                        const panel = k.panel || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "panel"));
+                        const warranty = parseFloat(panel?.warrantyYears);
+                        const numVal = parseFloat(value);
+                        if (!isNaN(numVal) && !isNaN(warranty)) {
+                            return warranty === numVal;
+                        }
                         const ranges = {
                             "1-5": [1, 5], "5-10": [5, 10], "10-15": [10, 15], "15-20": [15, 20], "20+": [20, Infinity],
                         };
-                        const [min, max] = ranges[value] || [0, Infinity];
-                        return warranty >= min && warranty <= max;
+                        if (ranges[value]) {
+                            const [min, max] = ranges[value];
+                            return (warranty || 0) >= min && (warranty || 0) <= max;
+                        }
+                        return String(panel?.warrantyYears || "").toLowerCase() === value.toLowerCase();
                     }
                     case "panelEfficiency": {
-                        const eff = k.panel?.efficiencyPercent || 0;
+                        const panel = k.panel || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "panel"));
+                        const eff = parseFloat(panel?.efficiencyPercent);
+                        const numVal = parseFloat(value);
+                        if (!isNaN(numVal) && !isNaN(eff)) {
+                            return eff === numVal;
+                        }
                         const ranges = {
                             "under-15": [0, 15], "15-18": [15, 18], "18-20": [18, 20], "20-22": [20, 22], "22+": [22, Infinity],
                         };
-                        const [min, max] = ranges[value] || [0, Infinity];
-                        return eff >= min && eff <= max;
+                        if (ranges[value]) {
+                            const [min, max] = ranges[value];
+                            return (eff || 0) >= min && (eff || 0) <= max;
+                        }
+                        return String(panel?.efficiencyPercent || "").toLowerCase() === value.toLowerCase();
                     }
 
                     // Inverter filters
-                    case "inverterBrand":
-                        return k.inverter?.brandName?.toLowerCase() === value;
-                    case "inverterType":
-                        return k.inverter?.type?.toLowerCase() === value;
+                    case "inverterBrand": {
+                        const inv = k.inverter || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "inverter"));
+                        return inv?.brandName?.toLowerCase() === value.toLowerCase();
+                    }
+                    case "inverterType": {
+                        const inv = k.inverter || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "inverter"));
+                        const type = (inv?.type || inv?.category || "").toLowerCase().trim();
+                        return type === value.toLowerCase().trim();
+                    }
                     case "inverterCapacity": {
-                        const cap = k.inverter?.capacityKW || 0;
+                        const inv = k.inverter || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "inverter"));
+                        const cap = parseFloat(inv?.capacityKW || k.capacityKW || k.capacity);
+                        const numVal = parseFloat(value);
+                        if (!isNaN(numVal) && !isNaN(cap)) {
+                            return cap === numVal;
+                        }
                         const ranges = {
                             "under-1": [0, 1], "1-3": [1, 3], "3-5": [3, 5], "5-10": [5, 10], "10+": [10, Infinity],
                         };
-                        const [min, max] = ranges[value] || [0, Infinity];
-                        return cap >= min && cap <= max;
+                        if (ranges[value]) {
+                            const [min, max] = ranges[value];
+                            return (cap || 0) >= min && (cap || 0) <= max;
+                        }
+                        return String(inv?.capacityKW || "").toLowerCase() === value.toLowerCase();
                     }
                     case "inverterWarranty": {
-                        const warranty = k.inverter?.warrantyYears || 0;
+                        const inv = k.inverter || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "inverter"));
+                        const warranty = parseFloat(inv?.warrantyYears);
+                        const numVal = parseFloat(value);
+                        if (!isNaN(numVal) && !isNaN(warranty)) {
+                            return warranty === numVal;
+                        }
                         const ranges = {
                             "1-5": [1, 5], "5-10": [5, 10], "10-15": [10, 15], "15-20": [15, 20], "20+": [20, Infinity],
                         };
-                        const [min, max] = ranges[value] || [0, Infinity];
-                        return warranty >= min && warranty <= max;
+                        if (ranges[value]) {
+                            const [min, max] = ranges[value];
+                            return (warranty || 0) >= min && (warranty || 0) <= max;
+                        }
+                        return String(inv?.warrantyYears || "").toLowerCase() === value.toLowerCase();
                     }
                     case "inverterEfficiency": {
-                        const eff = k.inverter?.efficiencyPercent || 0;
+                        const inv = k.inverter || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "inverter"));
+                        const eff = parseFloat(inv?.efficiencyPercent);
+                        const numVal = parseFloat(value);
+                        if (!isNaN(numVal) && !isNaN(eff)) {
+                            return eff === numVal;
+                        }
                         const ranges = {
                             "under-15": [0, 15], "15-18": [15, 18], "18-20": [18, 20], "20-22": [20, 22], "22+": [22, Infinity],
                         };
-                        const [min, max] = ranges[value] || [0, Infinity];
-                        return eff >= min && eff <= max;
+                        if (ranges[value]) {
+                            const [min, max] = ranges[value];
+                            return (eff || 0) >= min && (eff || 0) <= max;
+                        }
+                        return String(inv?.efficiencyPercent || "").toLowerCase() === value.toLowerCase();
                     }
 
                     // Battery filters
@@ -765,8 +823,8 @@ export default function BulkKits() {
                                         className="hidden"
                                     />
                                     <div className={`flex items-center justify-center w-5 h-5 border rounded-md transition-all ${showInStockOnly
-                                            ? "bg-gradient-to-r from-primary to-primary-end border-primary text-white"
-                                            : "border-border text-transparent"
+                                        ? "bg-gradient-to-r from-primary to-primary-end border-primary text-white"
+                                        : "border-border text-transparent"
                                         }`}>
                                         {showInStockOnly && <FiCheckSquare size={14} />}
                                     </div>
