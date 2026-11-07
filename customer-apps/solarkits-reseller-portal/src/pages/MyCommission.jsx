@@ -214,7 +214,7 @@ export default function MyCommission() {
             Commission rates are set individually for your franchise by the admin. Rates differ for
             <span className="font-black text-emerald-900"> PO Orders</span> (bulk franchise inventory purchase) and
             <span className="font-black text-emerald-900"> Loose Orders</span> (individual EPC / direct customer orders).
-            Rates are locked at the time of order placement.
+            Rates are locked at the time of order placement. For PO Quotas assigned to EPCs, commission is calculated and credited pro-rata for kits actually completed by the EPC before the PO ending date (e.g. 150/200 kits), while unfulfilled quotas are penalized to the EPC.
           </p>
         </div>
       </div>
@@ -227,8 +227,8 @@ export default function MyCommission() {
             <button
               onClick={() => setActiveKitId("all")}
               className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all cursor-pointer flex items-center gap-2 ${activeKitId === "all"
-                  ? "bg-slate-900 text-white border-slate-900 shadow-sm"
-                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                 }`}
             >
               <FiLayers size={13} />
@@ -240,8 +240,8 @@ export default function MyCommission() {
                 key={g.kitId}
                 onClick={() => setActiveKitId(g.kitId)}
                 className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all cursor-pointer flex items-center gap-2 ${activeKitId === g.kitId
-                    ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
-                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                  ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                   }`}
               >
                 <FiBox size={13} />
@@ -249,8 +249,8 @@ export default function MyCommission() {
                 {g.rates.length > 0 && (
                   <span
                     className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${activeKitId === g.kitId
-                        ? "bg-emerald-800 text-white"
-                        : "bg-slate-100 text-slate-600"
+                      ? "bg-emerald-800 text-white"
+                      : "bg-slate-100 text-slate-600"
                       }`}
                   >
                     {g.rates.length}
@@ -287,8 +287,8 @@ export default function MyCommission() {
               key={key}
               onClick={() => setOrderTypeFilter(key)}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${orderTypeFilter === key
-                  ? "bg-slate-100 text-slate-900 border border-slate-300 font-extrabold"
-                  : "text-slate-500 hover:text-slate-800"
+                ? "bg-slate-100 text-slate-900 border border-slate-300 font-extrabold"
+                : "text-slate-500 hover:text-slate-800"
                 }`}
             >
               {Icon && <Icon size={11} />}
@@ -447,10 +447,10 @@ export default function MyCommission() {
                                     <div className="flex items-center gap-1.5 mt-0.5">
                                       <span
                                         className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${hasBoth
-                                            ? "bg-purple-100 text-purple-800"
-                                            : poRs != null
-                                              ? "bg-blue-100 text-blue-800"
-                                              : "bg-emerald-100 text-emerald-800"
+                                          ? "bg-purple-100 text-purple-800"
+                                          : poRs != null
+                                            ? "bg-blue-100 text-blue-800"
+                                            : "bg-emerald-100 text-emerald-800"
                                           }`}
                                       >
                                         {tierTypeLabel}

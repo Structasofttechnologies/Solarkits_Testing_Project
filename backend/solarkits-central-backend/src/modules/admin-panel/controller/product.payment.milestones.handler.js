@@ -598,6 +598,114 @@ const get_kits_milestones_overview = async (req, res) => {
   }
 };
 
+/**
+ * 10. GET ORDER STAGES & TAT CONFIGURATION (Admin)
+ */
+const get_order_stages_tat = async (req, res) => {
+  try {
+    const policy = await ensureGlobalDefault();
+    const stages = Array.isArray(policy.order_stages_config) && policy.order_stages_config.length > 0
+      ? policy.order_stages_config
+      : DEFAULT_STAGES;
+
+    const totalSlaDays = stages.reduce((acc, stg) => {
+      const d = Number(stg.tat_days) || (stg.tat_hours ? Math.ceil(Number(stg.tat_hours) / 24) : 1);
+      return acc + d;
+    }, 0);
+
+    const totalHours = stages.reduce((acc, stg) => {
+      return acc + (Number(stg.tat_hours) || (Number(stg.tat_days || 1) * 24));
+    }, 0);
+
+    return res.status(200).json({
+      status: 'success',
+      success: true,
+      data: {
+        policy_id: policy._id,
+        policy_name: policy.kit_name,
+        stages: stages,
+        total_sla_days: totalSlaDays,
+        total_tat_hours: totalHours,
+        updated_at: policy.updated_at,
+      },
+    });
+  } catch (error) {
+    console.error('Error in get_order_stages_tat:', error);
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+/**
+ * 11. UPDATE ORDER STAGES & TAT CONFIGURATION (Admin)
+ */
+const update_order_stages_tat = async (req, res) => {
+  try {
+    const { stages, order_stages_config, policy_id } = req.body;
+    const incomingStages = stages || order_stages_config;
+
+    if (!Array.isArray(incomingStages) || incomingStages.length === 0) {
+      return res.status(400).json({ status: 'error', message: 'A valid list of order stages is required.' });
+    }
+
+    const rawAdminId = req.user?.id || req.user?._id;
+    const adminId = rawAdminId && mongoose.Types.ObjectId.isValid(rawAdminId) ? rawAdminId : null;
+    let policy;
+    if (policy_id && mongoose.Types.ObjectId.isValid(policy_id)) {
+      policy = await ProductPaymentMilestone.findById(policy_id);
+    }
+    if (!policy) {
+      policy = await ProductPaymentMilestone.findOne({ is_default: true });
+    }
+    if (!policy) {
+      policy = await ensureGlobalDefault();
+    }
+
+    // Format & validate each stage
+    const formattedStages = incomingStages.map((stg, idx) => {
+      const tatDays = stg.tat_days !== undefined && stg.tat_days !== null && stg.tat_days !== ''
+        ? Math.max(1, Number(stg.tat_days))
+        : (stg.tat_hours ? Math.max(1, Math.round(Number(stg.tat_hours) / 24)) : 1);
+      const tatHours = stg.tat_hours !== undefined && stg.tat_hours !== null && stg.tat_hours !== ''
+        ? Math.max(0, Number(stg.tat_hours))
+        : (tatDays * 24);
+
+      return {
+        stage_key: String(stg.stage_key || '').toUpperCase().trim(),
+        stage_name: stg.stage_name || stg.name || `Stage ${idx + 1}`,
+        sequence: Number(stg.sequence || stg.stage_number || idx + 1),
+        tat_days: tatDays,
+        tat_hours: tatHours,
+        tat_description: stg.tat_description || stg.description || '',
+        payment_required: Boolean(stg.payment_required),
+        is_active: stg.is_active !== false,
+      };
+    });
+
+    policy.order_stages_config = formattedStages;
+    if (adminId) policy.updated_by = adminId;
+    policy.updated_at = new Date();
+    await policy.save();
+
+    const totalSlaDays = formattedStages.reduce((acc, s) => acc + (s.tat_days || 1), 0);
+    const totalHours = formattedStages.reduce((acc, s) => acc + (s.tat_hours || 24), 0);
+
+    return res.status(200).json({
+      status: 'success',
+      success: true,
+      message: 'Order Stages & Turnaround Time (TAT) Configuration saved successfully.',
+      data: {
+        policy_id: policy._id,
+        stages: policy.order_stages_config,
+        total_sla_days: totalSlaDays,
+        total_tat_hours: totalHours,
+      },
+    });
+  } catch (error) {
+    console.error('Error in update_order_stages_tat:', error);
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
 module.exports = {
   list_milestone_configs,
   get_milestone_config_by_id,
@@ -607,6 +715,8 @@ module.exports = {
   toggle_milestone_config,
   resolve_payment_milestones,
   get_kits_milestones_overview,
+  get_order_stages_tat,
+  update_order_stages_tat,
   DEFAULT_MILESTONES,
   DEFAULT_STAGES,
 };

@@ -140,9 +140,9 @@ const KitComponentsRow = ({ kit }) => {
         <div key={`base-${idx}`} className="flex items-center gap-1 shrink-0">
           {idx > 0 && <span className="text-sm font-black text-text-muted select-none shrink-0">+</span>}
           <div className="flex flex-col items-center justify-center text-center shrink-0 w-[68px]">
-            <ComponentImage src={comp.image || comp.panelImage || comp.inverterImage} type={comp.actualType || comp.type} />
+            <ComponentImage src={comp.image || comp.panelImage || comp.inverterImage} type={comp.actualType || comp.type || (/panel|module|bifacial|topcon|mono/i.test(comp.name) ? 'panel' : /inverter/i.test(comp.name) ? 'inverter' : 'other')} />
             <span className="text-[9px] font-black text-text-primary dark:text-info mt-1 truncate max-w-[68px]" title={comp.name}>
-              {comp.quantity} {comp.actualType === "panel" ? "panels" : comp.actualType === "inverter" ? "inverter" : comp.name.split(" ")[0]}
+              {comp.quantity} {(comp.actualType === "panel" || /panel|module|bifacial|topcon|mono/i.test(comp.name)) ? "panels" : (comp.actualType === "inverter" || /inverter/i.test(comp.name)) ? "inverter" : comp.name.split(" ")[0]}
             </span>
           </div>
         </div>

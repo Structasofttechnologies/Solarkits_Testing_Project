@@ -345,6 +345,12 @@ function EpcPoCardItem({ order, onSelectOrder, onOpenReorder, onOpenRefund }) {
             </span>
           </div>
 
+          {isExpired && remaining > 0 && (
+            <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 text-[10px] text-rose-700 dark:text-rose-300">
+              ⚠️ <strong>PO Deadline Passed:</strong> You completed {fulfilled} of {booked} kits. A penalty of ₹{penaltyINR > 0 ? penaltyINR.toLocaleString("en-IN") : Math.min(tokenBalanceINR, remaining * 500).toLocaleString("en-IN")} has been charged for the {remaining} unfulfilled kits.
+            </div>
+          )}
+
           <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/40">
             <span className="text-text-muted font-bold flex items-center gap-1">
               <FiCheckCircle size={12} className="text-primary" /> Refund Status:

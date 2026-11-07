@@ -136,7 +136,7 @@ function calculateCommissionAmount({ commission_rule, eligible_kit_quantity, gro
  * @param {object} [params.req]
  * @returns {Promise<object>}
  */
-async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
+async function postCommission({ fpo_order_id, pro_rata_commission_paise = null, actor_id = null, req = null }) {
   const idempotencyKey = `FPO-COMMISSION-${fpo_order_id}`;
 
   // Idempotency check: only return early if wallet ledger is already linked
@@ -162,8 +162,8 @@ async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
     };
   }
 
-  if (!['PAID', 'CONFIRMED', 'DELIVERED', 'COMPLETED', 'VALIDATED'].includes(order.status)) {
-    throw new Error(`Commission can only be posted for VALIDATED, PAID, CONFIRMED, DELIVERED or COMPLETED orders. Current status: ${order.status}`);
+  if (!['PAID', 'CONFIRMED', 'DELIVERED', 'COMPLETED', 'VALIDATED', 'EXPIRED'].includes(order.status)) {
+    throw new Error(`Commission can only be posted for VALIDATED, PAID, CONFIRMED, DELIVERED, COMPLETED or EXPIRED orders. Current status: ${order.status}`);
   }
 
   const commission_rule = order.commission_rule_snapshot
@@ -176,8 +176,24 @@ async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
   let computed_commission_paise = 0;
   let isVariationMatched = false;
 
-  if (order.total_commission_paise && order.total_commission_paise > 0) {
-    computed_commission_paise = order.total_commission_paise;
+  const committedQty = Number(order.total_booked_quantity || order.items?.[0]?.quantity || 0);
+  const fulfilledQty = Number(order.fulfilled_quantity || 0);
+  const fulfillmentRatio = committedQty > 0 ? Math.min(1, Math.max(0, fulfilledQty / committedQty)) : 1;
+
+  if (pro_rata_commission_paise != null && pro_rata_commission_paise >= 0) {
+    computed_commission_paise = Math.round(Number(pro_rata_commission_paise));
+    isVariationMatched = true;
+    eligible_kit_quantity = fulfilledQty;
+  } else if (order.realized_commission_paise && order.realized_commission_paise > 0) {
+    computed_commission_paise = order.realized_commission_paise;
+    isVariationMatched = true;
+    eligible_kit_quantity = fulfilledQty;
+  } else if (order.total_commission_paise && order.total_commission_paise > 0) {
+    if ((order.status === 'EXPIRED' || order.settlement_status === 'SETTLED' || order.settlement_status === 'EXPIRED_PENDING_SETTLEMENT') && committedQty > 0 && fulfilledQty < committedQty) {
+      computed_commission_paise = Math.round(order.total_commission_paise * fulfillmentRatio);
+    } else {
+      computed_commission_paise = order.total_commission_paise;
+    }
     isVariationMatched = true;
     for (const item of (order.items || [])) {
       if (item.contributes_to_target === false) continue;
@@ -286,7 +302,9 @@ async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
     $set: {
       commission_posted: true,
       commission_ledger_id: ledger._id,
-      total_commission_paise: net_commission_paise,
+      realized_commission_paise: net_commission_paise,
+      commission_completion_ratio: `${fulfilledQty}/${committedQty}`,
+      commission_fulfillment_pct: Math.round(fulfillmentRatio * 100),
     },
   });
 
@@ -327,10 +345,10 @@ async function postCommission({ fpo_order_id, actor_id = null, req = null }) {
       reference_order_id: order._id,
       idempotency_key: walletIdempotencyKey,
       narration: `FPO Commission (${order.po_number}): ${isVariationMatched || (order.total_commission_paise && order.total_commission_paise > 0)
-          ? `Tier Rate (${eligible_kit_quantity} Kits)`
-          : commission_rule.commission_method === 'FIXED_PER_KIT'
-            ? `${eligible_kit_quantity} kits × ₹${(commission_rule.fixed_amount_per_kit_paise / 100).toFixed(2)}`
-            : `Tier Margin (${eligible_kit_quantity} Kits)`
+        ? `Tier Rate (${eligible_kit_quantity} Kits)`
+        : commission_rule.commission_method === 'FIXED_PER_KIT'
+          ? `${eligible_kit_quantity} kits × ₹${(commission_rule.fixed_amount_per_kit_paise / 100).toFixed(2)}`
+          : `Tier Margin (${eligible_kit_quantity} Kits)`
         } = ₹${(net_commission_paise / 100).toFixed(2)} (net)`,
       created_by: actor_id,
     });

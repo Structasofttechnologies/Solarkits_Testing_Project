@@ -50,6 +50,7 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
   const [isCompareDrawerOpen, setIsCompareDrawerOpen] = useState(false);
   const [viewMode, setViewMode] = useState("grid");
   const [expandedSections, setExpandedSections] = useState({
+    capacity: true,
     panel: true,
     inverter: false,
     battery: false
@@ -58,6 +59,7 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
   const [selectedTiers, setSelectedTiers] = useState([]);
 
   const [filters, setFilters] = useState({
+    capacityKW: "all",
     industryType: "all",
     category: "all",
     subCategory: "all",
@@ -82,6 +84,18 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
     batteryType: "all",
     batteryCapacity: "all",
   });
+
+  // Synchronize sidebar capacity dropdown with selectedCapacity state
+  useEffect(() => {
+    if (filters.capacityKW && filters.capacityKW !== "all") {
+      const num = parseFloat(filters.capacityKW);
+      if (!isNaN(num) && selectedCapacity !== num) {
+        setSelectedCapacity(num);
+      }
+    } else if (filters.capacityKW === "all" && selectedCapacity !== null) {
+      setSelectedCapacity(null);
+    }
+  }, [filters.capacityKW]);
 
   const selectedDistrict = useSelector((state) => state.slice?.selectedDistrict);
   const selectedState = useSelector((state) => state.slice?.selectedState);
@@ -445,6 +459,7 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
 
   const clearAllFilters = () => {
     setFilters({
+      capacityKW: "all",
       industryType: "all",
       category: "all",
       subCategory: "all",
@@ -506,7 +521,9 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
     Object.keys(newFilters).forEach((k) => {
       if (![...mainFilterKeys, ...subFilterKeys].includes(k)) newFilters[k] = "all";
     });
+    newFilters.capacityKW = "all";
     setFilters(newFilters);
+    setSelectedCapacity(null);
   };
 
   const toggleSection = (section) => {
@@ -530,12 +547,16 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
     // Only show kits that have at least one variant assigned from the backend
     result = result.filter(k => k.variants && k.variants.length > 0);
 
-    // Capacity quick filter
-    if (selectedCapacity !== null) {
-      if (selectedCapacity === 15) {
-        result = result.filter((k) => (k.capacityKW || 0) >= 15);
+    // Capacity quick filter (synced with sidebar dropdown and top pill bar)
+    const capFilterVal = (filters.capacityKW && filters.capacityKW !== "all")
+      ? parseFloat(filters.capacityKW)
+      : (selectedCapacity !== null ? selectedCapacity : null);
+
+    if (capFilterVal !== null && !isNaN(capFilterVal)) {
+      if (capFilterVal >= 15) {
+        result = result.filter((k) => (k.capacityKW || k.capacity || 0) >= 15);
       } else {
-        result = result.filter((k) => Math.abs((k.capacityKW || 0) - selectedCapacity) < 0.6);
+        result = result.filter((k) => Math.abs((k.capacityKW || k.capacity || 0) - capFilterVal) < 0.1);
       }
     }
 
@@ -678,6 +699,10 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
             return String(k.projectRange.id) === String(value) || String(k.projectRange.text) === String(value) || String(k.project_range_id) === String(value);
           }
 
+          case "capacityKW":
+            // Handled above in capacity quick filter
+            return true;
+
           // Panel filters
           case "panelBrand": {
             const panel = k.panel || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "panel"));
@@ -686,14 +711,15 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
           case "panelTechnology": {
             const panel = k.panel || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "panel"));
             const tech = (panel?.technologyType || panel?.technology || "").toLowerCase().trim();
-            return tech === value.toLowerCase().trim();
+            const val = value.toLowerCase().trim();
+            return tech === val || tech.includes(val) || val.includes(tech);
           }
           case "panelWattage": {
             const panel = k.panel || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "panel"));
             const watt = parseFloat(panel?.wattPerPanel);
             const numVal = parseFloat(value);
             if (!isNaN(numVal) && !isNaN(watt)) {
-              return watt === numVal;
+              return Math.abs(watt - numVal) < 1;
             }
             const ranges = {
               "under-300": [0, 300], "300-400": [300, 400], "400-500": [400, 500], "500-600": [500, 600], "600+": [600, Infinity],
@@ -745,14 +771,17 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
           case "inverterType": {
             const inv = k.inverter || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "inverter"));
             const type = (inv?.type || inv?.category || "").toLowerCase().trim();
-            return type === value.toLowerCase().trim();
+            const val = value.toLowerCase().trim();
+            return type === val || type.includes(val) || val.includes(type);
           }
           case "inverterCapacity": {
             const inv = k.inverter || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "inverter"));
-            const cap = parseFloat(inv?.capacityKW || k.capacityKW || k.capacity);
+            let cap = parseFloat(inv?.capacityKW);
+            if (cap >= 100) cap = cap / 1000;
+            if (!cap) cap = parseFloat(k.capacityKW || k.capacity);
             const numVal = parseFloat(value);
             if (!isNaN(numVal) && !isNaN(cap)) {
-              return cap === numVal;
+              return Math.abs(cap - numVal) < 0.1;
             }
             const ranges = {
               "under-1": [0, 1], "1-3": [1, 3], "3-5": [3, 5], "5-10": [5, 10], "10+": [10, Infinity],
@@ -1582,6 +1611,55 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
 
           {/* Kits Grid/List */}
           <main className="flex-1">
+            {/* System Capacity Quick Selection Bar */}
+            <div className="bg-surface rounded-xl p-3 border border-border mb-5 shadow-sm">
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
+                <span className="text-xs font-bold text-text-secondary whitespace-nowrap px-2">
+                  System Capacity:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCapacity(null);
+                    setFilters(prev => ({ ...prev, capacityKW: "all" }));
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                    (selectedCapacity === null && (!filters.capacityKW || filters.capacityKW === "all"))
+                      ? "bg-primary text-white shadow-xs"
+                      : "bg-surface-hover text-text-secondary hover:text-text-primary border border-border/60"
+                  }`}
+                >
+                  All Capacities
+                </button>
+                {SYSTEM_CAPACITIES.map((cap) => {
+                  const isSelected = selectedCapacity === cap.kw || String(filters.capacityKW) === String(cap.kw);
+                  return (
+                    <button
+                      key={cap.kw}
+                      type="button"
+                      onClick={() => {
+                        const newCap = isSelected ? null : cap.kw;
+                        setSelectedCapacity(newCap);
+                        setFilters(prev => ({ ...prev, capacityKW: newCap !== null ? String(newCap) : "all" }));
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                        isSelected
+                          ? "bg-primary text-white shadow-xs"
+                          : "bg-surface-hover text-text-secondary hover:text-text-primary border border-border/60"
+                      }`}
+                    >
+                      <span>{cap.label}</span>
+                      {cap.units && (
+                        <span className={`text-[10px] font-normal ${isSelected ? "text-white/80" : "text-text-muted"}`}>
+                          ({cap.units})
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {finalKits.length === 0 ? (
               <div className="bg-surface rounded-xl p-12 text-center border border-border shadow-sm">
                 <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">

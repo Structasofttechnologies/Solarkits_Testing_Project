@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import {
   FiClock, FiTag, FiCheckCircle, FiAlertTriangle, FiShoppingCart,
   FiLock, FiAward, FiMapPin, FiUsers, FiUploadCloud, FiCopy,
   FiFileText, FiDollarSign, FiCalendar, FiCreditCard, FiCheck
 } from "react-icons/fi";
-import { clearCart } from "@/features/slice";
+import { clearCart, removeItemsFromCart, syncCartWithBackend } from "@/features/slice";
 import { setAlert } from "@/features/alert.slice";
 import Button from "@/Components/Button";
 import Loader from "@/Components/Loader";
@@ -20,9 +20,19 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 export default function CheckOut() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const [searchParams] = useSearchParams();
+  const milestoneGroupParam = searchParams.get("milestone_group");
   const cart = useSelector((state) => state.slice.cart);
   const selectedDistrict = useSelector((state) => state.slice.selectedDistrict);
   const { user } = useSelector((state) => state.auth_slice);
+
+  // Filter items if checking out a specific milestone group / card
+  const checkoutItems = useMemo(() => {
+    if (!cart || cart.length === 0) return [];
+    if (!milestoneGroupParam) return cart;
+    const filtered = cart.filter((item) => (item.milestone_group_key || `adv_${item.payment_milestones?.advance_percentage || 30}_rem_${item.payment_milestones?.remaining_percentage || 70}`) === milestoneGroupParam);
+    return filtered.length > 0 ? filtered : cart;
+  }, [cart, milestoneGroupParam]);
 
   // Settings & Status
   const [loading, setLoading] = useState(true);
@@ -66,10 +76,10 @@ export default function CheckOut() {
   const [milestoneConfig, setMilestoneConfig] = useState(null);
   const [payFullAmount, setPayFullAmount] = useState(false);
 
-  // Detect whether current cart contains a trial kit order
+  // Detect whether current checkout contains a trial kit order
   const isTrialOrder = useMemo(() => {
-    return Boolean(cart?.some((item) => item?.is_trial_kit));
-  }, [cart]);
+    return Boolean(checkoutItems?.some((item) => item?.is_trial_kit));
+  }, [checkoutItems]);
 
   // If trial kit order, strictly enforce 100% full upfront payment
   useEffect(() => {
@@ -168,7 +178,7 @@ export default function CheckOut() {
 
   // Compute Order Load Metrics — must use item.qty (Redux cart field), NOT item.quantity (undefined for EPC catalogue items)
   const orderLoadMetrics = useMemo(() => {
-    return cart.reduce((acc, item) => {
+    return checkoutItems.reduce((acc, item) => {
       const qty = Number(item.qty || 1);  // ← item.qty is the Redux cart quantity field
       let kw = Number(item.kw || item.capacity_kw || (item.capacity ? parseFloat(item.capacity) : 0) || (item.capacityKW || 0)) || 0;
       if (kw === 0) {
@@ -181,11 +191,11 @@ export default function CheckOut() {
       acc.total_weight_kg += qty * weight;
       return acc;
     }, { total_kits: 0, total_kw: 0, total_weight_kg: 0 });
-  }, [cart]);
+  }, [checkoutItems]);
 
   // Live Warehouse Capacity Check
   useEffect(() => {
-    if (cart.length === 0) return;
+    if (checkoutItems.length === 0) return;
     if (fulfillmentMode === "direct_site") {
       setCapacityResult({ allowed: true, message: "Direct site delivery: no warehouse capacity limits apply." });
       return;
@@ -194,7 +204,7 @@ export default function CheckOut() {
     const verifyCapacity = async () => {
       setCapacityChecking(true);
       try {
-        const cartItemsParam = cart.map(item => {
+        const cartItemsParam = checkoutItems.map(item => {
           let kw = Number(item.kw || item.capacity_kw || (item.capacity ? parseFloat(item.capacity) : 0) || (item.capacityKW || 0)) || 0;
           if (kw === 0) {
             const m = (item.kitName || item.name || item.title || '').match(/(\d+(?:\.\d+)?)\s*k?w\b/i);
@@ -333,8 +343,21 @@ export default function CheckOut() {
 
   // ── Resolve Product Payment Milestone Configuration ───────────────────────
   useEffect(() => {
-    if (!cart || cart.length === 0) return;
-    const primaryKit = cart.find((item) => item.id || item.kit_id);
+    if (!checkoutItems || checkoutItems.length === 0) return;
+    const primaryKit = checkoutItems.find((item) => item.id || item.kit_id);
+
+    // If kit already carries payment_milestones metadata, pre-fill instantly
+    if (primaryKit?.payment_milestones) {
+      const pm = primaryKit.payment_milestones;
+      setMilestoneConfig({
+        ...pm,
+        milestones: pm.milestones || [
+          { milestone_number: 1, title: "Milestone 1 — Advance Payment", percentage: pm.advance_percentage },
+          { milestone_number: 2, title: "Milestone 2 — Final Payment", percentage: pm.remaining_percentage },
+        ],
+      });
+    }
+
     const kitId = primaryKit?.kit_id || primaryKit?.id;
     const url = kitId
       ? `${API_URL}/india/v1/shop/payment-milestones/resolve?kit_id=${kitId}`
@@ -350,7 +373,7 @@ export default function CheckOut() {
       .catch((err) => {
         console.warn("Could not resolve payment milestones, defaulting:", err);
       });
-  }, [cart]);
+  }, [checkoutItems]);
 
   const checkGstStatus = async () => {
     const stateId = selectedState?.id || selectedState?._id;
@@ -368,11 +391,11 @@ export default function CheckOut() {
 
   // Stock reservation on mount
   const handleReserveStock = async () => {
-    if (orderConfirmed || !cart || cart.length === 0) return;
+    if (orderConfirmed || !checkoutItems || checkoutItems.length === 0) return;
     setReserving(true);
     setErrorMsg("");
     try {
-      const payloadItems = cart.map((item) => ({
+      const payloadItems = checkoutItems.map((item) => ({
         id: item.id,
         qty: item.qty,
         is_custom: item.is_custom || false,
@@ -521,16 +544,16 @@ export default function CheckOut() {
   };
 
   const subtotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.qty * item.ourPrice, 0);
-  }, [cart]);
+    return checkoutItems.reduce((sum, item) => sum + item.qty * item.ourPrice, 0);
+  }, [checkoutItems]);
 
   const totalKitsQuantity = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.qty, 0);
-  }, [cart]);
+    return checkoutItems.reduce((sum, item) => sum + item.qty, 0);
+  }, [checkoutItems]);
 
   const totalCapacityKW = useMemo(() => {
-    return cart.reduce((sum, item) => sum + (item.capacityKW || 0) * item.qty, 0);
-  }, [cart]);
+    return checkoutItems.reduce((sum, item) => sum + (item.capacityKW || 0) * item.qty, 0);
+  }, [checkoutItems]);
 
   // Dynamic Discounts & Priority Logic Calculations
   const calculatedDiscounts = useMemo(() => {
@@ -542,12 +565,12 @@ export default function CheckOut() {
     let activeOfferName = "None";
     let activeOfferType = "";
 
-    const activeFlashSales = cart.map((item) => item.flashSale).filter(Boolean);
+    const activeFlashSales = checkoutItems.map((item) => item.flashSale).filter(Boolean);
     if (activeFlashSales.length > 0) {
       const fs = activeFlashSales[0];
       activeOfferName = fs.name;
       activeOfferType = "Flash Sale";
-      cart.forEach((item) => {
+      checkoutItems.forEach((item) => {
         if (item.flashSale) {
           if (fs.discountType === "percent") {
             flashSaleDiscount += Math.round(item.qty * item.ourPrice * (fs.discountValue / 100));
@@ -562,8 +585,8 @@ export default function CheckOut() {
     const minQty = bundleOffer && bundleOffer.max_qty ? bundleOffer.max_qty : 5;
     const bundleCartItems =
       bundleOffer && bundleOffer.products_applicable && bundleOffer.products_applicable.length > 0
-        ? cart.filter((item) => bundleOffer.products_applicable.some((pId) => pId.toString() === item.id.toString()))
-        : cart;
+        ? checkoutItems.filter((item) => bundleOffer.products_applicable.some((pId) => pId.toString() === item.id.toString()))
+        : checkoutItems;
     const bundleKitsQuantity = bundleCartItems.reduce((sum, item) => sum + item.qty, 0);
     const bundleCapacityKW = bundleCartItems.reduce((sum, item) => sum + (item.capacityKW || 0) * item.qty, 0);
 
@@ -575,7 +598,7 @@ export default function CheckOut() {
     if (appliedCoupon) {
       const applicableSubtotal =
         appliedCoupon.products_applicable && appliedCoupon.products_applicable.length > 0
-          ? cart
+          ? checkoutItems
             .filter((item) => appliedCoupon.products_applicable.some((pId) => pId.toString() === item.id.toString()))
             .reduce((sum, item) => sum + item.qty * item.ourPrice, 0)
           : subtotal;
@@ -590,7 +613,7 @@ export default function CheckOut() {
     }
 
     const discountOffers = activeOffers.filter((o) => o.offer_type === "discount");
-    cart.forEach((item) => {
+    checkoutItems.forEach((item) => {
       const itemOffer = discountOffers.find(
         (o) => o.products_applicable && o.products_applicable.some((pId) => pId.toString() === item.id.toString())
       );
@@ -633,7 +656,7 @@ export default function CheckOut() {
       activeOfferType = "Discount";
     }
 
-    const totalDeliveryFreight = cart.reduce((sum, item) => sum + (Number(item.delivery_cost) || 0), 0);
+    const totalDeliveryFreight = checkoutItems.reduce((sum, item) => sum + (Number(item.delivery_cost) || 0), 0);
     const discountedSubtotal = Math.max(0, subtotal - appliedDiscountValue);
 
     // Selling price (ourPrice) is already GST-inclusive, extract exact base and GST amounts
@@ -652,7 +675,7 @@ export default function CheckOut() {
       gstRate: dynamicGstRate,
       finalTotal,
     };
-  }, [cart, totalKitsQuantity, totalCapacityKW, appliedCoupon, activeOffers, subtotal, checkoutSettings]);
+  }, [checkoutItems, totalKitsQuantity, totalCapacityKW, appliedCoupon, activeOffers, subtotal, checkoutSettings]);
 
   // ── Calculate Milestone Breakdown ──────────────────────────────────────────
   const milestoneBreakdown = useMemo(() => {
@@ -779,7 +802,7 @@ export default function CheckOut() {
 
     setSubmitting(true);
     try {
-      const itemsPayload = cart.map((item) => ({
+      const itemsPayload = checkoutItems.map((item) => ({
         scope_type: item.is_custom ? "product" : "kit",
         product_id: item.is_custom ? item.id : null,
         kit_id: item.is_custom ? null : item.id,
@@ -884,15 +907,15 @@ export default function CheckOut() {
           orderData.payment_method === "icici_ecollection" ||
           orderData.payment_gateway_used === "icici_ecollection";
 
-        // Instantly clear cart in Redux & sync empty cart to backend
-        dispatch(clearCart());
+        // Remove only the checked-out items from cart, keeping other milestone cards safe!
+        const orderedIds = checkoutItems.map(it => it.cartItemId);
+        dispatch(removeItemsFromCart(orderedIds));
+        dispatch(syncCartWithBackend());
 
         dispatch(
           setAlert({
             type: "success",
-            message: isOnlineOrder
-              ? "Payment verified instantly via ICICI! Your order is confirmed."
-              : "Order submitted! Your payment receipt is being verified by Accounts.",
+            message: "Order submitted successfully! Payment details have been submitted for verification.",
           })
         );
       } else {
@@ -913,11 +936,9 @@ export default function CheckOut() {
 
   // ── Success State: Order Submitted (Render First) ──────────────
   if (orderConfirmed && confirmedOrderData) {
-    const isOnlineSuccess = confirmedOrderData.payment_method === "icici_ecollection" ||
-      confirmedOrderData.payment_gateway_used === "icici_ecollection" ||
-      selectedPaymentMethod === "online" ||
-      confirmedOrderData.payment_status === "captured" ||
-      confirmedOrderData.offline_payment?.verification_status === "approved";
+    const isVerifiedSuccess = confirmedOrderData.payment_status === "captured" ||
+      confirmedOrderData.offline_payment?.verification_status === "approved" ||
+      confirmedOrderData.order_status === "confirmed";
 
     return (
       <div className="max-w-xl mx-auto my-10 bg-surface p-8 rounded-3xl border border-border shadow-2xl text-center space-y-6 animate-in fade-in zoom-in-95 duration-300">
@@ -931,9 +952,9 @@ export default function CheckOut() {
           </span>
           <h2 className="text-3xl font-black text-text-primary dark:text-white">Order Confirmed!</h2>
           <p className="text-sm text-text-secondary mt-1.5 max-w-md mx-auto">
-            {isOnlineSuccess ? (
+            {isVerifiedSuccess ? (
               <>
-                Aapka Order Confirm Ho Gaya Hai! Your payment has been <strong>instantly verified</strong> via ICICI Bank e-Collection. Materials are moving to warehouse assembly.
+                Aapka Order Confirm Ho Gaya Hai! Your payment has been <strong>verified</strong>. Materials are moving to warehouse assembly.
               </>
             ) : (
               <>
@@ -1038,6 +1059,26 @@ export default function CheckOut() {
             Return to Product Catalogue
           </Button>
         </div>
+
+        {cart.length > 0 && (
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-left space-y-2.5 mt-4">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+              <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                You have {cart.length} more {cart.length === 1 ? 'kit' : 'kits'} remaining in another checkout card
+              </p>
+            </div>
+            <Button
+              onClick={() => navigate('/cart')}
+              variant="primary"
+              size="md"
+              fullWidth
+              className="py-3 font-bold text-xs"
+            >
+              Proceed to Next Checkout Card →
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -1097,6 +1138,32 @@ export default function CheckOut() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Columns: Order Review & Official Bank Transfer Upload Form */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Milestone Card Separation Notice */}
+          {cart.length > checkoutItems.length && (
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-primary/10 border border-amber-500/30 flex items-center justify-between gap-4 shadow-xs">
+              <div className="flex items-center gap-3.5">
+                <span className="px-3 py-1.5 rounded-xl bg-amber-500 text-white font-black text-xs uppercase tracking-wider shrink-0 shadow-xs">
+                  Card {milestoneBreakdown.m1Pct}% Adv
+                </span>
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                    Checking out {checkoutItems.length} {checkoutItems.length === 1 ? 'kit' : 'kits'} ({milestoneBreakdown.m1Pct}% Advance Policy)
+                  </h4>
+                  <p className="text-xs text-text-secondary mt-0.5">
+                    {cart.length - checkoutItems.length} other items with different milestones remain in your cart and can be checked out next.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/cart')}
+                className="px-3.5 py-1.5 rounded-xl border border-amber-500/40 text-amber-700 dark:text-amber-300 text-xs font-bold hover:bg-amber-500/10 transition-colors shrink-0"
+              >
+                View Cart Cards
+              </button>
+            </div>
+          )}
+
           {/* Order Items Review */}
           <div className="bg-surface p-6 rounded-2xl border border-border shadow-sm">
             <h3 className="text-lg font-black text-text-primary dark:text-white mb-4 flex items-center gap-2 border-b border-border pb-3">
@@ -1104,7 +1171,7 @@ export default function CheckOut() {
             </h3>
 
             <div className="divide-y divide-border">
-              {cart.map((item) => (
+              {checkoutItems.map((item) => (
                 <div key={item.cartItemId} className="py-4 flex gap-4 items-center">
                   <div className="w-16 h-16 bg-surface-hover border border-border rounded-xl flex items-center justify-center overflow-hidden shrink-0">
                     <img src={item.kitImage} alt={item.kitName} className="object-contain w-12 h-12" />
@@ -1152,8 +1219,8 @@ export default function CheckOut() {
                   type="button"
                   onClick={() => setSelectedPaymentMethod("online")}
                   className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${selectedPaymentMethod === "online"
-                      ? "bg-[#264baa] text-white shadow-md shadow-[#264baa]/30"
-                      : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+                    ? "bg-[#264baa] text-white shadow-md shadow-[#264baa]/30"
+                    : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
                     }`}
                 >
                   <FiDollarSign className="text-base" />
@@ -1163,8 +1230,8 @@ export default function CheckOut() {
                   type="button"
                   onClick={() => setSelectedPaymentMethod("offline")}
                   className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${selectedPaymentMethod === "offline"
-                      ? "bg-primary text-white shadow-md shadow-primary/30"
-                      : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+                    ? "bg-primary text-white shadow-md shadow-primary/30"
+                    : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
                     }`}
                 >
                   <FiUploadCloud className="text-base" />
@@ -1788,7 +1855,7 @@ export default function CheckOut() {
 
             {/* Items in this order */}
             <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1 divide-y divide-border/60 border-b border-border pb-3">
-              {cart.map((item) => (
+              {checkoutItems.map((item) => (
                 <div key={item.cartItemId || item.id} className="pt-2 first:pt-0 flex items-center justify-between text-xs">
                   <div className="flex-1 pr-2">
                     <p className="font-bold text-text-primary dark:text-white truncate">{item.kitName || item.title || "Solar Kit"}</p>

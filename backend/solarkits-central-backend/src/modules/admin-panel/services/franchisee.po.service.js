@@ -1,4 +1,4 @@
-﻿/**
+/**
  * franchisee.po.service.js
  *
  * Complete lifecycle management for Franchisee Purchase Orders (fpo_orders collection).
@@ -117,6 +117,7 @@ async function createPoDraft({
   payment_terms,
   order_type = 'po_order',
   po_category = 'SINGLE_PO',
+  po_ending_date = null,
   is_token_booking = false,
   token_amount_paise: custom_token_amount_paise = null,
   parent_po_id = null,
@@ -548,7 +549,11 @@ async function createPoDraft({
     total_booked_quantity = totalItemQty;
     remaining_quantity = totalItemQty;
     const lockDays = Number(po_settings.po_lock_days || po_settings.po_validity_days || 30);
-    lock_expires_at = new Date(Date.now() + lockDays * 24 * 60 * 60 * 1000);
+    if (po_ending_date && !isNaN(new Date(po_ending_date).getTime())) {
+      lock_expires_at = new Date(po_ending_date);
+    } else {
+      lock_expires_at = new Date(Date.now() + lockDays * 24 * 60 * 60 * 1000);
+    }
 
     if (custom_token_amount_paise != null && Number(custom_token_amount_paise) >= 0) {
       token_amount_paise = Number(custom_token_amount_paise);
@@ -784,6 +789,7 @@ async function createPoDraft({
     remaining_quantity,
     fulfilled_quantity: 0,
     lock_expires_at,
+    po_ending_date: lock_expires_at,
 
     // Loose order linked fields
     parent_po_id: parentPoDoc ? parentPoDoc._id : null,
@@ -1564,7 +1570,10 @@ async function allocatePoProducts({
   // Preserve existing lock_expires_at if already valid and active, otherwise set from lockDays
   const lockDays = Number(po_settings.po_lock_days || po_settings.po_validity_days || 30);
   if (!order.lock_expires_at || new Date(order.lock_expires_at) < new Date()) {
-    order.lock_expires_at = new Date(Date.now() + lockDays * 24 * 60 * 60 * 1000);
+    order.lock_expires_at = order.po_ending_date || new Date(Date.now() + lockDays * 24 * 60 * 60 * 1000);
+  }
+  if (!order.po_ending_date) {
+    order.po_ending_date = order.lock_expires_at;
   }
 
   if (order.po_category === 'SINGLE_PO') {

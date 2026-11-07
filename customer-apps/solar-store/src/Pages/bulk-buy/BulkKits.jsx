@@ -31,6 +31,7 @@ export default function BulkKits() {
     const [searchTerm, setSearchTerm] = useState("");
     const [viewMode, setViewMode] = useState("grid");
     const [expandedSections, setExpandedSections] = useState({
+        capacity: true,
         panel: true,
         inverter: false,
         battery: false
@@ -39,6 +40,7 @@ export default function BulkKits() {
     const [selectedKitTypes, setSelectedKitTypes] = useState([]);
 
     const [filters, setFilters] = useState({
+        capacityKW: "all",
         industryType: "all",
         category: "all",
         subCategory: "all",
@@ -385,6 +387,8 @@ export default function BulkKits() {
 
     const clearAllFilters = () => {
         setFilters({
+            capacityKW: "all",
+            industryType: "all",
             category: "all",
             subCategory: "all",
             systemType: "all",
@@ -428,6 +432,7 @@ export default function BulkKits() {
         Object.keys(newFilters).forEach((k) => {
             if (![...mainFilterKeys, ...subFilterKeys].includes(k)) newFilters[k] = "all";
         });
+        newFilters.capacityKW = "all";
         setFilters(newFilters);
     };
 
@@ -537,6 +542,15 @@ export default function BulkKits() {
                         return kitType.includes(selType) || selType.includes(kitType);
                     }
 
+                    case "capacityKW": {
+                        const numVal = parseFloat(value);
+                        if (!isNaN(numVal)) {
+                            if (numVal >= 15) return (k.capacityKW || k.capacity || 0) >= 15;
+                            return Math.abs((k.capacityKW || k.capacity || 0) - numVal) < 0.1;
+                        }
+                        return true;
+                    }
+
                     case "subProjectType":
                         return k.subProjectType?.toLowerCase() === value.toLowerCase();
 
@@ -548,14 +562,15 @@ export default function BulkKits() {
                     case "panelTechnology": {
                         const panel = k.panel || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "panel"));
                         const tech = (panel?.technologyType || panel?.technology || "").toLowerCase().trim();
-                        return tech === value.toLowerCase().trim();
+                        const val = value.toLowerCase().trim();
+                        return tech === val || tech.includes(val) || val.includes(tech);
                     }
                     case "panelWattage": {
                         const panel = k.panel || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "panel"));
                         const watt = parseFloat(panel?.wattPerPanel);
                         const numVal = parseFloat(value);
                         if (!isNaN(numVal) && !isNaN(watt)) {
-                            return watt === numVal;
+                            return Math.abs(watt - numVal) < 1;
                         }
                         const ranges = {
                             "under-300": [0, 300], "300-400": [300, 400], "400-500": [400, 500], "500-600": [500, 600], "600+": [600, Infinity],
@@ -607,14 +622,17 @@ export default function BulkKits() {
                     case "inverterType": {
                         const inv = k.inverter || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "inverter"));
                         const type = (inv?.type || inv?.category || "").toLowerCase().trim();
-                        return type === value.toLowerCase().trim();
+                        const val = value.toLowerCase().trim();
+                        return type === val || type.includes(val) || val.includes(type);
                     }
                     case "inverterCapacity": {
                         const inv = k.inverter || (Array.isArray(k.includedComponents) && k.includedComponents.find((c) => c.actualType === "inverter"));
-                        const cap = parseFloat(inv?.capacityKW || k.capacityKW || k.capacity);
+                        let cap = parseFloat(inv?.capacityKW);
+                        if (cap >= 100) cap = cap / 1000;
+                        if (!cap) cap = parseFloat(k.capacityKW || k.capacity);
                         const numVal = parseFloat(value);
                         if (!isNaN(numVal) && !isNaN(cap)) {
-                            return cap === numVal;
+                            return Math.abs(cap - numVal) < 0.1;
                         }
                         const ranges = {
                             "under-1": [0, 1], "1-3": [1, 3], "3-5": [3, 5], "5-10": [5, 10], "10+": [10, Infinity],

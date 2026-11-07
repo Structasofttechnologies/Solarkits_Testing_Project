@@ -3732,6 +3732,33 @@ const list_my_po_orders = async (req, res) => {
       });
     }
 
+    // Enrich with pro-rata commission metrics & EPC penalty summary
+    orders.forEach((o) => {
+      const bookedQty = Number(o.total_booked_quantity || o.total_quantity || o.items?.[0]?.quantity || 1);
+      const fulfilledQty = Number(o.fulfilled_quantity || 0);
+      const unfulfilledQty = Math.max(0, bookedQty - fulfilledQty);
+      const fulfillmentRatio = bookedQty > 0 ? Math.min(1, Math.max(0, fulfilledQty / bookedQty)) : 0;
+
+      const baseCommission = Number(o.total_commission_paise || 0);
+      const earnedCommissionPaise = (o.realized_commission_paise && o.realized_commission_paise > 0)
+        ? o.realized_commission_paise
+        : Math.round(baseCommission * fulfillmentRatio);
+
+      o.commission_details = {
+        total_commission_paise: baseCommission,
+        total_commission_inr: Math.round(baseCommission / 100),
+        realized_commission_paise: earnedCommissionPaise,
+        realized_commission_inr: Math.round(earnedCommissionPaise / 100),
+        completion_ratio: `${fulfilledQty}/${bookedQty}`,
+        fulfillment_percentage: Math.round(fulfillmentRatio * 100),
+        unfulfilled_quantity: unfulfilledQty,
+        is_pro_rated: fulfilledQty < bookedQty,
+      };
+      o.realized_commission_paise = earnedCommissionPaise;
+      o.commission_completion_ratio = `${fulfilledQty}/${bookedQty}`;
+      o.commission_fulfillment_pct = Math.round(fulfillmentRatio * 100);
+    });
+
     poOrdersCache.set(resellerId.toString(), {
       data: orders,
       timestamp: Date.now(),
@@ -3789,6 +3816,7 @@ const create_my_po_order = async (req, res) => {
       destination_address,
       destination_pincode,
       offline_payment,
+      po_ending_date,
     } = req.body;
 
     const { createPoDraft, submitPo } = require('../../admin-panel/services/franchisee.po.service');
@@ -3800,6 +3828,7 @@ const create_my_po_order = async (req, res) => {
       target_committed_quantity: Number(target_committed_quantity) || 0,
       order_type: order_type || 'po_order',
       po_category: po_category || 'SINGLE_PO',
+      po_ending_date: po_ending_date || null,
       is_token_booking: is_token_booking !== undefined ? Boolean(is_token_booking) : true,
       token_amount_paise: token_amount_paise != null ? Number(token_amount_paise) : 3500000,
       parent_po_id: parent_po_id || null,
@@ -3985,6 +4014,7 @@ const preview_po_penalty = async (req, res) => {
       tokenAdjustedPaise,
       unitPricePaise,
       penaltyRuleSnapshot: order.penalty_rule_snapshot || order.po_settings_snapshot,
+      totalCommissionPaise: Number(order.total_commission_paise || 0),
     });
 
     return res.status(200).json({

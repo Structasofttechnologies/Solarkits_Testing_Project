@@ -1,4 +1,4 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const { india_solarshop_db } = require('../../config/databases');
 
 /**
@@ -203,6 +203,10 @@ const schema = new mongoose.Schema(
     applicable_penalty_paise: { type: Number, default: 0, min: 0 },
     unpurchased_quantity:     { type: Number, default: 0, min: 0 },
     refundable_token_paise:   { type: Number, default: 0, min: 0 },
+    penalty_charged_to_role:  { type: String, enum: ['SOLAR_EPC', 'FRANCHISEE', null], default: 'SOLAR_EPC' },
+    penalty_charged_to_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'epc_accounts', default: null },
+    penalty_charged_to_name:  { type: String, default: null },
+    po_ending_date:           { type: Date, default: null },
     settlement_status: {
       type: String,
       enum: [
@@ -571,6 +575,9 @@ const schema = new mongoose.Schema(
     commission_posted: { type: Boolean, default: false },
     commission_ledger_id: { type: mongoose.Schema.Types.ObjectId, ref: 'fpo_commission_ledgers', default: null },
     total_commission_paise: { type: Number, default: 0 },
+    realized_commission_paise: { type: Number, default: 0 },
+    commission_completion_ratio: { type: String, default: null },
+    commission_fulfillment_pct: { type: Number, default: 0 },
     commission_status: {
       type: String,
       enum: ['Pending', 'Paid', 'On Hold', 'Failed'],

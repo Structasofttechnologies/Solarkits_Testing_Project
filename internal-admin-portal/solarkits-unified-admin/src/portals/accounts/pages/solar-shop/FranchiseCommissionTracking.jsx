@@ -190,11 +190,10 @@ export default function FranchiseCommissionTracking() {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed top-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-2xl text-sm font-semibold border backdrop-blur-md transition-all animate-in slide-in-from-top-3 duration-300 ${
-            toast.type === "error"
+          className={`fixed top-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-2xl text-sm font-semibold border backdrop-blur-md transition-all animate-in slide-in-from-top-3 duration-300 ${toast.type === "error"
               ? "bg-red-500/15 border-red-500/30 text-red-700 dark:text-red-400 bg-surface"
               : "bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-surface"
-          }`}
+            }`}
         >
           {toast.type === "error" ? <MdErrorOutline size={20} /> : <MdCheckCircle size={20} />}
           <span>{toast.message}</span>
@@ -317,11 +316,10 @@ export default function FranchiseCommissionTracking() {
                   setStatusFilter(st.key);
                   setPage(1);
                 }}
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
-                  statusFilter === st.key
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${statusFilter === st.key
                     ? `${st.color} text-white shadow-sm`
                     : "bg-surface-hover/70 text-text-secondary hover:text-text-primary"
-                }`}
+                  }`}
               >
                 {st.label}
               </button>
@@ -411,12 +409,25 @@ export default function FranchiseCommissionTracking() {
                         )}
                       </div>
                       {c.order_type === "fpo_order" && c.total_booked_quantity > 0 && (
-                        <div className="mt-0.5 text-[11px] text-text-muted flex items-center gap-1">
-                          <span>{c.total_booked_quantity} Kits</span>
-                          <span>•</span>
-                          <span className={c.fulfilled_quantity > 0 ? "text-emerald-600 font-bold" : ""}>
-                            {c.fulfilled_quantity || 0} Fulfilled
-                          </span>
+                        <div className="mt-0.5 space-y-1">
+                          <div className="text-[11px] text-text-muted flex items-center gap-1">
+                            <span>{c.total_booked_quantity} Kits</span>
+                            <span>•</span>
+                            <span className={c.fulfilled_quantity > 0 ? "text-emerald-600 font-bold" : ""}>
+                              {c.fulfilled_quantity || 0} Fulfilled
+                            </span>
+                            {c.unfulfilled_quantity > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className="text-rose-600 font-bold">{c.unfulfilled_quantity} Rem.</span>
+                              </>
+                            )}
+                          </div>
+                          {c.epc_penalty_amount > 0 && (
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300 border border-rose-300">
+                              EPC Penalty: ₹{c.epc_penalty_amount.toLocaleString("en-IN")}
+                            </span>
+                          )}
                         </div>
                       )}
                       {c.order_type === "fpo_order" && (
@@ -448,9 +459,19 @@ export default function FranchiseCommissionTracking() {
                       <div className="font-mono font-bold text-emerald-600">
                         {formatCurrency(c.commission_amount)}
                       </div>
+                      {c.order_type === "fpo_order" && c.total_booked_quantity > 0 && (
+                        <div className="text-[10px] text-primary font-bold">
+                          Pro-Rata: {c.commission_completion_ratio || `${c.fulfilled_quantity || 0}/${c.total_booked_quantity}`}
+                        </div>
+                      )}
                       <div className="text-[10px] text-text-muted">
                         Gross: {formatCurrency(c.gross_commission || c.commission_amount)}
                       </div>
+                      {c.full_gross_commission != null && c.full_gross_commission > (c.gross_commission || 0) && (
+                        <div className="text-[9px] text-text-muted">
+                          (Full Quota: {formatCurrency(c.full_gross_commission)})
+                        </div>
+                      )}
                       {c.tds_amount > 0 && (
                         <div className="text-[10px] text-red-600 font-semibold">
                           TDS (5%): -{formatCurrency(c.tds_amount)}
@@ -583,8 +604,20 @@ export default function FranchiseCommissionTracking() {
                 <span className="text-text-muted">Order Amount:</span>
                 <span className="font-semibold text-text-primary">{formatCurrency(updatingComm.order_amount)}</span>
               </div>
+              {updatingComm.order_type === 'fpo_order' && updatingComm.total_booked_quantity > 0 && (
+                <div className="flex justify-between text-primary font-bold">
+                  <span>Quota Progress:</span>
+                  <span>{updatingComm.commission_completion_ratio || `${updatingComm.fulfilled_quantity || 0}/${updatingComm.total_booked_quantity}`} Kits ({updatingComm.commission_fulfillment_pct || 0}% Fulfilled)</span>
+                </div>
+              )}
+              {updatingComm.epc_penalty_amount > 0 && (
+                <div className="flex justify-between text-rose-600 font-bold">
+                  <span>EPC Penalty (Unfulfilled Quota):</span>
+                  <span>{formatCurrency(updatingComm.epc_penalty_amount)} (Charged to EPC)</span>
+                </div>
+              )}
               <div className="flex justify-between">
-                <span className="text-text-muted">Gross Margin ({updatingComm.commission_rate}%):</span>
+                <span className="text-text-muted">Realized Gross Margin ({updatingComm.commission_rate}%):</span>
                 <span className="font-semibold text-text-primary">{formatCurrency(updatingComm.gross_commission || updatingComm.commission_amount)}</span>
               </div>
               {updatingComm.tds_amount > 0 && (
@@ -826,11 +859,10 @@ export default function FranchiseCommissionTracking() {
                               {formatCurrency(child.net_paid)}
                             </td>
                             <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                String(child.status).toLowerCase() === "paid"
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${String(child.status).toLowerCase() === "paid"
                                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                   : "bg-amber-50 text-amber-700 border border-amber-200"
-                              }`}>
+                                }`}>
                                 {child.status}
                               </span>
                             </td>

@@ -14,6 +14,7 @@ import {
   setPendingLocationChange,
   setShowAuthDialog,
   selectCartTotalItems,
+  selectCartGroupedByMilestones,
   removeFromCart,
 } from "@/features/slice";
 import { useTheme } from "@/hooks/useTheme";
@@ -28,6 +29,7 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
   const { cart, selectedState, selectedDistrict, selectedPincode } = useSelector((state) => state.slice);
   const [pincodeModalOpen, setPincodeModalOpen] = useState(false);
   const totalCartItems = useSelector(selectCartTotalItems);
+  const milestoneGroups = useSelector(selectCartGroupedByMilestones);
   const { user, isAuthenticated, loading } = useSelector((state) => state.auth_slice);
   const [showPopup, setShowPopup] = useState(false);
   const [showCartDropdown, setShowCartDropdown] = useState(false);
@@ -362,6 +364,13 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
                   </div>
                 </div>
 
+                {milestoneGroups.length > 1 && (
+                  <div className="px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1.5">
+                    <span>⚡</span>
+                    <span>{milestoneGroups.length} separate milestone checkout cards in cart</span>
+                  </div>
+                )}
+
                 {/* Cart Items */}
                 {cart.length === 0 ? (
                   <div className="px-4 py-8 text-center">
@@ -399,6 +408,11 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
                               >
                                 {item.productTier}
                               </span>
+                              {item.payment_milestones?.advance_percentage && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                  {item.payment_milestones.advance_percentage}% Adv
+                                </span>
+                              )}
                               <span className="text-[10px] text-text-muted">×{item.qty}</span>
                             </div>
                             {!item.inStock && (

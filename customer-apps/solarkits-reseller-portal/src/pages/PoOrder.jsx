@@ -212,6 +212,7 @@ export default function PoOrder() {
   const [selectedKitId, setSelectedKitId] = useState("");
   const [selectedPoQty, setSelectedPoQty] = useState(200);
   const [poCategory, setPoCategory] = useState("SINGLE_PO"); // "SINGLE_PO" | "COMBINE_PO"
+  const [poEndingDate, setPoEndingDate] = useState(() => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -1048,6 +1049,7 @@ export default function PoOrder() {
     } else if (allowsPo && !allowsCombinePo) {
       setPoCategory("SINGLE_PO");
     }
+    setPoEndingDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
     setCreateModal(true);
   };
 
@@ -1081,6 +1083,7 @@ export default function PoOrder() {
       const payload = {
         order_type: "po_order",
         po_category: poCategory,
+        po_ending_date: poEndingDate || null,
         target_committed_quantity: targetQuantity,
         is_token_booking: true,
         token_amount_paise: poFixedTokenAmount * 100,
@@ -1776,6 +1779,12 @@ export default function PoOrder() {
                   const remaining = order.remaining_quantity != null ? order.remaining_quantity : Math.max(0, booked - fulfilled);
                   const progressPct = booked > 0 ? Math.min(100, Math.round((fulfilled / booked) * 100)) : 0;
 
+                  const totalCommINR = Math.round((order.total_commission_paise || order.commission_details?.total_commission_paise || 0) / 100);
+                  const realizedCommINR = (order.realized_commission_paise != null && order.realized_commission_paise > 0)
+                    ? Math.round(order.realized_commission_paise / 100)
+                    : Math.round(totalCommINR * (booked > 0 ? (fulfilled / booked) : 0));
+                  const epcPenaltyINR = Math.round((order.applicable_penalty_paise || 0) / 100);
+
                   const tokenReqINR = Math.round((order.token_amount_paise || 0) / 100);
                   const tokenPaidINR = Math.round((order.token_paid_paise || 0) / 100);
                   const isTokenPaid = order.token_payment_status === "PAID" || (tokenPaidINR > 0 && tokenReqINR > 0 && tokenPaidINR >= tokenReqINR);
@@ -1921,6 +1930,18 @@ export default function PoOrder() {
                             <div className="text-[9px] text-text-muted flex items-center justify-between">
                               <span>{fulfilled} Fulfilled</span>
                               <span className="font-bold text-text-secondary">{progressPct}%</span>
+                            </div>
+                            <div className="pt-0.5 flex flex-col gap-0.5">
+                              {totalCommINR > 0 && (
+                                <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.5 rounded border border-emerald-200/60 truncate" title={`Commission: ₹${realizedCommINR.toLocaleString("en-IN")} earned of ₹${totalCommINR.toLocaleString("en-IN")} (${fulfilled}/${booked} kits)`}>
+                                  ₹{realizedCommINR.toLocaleString("en-IN")} Comm. ({fulfilled}/{booked})
+                                </span>
+                              )}
+                              {isExpired && remaining > 0 && (
+                                <span className="text-[8px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1 py-0.5 rounded border border-rose-200/60 truncate" title={`EPC penalized ₹${epcPenaltyINR.toLocaleString("en-IN")} for ${remaining} unfulfilled kits`}>
+                                  EPC Pen: ₹{epcPenaltyINR.toLocaleString("en-IN")} ({remaining} left)
+                                </span>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -2755,6 +2776,30 @@ export default function PoOrder() {
                         </div>
                       </div>
                     </div>
+
+                    {/* ── 3B. PO COMPLETION DEADLINE (ENDING DATE) ── */}
+                    <div className="space-y-2 p-3.5 rounded-2xl bg-surface border border-border">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
+                          <FiCalendar className="text-primary" size={13} />
+                          Target Completion Ending Date <span className="text-rose-500">*</span>
+                        </label>
+                        <span className="text-[10px] font-bold text-text-muted">
+                          Rate Lock & Quota Deadline
+                        </span>
+                      </div>
+                      <input
+                        type="date"
+                        value={poEndingDate}
+                        onChange={(e) => setPoEndingDate(e.target.value)}
+                        min={new Date().toISOString().slice(0, 10)}
+                        className="w-full px-3 py-2 text-xs font-semibold bg-surface border border-border rounded-xl text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        required
+                      />
+                      <p className="text-[10px] text-text-muted leading-tight">
+                        Assigned EPC must complete all <strong>{targetQuantity} kits</strong> by this ending date. If not completed, EPC will be penalized for unfulfilled kits, and Franchise commission will be pro-rated only for kits completed by EPC.
+                      </p>
+                    </div>
                   </div>
 
                   {/* Right Column: Live Order Summary & Guidance (5 cols) */}
@@ -3436,6 +3481,75 @@ export default function PoOrder() {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* ── Franchise Commission & EPC Completion Breakdown ── */}
+                <div
+                  className="p-4 rounded-2xl border space-y-3"
+                  style={{ background: "var(--color-surface, #ffffff)", borderColor: "var(--color-border)" }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-text-primary uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <FiPercent className="text-emerald-500" size={14} />
+                      Franchise Commission & EPC Completion Status
+                    </span>
+                    <span className="font-mono text-xs font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200/80">
+                      Ratio: {selectedOrder.commission_completion_ratio || `${selectedOrder.fulfilled_quantity || 0}/${selectedOrder.total_booked_quantity || selectedOrder.total_quantity || 0}`}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-center">
+                    <div className="p-3 rounded-xl bg-surface-hover border border-border">
+                      <div className="text-[10px] text-text-muted font-bold">100% Target Commission</div>
+                      <div className="text-sm font-black text-text-primary font-mono">
+                        ₹{Math.round((selectedOrder.total_commission_paise || 0) / 100).toLocaleString("en-IN")}
+                      </div>
+                      <div className="text-[9px] text-text-muted">For {selectedOrder.total_booked_quantity || 0} committed kits</div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200">
+                      <div className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold">Earned / Realized Commission</div>
+                      <div className="text-sm font-black text-emerald-600 font-mono">
+                        ₹{Math.round(((selectedOrder.realized_commission_paise != null && selectedOrder.realized_commission_paise > 0)
+                          ? selectedOrder.realized_commission_paise
+                          : (selectedOrder.total_commission_paise || 0) * ((selectedOrder.fulfilled_quantity || 0) / (selectedOrder.total_booked_quantity || 1))) / 100).toLocaleString("en-IN")}
+                      </div>
+                      <div className="text-[9px] text-emerald-600 font-semibold">
+                        Calculated on {selectedOrder.fulfilled_quantity || 0}/{selectedOrder.total_booked_quantity || 0} completed kits
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-surface-hover border border-border">
+                      <div className="text-[10px] text-text-muted font-bold">EPC Completion Status</div>
+                      <div className={`text-sm font-black ${(selectedOrder.remaining_quantity || 0) === 0 ? "text-emerald-600" : (selectedOrder.status === 'EXPIRED' ? "text-rose-600" : "text-blue-600")}`}>
+                        {(selectedOrder.remaining_quantity || 0) === 0
+                          ? "100% Completed"
+                          : selectedOrder.status === 'EXPIRED'
+                            ? "Deadline Passed"
+                            : `${Math.round(((selectedOrder.fulfilled_quantity || 0) / (selectedOrder.total_booked_quantity || 1)) * 100)}% Progress`}
+                      </div>
+                      <div className="text-[9px] text-text-muted">
+                        {selectedOrder.fulfilled_quantity || 0} done, {selectedOrder.remaining_quantity != null ? selectedOrder.remaining_quantity : Math.max(0, (selectedOrder.total_booked_quantity || 0) - (selectedOrder.fulfilled_quantity || 0))} pending
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* EPC Penalty Status Notice */}
+                  {(selectedOrder.status === 'EXPIRED' || (selectedOrder.applicable_penalty_paise || 0) > 0) && (selectedOrder.remaining_quantity || 0) > 0 && (
+                    <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs flex items-start gap-2.5">
+                      <FiAlertCircle className="text-rose-600 shrink-0 mt-0.5" size={16} />
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-rose-800 dark:text-rose-300">
+                          EPC Penalty Applied for Unfulfilled Quota
+                        </div>
+                        <div className="text-[11px] text-rose-700 dark:text-rose-400">
+                          Assigned EPC did not complete the PO before the ending date.
+                          A penalty of <strong className="font-mono">₹{Math.round((selectedOrder.applicable_penalty_paise || 0) / 100).toLocaleString("en-IN")}</strong> has been charged to the EPC for {selectedOrder.remaining_quantity} unfulfilled kits.
+                          Franchise commission has been credited pro-rata for {selectedOrder.fulfilled_quantity || 0} completed kits.
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Items Table */}

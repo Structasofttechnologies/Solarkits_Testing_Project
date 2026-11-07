@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { authHeaderObj } from "@/app/authHeader";
 import {
@@ -34,13 +34,14 @@ const API_BASE = rawApiUrl.replace(/\/admin-api$|\/api$/, "");
 const ADMIN_API = rawApiUrl.endsWith("/admin-api") ? rawApiUrl : `${API_BASE}/admin-api`;
 
 const DEFAULT_STAGES = [
-  { stage_number: 1, stage_key: "order_placed", stage_name: "Order Placed", tat_hours: 2, description: "EPC submits order with advance payment proof" },
-  { stage_number: 2, stage_key: "advance_verified", stage_name: "Advance Verified & Order Confirmed", tat_hours: 12, description: "Accounts approves 30% advance and issues Proforma Invoice" },
-  { stage_number: 3, stage_key: "procurement_ready", stage_name: "Kit Assembly & Allocation", tat_hours: 48, description: "Warehouse kits assembled and prepared for dispatch" },
-  { stage_number: 4, stage_key: "ready_for_dispatch", stage_name: "Remaining Payment Due (Before Dispatch)", tat_hours: 24, description: "EPC notified to pay remaining 70% balance" },
-  { stage_number: 5, stage_key: "fully_paid", stage_name: "Final Payment Verified & Invoiced", tat_hours: 12, description: "Accounts approves remaining payment & issues final GST Tax Invoice" },
-  { stage_number: 6, stage_key: "dispatched", stage_name: "Dispatched & In Transit", tat_hours: 96, description: "Order picked up by courier with tracking ID" },
-  { stage_number: 7, stage_key: "delivered", stage_name: "Delivered to Site", tat_hours: 24, description: "Goods received and signed by EPC client" },
+  { sequence: 1, stage_number: 1, stage_key: "CONFIRMED", stage_name: "Confirmed (Payment Verified)", tat_days: 1, tat_hours: 24, description: "Advance Payment Verified by Accounts" },
+  { sequence: 2, stage_number: 2, stage_key: "PROCESSING", stage_name: "Processing (Picking & Packing)", tat_days: 2, tat_hours: 48, description: "Warehouse BOM picking & packing" },
+  { sequence: 3, stage_number: 3, stage_key: "VEHICLE_ASSIGNED", stage_name: "Vehicle Assigned", tat_days: 1, tat_hours: 24, description: "Vehicle & driver allocated to route" },
+  { sequence: 4, stage_number: 4, stage_key: "READY_FOR_DISPATCH", stage_name: "Ready for Dispatch / Before Dispatch", tat_days: 2, tat_hours: 48, description: "Staged at gate; Remaining Payment verified before release" },
+  { sequence: 5, stage_number: 5, stage_key: "DISPATCHED", stage_name: "Dispatched", tat_days: 1, tat_hours: 12, description: "Vehicle gate exit from warehouse" },
+  { sequence: 6, stage_number: 6, stage_key: "IN_TRANSIT", stage_name: "In Transit", tat_days: 3, tat_hours: 72, description: "Carrier movement to destination" },
+  { sequence: 7, stage_number: 7, stage_key: "REACHED_DESTINATION", stage_name: "Reached Destination", tat_days: 1, tat_hours: 12, description: "Arrived at delivery location" },
+  { sequence: 8, stage_number: 8, stage_key: "DELIVERED", stage_name: "Delivered", tat_days: 1, tat_hours: 6, description: "Sign-off and customer handover completed" },
 ];
 
 const DEFAULT_MILESTONES = [
@@ -68,6 +69,7 @@ const DEFAULT_MILESTONES = [
 
 export default function PaymentMilestoneSettings() {
   const { countryName } = useParams();
+  const navigate = useNavigate();
   const [kits, setKits] = useState([]);
   const [defaultPolicy, setDefaultPolicy] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -252,10 +254,10 @@ export default function PaymentMilestoneSettings() {
         quickFilters.industryType === "all"
           ? shopHierarchy
           : shopHierarchy.filter(
-              (ind) =>
-                ind.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
-                String(ind.id) === String(quickFilters.industryType)
-            );
+            (ind) =>
+              ind.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+              String(ind.id) === String(quickFilters.industryType)
+          );
 
       targetInds.forEach((ind) => {
         (ind.categories || []).forEach((cat) => {
@@ -281,10 +283,10 @@ export default function PaymentMilestoneSettings() {
         quickFilters.industryType === "all"
           ? shopHierarchy
           : shopHierarchy.filter(
-              (ind) =>
-                ind.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
-                String(ind.id) === String(quickFilters.industryType)
-            );
+            (ind) =>
+              ind.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+              String(ind.id) === String(quickFilters.industryType)
+          );
 
       targetInds.forEach((ind) => {
         (ind.categories || []).forEach((cat) => {
@@ -318,10 +320,10 @@ export default function PaymentMilestoneSettings() {
         quickFilters.industryType === "all"
           ? shopHierarchy
           : shopHierarchy.filter(
-              (ind) =>
-                ind.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
-                String(ind.id) === String(quickFilters.industryType)
-            );
+            (ind) =>
+              ind.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+              String(ind.id) === String(quickFilters.industryType)
+          );
 
       targetInds.forEach((ind) => {
         (ind.categories || []).forEach((cat) => {
@@ -363,10 +365,10 @@ export default function PaymentMilestoneSettings() {
         quickFilters.industryType === "all"
           ? shopHierarchy
           : shopHierarchy.filter(
-              (ind) =>
-                ind.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
-                String(ind.id) === String(quickFilters.industryType)
-            );
+            (ind) =>
+              ind.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+              String(ind.id) === String(quickFilters.industryType)
+          );
 
       targetInds.forEach((ind) => {
         (ind.categories || []).forEach((cat) => {
@@ -475,7 +477,7 @@ export default function PaymentMilestoneSettings() {
     setRuleName(defaultPolicy?.rule_name || "Global Default Milestone Policy");
     setDescription(
       defaultPolicy?.description ||
-        "Default 30% advance at order placement + 70% before dispatch clearance policy applied to all ComboKits."
+      "Default 30% advance at order placement + 70% before dispatch clearance policy applied to all ComboKits."
     );
     setIsActive(true);
     setMilestones(defaultPolicy?.milestones || DEFAULT_MILESTONES);
@@ -520,7 +522,9 @@ export default function PaymentMilestoneSettings() {
 
   const handleStageTatChange = (index, tatValue) => {
     const updated = [...stagesConfig];
-    updated[index].tat_hours = Number(tatValue) || 0;
+    const hrs = Number(tatValue) || 0;
+    updated[index].tat_hours = hrs;
+    updated[index].tat_days = Math.max(1, Math.round(hrs / 24));
     setStagesConfig(updated);
   };
 
@@ -694,11 +698,10 @@ export default function PaymentMilestoneSettings() {
       {/* ── Alert Messages ── */}
       {msg.text && (
         <div
-          className={`p-4 rounded-xl flex items-center justify-between text-sm shadow-sm transition-all ${
-            msg.type === "success"
-              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-              : "bg-red-50 text-red-800 border border-red-200"
-          }`}
+          className={`p-4 rounded-xl flex items-center justify-between text-sm shadow-sm transition-all ${msg.type === "success"
+            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+            : "bg-red-50 text-red-800 border border-red-200"
+            }`}
         >
           <div className="flex items-center gap-3">
             {msg.type === "success" ? (
@@ -946,31 +949,28 @@ export default function PaymentMilestoneSettings() {
         <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl border border-gray-200">
           <button
             onClick={() => setActiveFilterTab("all")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-              activeFilterTab === "all"
-                ? "bg-white text-gray-900 shadow-xs border border-gray-200"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${activeFilterTab === "all"
+              ? "bg-white text-gray-900 shadow-xs border border-gray-200"
+              : "text-gray-600 hover:text-gray-900"
+              }`}
           >
             All ComboKits ({kits.length})
           </button>
           <button
             onClick={() => setActiveFilterTab("custom")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-              activeFilterTab === "custom"
-                ? "bg-emerald-600 text-white shadow-xs"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${activeFilterTab === "custom"
+              ? "bg-emerald-600 text-white shadow-xs"
+              : "text-gray-600 hover:text-gray-900"
+              }`}
           >
             Custom Configured ({customConfiguredCount})
           </button>
           <button
             onClick={() => setActiveFilterTab("default")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-              activeFilterTab === "default"
-                ? "bg-amber-600 text-white shadow-xs"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${activeFilterTab === "default"
+              ? "bg-amber-600 text-white shadow-xs"
+              : "text-gray-600 hover:text-gray-900"
+              }`}
           >
             Using Default ({defaultPolicyCount})
           </button>
@@ -997,8 +997,8 @@ export default function PaymentMilestoneSettings() {
             {hasActiveQuickFilters
               ? "No ComboKits match the selected Quick Filters criteria. Try adjusting or clearing the filters above."
               : searchQuery
-              ? `No kits matched "${searchQuery}". Try a different keyword.`
-              : "No combo kits found in database."}
+                ? `No kits matched "${searchQuery}". Try a different keyword.`
+                : "No combo kits found in database."}
           </p>
           <div className="flex items-center justify-center gap-3 mt-4">
             {hasActiveQuickFilters && (
@@ -1137,13 +1137,15 @@ export default function PaymentMilestoneSettings() {
                     </div>
                   </div>
 
-                  {/* Fulfillment Stages Info */}
+                  {/* Milestone Schedule Info */}
                   <div className="text-[11px] text-gray-500 flex items-center justify-between border-t border-gray-100 pt-2.5">
                     <span className="flex items-center gap-1 text-gray-700 font-semibold">
-                      <FiClock size={12} className="text-amber-600" />
-                      {kit.order_stages_config?.length || DEFAULT_STAGES.length} Order Stages
+                      <FiCreditCard size={12} className="text-emerald-600" />
+                      {kit.milestones?.length || 2} Payment Milestones
                     </span>
-                    <span className="text-[10px] text-gray-400">TAT Configured</span>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      {(kit.milestones?.[0]?.percentage || 50)}% / {(kit.milestones?.[1]?.percentage || 50)}%
+                    </span>
                   </div>
 
                   {/* Card Click CTA Button */}
@@ -1188,11 +1190,10 @@ export default function PaymentMilestoneSettings() {
                       {isDefault ? "Configure Global Default Policy" : "Configure ComboKit Milestones"}
                     </h3>
                     <span
-                      className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
-                        isDefault
-                          ? "bg-amber-100 text-amber-800 border border-amber-300"
-                          : "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                      }`}
+                      className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${isDefault
+                        ? "bg-amber-100 text-amber-800 border border-amber-300"
+                        : "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                        }`}
                     >
                       {isDefault ? "Global Policy" : `${selectedKit?.capacity || 5} kW Kit`}
                     </span>
@@ -1281,11 +1282,10 @@ export default function PaymentMilestoneSettings() {
                   </div>
                   <div>
                     <span
-                      className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                        isValidPercentage
-                          ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
-                          : "bg-red-100 text-red-700 border border-red-300 animate-pulse"
-                      }`}
+                      className={`text-xs font-bold px-2.5 py-1 rounded-full ${isValidPercentage
+                        ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                        : "bg-red-100 text-red-700 border border-red-300 animate-pulse"
+                        }`}
                     >
                       Total: {totalPercentage}% {isValidPercentage ? "✓" : "(Must be 100%)"}
                     </span>
@@ -1420,49 +1420,29 @@ export default function PaymentMilestoneSettings() {
                 </button>
               </div>
 
-              {/* ── Order Stages & Turnaround Time (TAT) Configuration ── */}
-              <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/60 space-y-3">
-                <div>
-                  <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                    <FiClock className="w-4 h-4 text-blue-600" />
-                    Order Stages & Turnaround Time (TAT) Configuration
-                  </h4>
-                  <p className="text-xs text-gray-500">
-                    Define the target TAT in hours for Accounts verification, assembly, and dispatch clearance.
-                  </p>
+              {/* ── Order Stages & Turnaround Time (TAT) Separation Notice ── */}
+              <div className="border border-blue-100 bg-blue-50/50 rounded-xl p-4 flex items-start justify-between gap-3 text-xs">
+                <div className="flex items-start gap-2.5">
+                  <FiClock className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                  <div className="space-y-1">
+                    <h5 className="font-bold text-blue-900">
+                      Order Stages & Turnaround Time (TAT) Configuration
+                    </h5>
+                    <p className="text-blue-700/80 leading-relaxed">
+                      Fulfillment turnaround windows, step-by-step TAT (Days/Hours), and live customer delivery milestones are configured centrally under <strong>Order Management Settings</strong>.
+                    </p>
+                  </div>
                 </div>
-
-                <div className="overflow-x-auto bg-white rounded-lg border border-gray-200">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                      <tr>
-                        <th className="px-3 py-2.5">#</th>
-                        <th className="px-3 py-2.5">Stage Name</th>
-                        <th className="px-3 py-2.5">Description</th>
-                        <th className="px-3 py-2.5 text-right">Target TAT (Hours)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {stagesConfig.map((stg, sIdx) => (
-                        <tr key={sIdx} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 font-bold text-gray-500">{stg.stage_number || sIdx + 1}</td>
-                          <td className="px-3 py-2 font-medium text-gray-900">{stg.stage_name}</td>
-                          <td className="px-3 py-2 text-gray-500">{stg.description}</td>
-                          <td className="px-3 py-2 text-right">
-                            <input
-                              type="number"
-                              min="0"
-                              value={stg.tat_hours || 0}
-                              onChange={(e) => handleStageTatChange(sIdx, e.target.value)}
-                              className="w-20 px-2 py-1 text-right text-xs font-semibold border border-gray-300 rounded-lg focus:ring-1 focus:ring-amber-500"
-                            />
-                            <span className="ml-1 text-gray-400">h</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    navigate("/admin-panel/solar-shop/order-management-settings/order-stages-tat");
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition shrink-0 flex items-center gap-1 shadow-xs cursor-pointer"
+                >
+                  Configure TAT <FiArrowRight size={12} />
+                </button>
               </div>
 
               {/* Active Toggle */}
