@@ -34,47 +34,6 @@ const options = {
     { text: "₹75,000-100,000/kW", value: "75000-100000" },
     { text: "Above ₹100,000/kW", value: "100000+" },
   ],
-
-  wattPerPanel: [
-    { text: "All Wattages", value: "all" },
-    { text: "Below 300W", value: "under-300" },
-    { text: "300-400W", value: "300-400" },
-    { text: "400-500W", value: "400-500" },
-    { text: "500-600W", value: "500-600" },
-    { text: "Above 600W", value: "600+" },
-  ],
-  warranty: [
-    { text: "All Warranties", value: "all" },
-    { text: "1-5 years", value: "1-5" },
-    { text: "5-10 years", value: "5-10" },
-    { text: "10-15 years", value: "10-15" },
-    { text: "15-20 years", value: "15-20" },
-    { text: "20+ years", value: "20+" },
-  ],
-  efficiency: [
-    { text: "All Efficiency", value: "all" },
-    { text: "Below 15%", value: "under-15" },
-    { text: "15-18%", value: "15-18" },
-    { text: "18-20%", value: "18-20" },
-    { text: "20-22%", value: "20-22" },
-    { text: "Above 22%", value: "22+" },
-  ],
-  batteryCapacity: [
-    { text: "All Capacities", value: "all" },
-    { text: "Below 2 kWh", value: "under-2" },
-    { text: "2-5 kWh", value: "2-5" },
-    { text: "5-10 kWh", value: "5-10" },
-    { text: "10-20 kWh", value: "10-20" },
-    { text: "Above 20 kWh", value: "20+" },
-  ],
-  inverterCapacity: [
-    { text: "All Capacities", value: "all" },
-    { text: "Below 1 kW", value: "under-1" },
-    { text: "1-3 kW", value: "1-3" },
-    { text: "3-5 kW", value: "3-5" },
-    { text: "5-10 kW", value: "5-10" },
-    { text: "Above 10 kW", value: "10+" },
-  ],
 };
 
 export default function BulkKitFilters({
@@ -86,12 +45,12 @@ export default function BulkKitFilters({
   showSidebar = false,
   clearFilters,
   filterKeys = [],
-  expandedSections = { panel: true, inverter: false, battery: false },
+  expandedSections = { capacity: true, panel: true, inverter: false, battery: false },
   onToggleSection,
 }) {
   const [localSearch, setLocalSearch] = useState(searchTerm);
 
-  // Build dynamic options from bulk kits (including variants)
+  // Build dynamic options from bulk kits
   const dynamicOptions = useMemo(() => {
     const makeUnique = (arr) =>
       Array.from(new Map(arr.map((item) => [item.value, item])).values());
@@ -112,7 +71,31 @@ export default function BulkKitFilters({
     const getPanel = (kit) => {
       if (kit.panel) return kit.panel;
       if (Array.isArray(kit.includedComponents)) {
-        return kit.includedComponents.find((c) => c.actualType === "panel" || c.componentType?.toLowerCase().includes("panel"));
+        const found = kit.includedComponents.find((c) =>
+          c.actualType === "panel" ||
+          c.componentType?.toLowerCase().includes("panel") ||
+          c.componentType?.toLowerCase().includes("module") ||
+          c.componentType?.toLowerCase().includes("pv") ||
+          (c.skuCode && c.skuCode.toUpperCase().startsWith("SOL-")) ||
+          (c.name && /panel|module|bifacial|topcon|mono|poly|wp\b/i.test(c.name)) ||
+          (c.technologyType && /bifacial|topcon|mono|poly/i.test(c.technologyType))
+        );
+        if (found) {
+          let tech = found.technologyType;
+          if (!tech) {
+            if (/bifacial/i.test(found.name || "") || /BIFA/i.test(found.skuCode || "")) tech = "Bifacial";
+            else if (/topcon/i.test(found.name || "") || /TOPC/i.test(found.skuCode || "")) tech = "TOPCon";
+            else if (/mono/i.test(found.name || "") || /MONO/i.test(found.skuCode || "")) tech = "Mono PERC";
+            else if (/poly/i.test(found.name || "") || /POLY/i.test(found.skuCode || "")) tech = "Polycrystalline";
+          }
+          return {
+            ...found,
+            technologyType: tech || found.technologyType || "Bifacial",
+            wattPerPanel: found.wattPerPanel || 500,
+            warrantyYears: found.warrantyYears || 25,
+            efficiencyPercent: found.efficiencyPercent || 21.5
+          };
+        }
       }
       return null;
     };
@@ -120,11 +103,34 @@ export default function BulkKitFilters({
     const getInverter = (kit) => {
       if (kit.inverter) return kit.inverter;
       if (Array.isArray(kit.includedComponents)) {
-        return kit.includedComponents.find((c) => c.actualType === "inverter" || c.componentType?.toLowerCase().includes("inverter"));
+        const found = kit.includedComponents.find((c) =>
+          c.actualType === "inverter" ||
+          c.componentType?.toLowerCase().includes("inverter") ||
+          (c.skuCode && c.skuCode.toUpperCase().startsWith("INV-")) ||
+          (c.name && /inverter/i.test(c.name))
+        );
+        if (found) {
+          let invType = found.type;
+          if (!invType || invType === "inverter" || invType === "other") {
+            if (/micro/i.test(found.name || "") || /MICR/i.test(found.skuCode || "")) invType = "Microinverter";
+            else if (/string/i.test(found.name || "") || /STRI/i.test(found.skuCode || "")) invType = "String Inverter";
+            else invType = "On-Grid Inverter";
+          }
+          let cap = found.capacityKW || kit.capacityKW || kit.capacity;
+          if (cap >= 100) cap = cap / 1000;
+          return {
+            ...found,
+            type: invType,
+            capacityKW: cap,
+            warrantyYears: found.warrantyYears || (invType === "Microinverter" ? 10 : 5),
+            efficiencyPercent: found.efficiencyPercent || (invType === "Microinverter" ? 96.7 : 98.2)
+          };
+        }
       }
       return null;
     };
 
+    const systemCapacitiesSet = new Set();
     const panelTechnologies = [];
     const panelWattagesSet = new Set();
     const panelWarrantiesSet = new Set();
@@ -136,6 +142,9 @@ export default function BulkKitFilters({
     const inverterEfficienciesSet = new Set();
 
     bulkKits?.forEach((kit) => {
+      const sysCap = parseNumber(kit.capacityKW) ?? parseNumber(kit.capacity);
+      if (sysCap !== null && sysCap > 0) systemCapacitiesSet.add(sysCap);
+
       const panel = getPanel(kit);
       if (panel) {
         const tech = (panel.technologyType || panel.technology || "").trim();
@@ -158,7 +167,9 @@ export default function BulkKitFilters({
         if (type) {
           inverterTypes.push({ text: type, value: type.toLowerCase() });
         }
-        const cap = parseNumber(inverter.capacityKW) || parseNumber(kit.capacityKW) || parseNumber(kit.capacity);
+        let cap = parseNumber(inverter.capacityKW);
+        if (cap !== null && cap >= 100) cap = cap / 1000;
+        if (!cap) cap = parseNumber(kit.capacityKW) || parseNumber(kit.capacity);
         if (cap !== null && cap > 0) inverterCapacitiesSet.add(cap);
 
         const warranty = parseNumber(inverter.warrantyYears);
@@ -168,6 +179,12 @@ export default function BulkKitFilters({
         if (eff !== null && eff > 0) inverterEfficienciesSet.add(eff);
       }
     });
+
+    const sysCapSorted = Array.from(systemCapacitiesSet).sort((a, b) => a - b);
+    const dynamicSystemCapacities = [
+      { text: "All Capacities", value: "all" },
+      ...sysCapSorted.map((c) => ({ text: `${c} kW`, value: String(c) }))
+    ];
 
     const wattSorted = Array.from(panelWattagesSet).sort((a, b) => a - b);
     const dynamicWatts = [
@@ -206,6 +223,7 @@ export default function BulkKitFilters({
     ];
 
     return {
+      systemCapacities: dynamicSystemCapacities,
       panelTechnologies: [{ text: "All Technologies", value: "all" }, ...makeUnique(panelTechnologies)],
       panelWattages: dynamicWatts,
       panelWarranties: dynamicPanelWarranties,
@@ -220,14 +238,14 @@ export default function BulkKitFilters({
   // Calculate active filters count for each section
   const getActiveFiltersCount = useMemo(() => {
     const sectionFilters = {
-      panel: [/* "panelBrand", */ "panelTechnology", "panelWattage", "panelWarranty", "panelEfficiency"],
-      inverter: [/* "inverterBrand", */ "inverterType", "inverterCapacity", "inverterWarranty", "inverterEfficiency"],
-      // battery: ["batteryBrand","batteryType","batteryCapacity"]
+      capacity: ["capacityKW"],
+      panel: ["panelTechnology", "panelWattage", "panelWarranty", "panelEfficiency"],
+      inverter: ["inverterType", "inverterCapacity", "inverterWarranty", "inverterEfficiency"],
     };
 
     const counts = {};
-    Object.entries(sectionFilters).forEach(([section, filterKeys]) => {
-      counts[section] = filterKeys.filter(key => filters[key] !== "all").length;
+    Object.entries(sectionFilters).forEach(([section, keys]) => {
+      counts[section] = keys.filter(key => filters[key] && filters[key] !== "all").length;
     });
 
     return counts;
@@ -246,10 +264,16 @@ export default function BulkKitFilters({
 
   const filterSections = [
     {
+      title: "Capacity",
+      key: "capacity",
+      filters: [
+        { label: "System Capacity (kW)", key: "capacityKW", options: dynamicOptions.systemCapacities },
+      ],
+    },
+    {
       title: "Panel",
       key: "panel",
       filters: [
-        // { label:"Brand", key:"panelBrand", options: dynamicOptions.panelBrands },
         { label: "Technology", key: "panelTechnology", options: dynamicOptions.panelTechnologies },
         { label: "Watt per Panel", key: "panelWattage", options: dynamicOptions.panelWattages },
         { label: "Panel Warranty", key: "panelWarranty", options: dynamicOptions.panelWarranties },
@@ -260,29 +284,19 @@ export default function BulkKitFilters({
       title: "Inverter",
       key: "inverter",
       filters: [
-        // { label:"Brand", key:"inverterBrand", options: dynamicOptions.inverterBrands },
         { label: "Type", key: "inverterType", options: dynamicOptions.inverterTypes },
         { label: "Capacity", key: "inverterCapacity", options: dynamicOptions.inverterCapacities },
         { label: "Warranty", key: "inverterWarranty", options: dynamicOptions.inverterWarranties },
         { label: "Efficiency", key: "inverterEfficiency", options: dynamicOptions.inverterEfficiencies },
       ],
     },
-    // {
-    //   title:"Battery",
-    //   key:"battery",
-    //   filters: [
-    //     { label:"Brand", key:"batteryBrand", options: dynamicOptions.batteryBrands },
-    //     { label:"Type", key:"batteryType", options: dynamicOptions.batteryTypes },
-    //     { label:"Capacity", key:"batteryCapacity", options: options.batteryCapacity },
-    //   ],
-    // },
   ];
 
   return (
     <div className={showSidebar ? "space-y-2" : "space-y-2"}>
       {filterSections.map((section) => {
         const filtersToRender = section.filters.filter(
-          (f) => !filterKeys.length || filterKeys.includes(f.key)
+          (f) => (!filterKeys.length || filterKeys.includes(f.key)) && f.options && f.options.length > 1
         );
         if (!filtersToRender.length) return null;
 
@@ -315,13 +329,13 @@ export default function BulkKitFilters({
             {isExpanded && (
               <div className="px-4 pb-2 space-y-2">
                 {filtersToRender.map(({ label, key, options }) => {
-                  const isActive = filters[key] !== "all";
+                  const isActive = filters[key] && filters[key] !== "all";
                   return (
                     <div key={key} className="relative">
                       <Dropdown
                         label={label}
                         options={options}
-                        value={filters[key]}
+                        value={filters[key] || "all"}
                         onChange={(val) => updateFilter(key, val)}
                         className="w-full"
                       />

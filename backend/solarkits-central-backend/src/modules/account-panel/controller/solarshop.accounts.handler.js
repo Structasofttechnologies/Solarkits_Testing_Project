@@ -286,11 +286,23 @@ const get_recent_transactions = async (req, res) => {
         .sort({ created_at: -1 })
         .limit(maxLimit)
         .populate('franchisee_id', 'business_name mobile email gst_number contact_person')
+        .populate('epc_id', 'name email company_name mobile whatsapp')
         .lean();
 
       for (const f of fpoOrders) {
         const itemNames = (f.items || []).map(i => i.item_name).join(', ') || 'Franchise PO Supply';
         const pStatus = (f.status === 'PAID' || f.payment_status === 'Paid') ? 'Paid' : f.status === 'CANCELLED' ? 'Cancelled' : 'Pending';
+
+        const bookedQty = Number(f.total_booked_quantity || f.total_quantity || f.items?.[0]?.quantity || 1);
+        const fulfilledQty = Number(f.fulfilled_quantity || 0);
+        const fulfillmentRatio = bookedQty > 0 ? Math.min(1, Math.max(0, fulfilledQty / bookedQty)) : 0;
+        const totalCommPaise = f.total_commission_paise || 0;
+        const realizedCommPaise = f.realized_commission_paise != null
+          ? f.realized_commission_paise
+          : Math.round(totalCommPaise * fulfillmentRatio);
+
+        const epcPenaltyRs = (f.applicable_penalty_paise || 0) / 100;
+        const epcName = f.penalty_charged_to_name || f.epc_id?.name || f.epc_id?.company_name || f.items?.[0]?.epc_allocations?.[0]?.epc_name || 'Assigned EPC';
 
         unifiedTransactions.push({
           id: f._id,
@@ -303,9 +315,19 @@ const get_recent_transactions = async (req, res) => {
           related_item: itemNames,
           territory: 'Franchise Territory',
           total_amount: (f.total_price_paise || 0) / 100,
-          company_amount: (f.total_price_paise || 0) / 100,
+          company_amount: ((f.total_price_paise || 0) - realizedCommPaise) / 100,
           epc_amount: 0,
-          franchise_commission: (f.total_commission_paise || 0) / 100,
+          franchise_commission: realizedCommPaise / 100,
+          full_franchise_commission: totalCommPaise / 100,
+          commission_completion_ratio: `${fulfilledQty}/${bookedQty}`,
+          commission_fulfillment_pct: Math.round(fulfillmentRatio * 100),
+          total_booked_quantity: bookedQty,
+          fulfilled_quantity: fulfilledQty,
+          unfulfilled_quantity: Math.max(0, bookedQty - fulfilledQty),
+          epc_penalty_amount: epcPenaltyRs,
+          penalty_charged_to_role: f.penalty_charged_to_role || (epcPenaltyRs > 0 ? 'EPC' : null),
+          penalty_charged_to_name: epcName,
+          po_ending_date: f.po_ending_date || null,
           payment_status: pStatus,
           commission_status: f.commission_status || 'Pending',
           payment_date: f.created_at,
@@ -1075,6 +1097,11 @@ const get_franchise_commissions = async (req, res) => {
       }
 
       // Gross margin: from ledger, order snapshot, or Franchisee Commission Settings
+      const bookedQty = Number(f.total_booked_quantity || f.total_quantity || f.items?.[0]?.quantity || 1);
+      const fulfilledQty = Number(f.fulfilled_quantity || 0);
+      const fulfillmentRatio = bookedQty > 0 ? Math.min(1, Math.max(0, fulfilledQty / bookedQty)) : 0;
+
+      let fullGrossMargin = 0;
       let grossMargin = 0;
       let netCommission = 0;
       let tdsAmount = 0;
@@ -1086,20 +1113,27 @@ const get_franchise_commissions = async (req, res) => {
         tdsAmount = (matchedFpoLedger.tds_paise || 0) / 100;
         tcsAmount = (matchedFpoLedger.tcs_paise || 0) / 100;
         netCommission = (matchedFpoLedger.net_commission_paise || 0) / 100;
+        fullGrossMargin = f.total_commission_paise ? (f.total_commission_paise / 100) : grossMargin;
       } else if (matchedLedger) {
         grossMargin = (matchedLedger.gross_amount_paise || 0) / 100;
         tdsAmount = (matchedLedger.tds_amount_paise || 0) / 100;
         tcsAmount = (matchedLedger.tcs_amount_paise || 0) / 100;
         netCommission = (matchedLedger.net_amount_paise || 0) / 100;
+        fullGrossMargin = f.total_commission_paise ? (f.total_commission_paise / 100) : grossMargin;
       } else if (f.total_commission_paise && f.total_commission_paise > 0) {
-        grossMargin = f.total_commission_paise / 100;
+        fullGrossMargin = f.total_commission_paise / 100;
+        // Realized pro-rata commission based on completed quota
+        if (f.realized_commission_paise != null) {
+          grossMargin = f.realized_commission_paise / 100;
+        } else {
+          grossMargin = Math.round(fullGrossMargin * fulfillmentRatio);
+        }
         tdsAmount = Math.round(grossMargin * 0.05);
         netCommission = grossMargin - tdsAmount;
       } else {
         // Resolve from Franchisee Commission Settings
         const resellerIdStr = String(f.franchisee_id?._id || f.franchisee_id || '');
         const kitIdStr = String(f.items?.[0]?.kit_id || f.items?.[0]?.combo_kit_id || '');
-        const bookedQty = Number(f.total_booked_quantity || f.total_quantity || f.items?.[0]?.quantity || 1);
 
         const matchingRules = poVariationRules
           .filter((r) => String(r.reseller_id) === resellerIdStr && String(r.combo_kit_id) === kitIdStr)
@@ -1117,23 +1151,34 @@ const get_franchise_commissions = async (req, res) => {
         }
 
         if (varCommPaise !== null && varCommPaise >= 0) {
-          grossMargin = varCommPaise / 100;
+          fullGrossMargin = varCommPaise / 100;
         } else {
           // If no specific variation rule, check item snapshot or 0
           const itemCommSnap = f.items?.[0]?.commission_snapshot || 0;
           if (itemCommSnap > 0 && f.items?.[0]?.commission_method === 'TIER_FIXED') {
-            grossMargin = itemCommSnap / 100;
+            fullGrossMargin = itemCommSnap / 100;
           } else if (itemCommSnap > 0 && f.items?.[0]?.commission_method === 'FIXED_PER_KIT') {
-            grossMargin = (itemCommSnap * bookedQty) / 100;
+            fullGrossMargin = (itemCommSnap * bookedQty) / 100;
           } else if (itemCommSnap > 0) {
-            grossMargin = Math.round(subtotal * (itemCommSnap / 10000));
+            fullGrossMargin = Math.round(subtotal * (itemCommSnap / 10000));
           } else {
-            grossMargin = 0;
+            fullGrossMargin = 0;
           }
+        }
+
+        // Apply pro-rata fulfillment ratio for realized commission
+        if (f.realized_commission_paise != null) {
+          grossMargin = f.realized_commission_paise / 100;
+        } else {
+          grossMargin = Math.round(fullGrossMargin * fulfillmentRatio);
         }
         tdsAmount = Math.round(grossMargin * 0.05);
         netCommission = grossMargin - tdsAmount;
       }
+
+      const epcPenaltyRs = (f.applicable_penalty_paise || 0) / 100;
+      const penaltyChargedToName = f.penalty_charged_to_name || epcName || 'Assigned EPC';
+      const penaltyChargedToRole = f.penalty_charged_to_role || (epcPenaltyRs > 0 ? 'EPC' : null);
 
       if (subtotal > 0 && grossMargin > 0) {
         ratePct = Math.round((grossMargin / subtotal) * 100 * 10) / 10;
@@ -1192,9 +1237,11 @@ const get_franchise_commissions = async (req, res) => {
         subtotal_amount: subtotal || 40500000,
         commission_rate: ratePct,
         gross_commission: grossMargin,
+        full_gross_commission: fullGrossMargin,
         tds_amount: tdsAmount,
         tcs_amount: tcsAmount,
         commission_amount: netCommission,
+        full_net_commission: fullGrossMargin - Math.round(fullGrossMargin * 0.05),
         commission_status: commStatus,
         payment_status: f.status === 'PAID' || f.status === 'COMPLETED' ? 'Paid' : f.status,
         order_status: f.status,
@@ -1208,9 +1255,16 @@ const get_franchise_commissions = async (req, res) => {
           reseller_margin: grossMargin,
           total_price: (it.total_price_paise || 0) / 100,
         })),
-        total_booked_quantity: f.total_booked_quantity || f.total_quantity || f.items?.[0]?.quantity || 0,
-        fulfilled_quantity: f.fulfilled_quantity || 0,
-        remaining_quantity: f.remaining_quantity != null ? f.remaining_quantity : (f.total_booked_quantity || 0),
+        total_booked_quantity: bookedQty,
+        fulfilled_quantity: fulfilledQty,
+        unfulfilled_quantity: Math.max(0, bookedQty - fulfilledQty),
+        remaining_quantity: f.remaining_quantity != null ? f.remaining_quantity : Math.max(0, bookedQty - fulfilledQty),
+        commission_completion_ratio: `${fulfilledQty}/${bookedQty}`,
+        commission_fulfillment_pct: Math.round(fulfillmentRatio * 100),
+        epc_penalty_amount: epcPenaltyRs,
+        penalty_charged_to_role: penaltyChargedToRole,
+        penalty_charged_to_name: penaltyChargedToName,
+        po_ending_date: f.po_ending_date || null,
         token_amount: Math.round((f.token_amount_paise || 0) / 100),
         token_paid: Math.round((f.token_paid_paise || f.token_amount_paise || 0) / 100),
         token_adjusted: Math.round((f.token_adjusted_total_paise || 0) / 100),
@@ -1439,9 +1493,25 @@ const update_commission_status = async (req, res) => {
         tdsPaise = fpoLedger.tds_paise || 0;
         netPaise = fpoLedger.net_commission_paise || (commPaise - tdsPaise);
       } else {
-        const snapBps = order.items?.[0]?.commission_snapshot || 200;
-        commPaise = Math.round(grossEligiblePaise * (snapBps / 10000));
-        if (!commPaise) commPaise = Math.round(grossEligiblePaise * 0.02);
+        const bookedQty = Number(order.total_booked_quantity || order.total_quantity || 1);
+        const fulfilledQty = Number(order.fulfilled_quantity || 0);
+        const ratio = bookedQty > 0 ? Math.min(1, Math.max(0, fulfilledQty / bookedQty)) : 0;
+
+        let fullCommPaise = order.total_commission_paise || 0;
+        if (!fullCommPaise) {
+          const snapBps = order.items?.[0]?.commission_snapshot || 200;
+          fullCommPaise = Math.round(grossEligiblePaise * (snapBps / 10000));
+        }
+
+        commPaise = order.realized_commission_paise != null
+          ? order.realized_commission_paise
+          : Math.round(fullCommPaise * ratio);
+
+        if (!commPaise && fullCommPaise > 0 && fulfilledQty === 0) {
+          commPaise = 0;
+        } else if (!commPaise) {
+          commPaise = Math.round(grossEligiblePaise * 0.02);
+        }
         tdsPaise = Math.round(commPaise * 0.05);
         netPaise = commPaise - tdsPaise;
       }
@@ -1455,8 +1525,8 @@ const update_commission_status = async (req, res) => {
           franchisee_id: order.franchisee_id,
           fpo_order_id: order._id,
           po_number: order.po_number,
-          commission_method: 'PERCENTAGE',
-          eligible_kit_quantity: 1,
+          commission_method: 'PRO_RATA_FULFILLED',
+          eligible_kit_quantity: order.fulfilled_quantity || 1,
           gross_eligible_paise: grossEligiblePaise,
           commission_paise: commPaise,
           tds_paise: tdsPaise,
@@ -1794,13 +1864,179 @@ const get_transaction_details = async (req, res) => {
       });
     }
 
+    // ── Check if Franchise Master PO ──
+    if (type === 'po_order' || type === 'fpo' || type === 'fpo_order') {
+      const fpo = await FpoOrder.findById(id)
+        .populate('franchisee_id', 'business_name mobile email gst_number contact_person address bank_details')
+        .populate('epc_id', 'name email whatsapp gstin company_name address')
+        .lean();
+
+      if (fpo) {
+        const orderKitIds = [];
+        const orderProductIds = [];
+        (fpo.items || []).forEach(i => {
+          if (i.kit_id) orderKitIds.push(i.kit_id);
+          if (i.product_id) orderProductIds.push(i.product_id);
+        });
+
+        const { kitLookup, productLookup } = await enrichComboKitDetails(orderKitIds, orderProductIds);
+
+        const subtotal = (fpo.subtotal_paise || 0) / 100;
+        const taxTotal = (fpo.tax_total_paise || 0) / 100;
+        const storedTotal = (fpo.total_price_paise || fpo.grand_total_paise || 0) / 100;
+        const totalAmount = storedTotal > 0 ? storedTotal : (subtotal + taxTotal);
+
+        const bookedQuota = Number(fpo.total_booked_quantity || fpo.total_quantity || fpo.items?.[0]?.quantity || 1);
+        const fulfilledQuota = Number(fpo.fulfilled_quantity || 0);
+        const unfulfilledQuota = Math.max(0, bookedQuota - fulfilledQuota);
+        const fulfillmentRatio = bookedQuota > 0 ? Math.min(1, Math.max(0, fulfilledQuota / bookedQuota)) : 0;
+
+        const fullCommPaise = fpo.total_commission_paise || 0;
+        const realizedCommPaise = fpo.realized_commission_paise != null
+          ? fpo.realized_commission_paise
+          : Math.round(fullCommPaise * fulfillmentRatio);
+        const franchiseCommission = realizedCommPaise / 100;
+        const fullFranchiseCommission = fullCommPaise / 100;
+
+        const epcPenaltyAmount = (fpo.applicable_penalty_paise || 0) / 100;
+        const epcName = fpo.penalty_charged_to_name || fpo.epc_id?.name || fpo.epc_id?.company_name || fpo.items?.[0]?.epc_allocations?.[0]?.epc_name || 'Assigned EPC';
+        const penaltyChargedToRole = fpo.penalty_charged_to_role || (epcPenaltyAmount > 0 ? 'EPC' : null);
+
+        const companyAmount = totalAmount - franchiseCommission;
+
+        let pStatus = 'Pending';
+        if (fpo.status === 'PAID' || fpo.status === 'COMPLETED' || fpo.payment_status === 'Paid') pStatus = 'Paid';
+        else if (fpo.status === 'CANCELLED') pStatus = 'Cancelled';
+
+        const enrichedItems = (fpo.items || []).map(i => {
+          const kitInfo = i.kit_id ? kitLookup[i.kit_id.toString()] : null;
+          const prodInfo = i.product_id ? productLookup[i.product_id.toString()] : null;
+          const resolvedName = (i.item_name && i.item_name !== 'Solar Kit') ? i.item_name : (kitInfo?.name || prodInfo?.name || i.item_name || 'Solar Kit');
+          const resolvedImage = kitInfo?.image || prodInfo?.image || i.image || null;
+
+          return {
+            item_name: resolvedName,
+            scope_type: i.scope_type || 'kit',
+            quantity: i.quantity || bookedQuota,
+            unit_price: (i.unit_price_paise || 0) / 100,
+            cost_price: (i.cost_price_paise || 0) / 100,
+            reseller_margin: franchiseCommission,
+            tax_paise: (i.tax_paise || 0) / 100,
+            total_price: (i.total_price_paise || 0) / 100,
+            image: resolvedImage,
+            capacity: kitInfo?.capacity || i.capacity || null,
+            description: kitInfo?.description || prodInfo?.description || null,
+          };
+        });
+
+        return res.status(200).json({
+          status: 'success',
+          data: {
+            id: fpo._id,
+            _id: fpo._id,
+            transaction_id: fpo.po_number || `FPO-${String(fpo._id).slice(-8).toUpperCase()}`,
+            transaction_type: 'Franchisee Master PO',
+            type_key: 'po_order',
+            order_type: 'fpo_order',
+            is_fpo: true,
+            is_direct: false,
+            delivery_address: {
+              line: fpo.shipping_address?.line || fpo.franchisee_id?.address || 'Franchise Partner Delivery Hub',
+              pincode: fpo.shipping_address?.pincode || '',
+              district_name: fpo.shipping_address?.district_name || '',
+              state_name: fpo.shipping_address?.state_name || '',
+              contact_name: fpo.franchisee_id?.contact_person || 'Partner Admin',
+              contact_phone: fpo.franchisee_id?.mobile || ''
+            },
+            epc_details: {
+              id: fpo.epc_id?._id,
+              name: epcName,
+              email: fpo.epc_id?.email || 'N/A',
+              whatsapp: fpo.epc_id?.whatsapp || 'N/A',
+              gstin: fpo.epc_id?.gstin || 'N/A',
+              company_name: fpo.epc_id?.company_name || epcName,
+            },
+            franchise_details: {
+              id: fpo.franchisee_id?._id,
+              business_name: fpo.franchisee_id?.business_name,
+              contact_person: fpo.franchisee_id?.contact_person || 'Partner Admin',
+              mobile: fpo.franchisee_id?.mobile,
+              email: fpo.franchisee_id?.email,
+              gst_number: fpo.franchisee_id?.gst_number || 'N/A',
+            },
+            items: enrichedItems,
+            financial_breakdown: {
+              total_amount: totalAmount,
+              base_subtotal: subtotal,
+              epc_amount: subtotal,
+              tax_amount: taxTotal,
+              delivery_charge: 0,
+              company_amount: companyAmount,
+              franchise_commission: franchiseCommission,
+              full_franchise_commission: fullFranchiseCommission,
+              realized_commission: franchiseCommission,
+              currency: 'INR',
+              total_booked_quantity: bookedQuota,
+              fulfilled_quantity: fulfilledQuota,
+              unfulfilled_quantity: unfulfilledQuota,
+              completion_ratio: `${fulfilledQuota}/${bookedQuota}`,
+              fulfillment_pct: Math.round(fulfillmentRatio * 100),
+              epc_penalty_amount: epcPenaltyAmount,
+              penalty_charged_to_role: penaltyChargedToRole,
+              penalty_charged_to_name: epcName,
+              po_ending_date: fpo.po_ending_date || null,
+              token_amount: Math.round((fpo.token_amount_paise || 0) / 100),
+              token_paid: Math.round((fpo.token_paid_paise || fpo.token_amount_paise || 0) / 100),
+              token_adjusted: Math.round((fpo.token_adjusted_total_paise || 0) / 100),
+            },
+            payment_info: {
+              payment_status: pStatus,
+              commission_status: fpo.commission_status || 'Pending',
+              payment_date: fpo.created_at,
+              commission_paid_date: fpo.commission_paid_date || (fpo.commission_status === 'Paid' ? fpo.updated_at : null),
+              payment_method: fpo.offline_payment?.utr_number || fpo.utr_number ? 'ICICI Bank Transfer (UTR)' : 'Bank Transfer',
+              utr_reference: fpo.offline_payment?.utr_number || fpo.utr_number || fpo.payment_reference || 'N/A',
+              receipt_url: fpo.offline_payment?.receipt_url || '',
+              receipt_filename: fpo.offline_payment?.receipt_filename || '',
+              sender_bank_name: fpo.offline_payment?.sender_bank_name || '',
+              rejection_reason: fpo.cancellation_reason || '',
+              order_status: fpo.status,
+              po_ending_date: fpo.po_ending_date || null,
+            },
+            po_lifecycle: {
+              status: fpo.status,
+              po_ending_date: fpo.po_ending_date || null,
+              total_booked_quantity: bookedQuota,
+              fulfilled_quantity: fulfilledQuota,
+              unfulfilled_quantity: unfulfilledQuota,
+              completion_ratio: `${fulfilledQuota}/${bookedQuota}`,
+              fulfillment_pct: Math.round(fulfillmentRatio * 100),
+              epc_penalty_amount: epcPenaltyAmount,
+              penalty_charged_to_role: penaltyChargedToRole,
+              penalty_charged_to_name: epcName,
+            },
+            created_at: fpo.created_at,
+          }
+        });
+      }
+    }
+
     // Direct EPC or Franchise Order
-    const order = await EpcOrder.findById(id)
+    let order = await EpcOrder.findById(id)
       .populate('epc_id', 'name email whatsapp gstin onboarding_source address pincode district_name state_name')
       .populate('reseller_id', 'business_name mobile email gst_number contact_person address')
       .lean();
 
-    if (!order) return res.status(404).json({ status: 'error', message: 'Order transaction not found' });
+    if (!order) {
+      const fpoFallback = await FpoOrder.findById(id)
+        .populate('franchisee_id', 'business_name mobile email gst_number contact_person address bank_details')
+        .populate('epc_id', 'name email whatsapp gstin company_name address')
+        .lean();
+      if (fpoFallback) {
+        return get_transaction_details({ ...req, params: { ...req.params, type: 'po_order' } }, res);
+      }
+      return res.status(404).json({ status: 'error', message: 'Order transaction not found' });
+    }
 
     // Collect and enrich combo kit details for all order items
     const orderKitIds = [];

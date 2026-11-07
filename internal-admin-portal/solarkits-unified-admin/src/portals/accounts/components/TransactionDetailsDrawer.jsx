@@ -57,8 +57,8 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
     const confirmPrompt = isM1
       ? "Confirm that Advance Payment (Milestone 1) UTR and funds have been verified in company bank statement? This will generate the Proforma Invoice (PI) and confirm the order for processing."
       : isM2
-      ? "Confirm that Final Balance Payment (Milestone 2) UTR and funds have been verified in company bank statement? This will mark payment as captured, generate the official Tax Invoice, and stage the order for dispatch."
-      : "Confirm that bank transfer UTR and funds have been verified in company bank statement? This will automatically generate the official Tax Invoice.";
+        ? "Confirm that Final Balance Payment (Milestone 2) UTR and funds have been verified in company bank statement? This will mark payment as captured, generate the official Tax Invoice, and stage the order for dispatch."
+        : "Confirm that bank transfer UTR and funds have been verified in company bank statement? This will automatically generate the official Tax Invoice.";
 
     if (!window.confirm(confirmPrompt)) return;
 
@@ -239,6 +239,28 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
   const isDirectEpc = details?.type_key === 'direct_epc' || transaction?.type_key === 'direct_epc' || details?.is_direct;
   const isCommission = !isPlan && !isDirectEpc;
 
+  const hasPoQuota = Boolean(
+    details?.is_fpo ||
+    details?.order_type === 'fpo_order' ||
+    transaction?.type_key === 'po_order' ||
+    details?.financial_breakdown?.completion_ratio ||
+    transaction?.completion_ratio ||
+    transaction?.commission_completion_ratio ||
+    (details?.financial_breakdown?.total_booked_quantity && details?.financial_breakdown?.total_booked_quantity > 0) ||
+    (transaction?.total_booked_quantity && transaction?.total_booked_quantity > 0)
+  );
+
+  const bookedQuota = details?.financial_breakdown?.total_booked_quantity ?? transaction?.total_booked_quantity ?? 0;
+  const fulfilledQuota = details?.financial_breakdown?.fulfilled_quantity ?? transaction?.fulfilled_quantity ?? 0;
+  const unfulfilledQuota = details?.financial_breakdown?.unfulfilled_quantity ?? transaction?.unfulfilled_quantity ?? Math.max(0, bookedQuota - fulfilledQuota);
+  const completionRatio = details?.financial_breakdown?.completion_ratio || transaction?.commission_completion_ratio || transaction?.completion_ratio || `${fulfilledQuota}/${bookedQuota}`;
+  const fulfillmentPct = details?.financial_breakdown?.fulfillment_pct ?? transaction?.commission_fulfillment_pct ?? (bookedQuota > 0 ? Math.round((fulfilledQuota / bookedQuota) * 100) : 0);
+  const poEndingDate = details?.financial_breakdown?.po_ending_date || details?.payment_info?.po_ending_date || transaction?.po_ending_date;
+  const epcPenaltyRs = details?.financial_breakdown?.epc_penalty_amount ?? transaction?.epc_penalty_amount ?? 0;
+  const epcPenaltyChargedTo = details?.financial_breakdown?.penalty_charged_to_name || transaction?.penalty_charged_to_name || 'Assigned EPC';
+  const realizedFranchiseComm = details?.financial_breakdown?.realized_commission ?? details?.financial_breakdown?.franchise_commission ?? transaction?.franchise_commission ?? 0;
+  const fullFranchiseComm = details?.financial_breakdown?.full_franchise_commission ?? transaction?.full_franchise_commission ?? realizedFranchiseComm;
+
   const txnId = details?.transaction_id || transaction?.transaction_id || transaction?.order_number || 'N/A';
   const txnType = details?.transaction_type || transaction?.transaction_type || 'Transaction';
 
@@ -267,13 +289,12 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
             <div className="px-6 py-4 bg-surface border-b border-border flex items-center justify-between sticky top-0 z-10">
               <div className="min-w-0 flex-1 pr-3">
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${
-                    isPlan
+                  <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${isPlan
                       ? 'bg-blue-500/10 text-blue-600 border border-blue-500/20'
                       : isDirectEpc
-                      ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20'
-                      : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
-                  }`}>
+                        ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20'
+                        : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                    }`}>
                     {txnType}
                   </span>
                   {renderStatusBadge(
@@ -327,8 +348,8 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                           details?.financial_breakdown?.total_amount != null
                             ? details.financial_breakdown.total_amount
                             : details?.total_amount != null
-                            ? details.total_amount
-                            : transaction?.total_transaction_amount || transaction?.total_amount || transaction?.plan_amount || 0
+                              ? details.total_amount
+                              : transaction?.total_transaction_amount || transaction?.total_amount || transaction?.plan_amount || 0
                         )}
                       </span>
                       <span className="text-xs font-semibold text-text-muted">INR</span>
@@ -344,8 +365,8 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                             details?.financial_breakdown?.base_subtotal != null
                               ? details.financial_breakdown.base_subtotal
                               : details?.financial_breakdown?.epc_amount != null
-                              ? details.financial_breakdown.epc_amount
-                              : details?.base_subtotal ?? details?.epc_amount ?? transaction?.epc_amount ?? 0
+                                ? details.financial_breakdown.epc_amount
+                                : details?.base_subtotal ?? details?.epc_amount ?? transaction?.epc_amount ?? 0
                           )}
                         </span>
                         <span className="text-[10px] text-text-muted block mt-0.5">Excl. GST & Delivery</span>
@@ -426,6 +447,99 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                       </div>
                     )}
                   </div>
+
+                  {/* Franchise PO Quota, Pro-Rata Commission & EPC Penalty Breakdown */}
+                  {hasPoQuota && (
+                    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-amber-500/10 via-primary/5 to-surface border border-amber-500/30 space-y-3.5 shadow-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/60">
+                        <div className="flex items-center gap-2">
+                          <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold">
+                            <FaShieldAlt size={16} />
+                          </span>
+                          <div>
+                            <h4 className="font-extrabold text-sm text-text-primary">
+                              Franchise PO Quota, Pro-Rata Commission & EPC Penalty Breakdown
+                            </h4>
+                            <p className="text-[11px] text-text-muted">
+                              Quota fulfillment tracking, EPC deadline penalty for unfulfilled kits, and realized pro-rata Franchise margin.
+                            </p>
+                          </div>
+                        </div>
+                        {poEndingDate && (
+                          <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-xl bg-surface border border-border">
+                            <MdOutlineAccessTime className="text-amber-500" size={14} />
+                            <span className="text-text-muted">PO Ending Date:</span>
+                            <span className="font-bold text-text-primary">
+                              {new Date(poEndingDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                        <div className="p-2.5 rounded-xl bg-surface border border-border">
+                          <span className="text-[10px] uppercase font-bold text-text-muted block">Booked Quota</span>
+                          <span className="text-base font-extrabold text-text-primary font-mono">{bookedQuota} Kits</span>
+                          <span className="text-[10px] text-text-muted block">Committed Order</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-surface border border-border">
+                          <span className="text-[10px] uppercase font-bold text-emerald-600 block">Fulfilled by EPC</span>
+                          <span className="text-base font-extrabold text-emerald-600 font-mono">{fulfilledQuota} Kits</span>
+                          <span className="text-[10px] text-emerald-600/80 block font-semibold">{fulfillmentPct}% completed</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-surface border border-border">
+                          <span className="text-[10px] uppercase font-bold text-rose-600 block">Unfulfilled Quota</span>
+                          <span className="text-base font-extrabold text-rose-600 font-mono">{unfulfilledQuota} Kits</span>
+                          <span className="text-[10px] text-rose-600/80 block font-semibold">{unfulfilledQuota > 0 ? "Subject to Penalty" : "Completed"}</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-surface border border-border">
+                          <span className="text-[10px] uppercase font-bold text-primary block">Pro-Rata Ratio</span>
+                          <span className="text-base font-extrabold text-primary font-mono">{completionRatio}</span>
+                          <span className="text-[10px] text-primary/80 block font-semibold">Realized Proportion</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        {/* EPC Penalty Card */}
+                        <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400 uppercase">
+                              EPC Unfulfilled Penalty
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-500/20 text-rose-700 dark:text-rose-300">
+                              Charged to EPC
+                            </span>
+                          </div>
+                          <div className="text-lg font-black text-rose-600 dark:text-rose-400 font-mono mt-1">
+                            {formatCurrency(epcPenaltyRs)}
+                          </div>
+                          <p className="text-[11px] text-text-muted mt-1 leading-relaxed">
+                            {epcPenaltyRs > 0
+                              ? `Penalty charged to ${epcPenaltyChargedTo} for ${unfulfilledQuota} unfulfilled kits past the PO ending date.`
+                              : `No penalty charged. Order completed or within active timeline.`}
+                          </p>
+                        </div>
+
+                        {/* Franchise Pro-Rata Commission Card */}
+                        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase">
+                              Franchise Pro-Rata Commission
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                              {completionRatio} Completed
+                            </span>
+                          </div>
+                          <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
+                            {formatCurrency(realizedFranchiseComm)}
+                          </div>
+                          <p className="text-[11px] text-text-muted mt-1 leading-relaxed">
+                            Calculated strictly on completed kits: {completionRatio} of total committed margin {formatCurrency(fullFranchiseComm)}.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Context Cards: Franchise Partner & EPC Details */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -833,7 +947,7 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                     )}
                   </div>
 
-                                    {/* Linked Repeat Orders & Drawdowns (For Master PO) */}
+                  {/* Linked Repeat Orders & Drawdowns (For Master PO) */}
                   {(() => {
                     const drawdowns = details?.linked_repeat_orders || transaction?.linked_repeat_orders || [];
                     if (!drawdowns || drawdowns.length === 0) return null;
@@ -888,8 +1002,8 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                     const m1 = mList.find(m => m.milestone_number === 1) || {};
                     const m2 = mList.find(m => m.milestone_number === 2) || {};
                     const m1Done = m1.payment_status === 'verified' || ['advance_verified', 'fully_paid'].includes(pm.milestone_verification_status);
-                    const m2Done = m2.payment_status === 'verified' || pm.milestone_verification_status === 'fully_paid';
-                    const m2Submitted = m2.payment_status === 'pending_verification' || pm.milestone_verification_status === 'final_payment_pending_verification' || Boolean(m2.utr_number);
+                    const m2Done = m2.payment_status === 'verified' || (pm.milestone_verification_status === 'fully_paid' && m2.payment_status !== 'unpaid' && m2.payment_status !== 'pending_verification');
+                    const m2Submitted = m2.payment_status === 'pending_verification' || pm.milestone_verification_status === 'final_payment_pending_verification' || Boolean(m2.utr_number && m2.payment_status !== 'unpaid');
 
                     const m1Required = pm.advance_amount || m1.amount || (details?.financial_breakdown?.total_amount ? Math.round(details.financial_breakdown.total_amount * 0.3) : 0);
                     const m1Paid = m1.amount_paid != null ? m1.amount_paid : (details?.offline_payment?.amount_paid != null ? details.offline_payment.amount_paid : null);
@@ -917,9 +1031,8 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                               <span className="font-extrabold text-text-primary text-[11px]">
                                 Milestone 1 ({pm.advance_percentage || 30}% Advance)
                               </span>
-                              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                m1Done ? 'bg-emerald-500/15 text-emerald-600' : 'bg-amber-500/15 text-amber-600 animate-pulse'
-                              }`}>
+                              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${m1Done ? 'bg-emerald-500/15 text-emerald-600' : 'bg-amber-500/15 text-amber-600 animate-pulse'
+                                }`}>
                                 {m1Done ? 'Verified' : 'Pending Verification'}
                               </span>
                             </div>
@@ -960,9 +1073,8 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                               <span className="font-extrabold text-text-primary text-[11px]">
                                 Milestone 2 ({m2Pct}% Balance)
                               </span>
-                              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                m2Done ? 'bg-emerald-500/15 text-emerald-600' : m2Submitted ? 'bg-amber-500/15 text-amber-600 animate-pulse' : 'bg-slate-500/10 text-text-muted'
-                              }`}>
+                              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${m2Done ? 'bg-emerald-500/15 text-emerald-600' : m2Submitted ? 'bg-amber-500/15 text-amber-600 animate-pulse' : 'bg-slate-500/10 text-text-muted'
+                                }`}>
                                 {m2Done ? 'Verified' : m2Submitted ? 'Proof Submitted' : 'Awaiting Stage'}
                               </span>
                             </div>
@@ -1127,15 +1239,15 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                             {isM1Pending
                               ? "Verify Milestone 1 Advance (30%) & Issue Proforma Invoice"
                               : isM2Pending
-                              ? "Verify Milestone 2 Balance (70%) & Issue GST Tax Invoice"
-                              : "Verify Bank Statement Deposit & UTR Reference"}
+                                ? "Verify Milestone 2 Balance (70%) & Issue GST Tax Invoice"
+                                : "Verify Bank Statement Deposit & UTR Reference"}
                           </h4>
                           <p className="text-[11px] text-text-muted mt-0.5">
                             {isM1Pending
                               ? "Confirm advance funds match UTR in SolarKits bank account to release order for warehouse assembly."
                               : isM2Pending
-                              ? "Confirm balance funds match UTR in SolarKits bank account to stage order for final dispatch."
-                              : "Confirm funds match UTR in SolarKits bank account before approving."}
+                                ? "Confirm balance funds match UTR in SolarKits bank account to stage order for final dispatch."
+                                : "Confirm funds match UTR in SolarKits bank account before approving."}
                           </p>
                         </div>
 
@@ -1187,91 +1299,91 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                   {/* Dispatch & Waybill Tracking Section */}
                   {(String(details?.payment_info?.payment_status || details?.payment_status || transaction?.status).toLowerCase() === "captured" ||
                     String(details?.payment_info?.payment_status || details?.payment_status || transaction?.status).toLowerCase() === "paid") && (
-                    <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-2xl space-y-3 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-purple-900 dark:text-purple-200">
-                          Logistics & Dispatch Tracking
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setShowDispatchSection(!showDispatchSection)}
-                          className="text-purple-700 font-bold hover:underline"
-                        >
-                          {showDispatchSection ? "Cancel" : details?.payment_info?.dispatch_tracking?.tracking_number ? "Edit Dispatch Info" : "+ Enter Dispatch Info"}
-                        </button>
-                      </div>
-
-                      {details?.payment_info?.dispatch_tracking?.tracking_number && !showDispatchSection && (
-                        <div className="p-3 bg-surface rounded-xl border border-border space-y-1">
-                          <p>Courier: <strong>{details.payment_info.dispatch_tracking.courier_name}</strong></p>
-                          <p className="font-mono">LR/Waybill: <strong>{details.payment_info.dispatch_tracking.tracking_number}</strong></p>
-                          {details.payment_info.dispatch_tracking.tracking_url && (
-                            <a
-                              href={details.payment_info.dispatch_tracking.tracking_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-primary font-bold hover:underline inline-block mt-1"
-                            >
-                              Live Courier URL &rarr;
-                            </a>
-                          )}
+                      <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-2xl space-y-3 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-purple-900 dark:text-purple-200">
+                            Logistics & Dispatch Tracking
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowDispatchSection(!showDispatchSection)}
+                            className="text-purple-700 font-bold hover:underline"
+                          >
+                            {showDispatchSection ? "Cancel" : details?.payment_info?.dispatch_tracking?.tracking_number ? "Edit Dispatch Info" : "+ Enter Dispatch Info"}
+                          </button>
                         </div>
-                      )}
 
-                      {showDispatchSection && (
-                        <form onSubmit={handleSaveDispatch} className="space-y-2 pt-1">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[10px] font-bold text-text-muted uppercase mb-0.5">Courier Name</label>
-                              <input
-                                type="text"
-                                placeholder="Courier Name (e.g. VRL Logistics)"
-                                value={courierName}
-                                onChange={(e) => setCourierName(e.target.value)}
-                                className="w-full p-2 text-xs border border-border rounded-lg bg-surface"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold text-text-muted uppercase mb-0.5">LR / Tracking Number</label>
-                              <input
-                                type="text"
-                                placeholder="LR / Tracking Number"
-                                value={trackingNumber}
-                                onChange={(e) => setTrackingNumber(e.target.value)}
-                                className="w-full p-2 text-xs border border-border rounded-lg bg-surface font-mono"
-                                required
-                              />
-                            </div>
+                        {details?.payment_info?.dispatch_tracking?.tracking_number && !showDispatchSection && (
+                          <div className="p-3 bg-surface rounded-xl border border-border space-y-1">
+                            <p>Courier: <strong>{details.payment_info.dispatch_tracking.courier_name}</strong></p>
+                            <p className="font-mono">LR/Waybill: <strong>{details.payment_info.dispatch_tracking.tracking_number}</strong></p>
+                            {details.payment_info.dispatch_tracking.tracking_url && (
+                              <a
+                                href={details.payment_info.dispatch_tracking.tracking_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary font-bold hover:underline inline-block mt-1"
+                              >
+                                Live Courier URL &rarr;
+                              </a>
+                            )}
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[10px] font-bold text-text-muted uppercase mb-0.5">Estimated Delivery Date & Time</label>
-                              <input
-                                type="datetime-local"
-                                value={estimatedDelivery}
-                                onChange={(e) => setEstimatedDelivery(e.target.value)}
-                                className="w-full p-2 text-xs border border-border rounded-lg bg-surface font-bold"
-                              />
+                        )}
+
+                        {showDispatchSection && (
+                          <form onSubmit={handleSaveDispatch} className="space-y-2 pt-1">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[10px] font-bold text-text-muted uppercase mb-0.5">Courier Name</label>
+                                <input
+                                  type="text"
+                                  placeholder="Courier Name (e.g. VRL Logistics)"
+                                  value={courierName}
+                                  onChange={(e) => setCourierName(e.target.value)}
+                                  className="w-full p-2 text-xs border border-border rounded-lg bg-surface"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-text-muted uppercase mb-0.5">LR / Tracking Number</label>
+                                <input
+                                  type="text"
+                                  placeholder="LR / Tracking Number"
+                                  value={trackingNumber}
+                                  onChange={(e) => setTrackingNumber(e.target.value)}
+                                  className="w-full p-2 text-xs border border-border rounded-lg bg-surface font-mono"
+                                  required
+                                />
+                              </div>
                             </div>
-                            <div>
-                              <label className="block text-[10px] font-bold text-text-muted uppercase mb-0.5">Tracking URL (Optional)</label>
-                              <input
-                                type="url"
-                                placeholder="Tracking URL (optional)"
-                                value={trackingUrl}
-                                onChange={(e) => setTrackingUrl(e.target.value)}
-                                className="w-full p-2 text-xs border border-border rounded-lg bg-surface"
-                              />
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[10px] font-bold text-text-muted uppercase mb-0.5">Estimated Delivery Date & Time</label>
+                                <input
+                                  type="datetime-local"
+                                  value={estimatedDelivery}
+                                  onChange={(e) => setEstimatedDelivery(e.target.value)}
+                                  className="w-full p-2 text-xs border border-border rounded-lg bg-surface font-bold"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-text-muted uppercase mb-0.5">Tracking URL (Optional)</label>
+                                <input
+                                  type="url"
+                                  placeholder="Tracking URL (optional)"
+                                  value={trackingUrl}
+                                  onChange={(e) => setTrackingUrl(e.target.value)}
+                                  className="w-full p-2 text-xs border border-border rounded-lg bg-surface"
+                                />
+                              </div>
                             </div>
-                          </div>
-                          <Button type="submit" variant="primary" size="sm" loading={actionLoading} className="text-xs w-full justify-center">
-                            Save Dispatch Tracking
-                          </Button>
-                        </form>
-                      )}
-                    </div>
-                  )}
+                            <Button type="submit" variant="primary" size="sm" loading={actionLoading} className="text-xs w-full justify-center">
+                              Save Dispatch Tracking
+                            </Button>
+                          </form>
+                        )}
+                      </div>
+                    )}
 
                   {/* Rejection Modal Dialog */}
                   {showRejectModal && (

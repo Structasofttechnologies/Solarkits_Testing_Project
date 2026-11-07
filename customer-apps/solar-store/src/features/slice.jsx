@@ -33,7 +33,7 @@ export const syncCartWithBackend = createAsyncThunk(
       const { isAuthenticated } = getState().auth_slice;
       if (!isAuthenticated) return;
       const response = await axiosInstance.post("/india/v1/shop/cart", { cart });
-      
+
       // Background activity tracking for EPC analytics
       if (cart && cart.length > 0) {
         const lastItem = cart[cart.length - 1];
@@ -47,7 +47,7 @@ export const syncCartWithBackend = createAsyncThunk(
             is_success: true,
             source_page: 'store_cart',
             idempotency_key: `sync_${lastItem.cartItemId || lastItem.id}_${cart.length}`
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
 
@@ -85,7 +85,7 @@ export const getAvailableKitData = createAsyncThunk(
   "solar/getAvailableKitData",
   async (params) => {
     const { districtId } = params || {};
-    const url = districtId 
+    const url = districtId
       ? `/india/v1/shop/combo-kits?district_id=${districtId}`
       : `/india/v1/shop/combo-kits`;
     const response = await axiosInstance.get(url);
@@ -98,7 +98,7 @@ export const getBulkKitBuyData = createAsyncThunk(
   "solar/getBulkKitBuyData",
   async (params) => {
     const { districtId } = params || {};
-    const url = districtId 
+    const url = districtId
       ? `/india/v1/shop/combo-kits?district_id=${districtId}`
       : `/india/v1/shop/combo-kits`;
     const response = await axiosInstance.get(url);
@@ -229,6 +229,18 @@ const slice = createSlice({
         const itemTaxable = payload.price_before_tax_inr || (price > 0 ? Math.round(price / (1 + (directGstRate / 100))) : 0);
         const itemTax = payload.taxes_and_charges_inr || Math.max(0, price - itemTaxable);
 
+        const directMilestones = payload.payment_milestones || {
+          config_id: null,
+          is_default: true,
+          policy_name: "Standard EPC Payment Policy",
+          advance_percentage: 30,
+          remaining_percentage: 70,
+          milestones: [
+            { milestone_number: 1, milestone_name: "Advance Payment", percentage: 30 },
+            { milestone_number: 2, milestone_name: "Before Dispatch", percentage: 70 },
+          ],
+        };
+
         if (exists) {
           exists.qty += (payload.qty || 1);
         } else {
@@ -257,6 +269,10 @@ const slice = createSlice({
             tierColor: '#0575B8',
             tierBenefits: ['Verified Tier-1 Product', 'Direct Factory Warranty', 'Free Shipping Included'],
             generationEstimateKWhPerYear: Math.round(cap * 4 * 365),
+            payment_milestones: directMilestones,
+            milestone_group_key: directMilestones?.config_id
+              ? `config_${directMilestones.config_id}`
+              : `adv_${directMilestones.advance_percentage || 30}_rem_${directMilestones.remaining_percentage || 70}`,
             variants: [
               {
                 productTier: payload.sku_code || payload.productTier || 'Standard Tier-1',
@@ -338,6 +354,23 @@ const slice = createSlice({
         const tierPrice = Number(payload?.price_per_kit || getKitTierPrice(kit, requestedQty));
         const effectiveOurPrice = tierPrice > 0 ? tierPrice : currentVariant.ourPrice;
 
+        const kitMilestoneData = kit.payment_milestones || payload?.payment_milestones || {
+          config_id: null,
+          is_default: true,
+          policy_name: "Standard EPC Payment Policy",
+          advance_percentage: 30,
+          remaining_percentage: 70,
+          milestones: [
+            { milestone_number: 1, milestone_name: "Advance Payment", percentage: 30 },
+            { milestone_number: 2, milestone_name: "Before Dispatch", percentage: 70 },
+          ],
+        };
+        const milestoneGroupKey = isTrialKit
+          ? 'trial_100'
+          : (kitMilestoneData?.config_id
+            ? `config_${kitMilestoneData.config_id}`
+            : `adv_${kitMilestoneData.advance_percentage || 30}_rem_${kitMilestoneData.remaining_percentage || 70}`);
+
         const cartItem = {
           ...kit,
           ...currentVariant,
@@ -373,7 +406,9 @@ const slice = createSlice({
           inStock: currentVariant.inStock,
           availableStock: liveAvailable,
           districtId,
-          districtName
+          districtName,
+          payment_milestones: kitMilestoneData,
+          milestone_group_key: milestoneGroupKey,
         };
 
         const currentCartQtySum = state.cart
@@ -436,6 +471,14 @@ const slice = createSlice({
           message: `${item.kitName} (${item.productTier}) removed from cart.`,
           undoItem: { ...item, source: "cart" },
         };
+      }
+    },
+
+    removeItemsFromCart: (state, action) => {
+      const idsToRemove = Array.isArray(action.payload) ? action.payload : [action.payload];
+      state.cart = state.cart.filter((c) => !idsToRemove.includes(c.cartItemId));
+      if (state.cart.length === 0) {
+        state.cartDistrictId = null;
       }
     },
 
@@ -740,7 +783,7 @@ const slice = createSlice({
 
     setLiveStock: (state, action) => {
       state.liveStock = action.payload || {};
-      
+
       const kitsInCart = [...new Set(state.cart.map(item => item.id))];
       kitsInCart.forEach(kitId => {
         const liveAvailable = state.liveStock[kitId];
@@ -750,7 +793,7 @@ const slice = createSlice({
             item.availableStock = liveAvailable;
             item.inStock = liveAvailable > 0;
           });
-          
+
           let totalQty = items.reduce((sum, item) => sum + item.qty, 0);
           if (totalQty > liveAvailable) {
             let excess = totalQty - liveAvailable;
@@ -831,7 +874,7 @@ const slice = createSlice({
       })
       .addCase(fetchLiveInventory.fulfilled, (state, action) => {
         state.liveStock = action.payload || {};
-        
+
         const kitsInCart = [...new Set(state.cart.map(item => item.id))];
         kitsInCart.forEach(kitId => {
           const liveAvailable = state.liveStock[kitId];
@@ -841,7 +884,7 @@ const slice = createSlice({
               item.availableStock = liveAvailable;
               item.inStock = liveAvailable > 0;
             });
-            
+
             let totalQty = items.reduce((sum, item) => sum + item.qty, 0);
             if (totalQty > liveAvailable) {
               let excess = totalQty - liveAvailable;
@@ -888,9 +931,66 @@ export const selectCartSavings = (state) => {
 export const selectLiveStock = (state) => state.slice.liveStock;
 export const selectCartExpiryTime = (state) => state.slice.cartExpiryTime;
 
+export const selectCartGroupedByMilestones = (state) => {
+  const cart = state.slice?.cart || [];
+  const groupsMap = new Map();
+
+  cart.forEach((item) => {
+    const key = item.milestone_group_key || `adv_${item.payment_milestones?.advance_percentage || 30}_rem_${item.payment_milestones?.remaining_percentage || 70}`;
+    const policy = item.payment_milestones || {
+      advance_percentage: 30,
+      remaining_percentage: 70,
+      policy_name: "Standard EPC Payment Policy",
+      is_default: true,
+    };
+
+    if (!groupsMap.has(key)) {
+      groupsMap.set(key, {
+        groupKey: key,
+        config_id: policy.config_id || null,
+        policy_name: policy.policy_name || `Milestone Policy (${policy.advance_percentage}% / ${policy.remaining_percentage}%)`,
+        is_default: Boolean(policy.is_default),
+        is_custom: Boolean(policy.is_custom),
+        advance_percentage: Number(policy.advance_percentage || 30),
+        remaining_percentage: Number(policy.remaining_percentage || 70),
+        milestones: policy.milestones || [],
+        is_trial_order: Boolean(item.is_trial_kit),
+        items: [],
+      });
+    }
+
+    groupsMap.get(key).items.push(item);
+  });
+
+  return Array.from(groupsMap.values()).map((grp) => {
+    const totalItems = grp.items.reduce((sum, it) => sum + (it.qty || 1), 0);
+    const subtotal = grp.items.reduce((sum, it) => sum + ((it.ourPrice || 0) * (it.qty || 1)), 0);
+    const totalDeliveryCost = grp.items.reduce((sum, it) => sum + ((it.delivery_cost || 0) * (it.qty || 1)), 0);
+    const grandTotal = subtotal + totalDeliveryCost;
+
+    const advPct = grp.is_trial_order ? 100 : grp.advance_percentage;
+    const remPct = grp.is_trial_order ? 0 : grp.remaining_percentage;
+    const advanceAmount = Math.round((grandTotal * advPct) / 100);
+    const remainingAmount = Math.max(0, grandTotal - advanceAmount);
+
+    return {
+      ...grp,
+      totalItems,
+      subtotal,
+      totalDeliveryCost,
+      grandTotal,
+      advance_percentage: advPct,
+      remaining_percentage: remPct,
+      advanceAmount,
+      remainingAmount,
+    };
+  });
+};
+
 export const {
   addToCart,
   removeFromCart,
+  removeItemsFromCart,
   increaseQty,
   decreaseQty,
   undoRemove,

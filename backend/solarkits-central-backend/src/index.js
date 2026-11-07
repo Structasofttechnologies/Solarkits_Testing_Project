@@ -175,6 +175,22 @@ adminRouter.use('/payment-config', require('./modules/admin-panel/routes/region.
 // ─── Product-Wise Payment Milestone Configuration & Checkout Resolution ───
 adminRouter.use('/payment-milestones', require('./modules/admin-panel/routes/product.payment.milestones.route'));
 
+// ─── Order Stages & Turnaround Time (TAT) Configuration ──────────────────
+{
+  const tatRouter = express.Router();
+  const check_auth = require('./modules/admin-panel/middlewares/check.auth');
+  const pmHandler = require('./modules/admin-panel/controller/product.payment.milestones.handler');
+
+  tatRouter.get('/', check_auth, pmHandler.get_order_stages_tat);
+  tatRouter.put('/', check_auth, pmHandler.update_order_stages_tat);
+  tatRouter.post('/', check_auth, pmHandler.update_order_stages_tat);
+  tatRouter.get('/stages-tat', check_auth, pmHandler.get_order_stages_tat);
+  tatRouter.put('/stages-tat', check_auth, pmHandler.update_order_stages_tat);
+
+  adminRouter.use('/order-stages-tat', tatRouter);
+  adminRouter.use('/order-overdue-settings', tatRouter);
+}
+
 // ─── Centralized Order & Stage Approval Workflow Engine ───────────────────────
 adminRouter.use('/order-approvals', require('./modules/admin-panel/routes/order.approval.route'));
 adminRouter.use('/epc-types', require('./modules/admin-panel/routes/epc.types.route'));

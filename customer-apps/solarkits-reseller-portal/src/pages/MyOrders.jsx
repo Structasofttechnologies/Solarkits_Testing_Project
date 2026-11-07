@@ -207,6 +207,16 @@ export default function MyOrders() {
                         <div className="text-[10px] text-slate-500 font-medium">
                           {o.financials?.wallet_status}
                         </div>
+                        {o.completion_ratio && (
+                          <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 inline-block mt-0.5">
+                            Pro-rated: {o.completion_ratio} Kits
+                          </div>
+                        )}
+                        {o.epc_penalty_amount > 0 && (
+                          <div className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 inline-block mt-0.5">
+                            EPC Pen: ₹{o.epc_penalty_amount.toLocaleString("en-IN")}
+                          </div>
+                        )}
                       </td>
 
                       {/* Status & Logistics */}
