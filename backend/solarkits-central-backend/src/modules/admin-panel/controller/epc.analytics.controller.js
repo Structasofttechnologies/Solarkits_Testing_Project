@@ -75,23 +75,37 @@ const getBdeOnboardedEpcIds = async (bdeId) => {
     ],
   }).select('_id').lean();
 
-  // 2. Converted EPC Leads created or currently managed by this BDE
+  // 2. Converted or active EPC Leads created or currently managed by this BDE
   let leadEpcIds = [];
   if (EpcLead) {
-    const convertedLeads = await EpcLead.find({
+    const leads = await EpcLead.find({
       deleted_at: null,
       $or: [
         { created_by_bde_id: bdeObjId },
         { current_bde_id: bdeObjId },
       ],
-      onboarded_epc_account_id: { $ne: null },
-    }).select('onboarded_epc_account_id').lean();
-    leadEpcIds = convertedLeads.map((l) => l.onboarded_epc_account_id).filter(Boolean);
+    }).select('onboarded_epc_account_id gst_number mobile_number').lean();
+
+    const leadAccIds = leads.map((l) => l.onboarded_epc_account_id).filter(Boolean);
+    const leadGsts = leads.map((l) => l.gst_number).filter(Boolean);
+    const leadMobiles = leads.map((l) => l.mobile_number).filter(Boolean);
+
+    if (leadGsts.length > 0 || leadMobiles.length > 0) {
+      const matchedByGstOrMobile = await EpcAccount.find({
+        deleted_at: null,
+        $or: [
+          ...(leadGsts.length > 0 ? [{ gstin: { $in: leadGsts } }] : []),
+          ...(leadMobiles.length > 0 ? [{ mobile: { $in: leadMobiles } }, { registered_whatsapp: { $in: leadMobiles } }] : []),
+        ],
+      }).select('_id').lean();
+      leadEpcIds.push(...matchedByGstOrMobile.map((e) => e._id.toString()));
+    }
+    leadEpcIds.push(...leadAccIds.map((id) => id.toString()));
   }
 
   const allIds = [
     ...directEpcs.map((e) => e._id.toString()),
-    ...leadEpcIds.map((id) => id.toString()),
+    ...leadEpcIds,
   ];
   return [...new Set(allIds)].map((id) => new mongoose.Types.ObjectId(id));
 };
@@ -869,13 +883,36 @@ exports.get_epc_behavior_analytics = async (req, res) => {
       stateDistrictsMap[st].sort();
     });
 
-    const fullStatesList = allStatesDb.length > 0
+    let fullStatesList = allStatesDb.length > 0
       ? allStatesDb.map((s) => s.name)
       : [...new Set(allEpcsRaw.map((e) => e.state_name).filter(Boolean))];
+
+    // When requested by a BDE, scope the state list strictly to the BDE's assigned territories and their EPCs
+    if (bdeId) {
+      try {
+        const { BDETerritoryAssignment } = require('../models/india_solarshop_db');
+        if (BDETerritoryAssignment) {
+          const bdeTerritories = await BDETerritoryAssignment.find({
+            bde_id: bdeId,
+            status: 'active',
+          }).lean();
+          const bdeStateNames = bdeTerritories.map((t) => t.state_name).filter(Boolean);
+          const epcStateNames = allEpcsRaw.map((e) => e.state_name).filter(Boolean);
+          const combinedBdeStates = [...new Set([...bdeStateNames, ...epcStateNames])];
+          if (combinedBdeStates.length > 0) {
+            fullStatesList = combinedBdeStates.sort();
+          }
+        }
+      } catch (tErr) {
+        console.warn('Could not scope states to BDE territory:', tErr.message);
+      }
+    }
 
     let currentDistrictsList = [];
     if (state && state !== 'all') {
       currentDistrictsList = stateDistrictsMap[state] || [];
+    } else if (bdeId && fullStatesList.length > 0) {
+      currentDistrictsList = [...new Set(fullStatesList.flatMap((s) => stateDistrictsMap[s] || []))].sort();
     } else {
       currentDistrictsList = [...new Set(Object.values(stateDistrictsMap).flat())].sort();
     }

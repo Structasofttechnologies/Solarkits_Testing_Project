@@ -313,7 +313,7 @@ export default function WebsiteEpcLeads() {
               </option>
               {availableBdes.map((bde) => (
                 <option key={bde._id} value={bde._id} className="text-slate-900">
-                  {bde.full_name} ({bde.bde_id}) - {bde.mobile_number}
+                  {bde.full_name} ({bde.bde_id}) - {bde.state_names?.length > 0 ? bde.state_names.join(', ') : 'Unassigned State'}
                 </option>
               ))}
             </select>
@@ -604,24 +604,42 @@ export default function WebsiteEpcLeads() {
 
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right">
-                        <select
-                          value={lead.assigned_bde_id?._id || ''}
-                          onChange={(e) => {
-                            if (e.target.value === '') {
-                              handleUpdateLead(lead._id, { assigned_bde_id: 'unassign' });
-                            } else {
-                              handleUpdateLead(lead._id, { assigned_bde_id: e.target.value });
-                            }
-                          }}
-                          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                        >
-                          <option value="">{lead.assigned_bde_id ? 'Change BDE' : '+ Assign BDE'}</option>
-                          {availableBdes.map((bde) => (
-                            <option key={bde._id} value={bde._id}>
-                              {bde.full_name} ({bde.bde_id})
-                            </option>
-                          ))}
-                        </select>
+                        {(() => {
+                          const leadState = (lead.state_name || lead.state || '').trim().toLowerCase();
+                          const stateMatchedBdes = availableBdes.filter((bde) => {
+                            if (!leadState) return true;
+                            return (bde.state_names || []).some((s) => s.toLowerCase() === leadState);
+                          });
+
+                          return (
+                            <select
+                              value={lead.assigned_bde_id?._id || ''}
+                              onChange={(e) => {
+                                if (e.target.value === '') {
+                                  handleUpdateLead(lead._id, { assigned_bde_id: 'unassign' });
+                                } else {
+                                  handleUpdateLead(lead._id, { assigned_bde_id: e.target.value });
+                                }
+                              }}
+                              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                            >
+                              <option value="">{lead.assigned_bde_id ? 'Change BDE' : '+ Assign BDE'}</option>
+                              {stateMatchedBdes.length > 0 ? (
+                                <optgroup label={`Eligible BDEs for ${lead.state_name || 'State'}`}>
+                                  {stateMatchedBdes.map((bde) => (
+                                    <option key={bde._id} value={bde._id}>
+                                      {bde.full_name} ({bde.bde_id}) - {bde.state_names?.join(', ') || 'Territory'}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ) : (
+                                <option disabled value="">
+                                  No BDE covering {lead.state_name || 'this state'}
+                                </option>
+                              )}
+                            </select>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );

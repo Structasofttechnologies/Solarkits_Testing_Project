@@ -179,32 +179,6 @@ export default function ProductsSection({ productsConfig }) {
             <ProductCard key={item.name || i} item={item} index={i} active={active} />
           ))}
         </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: active ? 1 : 0, y: active ? 0 : 20 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          style={{ textAlign: "center" }}
-        >
-          <motion.button
-            onClick={handlePartnerPortal}
-            whileHover={{ scale: 1.04, boxShadow: "0 12px 32px rgba(37,56,128,0.3)" }}
-            whileTap={{ scale: 0.97 }}
-            style={{
-              padding: "15px 40px",
-              background: "linear-gradient(135deg, #253880, #189bd7)",
-              color: "#fff", borderRadius: "12px",
-              fontSize: "1rem", fontWeight: 800, cursor: "pointer", border: "none",
-              boxShadow: "0 6px 20px rgba(37,56,128,0.25)",
-              fontFamily: "inherit",
-              display: "inline-flex", alignItems: "center", gap: "8px",
-            }}
-          >
-            <FiPackage />
-            Join Franchise & Partner Network
-            <FiArrowRight />
-          </motion.button>
-        </motion.div>
       </div>
     </section>
   );

@@ -115,7 +115,14 @@ const create_solar_kit = async (req, res) => {
 const get_solar_kits = async (req, res) => {
     try {
         const kits = await SolarKit.find({ deleted_at: null })
-            .populate('category_id', 'name')
+            .populate({
+                path: 'category_id',
+                select: 'name industry_type_id state_ids',
+                populate: [
+                    { path: 'industry_type_id', select: 'name _id' },
+                    { path: 'state_ids', select: 'name _id' }
+                ]
+            })
             .populate('subcategory_id', 'name')
             .populate({
                 path: 'base_template_ids',
