@@ -13,7 +13,7 @@ const { FpoOrder, PoRefundRequest } = require('../models/india_solarshop_db');
 const { logAudit } = require('../utils/audit.service');
 
 /**
- * Calculate penalty and refundable token amount for a PO.
+ * Calculate penalty and refundable token amount for a PO, plus Franchise pro-rata commission.
  */
 function calculatePoPenalty({
   committedQty = 0,
@@ -22,9 +22,14 @@ function calculatePoPenalty({
   tokenAdjustedPaise = 0,
   unitPricePaise = 0,
   penaltyRuleSnapshot = null,
+  totalCommissionPaise = 0,
 }) {
   const unpurchasedQty = Math.max(0, Number(committedQty || 0) - Number(purchasedQty || 0));
   const remainingTokenPaise = Math.max(0, Number(tokenPaidPaise || 0) - Number(tokenAdjustedPaise || 0));
+  const fulfillmentRatio = committedQty > 0 ? Math.min(1, Math.max(0, purchasedQty / committedQty)) : 0;
+  const proRataCommissionPaise = Math.round(Number(totalCommissionPaise || 0) * fulfillmentRatio);
+  const completionRatio = `${purchasedQty}/${committedQty}`;
+  const fulfillmentPct = Math.round(fulfillmentRatio * 100);
 
   if (unpurchasedQty === 0) {
     return {
@@ -33,6 +38,14 @@ function calculatePoPenalty({
       refundablePaise: remainingTokenPaise,
       penaltyReason: '100% Commitment fulfilled. No penalty applicable.',
       ruleApplied: 'FULL_COMPLETION',
+      committedQty,
+      purchasedQty,
+      completionRatio,
+      fulfillmentPct: 100,
+      fulfillmentRatio: 1,
+      totalCommissionPaise: Number(totalCommissionPaise || 0),
+      proRataCommissionPaise: Number(totalCommissionPaise || 0),
+      proRataCommissionINR: Math.round(Number(totalCommissionPaise || 0) / 100),
     };
   }
 
@@ -99,6 +112,14 @@ function calculatePoPenalty({
     refundablePaise,
     penaltyReason,
     ruleApplied: penaltyType,
+    committedQty,
+    purchasedQty,
+    completionRatio,
+    fulfillmentPct,
+    fulfillmentRatio,
+    totalCommissionPaise: Number(totalCommissionPaise || 0),
+    proRataCommissionPaise,
+    proRataCommissionINR: Math.round(proRataCommissionPaise / 100),
   };
 }
 
@@ -122,6 +143,53 @@ async function settleExpiredPo(poId, { actor_id = null, actor_type = 'system', n
   const tokenAdjustedPaise = Number(po.token_adjusted_total_paise || 0);
   const unitPricePaise = Number(po.items?.[0]?.unit_price_paise || 4500000);
 
+  // 1. Identify assigned EPC partner
+  let assignedEpcId = po.epc_id;
+  let assignedEpcName = po.customer_details?.company_name || po.customer_details?.name || null;
+  if (!assignedEpcId && Array.isArray(po.items)) {
+    for (const it of po.items) {
+      if (Array.isArray(it.epc_allocations) && it.epc_allocations.length > 0) {
+        assignedEpcId = it.epc_allocations[0].epc_buyer_id;
+        assignedEpcName = it.epc_allocations[0].company_name || it.epc_allocations[0].buyer_name || assignedEpcName;
+        break;
+      }
+    }
+  }
+
+  // 2. Resolve baseline total commission for 100% quota
+  let baseCommissionPaise = Number(po.total_commission_paise || 0);
+  if (baseCommissionPaise <= 0 && po.franchisee_id) {
+    try {
+      const { resolveCommissionRule, resolveVariationCommission } = require('./franchisee.commission.service');
+      const primaryKitId = po.items?.[0]?.kit_id || po.items?.[0]?.combo_kit_id;
+      if (primaryKitId) {
+        const varComm = await resolveVariationCommission({
+          reseller_id: po.franchisee_id,
+          combo_kit_id: primaryKitId,
+          quantity: committedQty,
+          order_type: 'po',
+        });
+        if (varComm !== null && varComm >= 0) {
+          baseCommissionPaise = varComm;
+        }
+      }
+      if (baseCommissionPaise <= 0 && po.plan_id) {
+        const rule = await resolveCommissionRule(po.plan_id);
+        if (rule) {
+          if (rule.commission_method === 'FIXED_PER_KIT') {
+            baseCommissionPaise = committedQty * (rule.fixed_amount_per_kit_paise || 0);
+          } else {
+            const grossPaise = Number(po.subtotal_paise || (unitPricePaise * committedQty));
+            baseCommissionPaise = Math.round(grossPaise * ((rule.commission_percentage || 2) / 100));
+          }
+        }
+      }
+    } catch (commResolveErr) {
+      console.warn('[po.penalty.service] Base commission resolution warning:', commResolveErr.message);
+    }
+  }
+
+  // 3. Compute penalty & pro-rata commission
   const penaltyResult = calculatePoPenalty({
     committedQty,
     purchasedQty,
@@ -129,6 +197,7 @@ async function settleExpiredPo(poId, { actor_id = null, actor_type = 'system', n
     tokenAdjustedPaise,
     unitPricePaise,
     penaltyRuleSnapshot: po.penalty_rule_snapshot || po.po_settings_snapshot,
+    totalCommissionPaise: baseCommissionPaise,
   });
 
   const now = new Date();
@@ -139,11 +208,70 @@ async function settleExpiredPo(poId, { actor_id = null, actor_type = 'system', n
   po.refundable_token_paise = penaltyResult.refundablePaise;
   po.token_balance_paise = penaltyResult.refundablePaise;
 
+  // 4. Attribute Penalty explicitly to EPC
+  po.penalty_charged_to_role = 'SOLAR_EPC';
+  po.penalty_charged_to_id = assignedEpcId || null;
+  po.penalty_charged_to_name = assignedEpcName || 'Assigned EPC Partner';
+
+  // 5. Debit penalty in EPC Wallet Ledger if applicable
+  if (assignedEpcId && penaltyResult.penaltyPaise > 0) {
+    try {
+      const { EpcWallet, EpcWalletLedger } = require('../models/india_solarshop_db');
+      const epcLedgerKey = `PO-PENALTY-${po._id}-${assignedEpcId}`;
+      const existingEpcLedger = await EpcWalletLedger.findOne({ idempotency_key: epcLedgerKey });
+      if (!existingEpcLedger) {
+        await EpcWalletLedger.create({
+          epc_account_id: assignedEpcId,
+          reference_type: 'po_unfulfilled_penalty',
+          reference_id: po._id,
+          idempotency_key: epcLedgerKey,
+          debit_paise: penaltyResult.penaltyPaise,
+          net_paise: -penaltyResult.penaltyPaise,
+          narration: `Penalty for ${penaltyResult.unpurchasedQty} unfulfilled kits under PO ${po.po_number} (Committed: ${committedQty}, Completed: ${purchasedQty})`,
+          created_by: actor_id,
+        });
+        await EpcWallet.findOneAndUpdate(
+          { epc_account_id: assignedEpcId },
+          { $inc: { available_balance_paise: -penaltyResult.penaltyPaise } }
+        );
+      }
+    } catch (epcWalletErr) {
+      console.warn('[po.penalty.service] EPC wallet debit warning:', epcWalletErr.message);
+    }
+  }
+
+  // 6. Pro-rata Franchise Commission (e.g. 150/200)
+  const fulfillmentRatio = committedQty > 0 ? Math.min(1, Math.max(0, purchasedQty / committedQty)) : 0;
+  const proRataCommissionPaise = Math.round(baseCommissionPaise * fulfillmentRatio);
+  po.realized_commission_paise = proRataCommissionPaise;
+  po.commission_completion_ratio = `${purchasedQty}/${committedQty}`;
+  po.commission_fulfillment_pct = Math.round(fulfillmentRatio * 100);
+  if (!po.total_commission_paise || po.total_commission_paise <= 0) {
+    po.total_commission_paise = baseCommissionPaise;
+  }
+
+  // 7. Credit pro-rata commission to Franchise Wallet
+  if (proRataCommissionPaise > 0 && po.franchisee_id) {
+    try {
+      const { postCommission } = require('./franchisee.commission.service');
+      await postCommission({
+        fpo_order_id: po._id,
+        pro_rata_commission_paise: proRataCommissionPaise,
+        actor_id,
+        req,
+      });
+    } catch (postCommErr) {
+      console.warn('[po.penalty.service] Franchise pro-rata commission settlement notice:', postCommErr.message);
+    }
+  }
+
+  const statusNote = note || `PO Expired & Settled. Fulfilled: ${purchasedQty}/${committedQty} kits (${po.commission_fulfillment_pct}%). EPC Penalty: ₹${(penaltyResult.penaltyPaise / 100).toLocaleString('en-IN')} on ${penaltyResult.unpurchasedQty} unfulfilled kits charged to EPC ${assignedEpcName || ''}. Franchise Commission pro-rated to ₹${(proRataCommissionPaise / 100).toLocaleString('en-IN')} (${purchasedQty}/${committedQty}).`;
+
   po.status_history.push({
     status: 'EXPIRED',
     changed_by: actor_id && mongoose.Types.ObjectId.isValid(actor_id) ? actor_id : null,
     actor_type,
-    note: note || `PO Expired. Unpurchased: ${penaltyResult.unpurchasedQty} kits. Penalty: ₹${(penaltyResult.penaltyPaise / 100).toLocaleString('en-IN')}. Refundable: ₹${(penaltyResult.refundablePaise / 100).toLocaleString('en-IN')}`,
+    note: statusNote,
     changed_at: now,
   });
 
@@ -161,6 +289,10 @@ async function settleExpiredPo(poId, { actor_id = null, actor_type = 'system', n
       unpurchased_quantity: po.unpurchased_quantity,
       applicable_penalty_paise: po.applicable_penalty_paise,
       refundable_token_paise: po.refundable_token_paise,
+      penalty_charged_to_role: po.penalty_charged_to_role,
+      penalty_charged_to_name: po.penalty_charged_to_name,
+      realized_commission_paise: po.realized_commission_paise,
+      commission_completion_ratio: po.commission_completion_ratio,
     },
     req,
   });
@@ -169,6 +301,13 @@ async function settleExpiredPo(poId, { actor_id = null, actor_type = 'system', n
     success: true,
     po,
     penaltyResult,
+    proRataCommission: {
+      proRataCommissionPaise,
+      proRataCommissionINR: Math.round(proRataCommissionPaise / 100),
+      completionRatio: `${purchasedQty}/${committedQty}`,
+      fulfillmentPct: po.commission_fulfillment_pct,
+      baseCommissionINR: Math.round(baseCommissionPaise / 100),
+    },
   };
 }
 

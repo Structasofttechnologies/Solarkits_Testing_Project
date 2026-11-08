@@ -303,9 +303,9 @@ const menus = [
                     unique_id: "ADM_ORDER_SETTINGS"
                 },
                 {
-                    name: "Overdue Settings",
+                    name: "Order Stages & TAT Settings",
                     icon: <FiClock />,
-                    path: "/admin-panel/solar-shop/order-management-settings/overdue-settings",
+                    path: "/admin-panel/solar-shop/order-management-settings/order-stages-tat",
                     unique_id: "ADM_ORDER_SETTINGS",
                     badgeKey: "overdue-settings"
                 },
@@ -1046,10 +1046,20 @@ export default function SolarShopDashboard() {
                                         }
                                     />
                                     <Route
+                                        path="/order-management-settings/order-stages-tat"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="ADM_ORDER_SETTINGS">
+                                                <Suspense fallback={<Loader text="Loading Order Stages & TAT..." />}>
+                                                    <OrderOverdueSettings />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
                                         path="/order-management-settings/overdue-settings"
                                         element={
                                             <PermissionGuard requiredUniqueId="ADM_ORDER_SETTINGS">
-                                                <Suspense fallback={<Loader text="Loading Overdue Settings..." />}>
+                                                <Suspense fallback={<Loader text="Loading Order Stages & TAT..." />}>
                                                     <OrderOverdueSettings />
                                                 </Suspense>
                                             </PermissionGuard>
@@ -1126,10 +1136,20 @@ export default function SolarShopDashboard() {
                                         }
                                     />
                                     <Route
+                                        path="/:countryName/order-management-settings/order-stages-tat"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="ADM_ORDER_SETTINGS">
+                                                <Suspense fallback={<Loader text="Loading Order Stages & TAT..." />}>
+                                                    <OrderOverdueSettings />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
                                         path="/:countryName/order-management-settings/overdue-settings"
                                         element={
                                             <PermissionGuard requiredUniqueId="ADM_ORDER_SETTINGS">
-                                                <Suspense fallback={<Loader text="Loading Overdue Settings..." />}>
+                                                <Suspense fallback={<Loader text="Loading Order Stages & TAT..." />}>
                                                     <OrderOverdueSettings />
                                                 </Suspense>
                                             </PermissionGuard>

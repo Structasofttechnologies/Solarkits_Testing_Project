@@ -4,11 +4,12 @@ import {
     FiGrid, FiList, FiSearch, FiX, FiShoppingCart,
     FiDollarSign, FiTag, FiPackage, FiPercent, FiTruck,
     FiShield, FiAward, FiStar, FiHome, FiZap,
-    FiTrendingUp, FiPieChart, FiLock
+    FiTrendingUp, FiPieChart, FiLock, FiLayers, FiChevronRight
 } from 'react-icons/fi';
 import { FaGem, FaSolarPanel } from "react-icons/fa";
 import { useSelector, useDispatch } from "react-redux";
 import { setAlert } from "@/features/alert.slice";
+import { selectCartGroupedByMilestones } from "@/features/slice";
 import { hasPermission } from "@/utils/permissions";
 import SelectedKitCard from "@/Pages/dashboard/components/SelectedKitCard";
 import KitCard from "@/Pages/dashboard/components/KitCard";
@@ -40,15 +41,20 @@ export default function PreConfiguredKitOrderCart() {
     const { user } = useSelector((state) => state.auth_slice);
     const [selected, setSelected] = useState(null);
     const [activeOffers, setActiveOffers] = useState([]);
-    
+
     // Sub-account permissions check
     const canCheckout = hasPermission(user, 'can_checkout');
-    
+
+    // Grouped milestone policies
+    const milestoneGroups = useSelector(selectCartGroupedByMilestones);
+    const hasMultipleMilestones = milestoneGroups.length > 1;
+    const [pendingTargetGroupKey, setPendingTargetGroupKey] = useState(null);
+
     // GST State Verification
     const [showGstDialog, setShowGstDialog] = useState(false);
     const [gstStateId, setGstStateId] = useState("");
 
-    const handleProceedToCheckout = async () => {
+    const handleProceedToCheckout = async (targetGroupKey = null) => {
         if (!canCheckout) {
             dispatch(setAlert({
                 type: 'error',
@@ -64,6 +70,7 @@ export default function PreConfiguredKitOrderCart() {
                 const res = await axios.get(`${apiBase}/india/v1/shop/gst/status?state_id=${stateId}`, { withCredentials: true });
                 if (res.data?.success && !res.data.verified) {
                     setGstStateId(stateId);
+                    setPendingTargetGroupKey(targetGroupKey);
                     setShowGstDialog(true);
                     return;
                 }
@@ -71,14 +78,22 @@ export default function PreConfiguredKitOrderCart() {
                 console.error("GST checkout check failed:", err);
             }
         }
-        navigate('/checkout');
+        if (targetGroupKey) {
+            navigate(`/checkout?milestone_group=${encodeURIComponent(targetGroupKey)}`);
+        } else {
+            navigate('/checkout');
+        }
     };
 
     const handleGstVerified = () => {
         setShowGstDialog(false);
-        navigate('/checkout');
+        if (pendingTargetGroupKey) {
+            navigate(`/checkout?milestone_group=${encodeURIComponent(pendingTargetGroupKey)}`);
+        } else {
+            navigate('/checkout');
+        }
     };
-    
+
     const [checkoutSettings, setCheckoutSettings] = useState({
         enable_checkout_timer: true,
         checkout_timer_duration: 20,
@@ -104,7 +119,7 @@ export default function PreConfiguredKitOrderCart() {
         const fetchActiveOffers = async () => {
             try {
                 const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-                const distId = selectedDistrict?._id || selectedDistrict?.id ||"";
+                const distId = selectedDistrict?._id || selectedDistrict?.id || "";
                 const res = await axios.get(`${apiBase}/india/v1/shop/active-offers?district_id=${distId}`);
                 if (res.data?.success) {
                     setActiveOffers(res.data.data || []);
@@ -127,14 +142,14 @@ export default function PreConfiguredKitOrderCart() {
 
     // Sort options for dropdown
     const sortOptions = [
-        { value:"default", text:"Default Sorting" },
-        { value:"price-low", text:"Price: Low to High" },
-        { value:"price-high", text:"Price: High to Low" },
-        { value:"capacity", text:"Capacity: High to Low" },
-        { value:"discount", text:"Discount: High to Low" },
-        { value:"savings", text:"Savings: High to Low" },
-        { value:"name-asc", text:"Name: A to Z" },
-        { value:"name-desc", text:"Name: Z to A" },
+        { value: "default", text: "Default Sorting" },
+        { value: "price-low", text: "Price: Low to High" },
+        { value: "price-high", text: "Price: High to Low" },
+        { value: "capacity", text: "Capacity: High to Low" },
+        { value: "discount", text: "Discount: High to Low" },
+        { value: "savings", text: "Savings: High to Low" },
+        { value: "name-asc", text: "Name: A to Z" },
+        { value: "name-desc", text: "Name: Z to A" },
     ];
 
     const finalKits = useMemo(() => {
@@ -154,27 +169,27 @@ export default function PreConfiguredKitOrderCart() {
         }
 
         // Apply sorting
-        if (sortBy ==="price-low") {
+        if (sortBy === "price-low") {
             result.sort((a, b) => a.ourPrice - b.ourPrice);
-        } else if (sortBy ==="price-high") {
+        } else if (sortBy === "price-high") {
             result.sort((a, b) => b.ourPrice - a.ourPrice);
-        } else if (sortBy ==="capacity") {
+        } else if (sortBy === "capacity") {
             result.sort((a, b) => b.capacityKW - a.capacityKW);
-        } else if (sortBy ==="discount") {
+        } else if (sortBy === "discount") {
             result.sort((a, b) => {
                 const discountA = ((a.marketPrice - a.ourPrice) / a.marketPrice) * 100;
                 const discountB = ((b.marketPrice - b.ourPrice) / b.marketPrice) * 100;
                 return discountB - discountA;
             });
-        } else if (sortBy ==="savings") {
+        } else if (sortBy === "savings") {
             result.sort((a, b) => {
                 const savingsA = (a.marketPrice - a.ourPrice) * a.qty;
                 const savingsB = (b.marketPrice - b.ourPrice) * b.qty;
                 return savingsB - savingsA;
             });
-        } else if (sortBy ==="name-asc") {
+        } else if (sortBy === "name-asc") {
             result.sort((a, b) => a.kitName.localeCompare(b.kitName));
-        } else if (sortBy ==="name-desc") {
+        } else if (sortBy === "name-desc") {
             result.sort((a, b) => b.kitName.localeCompare(a.kitName));
         }
 
@@ -487,18 +502,18 @@ export default function PreConfiguredKitOrderCart() {
                     <div className="flex bg-surface-hover rounded-xl p-1 border border-border">
                         <IconButton
                             onClick={() => setViewMode("grid")}
-                            variant={viewMode ==="grid" ?"primary" :"ghost"}
+                            variant={viewMode === "grid" ? "primary" : "ghost"}
                             size="sm"
-                            className={`rounded-lg ${viewMode ==="grid" ?"bg-surface shadow-sm text-primary dark:text-info" :"text-text-secondary"}`}
+                            className={`rounded-lg ${viewMode === "grid" ? "bg-surface shadow-sm text-primary dark:text-info" : "text-text-secondary"}`}
                             title="Grid View"
                         >
                             <FiGrid size={20} />
                         </IconButton>
                         <IconButton
                             onClick={() => setViewMode("list")}
-                            variant={viewMode ==="list" ?"primary" :"ghost"}
+                            variant={viewMode === "list" ? "primary" : "ghost"}
                             size="sm"
-                            className={`rounded-lg ${viewMode ==="list" ?"bg-surface shadow-sm text-primary dark:text-info" :"text-text-secondary"}`}
+                            className={`rounded-lg ${viewMode === "list" ? "bg-surface shadow-sm text-primary dark:text-info" : "text-text-secondary"}`}
                             title="List View"
                         >
                             <FiList size={20} />
@@ -524,12 +539,12 @@ export default function PreConfiguredKitOrderCart() {
                         leftIcon={<FiPieChart size={18} />}
                         className="text-text-secondary hover:text-text-primary dark:text-info"
                     >
-                        {showSummary ?"Hide" :"Show"} Summary
+                        {showSummary ? "Hide" : "Show"} Summary
                     </Button>
                 </div>
 
                 {/* Active Filters */}
-                {(searchTerm || sortBy !=="default") && (
+                {(searchTerm || sortBy !== "default") && (
                     <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border">
                         <span className="text-sm text-text-muted">Active filters:</span>
                         {searchTerm && (
@@ -540,7 +555,7 @@ export default function PreConfiguredKitOrderCart() {
                                 </button>
                             </span>
                         )}
-                        {sortBy !=="default" && (
+                        {sortBy !== "default" && (
                             <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-surface-hover text-text-primary dark:text-info rounded-full text-sm border border-border">
                                 Sort: {sortOptions.find(opt => opt.value === sortBy)?.text}
                                 <button onClick={() => setSortBy("default")} className="ml-1 hover:text-text-secondary">
@@ -742,117 +757,255 @@ export default function PreConfiguredKitOrderCart() {
                 </div>
             )}
 
+            {/* Multiple Milestone Policy Notice */}
+            {hasMultipleMilestones && (
+                <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-primary/10 border border-amber-500/30 flex items-start gap-4 shadow-xs">
+                    <div className="p-2.5 rounded-xl bg-amber-500 text-white shrink-0 mt-0.5 shadow-xs">
+                        <FiLayers size={22} />
+                    </div>
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-black text-sm sm:text-base text-gray-900 dark:text-gray-100">
+                                Different Payment Milestone Policies in Cart
+                            </h4>
+                            <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-500 text-white uppercase tracking-wider">
+                                {milestoneGroups.length} Separate Checkout Cards
+                            </span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-text-secondary mt-1.5 leading-relaxed">
+                            Your selected ComboKits have distinct payment schedules (e.g. 20% Advance vs 50% Advance). To ensure exact payment collection, separate accounts verification, and milestone-linked warehouse dispatch, each policy is organized into its own **Checkout Card** below.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Main Content */}
             <div className="">
-                {/* Desktop Results */}
-                <main className="flex-1 hidden lg:block">
-                    {finalKits.length === 0 ? (
-                        <div className="bg-surface rounded-xl p-16 text-center border border-border shadow-sm">
-                            <div className="w-24 h-24 gradient-primary-soft rounded-full flex items-center justify-center mx-auto mb-6">
-                                <FiSearch size={40} className="text-primary dark:text-info" />
-                            </div>
-                            <h3 className="text-2xl font-semibold text-text-primary dark:text-info mb-3">No kits found</h3>
-                            <p className="text-text-secondary mb-8 max-w-md mx-auto text-lg">
-                                {searchTerm || sortBy !=="default"
-                                    ?"No kits match your current filters. Try adjusting your search criteria."
-                                    :"Your cart is empty. Browse our collection to add some solar kits!"
-                                }
-                            </p>
-                            {(searchTerm || sortBy !=="default") && (
-                                <Button
-                                    onClick={clearAllFilters}
-                                    variant="primary"
-                                    size="lg"
-                                    className="px-8"
-                                >
-                                    Clear Filters
-                                </Button>
-                            )}
-                        </div>
-                    ) : viewMode ==="grid" ? (
-                        <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
-                            {finalKits.map((kit) => (
-                                <KitCard
-                                    key={kit.cartItemId || kit.id}
-                                    kit={kit}
-                                    selected={selectedKit?.cartItemId === kit.cartItemId}
-                                    setSelected={() => setSelected(kit.cartItemId || kit.id)}
-                                    viewMode={viewMode}
-                                    isCart={true}
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {finalKits.map((kit) => (
-                                <KitCard
-                                    key={kit.cartItemId || kit.id}
-                                    kit={kit}
-                                    selected={selectedKit?.cartItemId === kit.cartItemId}
-                                    setSelected={() => setSelected(kit.cartItemId || kit.id)}
-                                    viewMode={viewMode}
-                                    isCart={true}
-                                />
-                            ))}
-                        </div>
-                    )}
-                </main>
+                {hasMultipleMilestones ? (
+                    /* ── Multiple Milestone Policies: Separate Checkout Cards ── */
+                    <div className="space-y-8">
+                        {milestoneGroups.map((grp, gIndex) => {
+                            const grpKits = finalKits.filter(k => (k.milestone_group_key || `adv_${k.payment_milestones?.advance_percentage || 30}_rem_${k.payment_milestones?.remaining_percentage || 70}`) === grp.groupKey);
+                            if (grpKits.length === 0) return null;
 
-                {/* Mobile Results */}
-                <div className="lg:hidden w-full">
-                    {finalKits.length === 0 ? (
-                        <div className="bg-surface rounded-xl p-8 text-center border border-border">
-                            <div className="w-16 h-16 gradient-primary-soft rounded-full flex items-center justify-center mx-auto mb-4">
-                                <FiSearch size={24} className="text-primary dark:text-info" />
-                            </div>
-                            <h3 className="text-xl font-semibold text-text-primary dark:text-info mb-2">No kits found</h3>
-                            <p className="text-text-secondary text-sm mb-6">
-                                {searchTerm || sortBy !=="default"
-                                    ?"No kits match your current filters."
-                                    :"Your cart is empty."
-                                }
-                            </p>
-                            {(searchTerm || sortBy !=="default") && (
-                                <Button
-                                    onClick={clearAllFilters}
-                                    variant="primary"
-                                    size="md"
-                                    fullWidth
-                                >
-                                    Clear Filters
-                                </Button>
+                            return (
+                                <div key={grp.groupKey} className="bg-surface rounded-2xl border-2 border-primary/25 dark:border-info/25 shadow-lg overflow-hidden transition-all hover:border-primary/40">
+                                    {/* Card Master Header */}
+                                    <div className="p-5 sm:p-6 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-5">
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-primary text-white shadow-xs">
+                                                    Checkout Card {gIndex + 1} of {milestoneGroups.length}
+                                                </span>
+                                                <span className="text-xs font-bold text-emerald-700 bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700/60">
+                                                    {grp.is_trial_order ? "100% Upfront Trial Order" : `${grp.advance_percentage}% Advance + ${grp.remaining_percentage}% Before Dispatch`}
+                                                </span>
+                                            </div>
+                                            <h3 className="text-lg sm:text-xl font-black text-text-primary tracking-tight">
+                                                {grp.policy_name}
+                                            </h3>
+                                            <p className="text-xs text-text-secondary max-w-xl leading-relaxed">
+                                                {grp.is_trial_order
+                                                    ? "Trial kit orders are paid 100% upfront at order placement."
+                                                    : `Pay ${grp.advance_percentage}% Advance now to reserve factory inventory & generate PI. Final ${grp.remaining_percentage}% clears before logistics dispatch.`
+                                                }
+                                            </p>
+                                        </div>
+
+                                        {/* Visual Progress Bar */}
+                                        <div className="w-full md:w-72 bg-surface p-3.5 rounded-xl border border-border shadow-xs shrink-0">
+                                            <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                                                <span className="text-amber-600 dark:text-amber-400">Advance: {grp.advance_percentage}%</span>
+                                                <span className="text-primary dark:text-info">Balance: {grp.remaining_percentage}%</span>
+                                            </div>
+                                            <div className="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden flex">
+                                                <div className="bg-amber-500 h-full transition-all duration-300" style={{ width: `${grp.advance_percentage}%` }} />
+                                                <div className="bg-primary dark:bg-info h-full transition-all duration-300" style={{ width: `${grp.remaining_percentage}%` }} />
+                                            </div>
+                                            <div className="flex items-center justify-between text-[10px] text-text-muted mt-1">
+                                                <span>At Order Placement</span>
+                                                <span>Before Dispatch</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Kits in this Card */}
+                                    <div className="p-5 sm:p-6">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                                            {grpKits.map((kit) => (
+                                                <KitCard
+                                                    key={kit.cartItemId || kit.id}
+                                                    kit={kit}
+                                                    selected={selectedKit?.cartItemId === kit.cartItemId}
+                                                    setSelected={() => setSelected(kit.cartItemId || kit.id)}
+                                                    viewMode="grid"
+                                                    isCart={true}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Card Bottom Financial Summary & Direct Checkout Button */}
+                                    <div className="p-5 sm:p-6 bg-surface-hover/80 border-t border-border flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                                        <div className="flex items-center gap-6 sm:gap-8 flex-wrap">
+                                            <div>
+                                                <span className="text-xs text-text-muted font-medium">Card Value (Incl. GST)</span>
+                                                <p className="text-xl sm:text-2xl font-black text-text-primary">
+                                                    ₹{grp.grandTotal.toLocaleString("en-IN")}
+                                                </p>
+                                                <span className="text-[11px] text-text-secondary">{grp.totalItems} {grp.totalItems === 1 ? 'kit' : 'kits'} in this card</span>
+                                            </div>
+                                            <div className="h-10 w-px bg-border hidden sm:block" />
+                                            <div>
+                                                <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                                                    Advance Due Today ({grp.advance_percentage}%)
+                                                </span>
+                                                <p className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400">
+                                                    ₹{grp.advanceAmount.toLocaleString("en-IN")}
+                                                </p>
+                                                <span className="text-[11px] text-text-muted">Payable at Checkout</span>
+                                            </div>
+                                            <div className="h-10 w-px bg-border hidden sm:block" />
+                                            <div>
+                                                <span className="text-xs text-text-secondary font-medium">
+                                                    Remaining on Dispatch ({grp.remaining_percentage}%)
+                                                </span>
+                                                <p className="text-lg sm:text-xl font-bold text-text-primary">
+                                                    ₹{grp.remainingAmount.toLocaleString("en-IN")}
+                                                </p>
+                                                <span className="text-[11px] text-text-muted">Before Warehouse Dispatch</span>
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            onClick={() => handleProceedToCheckout(grp.groupKey)}
+                                            variant="primary"
+                                            size="lg"
+                                            disabled={!canCheckout}
+                                            rightIcon={<FiChevronRight size={20} />}
+                                            className="shadow-lg px-8 py-3.5 shrink-0 text-sm font-bold"
+                                        >
+                                            {canCheckout ? `Proceed to Checkout Card ${gIndex + 1}` : "Checkout Restricted"}
+                                        </Button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    /* ── Normal View (Single Milestone Policy) ── */
+                    <>
+                        {/* Desktop Results */}
+                        <main className="flex-1 hidden lg:block">
+                            {finalKits.length === 0 ? (
+                                <div className="bg-surface rounded-xl p-16 text-center border border-border shadow-sm">
+                                    <div className="w-24 h-24 gradient-primary-soft rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <FiSearch size={40} className="text-primary dark:text-info" />
+                                    </div>
+                                    <h3 className="text-2xl font-semibold text-text-primary dark:text-info mb-3">No kits found</h3>
+                                    <p className="text-text-secondary mb-8 max-w-md mx-auto text-lg">
+                                        {searchTerm || sortBy !== "default"
+                                            ? "No kits match your current filters. Try adjusting your search criteria."
+                                            : "Your cart is empty. Browse our collection to add some solar kits!"
+                                        }
+                                    </p>
+                                    {(searchTerm || sortBy !== "default") && (
+                                        <Button
+                                            onClick={clearAllFilters}
+                                            variant="primary"
+                                            size="lg"
+                                            className="px-8"
+                                        >
+                                            Clear Filters
+                                        </Button>
+                                    )}
+                                </div>
+                            ) : viewMode === "grid" ? (
+                                <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
+                                    {finalKits.map((kit) => (
+                                        <KitCard
+                                            key={kit.cartItemId || kit.id}
+                                            kit={kit}
+                                            selected={selectedKit?.cartItemId === kit.cartItemId}
+                                            setSelected={() => setSelected(kit.cartItemId || kit.id)}
+                                            viewMode={viewMode}
+                                            isCart={true}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {finalKits.map((kit) => (
+                                        <KitCard
+                                            key={kit.cartItemId || kit.id}
+                                            kit={kit}
+                                            selected={selectedKit?.cartItemId === kit.cartItemId}
+                                            setSelected={() => setSelected(kit.cartItemId || kit.id)}
+                                            viewMode={viewMode}
+                                            isCart={true}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </main>
+
+                        {/* Mobile Results */}
+                        <div className="lg:hidden w-full">
+                            {finalKits.length === 0 ? (
+                                <div className="bg-surface rounded-xl p-8 text-center border border-border">
+                                    <div className="w-16 h-16 gradient-primary-soft rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <FiSearch size={24} className="text-primary dark:text-info" />
+                                    </div>
+                                    <h3 className="text-xl font-semibold text-text-primary dark:text-info mb-2">No kits found</h3>
+                                    <p className="text-text-secondary text-sm mb-6">
+                                        {searchTerm || sortBy !== "default"
+                                            ? "No kits match your current filters."
+                                            : "Your cart is empty."
+                                        }
+                                    </p>
+                                    {(searchTerm || sortBy !== "default") && (
+                                        <Button
+                                            onClick={clearAllFilters}
+                                            variant="primary"
+                                            size="md"
+                                            fullWidth
+                                        >
+                                            Clear Filters
+                                        </Button>
+                                    )}
+                                </div>
+                            ) : viewMode === "grid" ? (
+                                <div className="grid grid-cols-1 gap-4">
+                                    {finalKits.map((kit) => (
+                                        <KitCard
+                                            key={kit.cartItemId || kit.id}
+                                            kit={kit}
+                                            selected={selectedKit?.cartItemId === kit.cartItemId}
+                                            setSelected={() => setSelected(kit.cartItemId || kit.id)}
+                                            viewMode={viewMode}
+                                            compact={true}
+                                            isCart={true}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {finalKits.map((kit) => (
+                                        <KitCard
+                                            key={kit.cartItemId || kit.id}
+                                            kit={kit}
+                                            selected={selectedKit?.cartItemId === kit.cartItemId}
+                                            setSelected={() => setSelected(kit.cartItemId || kit.id)}
+                                            viewMode={viewMode}
+                                            compact={true}
+                                            isCart={true}
+                                        />
+                                    ))}
+                                </div>
                             )}
                         </div>
-                    ) : viewMode ==="grid" ? (
-                        <div className="grid grid-cols-1 gap-4">
-                            {finalKits.map((kit) => (
-                                <KitCard
-                                    key={kit.cartItemId || kit.id}
-                                    kit={kit}
-                                    selected={selectedKit?.cartItemId === kit.cartItemId}
-                                    setSelected={() => setSelected(kit.cartItemId || kit.id)}
-                                    viewMode={viewMode}
-                                    compact={true}
-                                    isCart={true}
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {finalKits.map((kit) => (
-                                <KitCard
-                                    key={kit.cartItemId || kit.id}
-                                    kit={kit}
-                                    selected={selectedKit?.cartItemId === kit.cartItemId}
-                                    setSelected={() => setSelected(kit.cartItemId || kit.id)}
-                                    viewMode={viewMode}
-                                    compact={true}
-                                    isCart={true}
-                                />
-                            ))}
-                        </div>
-                    )}
-                </div>
+                    </>
+                )}
             </div>
 
             {/* Enhanced Sticky Footer with Detailed Summary */}
@@ -866,16 +1019,16 @@ export default function PreConfiguredKitOrderCart() {
                                 <div className="flex-1">
                                     <div className="flex justify-between items-center text-xs font-semibold mb-1">
                                         <span className="text-text-primary dark:text-info">Bundle Progress: {totalKitsQuantity}/{bundleOffer.max_qty || 5} Kits Added</span>
-                                        <span className={totalKitsQuantity >= (bundleOffer.max_qty || 5) ?"text-success" :"text-primary dark:text-info"}>
-                                            {totalKitsQuantity >= (bundleOffer.max_qty || 5) 
-                                                ?`Bulk Discount Active (₹${bundleOffer.discount_value || 500}/KW)` 
-                                                :`Add ${(bundleOffer.max_qty || 5) - totalKitsQuantity} more to unlock bulk discount`}
+                                        <span className={totalKitsQuantity >= (bundleOffer.max_qty || 5) ? "text-success" : "text-primary dark:text-info"}>
+                                            {totalKitsQuantity >= (bundleOffer.max_qty || 5)
+                                                ? `Bulk Discount Active (₹${bundleOffer.discount_value || 500}/KW)`
+                                                : `Add ${(bundleOffer.max_qty || 5) - totalKitsQuantity} more to unlock bulk discount`}
                                         </span>
                                     </div>
                                     <div className="w-full bg-border rounded-full h-2 overflow-hidden">
-                                        <div 
-                                            className={`h-full transition-all duration-500 ${totalKitsQuantity >= (bundleOffer.max_qty || 5) ?"bg-success" :"bg-primary"}`}
-                                            style={{ width:`${Math.min(100, (totalKitsQuantity / (bundleOffer.max_qty || 5)) * 100)}%` }}
+                                        <div
+                                            className={`h-full transition-all duration-500 ${totalKitsQuantity >= (bundleOffer.max_qty || 5) ? "bg-success" : "bg-primary"}`}
+                                            style={{ width: `${Math.min(100, (totalKitsQuantity / (bundleOffer.max_qty || 5)) * 100)}%` }}
                                         />
                                     </div>
                                 </div>
@@ -943,18 +1096,19 @@ export default function PreConfiguredKitOrderCart() {
 
                                 <div className="flex flex-col items-center sm:items-end gap-1">
                                     <Button
-                                        onClick={handleProceedToCheckout}
+                                        onClick={() => handleProceedToCheckout(hasMultipleMilestones ? milestoneGroups[0]?.groupKey : null)}
                                         variant="primary"
                                         size="lg"
                                         disabled={!canCheckout}
                                         leftIcon={canCheckout ? <FiShoppingCart size={20} /> : <FiLock size={20} />}
-                                        className={`shadow-lg px-8 py-4 ${
-                                            canCheckout
+                                        className={`shadow-lg px-8 py-4 ${canCheckout
                                                 ? "btn-primary"
                                                 : "opacity-60 cursor-not-allowed bg-slate-700 text-slate-300 border-slate-600"
-                                        }`}
+                                            }`}
                                     >
-                                        {canCheckout ? "Proceed to Checkout" : "Checkout Restricted"}
+                                        {canCheckout
+                                            ? (hasMultipleMilestones ? `Checkout Card 1 (${milestoneGroups[0]?.advance_percentage}% Adv)` : "Proceed to Checkout")
+                                            : "Checkout Restricted"}
                                     </Button>
                                     {!canCheckout && (
                                         <span className="text-[11px] text-amber-500 font-bold">

@@ -327,8 +327,8 @@ export default function ProjectOrderStatus() {
     // 1. Detect if the first payment was made via ICICI e-Collection
     const firstPaymentWasIcici = Boolean(
       order.is_online ||
-      order.payment_method === "icici_ecollection" || 
-      order.payment_gateway_used === "icici_ecollection" || 
+      order.payment_method === "icici_ecollection" ||
+      order.payment_gateway_used === "icici_ecollection" ||
       order.payment_gateway_used === "icici" ||
       order.payment_info?.payment_method === "icici_ecollection" ||
       order.payment_info?.payment_gateway_used === "icici_ecollection" ||
@@ -550,8 +550,8 @@ export default function ProjectOrderStatus() {
             navigate("/track-status?tab=direct", { replace: true });
           }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${mainTab === "direct"
-              ? "bg-primary text-white shadow-sm"
-              : "text-text-secondary hover:text-text-primary"
+            ? "bg-primary text-white shadow-sm"
+            : "text-text-secondary hover:text-text-primary"
             }`}
         >
           <FaShoppingCart size={13} />
@@ -563,8 +563,8 @@ export default function ProjectOrderStatus() {
             navigate("/track-status?tab=po_allocations", { replace: true });
           }}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${mainTab === "po_allocations"
-              ? "bg-primary text-white shadow-sm"
-              : "text-text-secondary hover:text-text-primary"
+            ? "bg-primary text-white shadow-sm"
+            : "text-text-secondary hover:text-text-primary"
             }`}
         >
           <FaBuilding size={13} />
@@ -645,8 +645,8 @@ export default function ProjectOrderStatus() {
 
                 const isIciciPayment = Boolean(
                   order.is_online ||
-                  order.payment_method === "icici_ecollection" || 
-                  order.payment_gateway_used === "icici_ecollection" || 
+                  order.payment_method === "icici_ecollection" ||
+                  order.payment_gateway_used === "icici_ecollection" ||
                   order.payment_gateway_used === "icici" ||
                   order.payment_info?.payment_method === "icici_ecollection" ||
                   order.payment_info?.payment_gateway_used === "icici_ecollection" ||
@@ -656,18 +656,29 @@ export default function ProjectOrderStatus() {
                   order.offline_payment?.sender_bank_name?.toLowerCase().includes("icici")
                 );
 
-                const isApproved = isIciciPayment ||
-                  order.payment_status === "captured" || 
-                  order.status === "confirmed" || 
-                  order.order_status === "confirmed" ||
+                const isApproved =
                   order.offline_payment?.verification_status === "approved" ||
-                  order.offline_payment?.admin_approval_status === "approved";
+                  order.offline_payment?.admin_approval_status === "approved" ||
+                  order.payment_milestones?.milestone_verification_status === "advance_verified" ||
+                  order.payment_milestones?.milestone_verification_status === "fully_paid" ||
+                  order.payment_status === "captured" ||
+                  order.status === "confirmed" ||
+                  order.order_status === "confirmed";
 
                 const isDispatched = order.order_status === "dispatched" || order.status === "dispatched" || Boolean(order.dispatch_tracking?.tracking_number);
                 const isDelivered = order.order_status === "delivered" || order.status === "completed" || order.status === "delivered";
                 const isRejected = order.payment_status === "rejected" || order.status === "rejected" || order.offline_payment?.verification_status === "rejected";
 
-                const isPendingVerification = !isIciciPayment && !isApproved && (order.payment_status === "pending_verification" || order.status === "pending_verification" || order.offline_payment?.verification_status === "pending");
+                const isPendingVerification = !isRejected && !isApproved && (
+                  order.payment_status === "pending_verification" ||
+                  order.payment_status === "pending" ||
+                  order.status === "pending" ||
+                  order.status === "pending_verification" ||
+                  order.order_status === "pending" ||
+                  order.offline_payment?.verification_status === "pending" ||
+                  order.payment_milestones?.milestone_verification_status === "awaiting_advance" ||
+                  order.payment_milestones?.milestone_verification_status === "pending_verification"
+                );
 
                 // Determine timeline step progression (1: Order Placed, 2: Verification, 3: Approved & Packaged, 4: Dispatched & In Transit, 5: Delivered)
                 let step = 1;
@@ -682,7 +693,13 @@ export default function ProjectOrderStatus() {
                 const lrNumber = order.dispatch_tracking?.tracking_number || "";
                 const trackingUrl = order.dispatch_tracking?.tracking_url || "";
                 const dispatchedDate = order.dispatch_tracking?.dispatched_at;
-                const estimatedDate = order.dispatch_tracking?.estimated_delivery;
+
+                // Resolve dynamic Admin Turnaround Time (TAT) and Delivery SLA
+                const totalSlaDays = Number(order.total_sla_days) || Number(order.payment_milestones?.total_sla_days) || 12;
+                const effectiveEstimatedDate = order.dispatch_tracking?.estimated_delivery || order.estimated_delivery_date || (
+                  order.created_at ? new Date(new Date(order.created_at).getTime() + totalSlaDays * 86400000).toISOString() : null
+                );
+                const estimatedDate = effectiveEstimatedDate;
 
                 return (
                   <div
@@ -748,13 +765,14 @@ export default function ProjectOrderStatus() {
                                   day: "numeric",
                                   month: "short",
                                   year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
                                 })}
+                                <span className="ml-1.5 text-[11px] font-semibold opacity-85">
+                                  ({totalSlaDays} Days SLA)
+                                </span>
                               </span>
                             ) : (
                               <span className="font-semibold text-emerald-800 dark:text-emerald-200">
-                                Within 3 - 5 business days
+                                Within {totalSlaDays} Business Days
                               </span>
                             )}
                           </span>
@@ -806,14 +824,14 @@ export default function ProjectOrderStatus() {
                         <div className="relative max-w-5xl mx-auto">
                           {(() => {
                             const STAGE_ORDER = [
-                              { key: "confirmed",           label: "1. Confirmed",      sub: "Payment verified" },
-                              { key: "processing",          label: "2. Processing",     sub: "Warehouse picking" },
-                              { key: "vehicle_assigned",    label: "3. Fleet Assigned", sub: "Vehicle & Driver" },
-                              { key: "ready_for_dispatch",  label: "4. Ready",          sub: "Staged at gate" },
-                              { key: "dispatched",          label: "5. Dispatched",     sub: "Out for delivery" },
-                              { key: "in_transit",          label: "6. In Transit",     sub: "En route" },
-                              { key: "reached_destination", label: "7. Arrived",        sub: "At site / hub" },
-                              { key: "delivered",           label: "8. Delivered",      sub: "Delivery complete" },
+                              { key: "confirmed", label: "1. Confirmed", sub: "Payment verified" },
+                              { key: "processing", label: "2. Processing", sub: "Warehouse picking" },
+                              { key: "vehicle_assigned", label: "3. Fleet Assigned", sub: "Vehicle & Driver" },
+                              { key: "ready_for_dispatch", label: "4. Ready", sub: "Staged at gate" },
+                              { key: "dispatched", label: "5. Dispatched", sub: "Out for delivery" },
+                              { key: "in_transit", label: "6. In Transit", sub: "En route" },
+                              { key: "reached_destination", label: "7. Arrived", sub: "At site / hub" },
+                              { key: "delivered", label: "8. Delivered", sub: "Delivery complete" },
                             ];
 
                             const rawStatus = String(order.order_status || order.status || "").toLowerCase();
@@ -828,11 +846,66 @@ export default function ProjectOrderStatus() {
                             else if (rawStatus === "confirmed" || order.payment_status === "captured" || order.payment_status === "paid") stageIndex = 0;
                             else stageIndex = 0;
 
+                            const stagesConfig = Array.isArray(order.order_stages_config) && order.order_stages_config.length > 0
+                              ? order.order_stages_config
+                              : (order.payment_milestones?.order_stages_config || []);
+
+                            const orderStartTime = order.created_at ? new Date(order.created_at).getTime() : Date.now();
+
+                            // Calculate running cumulative days for each stage from Admin configuration
+                            let runningDays = 0;
+                            const enrichedStages = STAGE_ORDER.map((st, sIdx) => {
+                              const matchConfig = stagesConfig.find(
+                                (cfg) => (cfg.stage_key || "").toUpperCase() === st.key.toUpperCase()
+                              );
+
+                              const fallbackDays = [1, 2, 1, 2, 1, 3, 1, 1][sIdx];
+                              const stepDays = matchConfig?.tat_days !== undefined && matchConfig?.tat_days !== null && matchConfig?.tat_days !== ""
+                                ? Number(matchConfig.tat_days)
+                                : (matchConfig?.tat_hours ? Math.max(1, Math.round(Number(matchConfig.tat_hours) / 24)) : fallbackDays);
+
+                              runningDays += stepDays;
+                              const targetDate = new Date(orderStartTime + runningDays * 86400000);
+
+                              return {
+                                ...st,
+                                matchConfig,
+                                stepDays,
+                                targetDate,
+                                runningDays,
+                                displayName: matchConfig?.stage_name || st.sub,
+                              };
+                            });
+
                             return (
-                              <div className="space-y-5">
+                              <div className="space-y-4">
+                                {/* Top SLA & Estimated Delivery Summary Header */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-border/60 text-xs">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-extrabold text-text-primary dark:text-white flex items-center gap-1.5">
+                                      <FaRegClock className="text-primary" /> Live 8-Stage Fulfillment Timeline
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+                                      Total SLA: {totalSlaDays} Days
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-text-secondary flex items-center gap-1.5">
+                                    <span>Target Final Delivery:</span>
+                                    <strong className="font-black text-emerald-700 dark:text-emerald-300">
+                                      {effectiveEstimatedDate
+                                        ? new Date(effectiveEstimatedDate).toLocaleDateString("en-IN", {
+                                            day: "numeric",
+                                            month: "short",
+                                            year: "numeric",
+                                          })
+                                        : `Within ${totalSlaDays} Days`}
+                                    </strong>
+                                  </div>
+                                </div>
+
                                 {/* Connecting Progress Track & Steps */}
-                                <div className="overflow-x-auto pb-2">
-                                  <div className="relative min-w-[680px]">
+                                <div className="overflow-x-auto pb-3">
+                                  <div className="relative min-w-[760px]">
                                     <div className="absolute top-4 left-6 right-6 h-1 bg-border rounded-full -z-0" />
                                     <div
                                       className="absolute top-4 left-6 h-1 bg-gradient-to-r from-primary via-indigo-600 to-emerald-500 rounded-full transition-all duration-500 -z-0"
@@ -840,29 +913,58 @@ export default function ProjectOrderStatus() {
                                     />
 
                                     <div className="grid grid-cols-8 gap-2 relative z-10">
-                                      {STAGE_ORDER.map((st, sIdx) => {
+                                      {enrichedStages.map((st, sIdx) => {
                                         const isCompleted = sIdx < stageIndex;
                                         const isCurrent = sIdx === stageIndex;
 
                                         return (
-                                          <div key={st.key} className="flex flex-col items-center text-center space-y-1">
+                                          <div key={st.key} className="flex flex-col items-center text-center space-y-1 px-0.5">
                                             <div
-                                              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
-                                                isCompleted
+                                              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${isCompleted
                                                   ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
                                                   : isCurrent
-                                                  ? "bg-primary text-white shadow-md shadow-primary/30 ring-4 ring-primary/20 scale-110 animate-pulse"
-                                                  : "bg-surface-hover border border-border text-text-muted"
-                                              }`}
+                                                    ? "bg-primary text-white shadow-md shadow-primary/30 ring-4 ring-primary/20 scale-110 animate-pulse"
+                                                    : "bg-surface-hover border border-border text-text-muted"
+                                                }`}
                                             >
                                               {isCompleted ? "✓" : sIdx + 1}
                                             </div>
-                                            <p className={`text-[11px] font-bold leading-tight ${isCurrent ? "text-primary font-black" : isCompleted ? "text-emerald-700 dark:text-emerald-300" : "text-text-muted"}`}>
+                                            <p className={`text-[11px] font-bold leading-tight ${isCurrent ? "text-primary font-black" : isCompleted ? "text-emerald-700 dark:text-emerald-300" : "text-text-primary dark:text-slate-200"}`}>
                                               {st.label.replace(/^\d+\.\s*/, "")}
                                             </p>
-                                            <p className="text-[9px] text-text-muted leading-tight">
-                                              {st.sub}
+                                            <p className="text-[9px] text-text-muted leading-tight line-clamp-1" title={st.displayName}>
+                                              {st.displayName}
                                             </p>
+
+                                            {/* Number of Days Badge from Admin */}
+                                            <div className="pt-0.5">
+                                              <span
+                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold whitespace-nowrap border ${isCompleted
+                                                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                                                    : isCurrent
+                                                      ? "bg-primary/10 text-primary border-primary/30 shadow-2xs"
+                                                      : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25"
+                                                  }`}
+                                                title={`Turnaround Time configured by Admin: ${st.stepDays} Day${st.stepDays > 1 ? "s" : ""}`}
+                                              >
+                                                ⏱️ {st.stepDays} Day{st.stepDays > 1 ? "s" : ""}
+                                              </span>
+                                            </div>
+
+                                            {/* Cumulative Target Date */}
+                                            <div className="text-[9px] font-semibold leading-tight pt-0.5">
+                                              {isCompleted ? (
+                                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">✓ Completed</span>
+                                              ) : isCurrent ? (
+                                                <span className="text-primary font-black">
+                                                  Est: {st.targetDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                                                </span>
+                                              ) : (
+                                                <span className="text-text-muted">
+                                                  Est: {st.targetDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                                                </span>
+                                              )}
+                                            </div>
                                           </div>
                                         );
                                       })}
@@ -1079,9 +1181,9 @@ export default function ProjectOrderStatus() {
                                   hour: "2-digit",
                                   minute: "2-digit",
                                 })
-                                : "Within 3 - 5 business days"}
+                                : `Within ${totalSlaDays} Business Days`}
                             </p>
-                            <span className="text-[10px] text-text-secondary block">Destination Site ETA</span>
+                            <span className="text-[10px] text-text-secondary block">Destination Site ETA ({totalSlaDays}d SLA)</span>
                           </div>
                         </div>
 
@@ -1232,11 +1334,11 @@ export default function ProjectOrderStatus() {
                                   </p>
                                   <div className="flex items-center justify-between pt-2 border-t border-emerald-500/20 text-xs">
                                     <span className="font-mono text-text-secondary text-[11px]">UTR: {utrStr}</span>
-                                    {isIciciPayment ||
-                                    order.payment_status === "captured" ||
-                                    order.payment_status === "paid" ||
-                                    order.payment_milestones?.milestone_verification_status === "fully_paid" ||
-                                    ["confirmed", "processing", "vehicle_assigned", "ready_for_dispatch", "dispatched", "in_transit", "reached_destination", "delivered"].includes(order.order_status || order.status) ? (
+                                    {order.payment_status === "captured" ||
+                                      order.payment_status === "paid" ||
+                                      order.payment_milestones?.milestone_verification_status === "fully_paid" ||
+                                      order.offline_payment?.verification_status === "approved" ||
+                                      ["processing", "vehicle_assigned", "ready_for_dispatch", "dispatched", "in_transit", "reached_destination", "delivered"].includes(order.order_status || order.status) ? (
                                       <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
                                         <FaCheckCircle size={10} /> 100% Full Payment Verified
                                       </span>
@@ -1256,11 +1358,14 @@ export default function ProjectOrderStatus() {
                                   {/* Milestone 1: Advance */}
                                   {(() => {
                                     const m1 = order.payment_milestones?.milestones?.find(m => m.milestone_number === 1);
-                                    const isM1Verified = isIciciPayment ||
+                                    const isM1Verified =
                                       m1?.payment_status === "verified" ||
+                                      m1?.payment_status === "approved" ||
                                       order.payment_milestones?.milestone_verification_status === "advance_verified" ||
                                       order.payment_milestones?.milestone_verification_status === "fully_paid" ||
-                                      ["confirmed", "processing", "vehicle_assigned", "ready_for_dispatch", "dispatched", "in_transit", "reached_destination", "delivered"].includes(order.order_status || order.status);
+                                      order.offline_payment?.verification_status === "approved" ||
+                                      order.offline_payment?.admin_approval_status === "approved" ||
+                                      ["processing", "vehicle_assigned", "ready_for_dispatch", "dispatched", "in_transit", "reached_destination", "delivered"].includes(order.order_status || order.status);
                                     const isM1Rejected = order.payment_status === "rejected" || m1?.payment_status === "rejected";
                                     const advPct = order.payment_milestones?.advance_percentage ?? (m1?.percentage || 30);
                                     const m1Amount = order.payment_milestones?.advance_amount || order.offline_payment?.amount_paid || Math.round((order.total_amount || 0) * (advPct / 100));
@@ -1299,13 +1404,18 @@ export default function ProjectOrderStatus() {
                                   {/* Milestone 2: Remaining Balance */}
                                   {(() => {
                                     const m2 = order.payment_milestones?.milestones?.find(m => m.milestone_number === 2);
-                                    const hasMilestones = Boolean(order.payment_milestones?.milestones?.length > 0 || order.payment_milestones?.advance_amount);
+                                    const hasMilestones = Boolean(order.payment_milestones?.milestones?.length > 1 || (order.payment_milestones?.remaining_amount > 0 && order.payment_milestones?.advance_amount > 0));
                                     const isM2Verified = hasMilestones
-                                      ? (m2?.payment_status === "verified" || order.payment_milestones?.milestone_verification_status === "fully_paid")
+                                      ? Boolean(
+                                        (m2?.payment_status === "verified" || m2?.payment_status === "approved") ||
+                                        (order.payment_milestones?.milestone_verification_status === "fully_paid" && m2?.payment_status !== "unpaid" && m2?.payment_status !== "pending_verification")
+                                      )
                                       : (order.payment_status === "captured" || order.payment_status === "paid");
-                                    const isM2Pending = m2?.payment_status === "pending_verification" ||
+                                    const isM2Pending = !isM2Verified && (
+                                      m2?.payment_status === "pending_verification" ||
                                       order.payment_milestones?.milestone_verification_status === "final_payment_pending_verification" ||
-                                      Boolean(m2?.utr_number && !isM2Verified);
+                                      Boolean(m2?.utr_number && m2?.payment_status !== "unpaid")
+                                    );
                                     const remPct = order.payment_milestones?.remaining_percentage ?? (m2?.percentage || (100 - (order.payment_milestones?.advance_percentage || 30)));
                                     const m2Amount = order.payment_milestones?.remaining_amount || Math.max(0, Math.round((order.total_amount || 0) * (remPct / 100)));
                                     const m2Utr = m2?.utr_number;
@@ -1383,14 +1493,12 @@ export default function ProjectOrderStatus() {
                                   Estimated Delivery:{" "}
                                   <strong className="font-black">
                                     {estimatedDate
-                                      ? new Date(estimatedDate).toLocaleDateString("en-IN", {
+                                      ? `${new Date(estimatedDate).toLocaleDateString("en-IN", {
                                           day: "numeric",
                                           month: "short",
                                           year: "numeric",
-                                          hour: "2-digit",
-                                          minute: "2-digit",
-                                        })
-                                      : "3 - 5 Business Days"}
+                                        })} (${totalSlaDays} Business Days SLA)`
+                                      : `${totalSlaDays} Business Days`}
                                   </strong>
                                 </span>
                                 {order.delivery_address.pincode && (
@@ -1662,8 +1770,8 @@ export default function ProjectOrderStatus() {
                             <div key={idx} className="flex flex-col items-center gap-1.5 relative z-10 bg-surface px-1">
                               <div
                                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${isDone
-                                    ? "bg-primary text-white shadow-md shadow-primary/20 scale-105"
-                                    : "bg-surface-hover text-text-muted border border-border"
+                                  ? "bg-primary text-white shadow-md shadow-primary/20 scale-105"
+                                  : "bg-surface-hover text-text-muted border border-border"
                                   }`}
                               >
                                 {isDone ? "✓" : num}
@@ -1893,14 +2001,14 @@ export default function ProjectOrderStatus() {
                                   <div className="flex items-center gap-2">
                                     <span
                                       className={`px-3 py-1 rounded-full text-xs font-black border ${isChildDelivered
-                                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                          : isChildDispatched
-                                            ? "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30"
-                                            : isChildPaid
-                                              ? "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30"
-                                              : child.status === "DRAFT"
-                                                ? "bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/30"
-                                                : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                        : isChildDispatched
+                                          ? "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30"
+                                          : isChildPaid
+                                            ? "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30"
+                                            : child.status === "DRAFT"
+                                              ? "bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/30"
+                                              : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30"
                                         }`}
                                     >
                                       {child.status}
@@ -1930,8 +2038,8 @@ export default function ProjectOrderStatus() {
                                         <div key={idx} className="flex flex-col items-center gap-1.5 relative z-10 bg-surface px-1">
                                           <div
                                             className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black transition-all ${isDone
-                                                ? "bg-primary text-white shadow-md shadow-primary/20 scale-105"
-                                                : "bg-surface-hover text-text-muted border border-border"
+                                              ? "bg-primary text-white shadow-md shadow-primary/20 scale-105"
+                                              : "bg-surface-hover text-text-muted border border-border"
                                               }`}
                                           >
                                             {isDone ? "✓" : num}
@@ -2149,9 +2257,8 @@ export default function ProjectOrderStatus() {
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                       {/* Milestone 1: Advance Payment (30%) */}
-                                      <div className={`p-3.5 rounded-2xl border transition-all ${
-                                        isM1Verified ? "bg-emerald-500/5 border-emerald-500/30" : "bg-amber-500/5 border-amber-500/30"
-                                      }`}>
+                                      <div className={`p-3.5 rounded-2xl border transition-all ${isM1Verified ? "bg-emerald-500/5 border-emerald-500/30" : "bg-amber-500/5 border-amber-500/30"
+                                        }`}>
                                         <div className="flex items-center justify-between mb-1">
                                           <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
                                             Milestone 1 — Advance ({childAdvPct}%)
@@ -2178,9 +2285,8 @@ export default function ProjectOrderStatus() {
                                       </div>
 
                                       {/* Milestone 2: Remaining Balance (70%) */}
-                                      <div className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between ${
-                                        isM2Verified ? "bg-emerald-500/5 border-emerald-500/30" : isM2Pending ? "bg-blue-500/5 border-blue-500/30" : "bg-purple-500/5 border-purple-500/30"
-                                      }`}>
+                                      <div className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between ${isM2Verified ? "bg-emerald-500/5 border-emerald-500/30" : isM2Pending ? "bg-blue-500/5 border-blue-500/30" : "bg-purple-500/5 border-purple-500/30"
+                                        }`}>
                                         <div>
                                           <div className="flex items-center justify-between mb-1">
                                             <span className="text-[11px] font-black uppercase tracking-wider text-purple-700 dark:text-purple-300">
@@ -2560,11 +2666,10 @@ export default function ProjectOrderStatus() {
                 <button
                   type="button"
                   onClick={() => setMilestonePaymentGateway("icici")}
-                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    milestonePaymentGateway === "icici"
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${milestonePaymentGateway === "icici"
                       ? "bg-[#264baa] text-white shadow-md shadow-[#264baa]/30"
                       : "text-text-secondary hover:text-text-primary"
-                  }`}
+                    }`}
                 >
                   <span>⚡ ICICI eCollection (VAN)</span>
                   {firstPaymentMethodUsed === "icici" ? (
@@ -2576,11 +2681,10 @@ export default function ProjectOrderStatus() {
                 <button
                   type="button"
                   onClick={() => setMilestonePaymentGateway("offline")}
-                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    milestonePaymentGateway === "offline"
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${milestonePaymentGateway === "offline"
                       ? "bg-amber-600 text-white shadow-md shadow-amber-600/30"
                       : "text-text-secondary hover:text-text-primary"
-                  }`}
+                    }`}
                 >
                   <span>🏦 Company Escrow Bank</span>
                   {firstPaymentMethodUsed === "offline" ? (

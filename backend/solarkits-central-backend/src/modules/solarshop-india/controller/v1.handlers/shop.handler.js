@@ -222,7 +222,7 @@ const getReservedSKUsMap = async (warehouseIds) => {
   if (activeResvs.length > 0) {
     const kitIds = activeResvs.map(r => r.product_id).filter(Boolean);
     const kits = await ComboKit.find({ _id: { $in: kitIds } }).lean();
-    
+
     const resolvedWarehouseMap = {};
     for (const kit of kits) {
       let resolvedWhId = kit.warehouse_id;
@@ -318,7 +318,7 @@ const computeKitAvailableStock = async (kit, warehouseId, otherCartDepletion = {
 const get_combo_kits_by_district = async (req, res) => {
   try {
     const { district_id, pincode } = req.query;
-    
+
     const shopSettings = await SolarShopSettings.findOne({}).lean() || {};
 
     let targetDistrictId = district_id;
@@ -332,10 +332,10 @@ const get_combo_kits_by_district = async (req, res) => {
     }
     if (!targetDistrictId || !mongoose.Types.ObjectId.isValid(targetDistrictId)) {
       // Find the first active sub warehouse as default
-      const defaultWarehouse = await CompanyWarehouse.findOne({ 
+      const defaultWarehouse = await CompanyWarehouse.findOne({
         warehouse_type: 'sub',
-        is_active: true, 
-        deleted_at: null 
+        is_active: true,
+        deleted_at: null
       }).lean();
 
       if (defaultWarehouse && defaultWarehouse.level_2) {
@@ -641,13 +641,13 @@ const get_combo_kits_by_district = async (req, res) => {
     const subcategoryIds = solarKits.map(sk => sk.subcategory_id).filter(Boolean);
     const typeMapIds = solarKits.map(sk => sk.type_id).filter(Boolean);
 
-    const { 
-      ProjectCategory, 
-      ProjectSubcategory, 
-      ProjectSubcategoryType, 
-      ProjectRange, 
-      ProjectType, 
-      Unit, 
+    const {
+      ProjectCategory,
+      ProjectSubcategory,
+      ProjectSubcategoryType,
+      ProjectRange,
+      ProjectType,
+      Unit,
       IndustryType,
       ProductSubtype,
       ProductTemplate,
@@ -664,11 +664,19 @@ const get_combo_kits_by_district = async (req, res) => {
     const typeIds = typeMaps.map(tm => tm.type).filter(Boolean);
     const unitIds = projectRanges.map(pr => pr.unit_id).filter(Boolean);
 
-    const [types, units, industryTypes] = await Promise.all([
+    const ProductPaymentMilestone = require("../../../admin-panel/models/india_solarshop_db/product_payment_milestones.schema");
+    const [types, units, industryTypes, activeMilestones, defaultMilestoneDoc] = await Promise.all([
       ProjectType.find({ _id: { $in: typeIds } }).lean(),
       Unit.find({ _id: { $in: unitIds } }).lean(),
-      IndustryType.find({ deleted_at: null }).lean()
+      IndustryType.find({ deleted_at: null }).lean(),
+      ProductPaymentMilestone.find({ is_active: true, kit_id: { $ne: null } }).lean().catch(() => []),
+      ProductPaymentMilestone.findOne({ is_default: true, is_active: true }).lean().catch(() => null),
     ]);
+
+    const milestoneMap = new Map();
+    (activeMilestones || []).forEach(m => {
+      if (m.kit_id) milestoneMap.set(m.kit_id.toString(), m);
+    });
 
     const projectRangesMap = {};
     projectRanges.forEach(pr => {
@@ -683,7 +691,7 @@ const get_combo_kits_by_district = async (req, res) => {
     solarKits.forEach(sk => {
       const cat = categories.find(c => c._id.toString() === sk.category_id?.toString());
       const sub = subcategories.find(s => s._id.toString() === sk.subcategory_id?.toString());
-      
+
       const typeMap = typeMaps.find(tm => tm._id.toString() === sk.type_id?.toString());
       let typeObj = null;
       if (typeMap && typeMap.type) {
@@ -915,6 +923,70 @@ const get_combo_kits_by_district = async (req, res) => {
         addAttr("Grade", "SS304 / High Tensile Galvanized Steel Grade 8.8");
       }
 
+      // Solar Panels
+      if (code.startsWith("SOL-") || name.includes("solar") || name.includes("panel") || name.includes("module") || name.includes("bifacial") || name.includes("topcon") || name.includes("mono")) {
+        const wattMatch = (code + " " + name).match(/(\d+)\s*(W|WP)\b/i);
+        if (wattMatch) {
+          addAttr("Wattage (Pmax)", `${wattMatch[1]} Wp`);
+          addAttr("Power Rating", `${wattMatch[1]} W`);
+        }
+        if (code.includes("BIFA") || name.includes("bifacial")) {
+          addAttr("Cell Technology", "N-Type Bifacial TOPCon / Mono PERC");
+          addAttr("Bifaciality Factor", "70% - 80%");
+        } else if (code.includes("TOPC") || name.includes("topcon")) {
+          addAttr("Cell Technology", "N-Type TOPCon");
+        } else if (code.includes("MONO") || name.includes("mono")) {
+          addAttr("Cell Technology", "Mono PERC");
+        } else if (code.includes("POLY") || name.includes("poly")) {
+          addAttr("Cell Technology", "Polycrystalline");
+        }
+        addAttr("Module Efficiency", "21.5%");
+        addAttr("Efficiency", "21.5%");
+        addAttr("Product Warranty", "12 Years");
+        addAttr("Performance Warranty", "25 Years Linear Power Warranty");
+        addAttr("Warranty", "25 Years");
+        addAttr("Frame", "Anodized Aluminium Alloy");
+        addAttr("Junction Box", "IP68 with Bypass Diodes");
+        addAttr("Front Glass", "3.2mm Toughened ARC Solar Glass");
+      }
+
+      // Inverters
+      if (code.startsWith("INV-") || name.includes("inverter") || name.includes("microinverter")) {
+        const kwMatch = (code + " " + name).match(/(\d+(\.\d+)?)\s*KW\b/i);
+        const wMatch = (code + " " + name).match(/(\d+)\s*W\b/i);
+        if (kwMatch) {
+          addAttr("Capacity", `${kwMatch[1]} kW`);
+          addAttr("Rated Power", `${kwMatch[1]} kW`);
+        } else if (wMatch) {
+          const kwVal = parseInt(wMatch[1]) / 1000;
+          addAttr("Capacity", `${kwVal} kW`);
+          addAttr("Rated Power", `${kwVal} kW`);
+        }
+        if (code.includes("MICR") || name.includes("micro")) {
+          addAttr("Inverter Type", "Microinverter");
+          addAttr("Type", "Microinverter");
+          addAttr("Efficiency", "96.7%");
+          addAttr("Warranty", "10 Years");
+        } else if (code.includes("STRI") || name.includes("string")) {
+          addAttr("Inverter Type", "String Inverter");
+          addAttr("Type", "String Inverter");
+          addAttr("Efficiency", "98.2%");
+          addAttr("Warranty", "5 Years");
+        } else if (code.includes("HYBR") || name.includes("hybrid")) {
+          addAttr("Inverter Type", "Hybrid Inverter");
+          addAttr("Type", "Hybrid Inverter");
+          addAttr("Efficiency", "97.6%");
+          addAttr("Warranty", "5 Years");
+        } else {
+          addAttr("Inverter Type", "On-Grid Inverter");
+          addAttr("Type", "On-Grid Inverter");
+          addAttr("Efficiency", "97.5%");
+          addAttr("Warranty", "5 Years");
+        }
+        addAttr("Grid Connection", "Single Phase / Three Phase On-Grid");
+        addAttr("Protection Degree", "IP65 Outdoor Grade");
+      }
+
       return list;
     };
 
@@ -946,7 +1018,12 @@ const get_combo_kits_by_district = async (req, res) => {
     const panelSkuIdsMap = {};
     skuDocs.forEach(sku => {
       const prod = products.find(p => p._id.toString() === sku.product_id?.toString());
-      if (prod && prod.template_id && solarPanelTemplateIds.includes(prod.template_id.toString())) {
+      const subtype = prod ? subtypes.find(st => st._id.toString() === prod.subtype_id?.toString()) : null;
+      const isPanel = (prod && prod.template_id && solarPanelTemplateIds.includes(prod.template_id.toString())) ||
+        (sku.sku_code && sku.sku_code.toUpperCase().startsWith("SOL-")) ||
+        (subtype && /bifacial|topcon|mono|poly|dcr|panel|module/i.test(subtype.name || "")) ||
+        (prod && /panel|module|pv|wp|solar/i.test(prod.name || ""));
+      if (isPanel) {
         panelSkuIdsMap[sku._id.toString()] = true;
       }
     });
@@ -1073,14 +1150,14 @@ const get_combo_kits_by_district = async (req, res) => {
           if (stock.sku_id) {
             const skuIdStr = stock.sku_id.toString();
             const depletedQty = skuDepletion[skuIdStr] || 0;
-            
+
             const keyLookup = `${warehouseId.toString()}_${skuIdStr}`;
             const reservedQty = reservedSKUsMap[keyLookup] || 0;
             const bookedQty = bookedSKUsMap[keyLookup] || 0;
-            
+
             const isPanel = panelSkuIdsMap[skuIdStr];
             const deductQty = (isPanel ? reservedQty : depletedQty) + bookedQty;
-            
+
             stockMap[skuIdStr] = Math.max(0, (stock.qty || 0) - deductQty);
           }
         });
@@ -1308,8 +1385,29 @@ const get_combo_kits_by_district = async (req, res) => {
           const p = skuInfo.product;
           const b = skuInfo.brand;
 
-          const isPanel = p && (p.name.toLowerCase().includes("module") || p.name.toLowerCase().includes("panel") || p.name.toLowerCase().includes("pv"));
-          const isInverter = p && p.name.toLowerCase().includes("inverter");
+          const pName = (p?.name || "").toLowerCase();
+          const skuCode = (skuInfo.sku_code || "").toUpperCase();
+          const subName = (skuInfo.subtype?.name || "").toLowerCase();
+          const templateIdStr = p?.template_id?.toString() || bc.template_id?.toString() || "";
+
+          const isInverter = (
+            pName.includes("inverter") ||
+            skuCode.startsWith("INV-") ||
+            subName.includes("inverter")
+          );
+
+          const isPanel = !isInverter && (
+            (templateIdStr && solarPanelTemplateIds.includes(templateIdStr)) ||
+            Boolean(panelSkuIdsMap[bc.sku_id?.toString()]) ||
+            skuCode.startsWith("SOL-") ||
+            /bifacial|topcon|mono|poly|dcr|panel|module/.test(subName) ||
+            pName.includes("module") ||
+            pName.includes("panel") ||
+            pName.includes("pv") ||
+            pName.includes("wp") ||
+            pName.includes("solar")
+          );
+
           const actualType = isPanel ? "panel" : isInverter ? "inverter" : "other";
 
           let img = (skuInfo.image && !skuInfo.image.includes("default")) ? skuInfo.image : (p.image && !p.image.includes("default")) ? p.image : "";
@@ -1320,7 +1418,7 @@ const get_combo_kits_by_district = async (req, res) => {
           const componentAttributes = resolveComponentAttributes(skuInfo, p, b, p?.name || skuInfo.subtype?.name);
 
           let wattage = 0;
-          const wattMatch = skuInfo.sku_code?.match(/(\d+)W/i);
+          const wattMatch = (skuCode + " " + pName).match(/(\d+)\s*(W|WP)\b/i);
           if (wattMatch) wattage = parseInt(wattMatch[1]);
           const wattAttr = componentAttributes.find(a => a.name.toLowerCase().includes("watt") || a.name.toLowerCase().includes("pmax"));
           if (!wattage && wattAttr) wattage = parseInt(wattAttr.value) || 0;
@@ -1328,21 +1426,68 @@ const get_combo_kits_by_district = async (req, res) => {
           let efficiency = 0;
           const effAttr = componentAttributes.find(a => a.name.toLowerCase().includes("efficiency"));
           if (effAttr) efficiency = parseFloat(effAttr.value) || 0;
+          if (!efficiency && isPanel) efficiency = 21.5;
 
           let warranty = null;
           const warrantyAttr = componentAttributes.find(a => a.name.toLowerCase().includes("warranty"));
           if (warrantyAttr) warranty = parseInt(warrantyAttr.value) || null;
+          if (!warranty && isPanel) warranty = 25;
+          if (!warranty && isInverter) warranty = (skuCode.includes("MICR") || pName.includes("micro")) ? 10 : 5;
 
           let capacity = 0;
           const capAttr = componentAttributes.find(a => {
             const name = a.name.toLowerCase();
-            return name.includes("capacity") || name.includes("power rating");
+            return name.includes("capacity") || name.includes("power rating") || name.includes("rated power");
           });
-          if (capAttr) capacity = parseFloat(capAttr.value) || 0;
+          if (capAttr) {
+            const valStr = String(capAttr.value || "");
+            const num = parseFloat(valStr) || 0;
+            if (/w\b/i.test(valStr) && !/kw/i.test(valStr)) {
+              capacity = num / 1000;
+            } else if (num >= 100) {
+              capacity = num / 1000;
+            } else {
+              capacity = num;
+            }
+          }
+          if (!capacity && isInverter) {
+            const kwMatch = (skuCode + " " + pName).match(/(\d+(\.\d+)?)\s*KW\b/i);
+            const wMatch = (skuCode + " " + pName).match(/(\d+)\s*W\b/i);
+            if (kwMatch) {
+              capacity = parseFloat(kwMatch[1]);
+            } else if (wMatch) {
+              capacity = parseInt(wMatch[1]) / 1000;
+            } else if (kit.capacity) {
+              capacity = Number(kit.capacity);
+            }
+          }
+          if (capacity >= 100) {
+            capacity = capacity / 1000;
+          }
 
           let inverterTypeVal = "";
-          const typeAttr = componentAttributes.find(a => a.name.toLowerCase().includes("type") && !a.name.toLowerCase().includes("technology"));
+          const typeAttr = componentAttributes.find(a => a.name.toLowerCase().includes("inverter type") || (a.name.toLowerCase().includes("type") && !a.name.toLowerCase().includes("technology")));
           if (typeAttr) inverterTypeVal = typeAttr.value || "";
+          if (!inverterTypeVal && isInverter) {
+            if (skuCode.includes("MICR") || pName.includes("micro")) {
+              inverterTypeVal = "Microinverter";
+            } else if (skuCode.includes("STRI") || pName.includes("string")) {
+              inverterTypeVal = "String Inverter";
+            } else if (skuInfo.subtype?.name) {
+              inverterTypeVal = skuInfo.subtype.name.toLowerCase().includes("inverter") ? skuInfo.subtype.name : `${skuInfo.subtype.name} Inverter`;
+            } else {
+              inverterTypeVal = "On-Grid Inverter";
+            }
+          }
+
+          let techType = skuInfo.subtype?.name || "";
+          if (!techType && isPanel) {
+            if (/bifacial/i.test(pName) || /BIFA/i.test(skuCode)) techType = "Bifacial";
+            else if (/topcon/i.test(pName) || /TOPC/i.test(skuCode)) techType = "TOPCon";
+            else if (/mono/i.test(pName) || /MONO/i.test(skuCode)) techType = "Mono PERC";
+            else if (/poly/i.test(pName) || /POLY/i.test(skuCode)) techType = "Polycrystalline";
+            else techType = "Monocrystalline";
+          }
 
           let inverterCategoryVal = p?.name || "";
 
@@ -1355,9 +1500,9 @@ const get_combo_kits_by_district = async (req, res) => {
             image: img || null,
             datasheet: p?.datasheet || null,
             actualType,
-            
+
             // Mapping matching frontend keys exactly
-            technologyType: skuInfo.subtype?.name || "",
+            technologyType: techType || skuInfo.subtype?.name || "",
             wattPerPanel: wattage,
             efficiencyPercent: efficiency,
             warrantyYears: warranty,
@@ -1392,7 +1537,7 @@ const get_combo_kits_by_district = async (req, res) => {
         kit.bos_kits.forEach(bk => {
           const skuInfo = skusMap[bk.sku_id?.toString()];
           const name = bk.name || skuInfo?.product?.name || "BOS Component";
-          
+
           const componentAttributes = resolveComponentAttributes(skuInfo, skuInfo?.product, skuInfo?.brand, name);
 
           const compImg = bk.image || skuInfo?.image || skuInfo?.product?.image || "";
@@ -1691,6 +1836,25 @@ const get_combo_kits_by_district = async (req, res) => {
       mappedKit.best_seller_priority = bsInfo ? bsInfo.priority : 999;
       mappedKit.best_seller_info = bsInfo;
 
+      // Attach resolved payment milestones for multi-cart & milestone checkout separation
+      const kitMilestoneRule = milestoneMap.get(kit._id.toString()) || defaultMilestoneDoc;
+      const sortedMilestones = [...(kitMilestoneRule?.milestones || [])].sort((a, b) => a.milestone_number - b.milestone_number);
+      const advM = sortedMilestones.find(m => m.milestone_number === 1) || sortedMilestones[0] || { percentage: 30, milestone_name: 'Advance Payment at Order Placement' };
+      const remM = sortedMilestones.find(m => m.milestone_number === 2) || sortedMilestones[1] || { percentage: 70, milestone_name: 'Remaining Payment Before Dispatch' };
+
+      mappedKit.payment_milestones = {
+        config_id: kitMilestoneRule?._id ? String(kitMilestoneRule._id) : null,
+        is_custom: Boolean(kitMilestoneRule && !kitMilestoneRule.is_default && kitMilestoneRule.kit_id),
+        is_default: Boolean(!kitMilestoneRule || kitMilestoneRule.is_default),
+        policy_name: kitMilestoneRule?.kit_name || (kitMilestoneRule?.is_default ? 'Global Default Policy' : 'ComboKit Payment Policy'),
+        advance_percentage: Number(advM.percentage || 30),
+        remaining_percentage: Number(remM.percentage || 70),
+        milestones: sortedMilestones.length > 0 ? sortedMilestones : [
+          { milestone_number: 1, milestone_name: 'Advance Payment', percentage: 30, stage_trigger: 'order_placement' },
+          { milestone_number: 2, milestone_name: 'Before Dispatch', percentage: 70, stage_trigger: 'before_dispatch' }
+        ]
+      };
+
       processedKits.push(mappedKit);
     }
 
@@ -1960,7 +2124,7 @@ const get_inventory_status = async (req, res) => {
         if (comp.sku_id) {
           const skuIdStr = comp.sku_id.toString();
           const isPanel = panelSkuIdsMap[skuIdStr];
-          
+
           if (isPanel) {
             const physical = physicalStockMap[skuIdStr];
             // Only enforce physical warehouse stock bounds if physical stock is explicitly seeded (> 0).
@@ -2414,7 +2578,7 @@ const get_cart = async (req, res) => {
     if (!cartDoc) {
       return res.status(200).json({ success: true, cart: [], expiry_time: null });
     }
-    
+
     // Find active checkout reservation for this customer
     const activeResv = await InventoryReservation.findOne({
       customer_id: account_id,
@@ -2423,7 +2587,7 @@ const get_cart = async (req, res) => {
     }).sort({ expiry_time: 1 }).lean();
 
     const expiryTime = activeResv ? activeResv.expiry_time : null;
-    
+
     return res.status(200).json({
       success: true,
       cart: cartDoc.cart || [],
@@ -2498,7 +2662,7 @@ const update_cart = async (req, res) => {
           warehouseIds.push(kit.warehouse_id.toString());
         }
         const qty = item.qty || 1;
-        
+
         // Base components
         (kit.base_components || []).forEach(comp => {
           if (comp.sku_id && comp.template_id) {
@@ -2533,7 +2697,7 @@ const update_cart = async (req, res) => {
       if (uniqueWarehouseIds.length > 0) {
         query.warehouse_id = { $in: uniqueWarehouseIds };
       }
-      
+
       const warehouseStocks = await WarehouseStock.find(query).lean();
 
       // Fetch active reservations for other users for these SKUs
@@ -2590,20 +2754,20 @@ const update_cart = async (req, res) => {
         const skuIdStr = key.split('_')[1];
         otherBooked[skuIdStr] = (otherBooked[skuIdStr] || 0) + bookedSKUsMap[key];
       }
-      
+
       const stockMap = {};
       warehouseStocks.forEach(ws => {
         const skuIdStr = ws.sku_id.toString();
         stockMap[skuIdStr] = (stockMap[skuIdStr] || 0) + (ws.qty || 0);
       });
-      
+
       for (const skuIdStr of Object.keys(incomingSolarPanelRequirements)) {
         const physicalStock = stockMap[skuIdStr] || 0;
         const otherReserved = otherSkuReservations[skuIdStr] || 0;
         const booked = otherBooked[skuIdStr] || 0;
         const netAvailable = Math.max(0, physicalStock - otherReserved - booked);
         const required = incomingSolarPanelRequirements[skuIdStr];
-        
+
         if (required > netAvailable && physicalStock > 0) {
           return res.status(400).json({
             success: false,
@@ -2625,7 +2789,7 @@ const update_cart = async (req, res) => {
       { $set: { cart: cart || [], updated_at: new Date() } },
       { upsert: true, new: true }
     );
-    
+
     return res.status(200).json({
       success: true,
       message: "Cart updated successfully",
@@ -2677,7 +2841,7 @@ const create_request_order = async (req, res) => {
       if (!kit) {
         return res.status(404).json({ success: false, message: `Combo kit not found: ${item.id}` });
       }
-      
+
       const bulkPack = item.bulkPack || {};
       const pricePerKit = bulkPack.pricePerKitAfterDiscount || item.ourPrice;
       const kitsPerPack = bulkPack.kitsPerPack || 1;
@@ -3004,7 +3168,7 @@ const gst_verify_otp = async (req, res) => {
       });
 
       companyId = company._id;
-      
+
       // Update EpcAccount
       account.company_id = companyId;
       if (!account.states.includes(state_id)) {
@@ -3085,13 +3249,32 @@ const get_orders = async (req, res) => {
 
     const kitLookup = {};
     const productLookup = {};
+    let milestoneRules = [];
+    let defaultRule = null;
 
     try {
-      const [matchedKits, matchedKitsAlt, matchedProducts] = await Promise.all([
+      const ProductPaymentMilestone = require('../../../admin-panel/models/india_solarshop_db/product_payment_milestones.schema');
+      const configuredMilestoneIds = (epcOrders || [])
+        .map(o => o.payment_milestones?.configured_milestone_id)
+        .filter(id => id && mongoose.Types.ObjectId.isValid(id))
+        .map(id => new mongoose.Types.ObjectId(id));
+
+      const [matchedKits, matchedKitsAlt, matchedProducts, fetchedRules, fetchedDefault] = await Promise.all([
         epcKitIds.length > 0 ? mongoose.connection.db.collection('pc_comobo_kit').find({ _id: { $in: epcKitIds } }).toArray() : [],
         epcKitIds.length > 0 ? mongoose.connection.db.collection('pc_combo_kits').find({ _id: { $in: epcKitIds } }).toArray() : [],
         epcProductIds.length > 0 ? mongoose.connection.db.collection('products').find({ _id: { $in: epcProductIds } }).toArray() : [],
+        ProductPaymentMilestone.find({
+          $or: [
+            ...(configuredMilestoneIds.length > 0 ? [{ _id: { $in: configuredMilestoneIds } }] : []),
+            ...(epcKitIds.length > 0 ? [{ kit_id: { $in: epcKitIds } }] : []),
+          ],
+          is_active: true
+        }).lean().catch(() => []),
+        ProductPaymentMilestone.findOne({ is_default: true, is_active: true }).lean().catch(() => null)
       ]);
+
+      milestoneRules = fetchedRules || [];
+      defaultRule = fetchedDefault || null;
 
       (matchedKits || []).forEach(k => {
         kitLookup[k._id.toString()] = {
@@ -3123,6 +3306,11 @@ const get_orders = async (req, res) => {
       console.error("Error populating kit/product details for orders:", lookupErr);
     }
 
+    const { DEFAULT_STAGES } = require('../../../admin-panel/controller/product.payment.milestones.handler');
+    const fallbackDefaultStages = (defaultRule?.order_stages_config && defaultRule.order_stages_config.length > 0)
+      ? defaultRule.order_stages_config
+      : DEFAULT_STAGES;
+
     const formattedEpcOrders = (epcOrders || []).map((o) => {
       const enrichedItems = (o.items || []).map(i => {
         const kitInfo = i.kit_id ? kitLookup[i.kit_id.toString()] : null;
@@ -3145,6 +3333,27 @@ const get_orders = async (req, res) => {
       const totalAmount = (o.grand_total_paise || 0) / 100;
       const subtotal = (o.subtotal_paise || 0) / 100;
       const taxTotal = (o.tax_total_paise || 0) / 100;
+
+      // Resolve Admin Stage TATs for this order from product_payment_milestones
+      const orderConfiguredId = o.payment_milestones?.configured_milestone_id?.toString();
+      const orderFirstKitId = (o.items || []).find(it => it.kit_id)?.kit_id?.toString();
+
+      const matchedRule = (orderConfiguredId && (milestoneRules || []).find(r => r._id.toString() === orderConfiguredId))
+        || (orderFirstKitId && (milestoneRules || []).find(r => r.kit_id && r.kit_id.toString() === orderFirstKitId))
+        || defaultRule;
+
+      const orderStagesConfig = (matchedRule?.order_stages_config && matchedRule.order_stages_config.length > 0)
+        ? matchedRule.order_stages_config
+        : fallbackDefaultStages;
+
+      // Compute total turnaround days from Admin's order_stages_config
+      const totalSlaDays = orderStagesConfig.reduce((acc, stg) => {
+        const d = Number(stg.tat_days) || (stg.tat_hours ? Math.ceil(Number(stg.tat_hours) / 24) : 1);
+        return acc + d;
+      }, 0);
+
+      const orderPlacedTime = o.created_at ? new Date(o.created_at).getTime() : Date.now();
+      const computedDeliveryDate = new Date(orderPlacedTime + totalSlaDays * 24 * 60 * 60 * 1000).toISOString();
 
       const hasDispatchInfo = Boolean(o.dispatch_tracking?.tracking_number || o.dispatch_tracking?.courier_name);
       const isDispatched = o.order_status === 'dispatched' || hasDispatchInfo;
@@ -3185,12 +3394,16 @@ const get_orders = async (req, res) => {
         } : null,
         offline_payment: o.offline_payment || {},
         invoice: o.invoice || {},
+        order_stages_config: orderStagesConfig,
+        total_sla_days: totalSlaDays,
+        estimated_delivery_days: `${totalSlaDays} Business Days`,
+        estimated_delivery_date: o.dispatch_tracking?.estimated_delivery || computedDeliveryDate,
         dispatch_tracking: {
           courier_name: o.dispatch_tracking?.courier_name || null,
           tracking_number: o.dispatch_tracking?.tracking_number || null,
           tracking_url: o.dispatch_tracking?.tracking_url || null,
           dispatched_at: o.dispatch_tracking?.dispatched_at || null,
-          estimated_delivery: o.dispatch_tracking?.estimated_delivery || null,
+          estimated_delivery: o.dispatch_tracking?.estimated_delivery || computedDeliveryDate,
           dispatch_notes: o.dispatch_tracking?.dispatch_notes || null,
         },
         assigned_vehicle: o.assigned_vehicle || null,
@@ -3212,7 +3425,11 @@ const get_orders = async (req, res) => {
           selling_price_cached: totalAmount,
         },
         delivery_address: o.delivery_address || {},
-        payment_milestones: o.payment_milestones || null,
+        payment_milestones: o.payment_milestones ? {
+          ...o.payment_milestones,
+          order_stages_config: orderStagesConfig,
+          total_sla_days: totalSlaDays,
+        } : null,
         milestones: o.milestones || [],
       };
     });
@@ -3259,7 +3476,7 @@ const get_orders = async (req, res) => {
               kitName: matchedKit.name,
             } : null;
           }
-          
+
           let matchedState = order.state_id ? stateMap[order.state_id.toString()] : null;
           let matchedDistrict = order.district_id ? districtMap[order.district_id.toString()] : null;
 
@@ -3366,8 +3583,8 @@ const checkout_warehouse_capacity_check = async (req, res) => {
     // ── Compute Order Load Metrics ──────────────────────────────────────────
     const order_load_metrics = parsedCartItems.reduce((acc, item) => {
       const qty = Number(item.quantity || item.qty || 1);
-      acc.total_kits      += qty;
-      acc.total_kw        += qty * Number(item.kw_per_kit     || 0);
+      acc.total_kits += qty;
+      acc.total_kw += qty * Number(item.kw_per_kit || 0);
       acc.total_weight_kg += qty * Number(item.weight_kg_per_kit || 0);
       return acc;
     }, { total_kits: 0, total_kw: 0, total_weight_kg: 0 });
@@ -3529,8 +3746,8 @@ const calculate_pincode_delivery_cost = async (req, res) => {
     const unitPrice = req.query.unit_price
       ? Number(req.query.unit_price)
       : kitDoc
-      ? Number(kitDoc.selling_price_inr || kitDoc.selling_price_cached || kitDoc.base_price_cached || 0)
-      : 0;
+        ? Number(kitDoc.selling_price_inr || kitDoc.selling_price_cached || kitDoc.base_price_cached || 0)
+        : 0;
     const itemsSubtotal = unitPrice * qty;
 
     let gstRate = 13.8;
@@ -3633,13 +3850,13 @@ const create_epc_offline_checkout = async (req, res) => {
     let offline_payment_data = body.offline_payment_data || {};
 
     if (typeof items === 'string') {
-      try { items = JSON.parse(items); } catch (e) {}
+      try { items = JSON.parse(items); } catch (e) { }
     }
     if (typeof delivery_address === 'string') {
-      try { delivery_address = JSON.parse(delivery_address); } catch (e) {}
+      try { delivery_address = JSON.parse(delivery_address); } catch (e) { }
     }
     if (typeof offline_payment_data === 'string') {
-      try { offline_payment_data = JSON.parse(offline_payment_data); } catch (e) {}
+      try { offline_payment_data = JSON.parse(offline_payment_data); } catch (e) { }
     }
 
     // Capture uploaded receipt file if present
@@ -3667,7 +3884,7 @@ const create_epc_offline_checkout = async (req, res) => {
     let fulfillment_mode = body.fulfillment_mode || 'direct_site';
     let order_load_metrics = body.order_load_metrics;
     if (typeof order_load_metrics === 'string') {
-      try { order_load_metrics = JSON.parse(order_load_metrics); } catch (e) {}
+      try { order_load_metrics = JSON.parse(order_load_metrics); } catch (e) { }
     }
 
     const { createEpcOfflineOrder } = require("../../../admin-panel/services/epc.offline.checkout.service");
@@ -3682,8 +3899,21 @@ const create_epc_offline_checkout = async (req, res) => {
       order_load_metrics,
     });
 
-    // Clear cart on successful order placement
-    await Cart.findOneAndUpdate({ account_id: epc_id }, { $set: { cart: [] } });
+    // Remove checked-out items from persisted cart, preserving any other milestone cards
+    try {
+      const cartDoc = await Cart.findOne({ account_id: epc_id });
+      if (cartDoc && Array.isArray(cartDoc.cart)) {
+        const orderedKitIds = new Set((items || []).map(it => String(it.kit_id || it.product_id || it.id || '')));
+        const remainingCart = cartDoc.cart.filter(cItem => {
+          const cId = String(cItem.kit_id || cItem.id || cItem.product_id || '');
+          return !orderedKitIds.has(cId);
+        });
+        await Cart.findOneAndUpdate({ account_id: epc_id }, { $set: { cart: remainingCart, updated_at: new Date() } });
+      }
+    } catch (cartCleanErr) {
+      console.warn("Could not selectively clear cart, falling back:", cartCleanErr.message);
+      await Cart.findOneAndUpdate({ account_id: epc_id }, { $set: { cart: [] } });
+    }
 
     try {
       const { sendAdminNotification } = require("../../../admin-panel/services/admin.notification.service");
@@ -3803,7 +4033,7 @@ const submit_epc_milestone_payment = async (req, res) => {
         action_url: '/account-panel/solar-shop/epc-orders',
         metadata: { order_id: updatedOrder._id, epc_id }
       }).catch(err => console.warn('[Order Notification Warning]:', err.message));
-    } catch (notifErr) {}
+    } catch (notifErr) { }
 
     return res.status(200).json({
       success: true,
@@ -4664,37 +4894,37 @@ const buildRenderedContract = ({ order, allocation, epcAccount, planPoSetting })
   const rawClauses = Array.isArray(contractConfig.clauses) && contractConfig.clauses.length > 0
     ? contractConfig.clauses
     : [
-        {
-          title: "1. Scope of Supply & Quantity Commitment",
-          body: "The Solar EPC Contractor agrees to procure, lift, and take delivery of the committed quantity of {{quantity}} SolarKits combo kit(s) under Purchase Order {{po_number}}. The Franchise Partner agrees to supply and allocate the agreed specifications strictly in accordance with SolarKits standards.",
-          is_mandatory: true
-        },
-        {
-          title: "2. Token Commitment Deposit",
-          body: "The EPC Contractor agrees to pay a mandatory token commitment deposit of ₹{{token_amount}} to secure and lock the inventory. This deposit shall be verified and credited against final purchase invoices or pro-rata dispatches as per plan policy.",
-          is_mandatory: true
-        },
-        {
-          title: "3. Order Lock-in & Validity Period",
-          body: "This Purchase Order commitment and inventory reservation shall remain firm and valid for a period of {{validity_days}} calendar days from the date of contract execution. Committed kit prices are protected during this validity window.",
-          is_mandatory: true
-        },
-        {
-          title: "4. Penalty for Unpurchased Kits & Forfeiture",
-          body: "In the event that the EPC Contractor fails to lift the committed kits within {{validity_days}} days, the Franchise Partner and SolarKits reserve the right to apply unpurchased kit penalties or adjust the token deposit as per plan rules.",
-          is_mandatory: true
-        },
-        {
-          title: "5. Dispatch, Logistics & Material Handling",
-          body: "Upon payment clearance of the balance amount, materials will be dispatched to the designated delivery destination. Transit insurance and dispatch handover will follow SolarKits operational standard operating procedures.",
-          is_mandatory: true
-        },
-        {
-          title: "6. Electronic Signature & Mobile OTP Verification",
-          body: "This Contract is executed digitally. Mobile OTP verification to the EPC's registered mobile number constitutes an authenticated, legally binding digital signature under the Information Technology Act.",
-          is_mandatory: true
-        }
-      ];
+      {
+        title: "1. Scope of Supply & Quantity Commitment",
+        body: "The Solar EPC Contractor agrees to procure, lift, and take delivery of the committed quantity of {{quantity}} SolarKits combo kit(s) under Purchase Order {{po_number}}. The Franchise Partner agrees to supply and allocate the agreed specifications strictly in accordance with SolarKits standards.",
+        is_mandatory: true
+      },
+      {
+        title: "2. Token Commitment Deposit",
+        body: "The EPC Contractor agrees to pay a mandatory token commitment deposit of ₹{{token_amount}} to secure and lock the inventory. This deposit shall be verified and credited against final purchase invoices or pro-rata dispatches as per plan policy.",
+        is_mandatory: true
+      },
+      {
+        title: "3. Order Lock-in & Validity Period",
+        body: "This Purchase Order commitment and inventory reservation shall remain firm and valid for a period of {{validity_days}} calendar days from the date of contract execution. Committed kit prices are protected during this validity window.",
+        is_mandatory: true
+      },
+      {
+        title: "4. Penalty for Unpurchased Kits & Forfeiture",
+        body: "In the event that the EPC Contractor fails to lift the committed kits within {{validity_days}} days, the Franchise Partner and SolarKits reserve the right to apply unpurchased kit penalties or adjust the token deposit as per plan rules.",
+        is_mandatory: true
+      },
+      {
+        title: "5. Dispatch, Logistics & Material Handling",
+        body: "Upon payment clearance of the balance amount, materials will be dispatched to the designated delivery destination. Transit insurance and dispatch handover will follow SolarKits operational standard operating procedures.",
+        is_mandatory: true
+      },
+      {
+        title: "6. Electronic Signature & Mobile OTP Verification",
+        body: "This Contract is executed digitally. Mobile OTP verification to the EPC's registered mobile number constitutes an authenticated, legally binding digital signature under the Information Technology Act.",
+        is_mandatory: true
+      }
+    ];
 
   const qty = allocation?.allocated_quantity || order?.total_booked_quantity || 1;
   const tokenPaise = allocation?.token_amount_paise || order?.token_amount_paise || 5000000;
@@ -5360,6 +5590,7 @@ const preview_epc_po_penalty = async (req, res) => {
       tokenAdjustedPaise,
       unitPricePaise,
       penaltyRuleSnapshot: order.penalty_rule_snapshot || order.po_settings_snapshot,
+      totalCommissionPaise: Number(order.total_commission_paise || 0),
     });
 
     return res.status(200).json({
@@ -5456,7 +5687,7 @@ const reorder_against_epc_po = async (req, res) => {
 
     // Enforce individual EPC quota in Combine PO (multi-EPC)
     if (parentPo.po_category === 'COMBINE_PO' && Array.isArray(parentPo.items?.[0]?.epc_allocations)) {
-      const epcAlloc = parentPo.items[0].epc_allocations.find(a => 
+      const epcAlloc = parentPo.items[0].epc_allocations.find(a =>
         (a.epc_buyer_id?._id || a.epc_buyer_id || a.buyer_id || a._id)?.toString() === accountStr
       );
       if (epcAlloc) {

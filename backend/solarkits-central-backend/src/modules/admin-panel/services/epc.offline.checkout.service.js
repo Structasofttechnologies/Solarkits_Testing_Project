@@ -562,12 +562,13 @@ async function createEpcOfflineOrder({
   const resolvedGatewayUsed = offline_payment_data.payment_gateway_used || (offline_payment_data.payment_method === 'icici_ecollection' ? 'icici_ecollection' : 'bank_transfer');
   const isOnlineECollection = resolvedPaymentMethod === 'icici_ecollection' || resolvedGatewayUsed === 'icici_ecollection';
 
-  if (isOnlineECollection && initialMilestones[0]) {
-    initialMilestones[0].payment_status = 'verified';
-    initialMilestones[0].verified_at = new Date();
-    initialMilestones[0].notes = isTrialOrder
-      ? 'Online ICICI eCollection trial kit full payment verified'
-      : 'Online ICICI eCollection advance verified';
+  // Note: Manual form submissions during checkout require Accounts or ICICI webhook verification
+  // and must never auto-mark payments as verified or fully paid upon form submission.
+  if (initialMilestones[0]) {
+    initialMilestones[0].payment_status = 'pending_verification';
+    initialMilestones[0].notes = isOnlineECollection
+      ? 'ICICI eCollection reference submitted. Pending verification.'
+      : 'Offline bank transfer reference submitted. Pending verification.';
   }
 
   // 4. Create EPC Order with atomic rollback guard
@@ -575,8 +576,8 @@ async function createEpcOfflineOrder({
   try {
     epcOrder = await EpcOrder.create({
       order_number: orderNumber,
-      order_request_id: isOnlineECollection ? null : `REQ-EPC-${orderNumber.replace(/^ORD-EPC-/, '')}`,
-      is_official_order_generated: isOnlineECollection ? true : false,
+      order_request_id: `REQ-EPC-${orderNumber.replace(/^ORD-EPC-/, '')}`,
+      is_official_order_generated: false,
       order_type: detectedOrderType,
       is_trial_order: detectedOrderType === 'trial_order' || Boolean(processedItems.some(it => it.is_trial_kit)),
       epc_id,
@@ -629,10 +630,10 @@ async function createEpcOfflineOrder({
       grand_total_paise: totals.grand_total_paise,
       reseller_total_margin_paise: totalResellerMarginPaise,
       platform_total_commission_paise: totalPlatformCommissionPaise,
-      order_status: isOnlineECollection ? 'confirmed' : 'pending',
+      order_status: 'pending',
       payment_method: resolvedPaymentMethod,
       payment_gateway_used: resolvedGatewayUsed,
-      payment_status: isOnlineECollection ? 'captured' : 'pending_verification',
+      payment_status: 'pending_verification',
       payment_reference: cleanUtr,
       payment_milestones: {
         configured_milestone_id: isTrialOrder ? null : (milestoneRule?._id || null),
@@ -642,16 +643,16 @@ async function createEpcOfflineOrder({
         remaining_percentage: m2Pct,
         remaining_amount: remainingAmountRupees,
         current_milestone_due: 1,
-        milestone_verification_status: isOnlineECollection ? 'fully_paid' : 'awaiting_advance',
+        milestone_verification_status: 'awaiting_advance',
         milestones: initialMilestones,
       },
       payment_tracking: {
-        customer_payment_status: isOnlineECollection ? 'Paid' : 'Verification Pending',
-        current_stage: isOnlineECollection ? (isTrialOrder ? 'final_settlement' : (remainingAmountRupees > 0 ? 'production_milestone' : 'final_settlement')) : 'accounts_verification',
+        customer_payment_status: 'Verification Pending',
+        current_stage: 'accounts_verification',
         delay_signal: 'green',
         days_elapsed: 0,
-        total_verified_amount: isOnlineECollection ? (Number(amount_paid) || grandTotalRupees) : 0,
-        outstanding_amount: isTrialOrder ? 0 : (isOnlineECollection ? remainingAmountRupees : grandTotalRupees),
+        total_verified_amount: 0,
+        outstanding_amount: grandTotalRupees,
       },
       offline_payment: {
         utr_number: cleanUtr,
@@ -661,9 +662,9 @@ async function createEpcOfflineOrder({
         receipt_filename: receipt_filename || null,
         sender_bank_name: sender_bank_name ? sender_bank_name.trim() : null,
         account_holder_name: account_holder_name ? account_holder_name.trim() : null,
-        verification_status: isOnlineECollection ? 'approved' : 'pending',
-        admin_approval_status: isOnlineECollection ? 'approved' : 'pending',
-        admin_remarks: isOnlineECollection ? 'Online ICICI eCollection checkout — Admin Approval not required.' : null,
+        verification_status: 'pending',
+        admin_approval_status: 'pending',
+        admin_remarks: null,
         resubmitted_count: 0,
       },
       is_end_customer_sale: true,

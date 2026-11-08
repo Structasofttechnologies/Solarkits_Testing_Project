@@ -249,9 +249,19 @@ const enrichOrdersWithKits = async (orders) => {
           }
         }
 
+        const fulfilledQty = Number(o.fulfilled_quantity || 0);
+        const fulfillmentRatio = bookedQty > 0 ? Math.min(1, Math.max(0, fulfilledQty / bookedQty)) : 0;
+        const realizedCommPaise = (o.realized_commission_paise && o.realized_commission_paise > 0)
+          ? o.realized_commission_paise
+          : Math.round(commPaise * fulfillmentRatio);
+
         o.franchisee_commission_paise = commPaise;
         o.franchisee_commission_amount = commPaise > 0 ? (commPaise / 100) : 0;
+        o.franchisee_realized_commission_paise = realizedCommPaise;
+        o.franchisee_realized_commission_amount = realizedCommPaise > 0 ? (realizedCommPaise / 100) : 0;
         o.commission_per_kit = (commPaise > 0 && bookedQty > 0) ? Math.round((commPaise / 100) / bookedQty) : 0;
+        o.commission_completion_ratio = `${fulfilledQty}/${bookedQty}`;
+        o.commission_fulfillment_pct = Math.round(fulfillmentRatio * 100);
         o.commission_tier_quantity = bookedQty;
       }
     } catch (commErr) {

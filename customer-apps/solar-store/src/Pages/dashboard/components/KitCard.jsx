@@ -76,9 +76,9 @@ const KitComponentsRow = ({ kit }) => {
         <div key={`base-${idx}`} className="flex items-center gap-1 shrink-0">
           {idx > 0 && <span className="text-sm font-black text-text-muted select-none shrink-0">+</span>}
           <div className="flex flex-col items-center justify-center text-center shrink-0 w-[68px]">
-            <ComponentImage src={comp.image || comp.panelImage || comp.inverterImage} type={comp.actualType || comp.type} />
+            <ComponentImage src={comp.image || comp.panelImage || comp.inverterImage} type={comp.actualType || comp.type || (/panel|module|bifacial|topcon|mono/i.test(comp.name) ? 'panel' : /inverter/i.test(comp.name) ? 'inverter' : 'other')} />
             <span className="text-[9px] font-black text-text-primary dark:text-info mt-1 truncate max-w-[68px]" title={comp.name}>
-              {comp.quantity} {comp.actualType === "panel" ? "panels" : comp.actualType === "inverter" ? "inverter" : comp.name.split(" ")[0]}
+              {comp.quantity} {(comp.actualType === "panel" || /panel|module|bifacial|topcon|mono/i.test(comp.name)) ? "panels" : (comp.actualType === "inverter" || /inverter/i.test(comp.name)) ? "inverter" : comp.name.split(" ")[0]}
             </span>
           </div>
         </div>
@@ -690,6 +690,38 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
 
         <KitComponentsRow kit={kit} />
 
+        {/* Milestone Policy Progress Indicator */}
+        {kit.payment_milestones && (
+          <div className="mb-4 p-2.5 rounded-xl bg-surface-hover/70 border border-border/80 text-[11px] space-y-1.5 shadow-2xs">
+            <div className="flex items-center justify-between font-bold">
+              <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block shadow-2xs"></span>
+                Advance: {kit.payment_milestones.advance_percentage}%
+              </span>
+              <span className="text-primary dark:text-info flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-primary dark:bg-info inline-block shadow-2xs"></span>
+                Balance: {kit.payment_milestones.remaining_percentage}%
+              </span>
+            </div>
+            <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden flex">
+              <div
+                className="bg-amber-500 h-full transition-all duration-300"
+                style={{ width: `${kit.payment_milestones.advance_percentage}%` }}
+                title={`Advance: ${kit.payment_milestones.advance_percentage}%`}
+              />
+              <div
+                className="bg-primary dark:bg-info h-full transition-all duration-300"
+                style={{ width: `${kit.payment_milestones.remaining_percentage}%` }}
+                title={`Balance before dispatch: ${kit.payment_milestones.remaining_percentage}%`}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-text-muted font-medium">
+              <span>Order Placement</span>
+              <span>Before Dispatch</span>
+            </div>
+          </div>
+        )}
+
         {/* Variant Selector Dropdown */}
         {kit.variants?.length > 1 && !isCart && (
           <div className="relative mb-4" onClick={(e) => e.stopPropagation()}>
@@ -1205,6 +1237,38 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
             </div>
 
             <KitComponentsRow kit={kit} />
+
+        {/* Milestone Policy Progress Indicator */}
+        {kit.payment_milestones && (
+          <div className="mb-4 p-2.5 rounded-xl bg-surface-hover/70 border border-border/80 text-[11px] space-y-1.5 shadow-2xs">
+            <div className="flex items-center justify-between font-bold">
+              <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block shadow-2xs"></span>
+                Advance: {kit.payment_milestones.advance_percentage}%
+              </span>
+              <span className="text-primary dark:text-info flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-primary dark:bg-info inline-block shadow-2xs"></span>
+                Balance: {kit.payment_milestones.remaining_percentage}%
+              </span>
+            </div>
+            <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden flex">
+              <div
+                className="bg-amber-500 h-full transition-all duration-300"
+                style={{ width: `${kit.payment_milestones.advance_percentage}%` }}
+                title={`Advance: ${kit.payment_milestones.advance_percentage}%`}
+              />
+              <div
+                className="bg-primary dark:bg-info h-full transition-all duration-300"
+                style={{ width: `${kit.payment_milestones.remaining_percentage}%` }}
+                title={`Balance before dispatch: ${kit.payment_milestones.remaining_percentage}%`}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-text-muted font-medium">
+              <span>Order Placement</span>
+              <span>Before Dispatch</span>
+            </div>
+          </div>
+        )}
 
             {/* Spec Badges Row & Benefits */}
             <div className="space-y-3">

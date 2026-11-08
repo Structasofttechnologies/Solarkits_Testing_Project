@@ -489,6 +489,16 @@ export default function FranchiseePoOrdersAccounts() {
                   const repeatOrdersCount = (order.linked_repeat_orders || []).length;
                   const isCombinePo = order.po_category === "COMBINE_PO";
 
+                  const orderPenaltyRs = order.penalty_amount != null
+                    ? Number(order.penalty_amount)
+                    : ((order.applicable_penalty_paise || 0) / 100);
+
+                  const orderRealizedComm = order.franchisee_realized_commission_amount != null
+                    ? Number(order.franchisee_realized_commission_amount)
+                    : (order.franchisee_realized_commission_paise != null
+                      ? Number(order.franchisee_realized_commission_paise) / 100
+                      : null);
+
                   return (
                     <tr key={order._id} className="hover:bg-surface-hover/50 transition-colors">
                       {/* PO Details */}
@@ -554,7 +564,7 @@ export default function FranchiseePoOrdersAccounts() {
                       </td>
 
                       {/* Live Quota Progress */}
-                      <td className="py-3.5 px-4 min-w-[170px]">
+                      <td className="py-3.5 px-4 min-w-[180px]">
                         <div className="flex items-center justify-between text-[11px] font-bold">
                           <span className="text-text-primary">{fulfilledQuota} / {bookedQuota} Kits</span>
                           <span className={`text-[10px] font-black ${remainingQuota === 0 ? "text-emerald-600" : "text-primary"}`}>
@@ -567,8 +577,23 @@ export default function FranchiseePoOrdersAccounts() {
                             style={{ width: `${progressPct}%` }}
                           />
                         </div>
-                        <div className="text-[9px] text-text-muted mt-1">
-                          Fulfilled: {fulfilledQuota} • Rem: {remainingQuota} kits
+                        <div className="text-[9px] text-text-muted mt-1 space-y-0.5">
+                          <div>Fulfilled: {fulfilledQuota} • Rem: {remainingQuota} kits</div>
+                          {order.po_ending_date && (
+                            <div className="text-[9px] text-text-muted font-medium">
+                              Due: {new Date(order.po_ending_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            </div>
+                          )}
+                          {orderPenaltyRs > 0 && (
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300 border border-rose-300">
+                              EPC Penalty: ₹{orderPenaltyRs.toLocaleString("en-IN")}
+                            </span>
+                          )}
+                          {orderRealizedComm != null && orderRealizedComm > 0 && (
+                            <div className="text-[9px] text-emerald-600 font-bold">
+                              Comm: ₹{orderRealizedComm.toLocaleString("en-IN")} ({order.commission_completion_ratio || `${fulfilledQuota}/${bookedQuota}`})
+                            </div>
+                          )}
                         </div>
                       </td>
 
@@ -660,6 +685,23 @@ export default function FranchiseePoOrdersAccounts() {
         const effectivePerKitMargin = franchiseeMarginRs != null && bookedQuota > 0
           ? Math.round(franchiseeMarginRs / bookedQuota)
           : (selectedOrder.commission_per_kit || null);
+
+        const realizedMarginRs = selectedOrder.franchisee_realized_commission_amount != null
+          ? Number(selectedOrder.franchisee_realized_commission_amount)
+          : (selectedOrder.franchisee_realized_commission_paise != null
+            ? Number(selectedOrder.franchisee_realized_commission_paise) / 100
+            : (franchiseeMarginRs != null ? Math.round(franchiseeMarginRs * (fulfilledQuota / (bookedQuota || 1))) : null));
+
+        const epcPenaltyRs = selectedOrder.penalty_amount != null
+          ? Number(selectedOrder.penalty_amount)
+          : ((selectedOrder.applicable_penalty_paise || 0) / 100);
+
+        const unfulfilledKits = selectedOrder.unfulfilled_quantity != null
+          ? selectedOrder.unfulfilled_quantity
+          : Math.max(0, bookedQuota - fulfilledQuota);
+
+        const completionRatio = selectedOrder.commission_completion_ratio || `${fulfilledQuota}/${bookedQuota}`;
+        const penaltyChargedToName = selectedOrder.penalty_charged_to_name || (allocationsList[0]?.company_name || allocationsList[0]?.epc_name || "Assigned EPC");
 
         const tokenRequired = (selectedOrder.token_amount_paise || 0) / 100;
         const tokenPaid = (selectedOrder.token_paid_paise || selectedOrder.token_amount_paise || 0) / 100;
@@ -974,6 +1016,97 @@ export default function FranchiseePoOrdersAccounts() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Franchise Pro-Rata Commission & EPC Penalty Settlement Breakdown */}
+                    <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-primary/5 to-surface p-4 sm:p-5 space-y-3.5 shadow-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/60">
+                        <div className="flex items-center gap-2">
+                          <span className="p-1.5 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold">
+                            <FaShieldAlt size={16} />
+                          </span>
+                          <div>
+                            <h4 className="font-extrabold text-sm text-text-primary">
+                              Franchise Pro-Rata Commission & EPC Penalty Settlement
+                            </h4>
+                            <p className="text-[11px] text-text-muted">
+                              Pro-rata commission realization based on kits fulfilled by EPC and penalty attribution for unfulfilled quota past deadline.
+                            </p>
+                          </div>
+                        </div>
+                        {selectedOrder.po_ending_date && (
+                          <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-xl bg-surface border border-border">
+                            <FaClock className="text-amber-500" size={13} />
+                            <span className="text-text-muted">PO Ending Date:</span>
+                            <span className="font-bold text-text-primary">
+                              {new Date(selectedOrder.po_ending_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                        <div className="p-3 bg-surface rounded-xl border border-border">
+                          <span className="text-[10px] uppercase font-bold text-text-muted block">Booked Quota</span>
+                          <span className="text-base font-extrabold text-text-primary font-mono">{bookedQuota} Kits</span>
+                          <span className="text-[10px] text-text-muted block">Committed</span>
+                        </div>
+                        <div className="p-3 bg-surface rounded-xl border border-border">
+                          <span className="text-[10px] uppercase font-bold text-emerald-600 block">Fulfilled by EPC</span>
+                          <span className="text-base font-extrabold text-emerald-600 font-mono">{fulfilledQuota} Kits</span>
+                          <span className="text-[10px] text-emerald-600/80 block font-semibold">{progressPct}% Complete</span>
+                        </div>
+                        <div className="p-3 bg-surface rounded-xl border border-border">
+                          <span className="text-[10px] uppercase font-bold text-rose-600 block">Unfulfilled Quota</span>
+                          <span className="text-base font-extrabold text-rose-600 font-mono">{unfulfilledKits} Kits</span>
+                          <span className="text-[10px] text-rose-600/80 block font-semibold">{unfulfilledKits > 0 ? "Penalty Applicable" : "Completed"}</span>
+                        </div>
+                        <div className="p-3 bg-surface rounded-xl border border-border">
+                          <span className="text-[10px] uppercase font-bold text-primary block">Pro-Rata Ratio</span>
+                          <span className="text-base font-extrabold text-primary font-mono">{completionRatio}</span>
+                          <span className="text-[10px] text-primary/80 block font-semibold">Realized Margin</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        {/* EPC Penalty Card */}
+                        <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400 uppercase">
+                              EPC Unfulfilled Penalty
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-500/20 text-rose-700 dark:text-rose-300">
+                              Charged to EPC
+                            </span>
+                          </div>
+                          <div className="text-lg font-black text-rose-600 dark:text-rose-400 font-mono mt-1">
+                            ₹{epcPenaltyRs.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                          <p className="text-[11px] text-text-muted mt-1 leading-relaxed">
+                            {epcPenaltyRs > 0
+                              ? `Penalty charged to ${penaltyChargedToName} for ${unfulfilledKits} unfulfilled kits past the PO ending date.`
+                              : `No penalty applicable as order is fulfilled or within the active timeline.`}
+                          </p>
+                        </div>
+
+                        {/* Franchise Pro-Rata Commission Card */}
+                        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase">
+                              Franchise Pro-Rata Commission
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                              {completionRatio} Realized
+                            </span>
+                          </div>
+                          <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
+                            ₹{(realizedMarginRs || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                          <p className="text-[11px] text-text-muted mt-1 leading-relaxed">
+                            Commission calculated pro-rata: {completionRatio} of total committed margin ₹{(franchiseeMarginRs || 0).toLocaleString("en-IN")}.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1110,7 +1243,7 @@ export default function FranchiseePoOrdersAccounts() {
                               <th className="py-2.5 px-3">GSTIN</th>
                               <th className="py-2.5 px-3 text-center">Allocated Kits</th>
                               <th className="py-2.5 px-3 text-center">PO Contract</th>
-                            <th className="py-2.5 px-3 text-center">Payment Status</th>
+                              <th className="py-2.5 px-3 text-center">Payment Status</th>
                               <th className="py-2.5 px-3 text-right">Verification Actions</th>
                             </tr>
                           </thead>

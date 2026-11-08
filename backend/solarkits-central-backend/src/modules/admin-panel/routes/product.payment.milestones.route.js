@@ -15,6 +15,11 @@ const h = require('../controller/product.payment.milestones.handler');
 // ── Public / EPC Checkout Resolution (No auth required to see product milestone terms) ──
 router.get('/resolve', h.resolve_payment_milestones);
 
+// ── Order Stages & Turnaround Time (TAT) Configuration ────────────────────────────────
+router.get('/stages-tat', check_auth, h.get_order_stages_tat);
+router.put('/stages-tat', check_auth, h.update_order_stages_tat);
+router.post('/stages-tat', check_auth, h.update_order_stages_tat);
+
 // ── Admin Product Payment Milestones CRUD ─────────────────────────────────────────────
 router.get('/kits-overview', check_auth, h.get_kits_milestones_overview);
 router.get('/list', check_auth, h.list_milestone_configs);
