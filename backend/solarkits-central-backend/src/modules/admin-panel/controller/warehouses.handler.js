@@ -11,11 +11,11 @@ const { company_warehouse_db } = require("../config/databases");
 const mongoose = require('mongoose');
 
 // Valid warehouse types
-const VALID_WAREHOUSE_TYPES = ['master', 'sub'];
+const VALID_WAREHOUSE_TYPES = ['company', '3pl', 'master', 'sub'];
 
 /**
  * Adds a new warehouse.
- * Logic: Validates geolocation names, checks for duplicates, generates code, and inserts warehouse + customer types.
+ * Logic: Validates geolocation names, checks for duplicates, generates code, and inserts warehouse.
  */
 const add_warehouse = async (req, res) => {
   const session = await company_warehouse_db.startSession();
@@ -23,32 +23,45 @@ const add_warehouse = async (req, res) => {
   try {
     const { country, state, district, address, pincode, lat, lng, customers_types, warehouse_type, manager_name, manager_email, manager_phone, manager_phone_code } = req.body;
     if (!country || !state || !district || !address || !lat || !lng) {
-      return res.status(400).json({ status: "error", message: "Missing required fields." });
-    }
-
-    if (!customers_types || customers_types.length === 0) {
-      return res.status(400).json({ status: "error", message: "Please select at least one customer type." });
+      const missing = [
+        !country && 'country',
+        !state && 'state',
+        !district && 'district',
+        !address && 'address',
+        !lat && 'lat',
+        !lng && 'lng'
+      ].filter(Boolean).join(', ');
+      return res.status(400).json({ status: "error", message: `Missing required fields: ${missing}` });
     }
 
     // ---------- Validate warehouse type ----------
     if (!warehouse_type || !VALID_WAREHOUSE_TYPES.includes(warehouse_type)) {
-      return res.status(400).json({ status: "error", message: "Warehouse type is required. Must be 'master' or 'sub'." });
+      return res.status(400).json({ status: "error", message: `Warehouse type is required. Must be 'company' or '3pl'. Received: '${warehouse_type}'` });
     }
 
     // ---------- Validate geolocation ----------
-    const country_row = await GeoLevel0.findOne({ name: country, is_active: true, deleted_at: null });
-    if (!country_row) throw new Error("Invalid country.");
+    const country_row = await GeoLevel0.findOne({ 
+      name: { $regex: new RegExp(`^${country.trim()}$`, 'i') }, 
+      is_active: true, 
+      deleted_at: null 
+    });
+    if (!country_row) throw new Error(`Invalid country: '${country}'.`);
 
-    const state_row = await GeoLevel1.findOne({ name: state, level_0: country_row._id, is_active: true, deleted_at: null });
-    if (!state_row) throw new Error("Invalid state.");
+    const state_row = await GeoLevel1.findOne({ 
+      name: { $regex: new RegExp(`^${state.trim()}$`, 'i') }, 
+      level_0: country_row._id, 
+      is_active: true, 
+      deleted_at: null 
+    });
+    if (!state_row) throw new Error(`Invalid state: '${state}'.`);
 
-    const district_row = await GeoLevel2.findOne({ name: district, level_1: state_row._id, is_active: true, deleted_at: null });
-    if (!district_row) throw new Error("Invalid district.");
-
-    // ---------- District must belong to a cluster ----------
-    if (!district_row.cluster) {
-      throw new Error("This district has no cluster assigned. Please contact admin to set up the cluster before adding a warehouse.");
-    }
+    const district_row = await GeoLevel2.findOne({ 
+      name: { $regex: new RegExp(`^${district.trim()}$`, 'i') }, 
+      level_1: state_row._id, 
+      is_active: true, 
+      deleted_at: null 
+    });
+    if (!district_row) throw new Error(`Invalid district: '${district}'.`);
 
     // ---------- District uniqueness check (max 1 warehouse per district) ----------
     const district_warehouse = await CompanyWarehouse.findOne({
@@ -57,32 +70,6 @@ const add_warehouse = async (req, res) => {
     }).session(session);
     if (district_warehouse) {
       throw new Error("This district already has a warehouse. A district can have at most one warehouse.");
-    }
-
-    // ---------- Cluster master check (max 1 master per cluster) ----------
-    if (warehouse_type === 'master') {
-      const sibling_district_ids = await GeoLevel2.find({ cluster: district_row.cluster, deleted_at: null }).distinct('_id');
-      const existing_master = await CompanyWarehouse.findOne({
-        level_2: { $in: sibling_district_ids },
-        warehouse_type: 'master',
-        deleted_at: null
-      }).session(session);
-      if (existing_master) {
-        throw new Error("This cluster already has a master warehouse. Only one master warehouse is allowed per cluster.");
-      }
-    }
-
-    // ---------- Cluster master existence check if sub ----------
-    if (warehouse_type === 'sub') {
-      const sibling_district_ids = await GeoLevel2.find({ cluster: district_row.cluster, deleted_at: null }).distinct('_id');
-      const existing_master = await CompanyWarehouse.findOne({
-        level_2: { $in: sibling_district_ids },
-        warehouse_type: 'master',
-        deleted_at: null
-      }).session(session);
-      if (!existing_master) {
-        throw new Error("You must open a Master warehouse first in this cluster before registering a Sub warehouse.");
-      }
     }
 
     // ---------- Generate Code ----------
@@ -113,7 +100,7 @@ const add_warehouse = async (req, res) => {
       lat,
       lng,
       is_active: false,
-      customer_types: customers_types
+      customer_types: customers_types || []
     }], { session });
 
     // ---------- Create Warehouse Manager if provided ----------
@@ -154,7 +141,7 @@ const add_warehouse = async (req, res) => {
     }
 
     await session.commitTransaction();
-    return res.status(200).json({ status: "success", message: `${warehouse_type === 'master' ? 'Master' : 'Sub'} warehouse added successfully.` });
+    return res.status(200).json({ status: "success", message: `${warehouse_type === '3pl' ? '3PL' : 'Company'} warehouse added successfully.` });
   } catch (err) {
     await session.abortTransaction();
     return res.status(500).json({ status: "error", message: err.message });
@@ -240,7 +227,7 @@ const get_warehouses = async (req, res) => {
       }
 
       const status_info = WAREHOUSE_VALIDATION_STATUSES[row.status] || {};
-      
+
       const customer_types = (row.customer_types || []).map(id => ({
         id: id,
         type_name: typeMap[id.toString()] || "Unknown"
@@ -318,7 +305,7 @@ const get_warehouses = async (req, res) => {
           ? row.order_fulfillment_types
           : ['po_order', 'loose_order', 'trial_order'],
         order_fulfillment_config: row.order_fulfillment_config || {
-          po_order:    { is_active: true, max_daily_capacity: 50 },
+          po_order: { is_active: true, max_daily_capacity: 50 },
           loose_order: { is_active: true, max_daily_capacity: 100 },
           trial_order: { is_active: true, max_daily_capacity: 20 },
         }
@@ -425,7 +412,7 @@ const get_warehouse = async (req, res) => {
           ? warehouse.order_fulfillment_types
           : ['po_order', 'loose_order', 'trial_order'],
         order_fulfillment_config: warehouse.order_fulfillment_config || {
-          po_order:    { is_active: true, max_daily_capacity: 50 },
+          po_order: { is_active: true, max_daily_capacity: 50 },
           loose_order: { is_active: true, max_daily_capacity: 100 },
           trial_order: { is_active: true, max_daily_capacity: 20 },
         }
@@ -801,7 +788,7 @@ const get_warehouses_by_district = async (req, res) => {
       }
 
       const status_info = WAREHOUSE_VALIDATION_STATUSES[row.status] || {};
-      
+
       const customer_types = (row.customer_types || []).map(id => ({
         id: id,
         type_name: typeMap[id.toString()] || "Unknown"
@@ -890,18 +877,22 @@ const update_warehouse = async (req, res) => {
   try {
     const { id } = req.params;
     const { country, state, district, address, pincode, lat, lng, customers_types, warehouse_type, manager_name, manager_email, manager_phone, manager_phone_code } = req.body;
-    
-    if (!country || !state || !district || !address || !lat || !lng) {
-      return res.status(400).json({ status: "error", message: "Missing required fields." });
-    }
 
-    if (!customers_types || customers_types.length === 0) {
-      return res.status(400).json({ status: "error", message: "Please select at least one customer type." });
+    if (!country || !state || !district || !address || !lat || !lng) {
+      const missing = [
+        !country && 'country',
+        !state && 'state',
+        !district && 'district',
+        !address && 'address',
+        !lat && 'lat',
+        !lng && 'lng'
+      ].filter(Boolean).join(', ');
+      return res.status(400).json({ status: "error", message: `Missing required fields: ${missing}` });
     }
 
     // ---------- Validate warehouse type ----------
     if (!warehouse_type || !VALID_WAREHOUSE_TYPES.includes(warehouse_type)) {
-      return res.status(400).json({ status: "error", message: "Warehouse type is required. Must be 'master' or 'sub'." });
+      return res.status(400).json({ status: "error", message: `Warehouse type is required. Must be 'company' or '3pl'. Received: '${warehouse_type}'` });
     }
 
     const warehouse = await CompanyWarehouse.findOne({ _id: id, deleted_at: null }).session(session);
@@ -915,19 +906,28 @@ const update_warehouse = async (req, res) => {
     }
 
     // ---------- Validate geolocation ----------
-    const country_row = await GeoLevel0.findOne({ name: country, is_active: true, deleted_at: null });
-    if (!country_row) throw new Error("Invalid country.");
+    const country_row = await GeoLevel0.findOne({ 
+      name: { $regex: new RegExp(`^${country.trim()}$`, 'i') }, 
+      is_active: true, 
+      deleted_at: null 
+    });
+    if (!country_row) throw new Error(`Invalid country: '${country}'.`);
 
-    const state_row = await GeoLevel1.findOne({ name: state, level_0: country_row._id, is_active: true, deleted_at: null });
-    if (!state_row) throw new Error("Invalid state.");
+    const state_row = await GeoLevel1.findOne({ 
+      name: { $regex: new RegExp(`^${state.trim()}$`, 'i') }, 
+      level_0: country_row._id, 
+      is_active: true, 
+      deleted_at: null 
+    });
+    if (!state_row) throw new Error(`Invalid state: '${state}'.`);
 
-    const district_row = await GeoLevel2.findOne({ name: district, level_1: state_row._id, is_active: true, deleted_at: null });
-    if (!district_row) throw new Error("Invalid district.");
-
-    // ---------- District must belong to a cluster ----------
-    if (!district_row.cluster) {
-      throw new Error("This district has no cluster assigned. Please contact admin to set up the cluster before adding a warehouse.");
-    }
+    const district_row = await GeoLevel2.findOne({ 
+      name: { $regex: new RegExp(`^${district.trim()}$`, 'i') }, 
+      level_1: state_row._id, 
+      is_active: true, 
+      deleted_at: null 
+    });
+    if (!district_row) throw new Error(`Invalid district: '${district}'.`);
 
     // ---------- District uniqueness check (max 1 warehouse per district) ----------
     const district_warehouse = await CompanyWarehouse.findOne({
@@ -937,34 +937,6 @@ const update_warehouse = async (req, res) => {
     }).session(session);
     if (district_warehouse) {
       throw new Error("This district already has a warehouse. A district can have at most one warehouse.");
-    }
-
-    // ---------- Cluster master check (max 1 master per cluster) ----------
-    if (warehouse_type === 'master') {
-      const sibling_district_ids = await GeoLevel2.find({ cluster: district_row.cluster, deleted_at: null }).distinct('_id');
-      const existing_master = await CompanyWarehouse.findOne({
-        level_2: { $in: sibling_district_ids },
-        warehouse_type: 'master',
-        _id: { $ne: id },
-        deleted_at: null
-      }).session(session);
-      if (existing_master) {
-        throw new Error("This cluster already has a master warehouse. Only one master warehouse is allowed per cluster.");
-      }
-    }
-
-    // ---------- Cluster master existence check if sub ----------
-    if (warehouse_type === 'sub') {
-      const sibling_district_ids = await GeoLevel2.find({ cluster: district_row.cluster, deleted_at: null }).distinct('_id');
-      const existing_master = await CompanyWarehouse.findOne({
-        level_2: { $in: sibling_district_ids },
-        warehouse_type: 'master',
-        _id: { $ne: id },
-        deleted_at: null
-      }).session(session);
-      if (!existing_master) {
-        throw new Error("You must open a Master warehouse first in this cluster before registering a Sub warehouse.");
-      }
     }
 
     // ---------- Regenerate warehouse code if country or state changes ----------
@@ -993,7 +965,7 @@ const update_warehouse = async (req, res) => {
     warehouse.pincode = pincode || null;
     warehouse.lat = lat;
     warehouse.lng = lng;
-    warehouse.customer_types = customers_types;
+    warehouse.customer_types = customers_types || [];
 
     // ---------- Create/Update Warehouse Manager if provided ----------
     if (manager_name && manager_email && manager_phone) {
@@ -1005,14 +977,14 @@ const update_warehouse = async (req, res) => {
       }
 
       // Check unique email/phone in WarehouseUser for other warehouses
-      const duplicateEmail = await WarehouseUser.findOne({ 
+      const duplicateEmail = await WarehouseUser.findOne({
         email: manager_email.trim().toLowerCase(),
         warehouse_id: { $ne: id }
       }).session(session);
       if (duplicateEmail) {
         throw new Error("A warehouse manager with this email already exists.");
       }
-      const duplicatePhone = await WarehouseUser.findOne({ 
+      const duplicatePhone = await WarehouseUser.findOne({
         phone: manager_phone.trim(),
         warehouse_id: { $ne: id }
       }).session(session);
@@ -1028,9 +1000,9 @@ const update_warehouse = async (req, res) => {
 
       const existingUser = await WarehouseUser.findOne({ warehouse_id: id }).session(session);
       if (existingUser) {
-        if (existingUser.email !== manager_email.trim().toLowerCase() || 
-            existingUser.phone !== manager_phone.trim() ||
-            existingUser.phone_code !== (manager_phone_code || "+91").trim()) {
+        if (existingUser.email !== manager_email.trim().toLowerCase() ||
+          existingUser.phone !== manager_phone.trim() ||
+          existingUser.phone_code !== (manager_phone_code || "+91").trim()) {
           existingUser.is_verified = false;
           existingUser.passcode = null;
         }
@@ -1062,7 +1034,7 @@ const update_warehouse = async (req, res) => {
     await warehouse.save({ session });
 
     await session.commitTransaction();
-    return res.status(200).json({ status: "success", message: `${warehouse_type === 'master' ? 'Master' : 'Sub'} warehouse updated successfully.` });
+    return res.status(200).json({ status: "success", message: `${warehouse_type === '3pl' ? '3PL' : 'Company'} warehouse updated successfully.` });
   } catch (err) {
     await session.abortTransaction();
     return res.status(500).json({ status: "error", message: err.message });
@@ -1153,15 +1125,15 @@ const update_warehouse_order_fulfillment_types = async (req, res) => {
 
     const configToSet = (order_fulfillment_config && typeof order_fulfillment_config === 'object')
       ? {
-          po_order:    order_fulfillment_config.po_order    || warehouse.order_fulfillment_config?.po_order    || { is_active: sanitizedTypes.includes('po_order') },
-          loose_order: order_fulfillment_config.loose_order || warehouse.order_fulfillment_config?.loose_order || { is_active: sanitizedTypes.includes('loose_order') },
-          trial_order: order_fulfillment_config.trial_order || warehouse.order_fulfillment_config?.trial_order || { is_active: sanitizedTypes.includes('trial_order') },
-        }
+        po_order: order_fulfillment_config.po_order || warehouse.order_fulfillment_config?.po_order || { is_active: sanitizedTypes.includes('po_order') },
+        loose_order: order_fulfillment_config.loose_order || warehouse.order_fulfillment_config?.loose_order || { is_active: sanitizedTypes.includes('loose_order') },
+        trial_order: order_fulfillment_config.trial_order || warehouse.order_fulfillment_config?.trial_order || { is_active: sanitizedTypes.includes('trial_order') },
+      }
       : {
-          po_order:    { is_active: sanitizedTypes.includes('po_order'), max_daily_capacity: 50 },
-          loose_order: { is_active: sanitizedTypes.includes('loose_order'), max_daily_capacity: 100 },
-          trial_order: { is_active: sanitizedTypes.includes('trial_order'), max_daily_capacity: 20 },
-        };
+        po_order: { is_active: sanitizedTypes.includes('po_order'), max_daily_capacity: 50 },
+        loose_order: { is_active: sanitizedTypes.includes('loose_order'), max_daily_capacity: 100 },
+        trial_order: { is_active: sanitizedTypes.includes('trial_order'), max_daily_capacity: 20 },
+      };
 
     // Direct update to MongoDB to guarantee immediate persistence
     await CompanyWarehouse.updateOne(

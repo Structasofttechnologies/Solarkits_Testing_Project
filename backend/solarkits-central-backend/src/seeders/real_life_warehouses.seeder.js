@@ -34,7 +34,7 @@ const { SolarKit, WarehouseKitActivation } = require('../modules/admin-panel/mod
 const WAREHOUSE_DATA = [
   {
     code: "WH-IND-GJ-001",
-    type: "master",
+    type: "company",
     address: "Plot No. 45, GIDC Industrial Estate, Sanand, Ahmedabad, Gujarat",
     pincode: "382110",
     lat: 23.0225,
@@ -48,7 +48,7 @@ const WAREHOUSE_DATA = [
   },
   {
     code: "WH-IND-MH-001",
-    type: "master",
+    type: "company",
     address: "Logistics Park, Bhiwandi Industrial Area, Mumbai, Maharashtra",
     pincode: "421302",
     lat: 19.0760,
@@ -62,7 +62,7 @@ const WAREHOUSE_DATA = [
   },
   {
     code: "WH-IND-DL-001",
-    type: "sub",
+    type: "3pl",
     address: "Okhla Industrial Area Phase 3, New Delhi, Delhi",
     pincode: "110020",
     lat: 28.5355,
@@ -75,7 +75,7 @@ const WAREHOUSE_DATA = [
   },
   {
     code: "WH-IND-KA-001",
-    type: "master",
+    type: "company",
     address: "Peenya Industrial Area 2nd Stage, Bengaluru, Karnataka",
     pincode: "560058",
     lat: 12.9716,
@@ -89,7 +89,7 @@ const WAREHOUSE_DATA = [
   },
   {
     code: "WH-IND-RJ-001",
-    type: "sub",
+    type: "3pl",
     address: "RIICO Industrial Area, Sitapura, Jaipur, Rajasthan",
     pincode: "302022",
     lat: 26.9124,

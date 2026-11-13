@@ -1372,7 +1372,7 @@ const create_purchase_order = async (req, res) => {
       });
     }
 
-        const dueTimelineStr = newPO.timeline ? new Date(newPO.timeline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
+    const dueTimelineStr = newPO.timeline ? new Date(newPO.timeline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
     sendAdminNotification({
       title: `📦 Purchase Order Issued: ${newPO.po_number}`,
       message: `Accounts team ne ₹${Number(newPO.total_amount || 0).toLocaleString('en-IN')} ka PO ${newPO.po_number} issue kar diya hai (${(newPO.items || []).length} items). Expected delivery: ${dueTimelineStr}. Supplier payment ke baad dispatch hoga.`,
@@ -1435,7 +1435,7 @@ const pay_purchase_order = async (req, res) => {
 
     await po.save();
 
-        sendAdminNotification({
+    sendAdminNotification({
       title: `💳 Supplier Payment Done: ${po.po_number}`,
       message: `Accounts team ne PO ${po.po_number} ke liye ₹${Number(amount).toLocaleString('en-IN')} payment mark kar di hai (Ref: ${reference_no}). Supplier dispatch karega aur material warehouse dock par arrive hone ke liye in-transit hai.`,
       category: 'payments',
@@ -1481,7 +1481,7 @@ const update_purchase_order_timeline = async (req, res) => {
     po.timeline = new Date(timeline);
     await po.save();
 
-        const formattedTimelineDate = new Date(timeline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const formattedTimelineDate = new Date(timeline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     sendAdminNotification({
       title: `📅 Delivery Timeline Fixed: ${po.po_number}`,
       message: `PO ${po.po_number} ki expected delivery date ${formattedTimelineDate} fix ki gayi hai. Accounts aur Warehouse dono teams receiving dock prepare rakhein.`,
@@ -2191,14 +2191,14 @@ const get_po_requests = async (req, res) => {
     const clusterMap = Object.fromEntries(clusters.map(c => [String(c._id), c.name]));
 
     const query = (matchingWarehouseIds && matchingWarehouseIds.length > 0 && clusterId && clusterId !== 'all')
-      ? { 
-          $or: [
-            { warehouse_id: { $in: matchingWarehouseIds } }, 
-            { request_number: { $regex: 'BUFFER', $options: 'i' } },
-            { request_number: { $regex: 'BOS', $options: 'i' } },
-            { request_number: { $regex: 'REQ', $options: 'i' } }
-          ] 
-        }
+      ? {
+        $or: [
+          { warehouse_id: { $in: matchingWarehouseIds } },
+          { request_number: { $regex: 'BUFFER', $options: 'i' } },
+          { request_number: { $regex: 'BOS', $options: 'i' } },
+          { request_number: { $regex: 'REQ', $options: 'i' } }
+        ]
+      }
       : {};
 
     const list = await PoRequest.find(query)
@@ -3335,13 +3335,7 @@ const get_new_orders_filter_options = async (req, res) => {
     return res.status(200).json({
       status: 'success',
       data: {
-        warehouses: [
-          { _id: '6a7d545ccea1dec404aefe04', warehouse_code: 'WH-IND-GJ-001', address: 'Plot No. 45, GIDC Industrial Estate, Sanand, Ahmedabad', pincode: '382110', warehouse_type: 'master', state_name: 'Gujarat', district_name: 'Ahmedabad' },
-          { _id: '6a7d545dcea1dec404aefe0a', warehouse_code: 'WH-IND-MH-001', address: 'Logistics Park, Bhiwandi Industrial Area, Mumbai', pincode: '421302', warehouse_type: 'master', state_name: 'Maharashtra', district_name: 'Thane' },
-          { _id: '6a7d545dcea1dec404aefe10', warehouse_code: 'WH-IND-DL-001', address: 'Okhla Industrial Area Phase 3, New Delhi', pincode: '110020', warehouse_type: 'sub', state_name: 'Delhi', district_name: 'South Delhi' },
-          { _id: '6a7d545ecea1dec404aefe16', warehouse_code: 'WH-IND-KA-001', address: 'Peenya Industrial Area 2nd Stage, Bengaluru', pincode: '560058', warehouse_type: 'master', state_name: 'Karnataka', district_name: 'Bengaluru' },
-          { _id: '6a7d545ecea1dec404aefe1c', warehouse_code: 'WH-IND-RJ-001', address: 'RIICO Industrial Area, Sitapura, Jaipur', pincode: '302022', warehouse_type: 'sub', state_name: 'Rajasthan', district_name: 'Jaipur' },
-        ],
+        warehouses: [],
         states: [{ _id: 'st_guj', name: 'Gujarat' }, { _id: 'st_mah', name: 'Maharashtra' }, { _id: 'st_raj', name: 'Rajasthan' }],
         districts: [{ _id: 'dt_raj', name: 'Rajkot', state_id: 'st_guj' }, { _id: 'dt_ahm', name: 'Ahmedabad', state_id: 'st_guj' }, { _id: 'dt_sur', name: 'Surat', state_id: 'st_guj' }],
         kit_types: [
@@ -3551,8 +3545,8 @@ const get_eligible_new_orders = async (req, res) => {
       const whObj = (rawWhId && whMap[rawWhId])
         ? whMap[rawWhId]
         : ((allCompanyWarehouses && allCompanyWarehouses.length > 0)
-            ? (allCompanyWarehouses.find(w => (w.level_1?._id || w.level_1)?.toString() === (stId ? stId.toString() : '')) || defaultWh)
-            : defaultWh);
+          ? (allCompanyWarehouses.find(w => (w.level_1?._id || w.level_1)?.toString() === (stId ? stId.toString() : '')) || defaultWh)
+          : defaultWh);
       const assignedWhId = whObj?._id ? whObj._id.toString() : (rawWhId || 'wh-default');
       const assignedWhCode = whObj?.warehouse_code || 'WH-IND-GJ-001';
       const assignedWhName = `${assignedWhCode} — ${whObj?.address ? whObj.address.split(',')[0] : 'Ahmedabad Hub'}`;

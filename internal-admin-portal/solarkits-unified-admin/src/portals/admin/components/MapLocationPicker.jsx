@@ -119,8 +119,10 @@ export default function MapLocationPicker({
       if (!wh.lat || !wh.lng) return;
 
       const position = { lat: parseFloat(wh.lat), lng: parseFloat(wh.lng) };
-      const isMaster = wh.warehouse_type === "master";
-      const color = isMaster ? "#f59e0b" : "#3b82f6";
+      const isCompany = wh.warehouse_type === "company";
+      const is3PL = wh.warehouse_type === "3pl";
+      const typeLabel = isCompany ? "Company Warehouse" : is3PL ? "3PL Warehouse" : (wh.warehouse_type === "master" ? "Master Hub" : "Sub Facility");
+      const color = isCompany ? "#10b981" : is3PL ? "#3b82f6" : "#f59e0b";
 
       const svgPin = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
         `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='40' viewBox='0 0 24 24' fill='${color}'><path d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z'/><circle cx='12' cy='9' r='2.5' fill='white'/></svg>`
@@ -129,7 +131,7 @@ export default function MapLocationPicker({
       const marker = new google.maps.Marker({
         position,
         map: mapInstanceRef.current,
-        title: `${isMaster ? "Master" : "Sub"}: ${wh.warehouse_code || "Warehouse"}`,
+        title: `${typeLabel}: ${wh.warehouse_code || "Warehouse"}`,
         draggable: false,
         icon: {
           url: svgPin,
@@ -140,7 +142,7 @@ export default function MapLocationPicker({
       const infoWindow = new google.maps.InfoWindow({
         content: `
           <div style="font-family: sans-serif; padding: 4px; font-size: 13px;">
-            <strong style="color: ${color};">${isMaster ? "Master Warehouse" : "Sub Warehouse"}</strong>
+            <strong style="color: ${color};">${typeLabel}</strong>
             <div style="margin-top: 4px;"><strong>Code:</strong> ${wh.warehouse_code || 'N/A'}</div>
             <div><strong>Address:</strong> ${wh.address || 'N/A'}</div>
           </div>
@@ -486,7 +488,7 @@ export default function MapLocationPicker({
 
     const position = { lat: parseFloat(lat), lng: parseFloat(lng) };
     const latLng = new google.maps.LatLng(position.lat, position.lng);
-    
+
     lastValidPositionRef.current = latLng;
 
     // 👇 If marker exists → update

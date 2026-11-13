@@ -22,7 +22,9 @@ import {
   FiAlertTriangle,
   FiPlus,
   FiEdit2,
-  FiPlay
+  FiPlay,
+  FiHome,
+  FiTruck
 } from "react-icons/fi";
 import Button from "@/components/Button";
 import PageHeader from "@/components/PageHeader";
@@ -298,18 +300,18 @@ export default function WarehouseDetails({ moduleUniqueId }) {
 
       {/* Grid for Quick Stats & Timeline */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* Onboarding & Verification Progress */}
         <div className="card bg-surface border border-border rounded-3xl p-6 md:p-8 flex flex-col md:flex-row lg:flex-col items-center justify-center gap-6 shadow-sm">
           <CircleProgressBar percentage={warehouse.profile_completion_percentage || 0} />
-          
+
           <div className="text-center md:text-left lg:text-center space-y-2 flex-1">
             <h4 className="font-black text-text-primary text-lg">Onboarding Status</h4>
             <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold ${currentStatus.color}`}>
               <StatusIcon className="w-4 h-4 shrink-0" />
               <span>{currentStatus.label}</span>
             </div>
-            
+
             {warehouse.due_date && (warehouse.status_id === 2 || warehouse.status_id === 5) && (
               <p className="text-xs text-text-secondary font-medium">
                 Deadline: <span className="text-warning font-semibold">{new Date(warehouse.due_date).toLocaleDateString()}</span> ({getRemainingTime(warehouse.due_date)})
@@ -325,7 +327,7 @@ export default function WarehouseDetails({ moduleUniqueId }) {
             <h3 className="text-xl font-black text-text-primary flex items-center gap-2">
               <FiShield className="text-primary" /> Admin Verification Panel
             </h3>
-            
+
             {warehouse.status_id === 3 ? (
               <p className="text-sm text-text-secondary leading-relaxed font-medium">
                 This warehouse profile is submitted and waiting for review. You can inspect the fields completed below, and click the buttons to either verify or reject the profile.
@@ -390,17 +392,21 @@ export default function WarehouseDetails({ moduleUniqueId }) {
               <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Warehouse Code</p>
               <p className="font-bold text-sm text-text-primary mt-1">{warehouse.warehouse_code || "-"}</p>
             </div>
-            
+
             <div className="bg-bg/50 p-4 rounded-2xl border border-border/50">
               <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Warehouse Type</p>
               <div className="mt-1">
-                {warehouse.warehouse_type === "master" ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/20">
-                    <FiStar className="w-3 h-3 text-amber-500" /> Master Hub
+                {warehouse.warehouse_type === "company" ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                    <FiHome className="w-3 h-3 text-emerald-500" /> Company Warehouse
+                  </span>
+                ) : warehouse.warehouse_type === "3pl" ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+                    <FiTruck className="w-3 h-3 text-primary" /> 3PL Warehouse
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
-                    <FiGitBranch className="w-3 h-3" /> Sub Facility
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-bg text-text-secondary border border-border">
+                    {warehouse.warehouse_type === "master" ? "Master Hub" : warehouse.warehouse_type === "sub" ? "Sub Facility" : "Facility"}
                   </span>
                 )}
               </div>
@@ -487,11 +493,10 @@ export default function WarehouseDetails({ moduleUniqueId }) {
           {warehouse.manager && (
             <div className="mt-6 pt-4 border-t border-border/60 flex items-center justify-between text-xs">
               <span className="text-text-muted font-semibold">Login Portal Access Status:</span>
-              <span className={`font-bold uppercase tracking-wider px-3 py-1 rounded-full text-[10px] border ${
-                warehouse.manager.is_verified 
-                  ? "bg-success/10 text-success border-success/20" 
+              <span className={`font-bold uppercase tracking-wider px-3 py-1 rounded-full text-[10px] border ${warehouse.manager.is_verified
+                  ? "bg-success/10 text-success border-success/20"
                   : "bg-amber-500/10 text-amber-600 border-amber-500/20"
-              }`}>
+                }`}>
                 {warehouse.manager.is_verified ? "Verified & Configured" : "Passcode Setup Pending"}
               </span>
             </div>
@@ -545,7 +550,7 @@ export default function WarehouseDetails({ moduleUniqueId }) {
             {sections.map(section => {
               const sectionFields = fields.filter(f => f.section_id === section.id);
               if (sectionFields.length === 0) return null;
-              
+
               const isExpanded = expandedSections[section.id];
 
               return (
@@ -568,11 +573,10 @@ export default function WarehouseDetails({ moduleUniqueId }) {
                       {sectionFields.map(field => {
                         const hasValue = submittedData[field.id] !== undefined && submittedData[field.id] !== null && String(submittedData[field.id]).trim() !== '';
                         return (
-                          <div key={field.id} className={`p-4 rounded-2xl border transition-all ${
-                            hasValue 
-                              ? "bg-surface border-border/80" 
+                          <div key={field.id} className={`p-4 rounded-2xl border transition-all ${hasValue
+                              ? "bg-surface border-border/80"
                               : "bg-bg/40 border-border/40 border-dashed"
-                          }`}>
+                            }`}>
                             <div className="flex items-center justify-between gap-2 mb-2">
                               <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
                                 {field.label || field.name}

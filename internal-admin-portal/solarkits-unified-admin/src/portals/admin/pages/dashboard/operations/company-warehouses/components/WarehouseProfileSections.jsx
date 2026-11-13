@@ -209,11 +209,13 @@ export default function WarehouseProfileSections({ moduleUniqueId }) {
                                         {warehouse.warehouse_code || "CODE-N/A"}
                                     </h3>
                                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                                        warehouse.warehouse_type === "master"
-                                            ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
-                                            : "bg-primary/10 text-primary border-primary/20"
+                                        warehouse.warehouse_type === "company"
+                                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                            : warehouse.warehouse_type === "3pl"
+                                                ? "bg-primary/10 text-primary border-primary/20"
+                                                : "bg-surface border-border text-text-secondary"
                                     }`}>
-                                        {warehouse.warehouse_type === "master" ? "Master Hub" : "Sub Facility"}
+                                        {warehouse.warehouse_type === "company" ? "Company Warehouse" : warehouse.warehouse_type === "3pl" ? "3PL Warehouse" : (warehouse.warehouse_type === "master" ? "Master Hub" : warehouse.warehouse_type === "sub" ? "Sub Facility" : "Facility")}
                                     </span>
                                 </div>
                                 <p className="text-xs font-semibold text-text-secondary flex items-center gap-1.5 mb-2.5">
