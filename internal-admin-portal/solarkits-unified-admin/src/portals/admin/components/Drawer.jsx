@@ -341,24 +341,77 @@ function NavigationDrawer({
     return leaves;
   }, [menuItems]);
 
-  // Determine the single active leaf item (exact match first, then longest matching prefix)
+  // Determine the single active leaf item (exact match first, then query param match, then longest matching prefix)
   const activeLeafItem = useMemo(() => {
-    const current = (location.pathname || "").replace(/\/+$/, "");
-    if (!current || leafNavItems.length === 0) return null;
+    const currentPath = (location.pathname || "").replace(/\/+$/, "");
+    const currentSearch = location.search || "";
+    const currentFull = (currentPath + currentSearch).replace(/\/+$/, "");
+    if (!currentPath || leafNavItems.length === 0) return null;
 
-    // 1. Exact match with targetPath or rawPath
-    const exact = leafNavItems.find(
-      (leaf) => leaf.targetPath === current || leaf.rawPath === current
+    // 1. Exact match with full path + query string (for tabbed sub-items like ?tab=map)
+    if (currentSearch) {
+      const exactFull = leafNavItems.find(
+        (leaf) => leaf.targetPath === currentFull || leaf.rawPath === currentFull
+      );
+      if (exactFull) return exactFull;
+
+      // Match by comparing URLSearchParams
+      const currentParams = new URLSearchParams(currentSearch);
+      const queryMatch = leafNavItems.find((leaf) => {
+        const leafTarget = leaf.targetPath || "";
+        const leafRaw = leaf.rawPath || "";
+        const [targetBase, targetQuery] = leafTarget.split("?");
+        const [rawBase, rawQuery] = leafRaw.split("?");
+
+        const baseMatches = targetBase === currentPath || rawBase === currentPath;
+        if (!baseMatches) return false;
+
+        const leafQuery = targetQuery || rawQuery;
+        if (!leafQuery) return false;
+
+        const leafParams = new URLSearchParams(leafQuery);
+        let allMatch = true;
+        for (const [key, val] of leafParams.entries()) {
+          if (currentParams.get(key) !== val) {
+            allMatch = false;
+            break;
+          }
+        }
+        return allMatch;
+      });
+      if (queryMatch) return queryMatch;
+    }
+
+    // 2. Exact match with pathname only (when no query string, or for sub-items without query strings)
+    const exactPath = leafNavItems.find(
+      (leaf) => leaf.targetPath === currentPath || leaf.rawPath === currentPath
     );
-    if (exact) return exact;
+    if (exactPath) return exactPath;
 
-    // 2. Prefix match for sub-routes (e.g. details, edit forms)
+    // 3. Fallback for default tab when on a parent route with tabs (e.g. /franchise-clusters defaults to tab=clusters)
+    if (!currentSearch) {
+      const defaultTabMatch = leafNavItems.find((leaf) => {
+        const targetBase = (leaf.targetPath || "").split("?")[0];
+        const rawBase = (leaf.rawPath || "").split("?")[0];
+        if (targetBase === currentPath || rawBase === currentPath) {
+          const query = (leaf.targetPath || "").split("?")[1] || (leaf.rawPath || "").split("?")[1] || "";
+          return query.includes("tab=clusters") || query.includes("default=true");
+        }
+        return false;
+      });
+      if (defaultTabMatch) return defaultTabMatch;
+    }
+
+    // 4. Prefix match for sub-routes (e.g. details, edit forms)
     // Longest matching prefix wins so deeper child paths take priority over shorter base paths
-    const prefixMatches = leafNavItems.filter(
-      (leaf) =>
-        (leaf.targetPath && current.startsWith(leaf.targetPath + "/")) ||
-        (leaf.rawPath && current.startsWith(leaf.rawPath + "/"))
-    );
+    const prefixMatches = leafNavItems.filter((leaf) => {
+      const targetBase = (leaf.targetPath || "").split("?")[0];
+      const rawBase = (leaf.rawPath || "").split("?")[0];
+      return (
+        (targetBase && currentPath.startsWith(targetBase + "/")) ||
+        (rawBase && currentPath.startsWith(rawBase + "/"))
+      );
+    });
 
     if (prefixMatches.length > 0) {
       prefixMatches.sort((a, b) => {
@@ -370,7 +423,7 @@ function NavigationDrawer({
     }
 
     return null;
-  }, [location.pathname, leafNavItems]);
+  }, [location.pathname, location.search, leafNavItems]);
 
   // Check if a parent item contains the active leaf
   const isParentOfActive = (parentItem) => {
@@ -524,7 +577,7 @@ function NavigationDrawer({
                       depth > 0 ? "px-3 py-2 pl-3.5 rounded-lg" : "px-3.5 py-2.5 rounded-xl"
                     } transition-all duration-300 whitespace-nowrap group
                     ${isLeafActive
-                        ? "gradient-primary text-white shadow-md shadow-primary/20"
+                        ? "gradient-primary text-white shadow-md shadow-primary/20 font-bold"
                         : "text-text-secondary bg-transparent hover:bg-surface-hover hover:text-primary"
                       }`}
                   >
@@ -537,8 +590,8 @@ function NavigationDrawer({
                         {item.icon}
                       </span>
                       <span
-                        className={`flex-1 font-semibold ${depth > 0 ? "text-[13px]" : "text-[13.5px]"} tracking-tight truncate overflow-hidden text-ellipsis whitespace-nowrap text-left ${
-                          isLeafActive ? "text-white" : "text-text-primary"
+                        className={`flex-1 ${depth > 0 ? "text-[13px]" : "text-[13.5px]"} tracking-tight truncate overflow-hidden text-ellipsis whitespace-nowrap text-left ${
+                          isLeafActive ? "text-white font-bold" : "text-text-primary font-semibold"
                         }`}
                       >
                         {item.name}

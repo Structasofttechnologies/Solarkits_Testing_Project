@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useDispatch } from "react-redux";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import {
@@ -147,9 +148,38 @@ export default function FranchiseePerformanceTracker() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Link
+            to="/admin-panel/solar-shop/franchise-clusters?tab=performance"
+            className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+          >
+            <FiBarChart2 size={14} /> Open Cluster Performance Dashboard
+          </Link>
           <Button variant="secondary" leftIcon={<FiDownload />} onClick={exportCsv}>Export CSV</Button>
           <Button variant="ghost" leftIcon={<FiRefreshCw />} onClick={fetchTracker}>Refresh</Button>
         </div>
+      </div>
+
+      {/* Cluster Unified Announcement Banner */}
+      <div className="p-4 rounded-2xl bg-primary/10 border border-primary/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center font-bold shrink-0">
+            <FiTarget size={20} />
+          </div>
+          <div>
+            <div className="text-sm font-bold text-text-primary">
+              Live Cluster-Wise Goals & Performance Available
+            </div>
+            <p className="text-xs text-text-muted">
+              Goals and real-time achievements across India clusters, EPC conversions, and monthly kit sales are accessible in the dedicated cluster dashboard.
+            </p>
+          </div>
+        </div>
+        <Link
+          to="/admin-panel/solar-shop/franchise-clusters?tab=performance"
+          className="shrink-0 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover shadow-sm"
+        >
+          View Cluster Dashboard →
+        </Link>
       </div>
 
       {/* Filters */}

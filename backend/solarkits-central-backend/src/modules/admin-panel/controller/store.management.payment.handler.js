@@ -14,6 +14,8 @@ const {
   Reseller,
   StoreSetup,
   StoreStatusHistory,
+  FranchiseeCluster,
+  FranchiseeAgreement,
 } = require('../models/india_solarshop_db');
 
 // ─── 1. SUBMIT FEE PAYMENT RECEIPT ───────────────────────────────────────────
@@ -63,6 +65,16 @@ const submit_fee_payment = async (req, res) => {
     store.reseller_lifecycle_status = targetStatus;
 
     await store.save();
+
+    // Synchronize receipt submission on linked cluster (Cluster-Wise Pricing Model)
+    await FranchiseeCluster.findOneAndUpdate(
+      { assigned_franchisee_id: store._id, deleted_at: null },
+      {
+        fee_payment_status: 'pending',
+        fee_payment_utr: cleanUtr,
+        fee_payment_receipt_url: receipt_url ? receipt_url.trim() : null,
+      }
+    ).catch(() => {});
 
     const storeSetup = await StoreSetup.findOne({ franchisee_id: store._id });
 
@@ -148,6 +160,27 @@ const verify_fee_payment = async (req, res) => {
 
     await store.save();
 
+    // Synchronize FranchiseeCluster & Agreement (Cluster-Wise Single Source of Truth)
+    await FranchiseeCluster.findOneAndUpdate(
+      { assigned_franchisee_id: store._id, deleted_at: null },
+      {
+        fee_payment_status: 'paid',
+        fee_payment_utr: store.fee_payment_utr,
+        fee_payment_verified_at: now,
+        fee_payment_verified_by: actorId,
+      }
+    ).catch(() => {});
+
+    await FranchiseeAgreement.findOneAndUpdate(
+      { franchisee_id: store._id, deleted_at: null },
+      {
+        payment_status: 'paid',
+        'payment_details.utr_number': store.fee_payment_utr,
+        'payment_details.payment_date': now,
+        'payment_details.verified_by': actorId,
+      }
+    ).catch(() => {});
+
     // Synchronize StoreSetup
     const storeSetup = await StoreSetup.findOne({ franchisee_id: store._id });
     if (storeSetup) {
@@ -217,6 +250,14 @@ const reject_fee_payment = async (req, res) => {
     store.reseller_lifecycle_status = targetStatus;
 
     await store.save();
+
+    // Synchronize rejection on linked cluster (Cluster-Wise Pricing Model)
+    await FranchiseeCluster.findOneAndUpdate(
+      { assigned_franchisee_id: store._id, deleted_at: null },
+      {
+        fee_payment_status: 'overdue',
+      }
+    ).catch(() => {});
 
     const storeSetup = await StoreSetup.findOne({ franchisee_id: store._id });
     if (storeSetup) {

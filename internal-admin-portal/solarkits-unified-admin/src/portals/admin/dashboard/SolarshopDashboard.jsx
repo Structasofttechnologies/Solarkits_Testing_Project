@@ -452,13 +452,7 @@ const menus = [
                     path: "/admin-panel/solar-shop/reseller-management/wallet",
                     unique_id: "RSL_WALLET",
                     badgeKey: "wallet"
-                },
-                {
-                    name: "Franchisee Clusters",
-                    icon: <FiMapPin />,
-                    path: "/admin-panel/solar-shop/franchise-clusters",
-                    unique_id: "RSL_MGMT"
-                },
+                }
             ]
         },
         // ── Section 8: Franchisee Cluster Management ─────────────────────────
