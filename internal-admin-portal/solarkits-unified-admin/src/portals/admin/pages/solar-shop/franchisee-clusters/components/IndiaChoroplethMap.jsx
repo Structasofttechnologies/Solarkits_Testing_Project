@@ -3,64 +3,64 @@ import * as d3Geo from 'd3-geo';
 import {
   FiZoomIn,
   FiZoomOut,
-  FiMaximize2,
   FiRefreshCw,
   FiMapPin,
-  FiCheckCircle,
-  FiClock,
   FiAlertCircle,
   FiLayers,
-  FiEye,
   FiShield,
   FiUser,
-  FiPhone,
 } from 'react-icons/fi';
 
 // ── State Code & Center Mapping for All 36 States/UTs of India ─────────────
 const STATE_INFO = {
-  'Gujarat': { code: 'GJ', center: [71.577, 22.7], color: '#2dd4bf' },
-  'Maharashtra': { code: 'MH', center: [76.094, 19.455], color: '#ea580c' },
-  'Madhya Pradesh': { code: 'MP', center: [78.284, 23.541], color: '#9333ea' },
-  'Rajasthan': { code: 'RJ', center: [73.852, 26.578], color: '#eab308' },
-  'Uttar Pradesh': { code: 'UP', center: [80.591, 26.922], color: '#22c55e' },
-  'Karnataka': { code: 'KA', center: [76.168, 14.7], color: '#10b981' },
-  'Tamil Nadu': { code: 'TN', center: [78.406, 11.011], color: '#60a5fa' },
-  'Kerala': { code: 'KL', center: [76.412, 10.449], color: '#f43f5e' },
-  'Telangana': { code: 'TG', center: [79.007, 17.798], color: '#a855f7' },
-  'Andhra Pradesh': { code: 'AP', center: [79.942, 15.753], color: '#34d399' },
-  'Odisha': { code: 'OD', center: [84.42, 20.511], color: '#059669' },
-  'Chhattisgarh': { code: 'CG', center: [82.029, 21.254], color: '#10b981' },
-  'West Bengal': { code: 'WB', center: [87.961, 23.82], color: '#3b82f6' },
-  'Bihar': { code: 'BR', center: [85.607, 25.68], color: '#facc15' },
-  'Jharkhand': { code: 'JH', center: [85.552, 23.655], color: '#c084fc' },
-  'Punjab': { code: 'PB', center: [75.416, 30.841], color: '#38bdf8' },
-  'Haryana': { code: 'HR', center: [76.346, 29.196], color: '#ec4899' },
-  'Himachal Pradesh': { code: 'HP', center: [77.249, 31.924], color: '#06b6d4' },
-  'Uttarakhand': { code: 'UK', center: [79.214, 30.156], color: '#e11d48' },
-  'Jammu and Kashmir': { code: 'JK', center: [74.86, 33.643], color: '#f59e0b' },
-  'Ladakh': { code: 'LA', center: [76.807, 34.946], color: '#0284c7' },
-  'Assam': { code: 'AS', center: [92.82, 26.359], color: '#0ea5e9' },
-  'Arunachal Pradesh': { code: 'AR', center: [94.668, 28.043], color: '#ec4899' },
-  'Meghalaya': { code: 'ML', center: [91.277, 25.54], color: '#14b8a6' },
-  'Manipur': { code: 'MN', center: [93.872, 24.73], color: '#d946ef' },
-  'Mizoram': { code: 'MZ', center: [92.832, 23.31], color: '#ea580c' },
-  'Nagaland': { code: 'NL', center: [94.464, 26.06], color: '#6366f1' },
-  'Tripura': { code: 'TR', center: [91.747, 23.754], color: '#22c55e' },
-  'Sikkim': { code: 'SK', center: [88.474, 27.565], color: '#f59e0b' },
-  'Goa': { code: 'GA', center: [74.058, 15.364], color: '#94a3b8' },
-  'Delhi': { code: 'DL', center: [77.114, 28.645], color: '#fde047' },
-  'Chandigarh': { code: 'CH', center: [76.779, 30.725], color: '#06b6d4' },
-  'Andaman and Nicobar Islands': { code: 'AN', center: [92.954, 11.289], color: '#1e3a8a' },
-  'Lakshadweep': { code: 'LD', center: [73.038, 8.271], color: '#38bdf8' },
-  'Puducherry': { code: 'PY', center: [79.877, 11.643], color: '#3b82f6' },
-  'Dadra and Nagar Haveli and Daman and Diu': { code: 'DN', center: [72.982, 20.235], color: '#f97316' },
+  'Gujarat': { code: 'GJ', center: [71.577, 22.7] },
+  'Maharashtra': { code: 'MH', center: [76.094, 19.455] },
+  'Madhya Pradesh': { code: 'MP', center: [78.284, 23.541] },
+  'Rajasthan': { code: 'RJ', center: [73.852, 26.578] },
+  'Uttar Pradesh': { code: 'UP', center: [80.591, 26.922] },
+  'Karnataka': { code: 'KA', center: [76.168, 14.7] },
+  'Tamil Nadu': { code: 'TN', center: [78.406, 11.011] },
+  'Kerala': { code: 'KL', center: [76.412, 10.449] },
+  'Telangana': { code: 'TG', center: [79.007, 17.798] },
+  'Andhra Pradesh': { code: 'AP', center: [79.942, 15.753] },
+  'Odisha': { code: 'OD', center: [84.42, 20.511] },
+  'Chhattisgarh': { code: 'CG', center: [82.029, 21.254] },
+  'West Bengal': { code: 'WB', center: [87.961, 23.82] },
+  'Bihar': { code: 'BR', center: [85.607, 25.68] },
+  'Jharkhand': { code: 'JH', center: [85.552, 23.655] },
+  'Punjab': { code: 'PB', center: [75.416, 30.841] },
+  'Haryana': { code: 'HR', center: [76.346, 29.196] },
+  'Himachal Pradesh': { code: 'HP', center: [77.249, 31.924] },
+  'Uttarakhand': { code: 'UK', center: [79.214, 30.156] },
+  'Jammu and Kashmir': { code: 'JK', center: [74.86, 33.643] },
+  'Ladakh': { code: 'LA', center: [76.807, 34.946] },
+  'Assam': { code: 'AS', center: [92.82, 26.359] },
+  'Arunachal Pradesh': { code: 'AR', center: [94.668, 28.043] },
+  'Meghalaya': { code: 'ML', center: [91.277, 25.54] },
+  'Manipur': { code: 'MN', center: [93.872, 24.73] },
+  'Mizoram': { code: 'MZ', center: [92.832, 23.31] },
+  'Nagaland': { code: 'NL', center: [94.464, 26.06] },
+  'Tripura': { code: 'TR', center: [91.747, 23.754] },
+  'Sikkim': { code: 'SK', center: [88.474, 27.565] },
+  'Goa': { code: 'GA', center: [74.058, 15.364] },
+  'Delhi': { code: 'DL', center: [77.114, 28.645] },
+  'Chandigarh': { code: 'CH', center: [76.779, 30.725] },
+  'Andaman and Nicobar Islands': { code: 'AN', center: [92.954, 11.289] },
+  'Lakshadweep': { code: 'LD', center: [73.038, 8.271] },
+  'Puducherry': { code: 'PY', center: [79.877, 11.643] },
+  'Dadra and Nagar Haveli and Daman and Diu': { code: 'DN', center: [72.982, 20.235] },
 };
 
-// Clean name string for fuzzy matching
-const clean = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+// Clean name string with spelling normalizations for fuzzy matching
+const clean = (s) =>
+  (s || '')
+    .toLowerCase()
+    .replace(/bhoomi/g, 'bhumi')
+    .replace(/[^a-z0-9]/g, '');
 
 export default function IndiaChoroplethMap({
   districtsData = [],
+  activeFranchiseeLegends = [],
   selectedState = '',
   selectedCluster = '',
   selectedStatus = 'all',
@@ -71,9 +71,6 @@ export default function IndiaChoroplethMap({
   const [geoData, setGeoData] = useState(null);
   const [loadingGeo, setLoadingGeo] = useState(true);
   const [errorGeo, setErrorGeo] = useState(null);
-
-  // View Mode: 'cluster' (Franchisee status) vs 'state' (Thematic State Choropleth from Screenshot 2)
-  const [viewMode, setViewMode] = useState('cluster');
 
   // Zoom & Pan state
   const [zoom, setZoom] = useState(1);
@@ -119,11 +116,26 @@ export default function IndiaChoroplethMap({
     };
   }, []);
 
+  // Separate genuine 726 district features from the 34 state-level boundary overlays in GeoJSON
+  const { districtFeatures, stateBoundaries } = useMemo(() => {
+    if (!geoData?.features) return { districtFeatures: [], stateBoundaries: [] };
+    const dFeatures = [];
+    const sBoundaries = [];
+    for (const f of geoData.features) {
+      if (f.properties?.district && f.properties.district.trim()) {
+        dFeatures.push(f);
+      } else {
+        sBoundaries.push(f);
+      }
+    }
+    return { districtFeatures: dFeatures, stateBoundaries: sBoundaries };
+  }, [geoData]);
+
   // Projection setup for India
   const { projection, pathGenerator } = useMemo(() => {
     if (!geoData) return { projection: null, pathGenerator: null };
 
-    // Standard India Mercator Projection centered around [80, 22.5]
+    // Standard India Mercator Projection centered around [82.5, 22.5]
     const proj = d3Geo
       .geoMercator()
       .center([82.5, 22.5])
@@ -149,6 +161,15 @@ export default function IndiaChoroplethMap({
       if (dClean.includes('mumbai')) {
         map.set(`${sClean}__mumbai`, d);
         map.set('mumbai', d);
+        map.set(`${sClean}__mumbaicity`, d);
+        map.set('mumbaicity', d);
+        map.set(`${sClean}__mumbaisuburban`, d);
+        map.set('mumbaisuburban', d);
+      }
+      // Handle Banaskantha / Vav-Tharad
+      if (dClean.includes('banaskantha')) {
+        map.set(`${sClean}__vavtharad`, d);
+        map.set('vavtharad', d);
       }
     }
     return map;
@@ -179,8 +200,8 @@ export default function IndiaChoroplethMap({
       return;
     }
 
-    // Filter features for this state
-    const stateFeatures = geoData.features.filter((f) => {
+    // Filter features for this state from genuine district features
+    const stateFeatures = districtFeatures.filter((f) => {
       const st = f.properties?.st_nm || '';
       return clean(st) === clean(selectedState) || (STATE_INFO[st] && clean(STATE_INFO[st].code) === clean(selectedState));
     });
@@ -201,7 +222,7 @@ export default function IndiaChoroplethMap({
       setZoom(targetScale);
       setPan({ x: targetPanX, y: targetPanY });
     }
-  }, [selectedState, geoData, projection]);
+  }, [selectedState, geoData, projection, districtFeatures]);
 
   // Handle Pan & Zoom Controls
   const handleZoomIn = () => setZoom((prev) => Math.min(prev * 1.35, 12));
@@ -246,11 +267,10 @@ export default function IndiaChoroplethMap({
     setZoom((prev) => Math.min(Math.max(prev * zoomFactor, 0.8), 12));
   };
 
-  // Render District Path Fill Color
+  // Render District Path Fill Color:
+  // Rule: Black & White initially. ONLY clusters with an ONBOARDED FRANCHISEE get distinct color theme!
   const getDistrictFill = useCallback(
     (feature) => {
-      const stName = feature.properties?.st_nm || '';
-      const stateBaseColor = STATE_INFO[stName]?.color || '#94a3b8';
       const match = getDistrictMatch(feature);
 
       // Search match highlight
@@ -258,23 +278,44 @@ export default function IndiaChoroplethMap({
         return '#f97316'; // Vibrant orange for search highlight
       }
 
-      if (viewMode === 'state') {
-        // Thematic State Choropleth (Screenshot 2 Palette)
-        if (match && match.color && match.status_key !== 'grey') {
-          return match.color; // Highlight configured franchise cluster district
-        }
-        return stateBaseColor;
-      }
-
-      // Franchise Allocation View (Default)
-      if (match && match.color) {
+      // 1. Franchisee is onboarded/allotted -> distinct vibrant franchisee color
+      if (match?.is_allotted && match.color) {
         return match.color;
       }
 
-      // Fallback: Show soft pastel of its state so borders are clear
-      return `${stateBaseColor}30`;
+      // 2. Cluster created but available / unallotted -> clean neutral light slate
+      if (match?.status_key === 'available') {
+        return '#e2e8f0';
+      }
+
+      // 3. Cluster reserved or company store
+      if (match?.status_key === 'reserved') {
+        return '#fef3c7';
+      }
+      if (match?.status_key === 'company_store') {
+        return match.color || '#2563eb';
+      }
+
+      // 4. Default: Black & White / Grayscale unassigned district
+      return '#f8fafc';
     },
-    [viewMode, getDistrictMatch, searchDistrict]
+    [getDistrictMatch, searchDistrict]
+  );
+
+  // Render District Boundary Stroke Color:
+  const getDistrictStroke = useCallback(
+    (feature, isHovered) => {
+      if (isHovered) return '#0f172a';
+      const match = getDistrictMatch(feature);
+      if (match?.is_allotted && match.stroke) {
+        return match.stroke;
+      }
+      if (match?.status_key === 'available') {
+        return '#94a3b8';
+      }
+      return '#cbd5e1'; // Crisp monochrome boundary
+    },
+    [getDistrictMatch]
   );
 
   if (loadingGeo) {
@@ -282,7 +323,7 @@ export default function IndiaChoroplethMap({
       <div className="h-full flex flex-col items-center justify-center gap-3 bg-slate-50/60 p-8">
         <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
         <p className="text-sm font-bold text-slate-700">Rendering High-Precision India Vector Map...</p>
-        <p className="text-xs text-slate-400">Loading 760+ district boundaries across 36 States & UTs</p>
+        <p className="text-xs text-slate-400">Loading 726 district boundaries across 36 States & UTs</p>
       </div>
     );
   }
@@ -345,37 +386,19 @@ export default function IndiaChoroplethMap({
           </button>
         </div>
 
-        {/* View Mode Switcher */}
-        <div className="flex items-center bg-white/95 backdrop-blur-md p-1 rounded-xl border border-slate-200/90 shadow-md text-[11px] font-bold">
-          <button
-            type="button"
-            onClick={() => setViewMode('cluster')}
-            className={`px-3 py-1.5 rounded-lg transition-all ${
-              viewMode === 'cluster'
-                ? 'bg-orange-600 text-white shadow-xs font-black'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            Franchise Clusters
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('state')}
-            className={`px-3 py-1.5 rounded-lg transition-all ${
-              viewMode === 'state'
-                ? 'bg-orange-600 text-white shadow-xs font-black'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            State Palette (Screenshot 2)
-          </button>
+        {/* Active Franchisees Badge & Quick Summary */}
+        <div className="flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200/90 shadow-md text-[11px] font-bold">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-slate-800">
+            Active Franchisees: <span className="font-black text-emerald-600">{activeFranchiseeLegends.length}</span>
+          </span>
         </div>
       </div>
 
       {/* ── Status Indicator Pill (Top Right) ─────────────────────────────── */}
       <div className="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200/90 shadow-md flex items-center gap-2 text-xs font-bold text-slate-700">
         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-        <span>India Vector Choropleth • 760 Districts</span>
+        <span>India Vector Choropleth • 726 Districts</span>
       </div>
 
       {/* ── Main SVG Map Canvas ────────────────────────────────────────────── */}
@@ -386,22 +409,26 @@ export default function IndiaChoroplethMap({
         style={{ touchAction: 'none' }}
       >
         <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-          {/* District Polygons */}
-          {geoData?.features?.map((feature, idx) => {
+          {/* 1. Genuine District Polygons (726 districts) */}
+          {districtFeatures.map((feature, idx) => {
             const dName = feature.properties?.district || `District-${idx}`;
             const sName = feature.properties?.st_nm || '';
             const match = getDistrictMatch(feature);
             const fill = getDistrictFill(feature);
             const isHovered = hoveredDistrict?.feature === feature;
+            const strokeColor = getDistrictStroke(feature, isHovered);
 
             return (
               <path
                 key={`district-${idx}-${dName}`}
                 d={pathGenerator(feature)}
                 fill={fill}
-                stroke={isHovered ? '#0f172a' : '#ffffff'}
-                strokeWidth={isHovered ? 2 / zoom : 0.6 / zoom}
-                strokeOpacity={isHovered ? 1 : 0.85}
+                stroke={strokeColor}
+                strokeWidth={isHovered ? 2.4 / zoom : match?.is_allotted ? 1.4 / zoom : 0.55 / zoom}
+                strokeDasharray={
+                  match?.status_key === 'available' && !match?.is_allotted ? `${3 / zoom},${2 / zoom}` : undefined
+                }
+                strokeOpacity={1}
                 className="transition-colors duration-150 cursor-pointer outline-none"
                 onMouseEnter={() => {
                   setHoveredDistrict({
@@ -421,7 +448,20 @@ export default function IndiaChoroplethMap({
             );
           })}
 
-          {/* State 2-Letter Code Badges (GJ, MH, MP, RJ, etc. matching Screenshot 2) */}
+          {/* 2. Outer State Boundaries Overlay (fill="none" so they never obscure district colors!) */}
+          {stateBoundaries.map((feature, idx) => (
+            <path
+              key={`state-outline-${idx}-${feature.properties?.st_nm || idx}`}
+              d={pathGenerator(feature)}
+              fill="none"
+              stroke="#64748b"
+              strokeWidth={1.2 / zoom}
+              strokeOpacity={0.4}
+              className="pointer-events-none"
+            />
+          ))}
+
+          {/* 3. State 2-Letter Code Badges (GJ, MH, MP, RJ, etc.) */}
           {Object.entries(STATE_INFO).map(([stateName, info]) => {
             if (!projection) return null;
             const [cx, cy] = projection(info.center) || [];
@@ -468,6 +508,63 @@ export default function IndiaChoroplethMap({
         </g>
       </svg>
 
+      {/* ── Active Franchisee Territory Key Legend (Bottom Left) ──────────────── */}
+      <div className="absolute bottom-4 left-4 z-20 bg-white/95 backdrop-blur-md p-3.5 rounded-2xl border border-slate-200/90 shadow-lg max-w-[300px] text-xs">
+        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+          <div className="flex items-center gap-1.5 font-black text-slate-800">
+            <FiLayers size={14} className="text-slate-700" />
+            <span>Franchisee Territory Key</span>
+          </div>
+          <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+            {activeFranchiseeLegends.length} Onboarded
+          </span>
+        </div>
+
+        {/* Monochrome Baseline Key */}
+        <div className="space-y-1 pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
+            <div className="w-3.5 h-3.5 rounded-sm bg-[#f8fafc] border border-[#cbd5e1] shrink-0" />
+            <span className="truncate">Black & White: Unassigned Districts</span>
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
+            <div className="w-3.5 h-3.5 rounded-sm bg-[#e2e8f0] border border-dashed border-[#94a3b8] shrink-0" />
+            <span className="truncate">Slate Dashed: Open / Available Cluster</span>
+          </div>
+        </div>
+
+        {/* Dynamic Active Franchisees */}
+        {activeFranchiseeLegends.length > 0 ? (
+          <div className="pt-2 max-h-[160px] overflow-y-auto space-y-1.5 pr-1">
+            <div className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+              Onboarded Franchisee Themes
+            </div>
+            {activeFranchiseeLegends.map((item) => (
+              <div
+                key={item.cluster_id || item.cluster_code}
+                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                <span
+                  className="w-3.5 h-3.5 rounded-md shrink-0 shadow-xs"
+                  style={{ backgroundColor: item.color, border: `1px solid ${item.stroke || item.color}` }}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="font-extrabold text-[11px] text-slate-800 truncate" title={item.franchisee_name}>
+                    {item.franchisee_name}
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    {item.cluster_name} ({item.cluster_code}) • {item.districts_count} Dist.
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="pt-2 text-[10px] italic text-slate-400">
+            No franchise onboarded yet. Map is displayed in Black & White until clusters are assigned.
+          </div>
+        )}
+      </div>
+
       {/* ── Hover Tooltip Micro-Card ───────────────────────────────────────── */}
       {hoveredDistrict && (
         <div
@@ -513,10 +610,10 @@ export default function IndiaChoroplethMap({
                 </div>
               )}
 
-              {hoveredDistrict.match.bde_name && (
+              {hoveredDistrict.match.primary_bde_name && (
                 <div className="text-[11px] text-slate-300 font-medium flex items-center gap-1">
                   <FiUser className="text-sky-400" size={12} />
-                  <span>BDE: {hoveredDistrict.match.bde_name}</span>
+                  <span>BDE: {hoveredDistrict.match.primary_bde_name}</span>
                 </div>
               )}
 
@@ -532,12 +629,6 @@ export default function IndiaChoroplethMap({
           )}
         </div>
       )}
-
-      {/* ── Instruction Note (Bottom Left) ─────────────────────────────────── */}
-      <div className="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-xs px-3 py-1 rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-600 shadow-xs flex items-center gap-2">
-        <FiMapPin className="text-orange-500" size={12} />
-        <span>Click any district polygon to inspect franchisee details & metrics</span>
-      </div>
     </div>
   );
 }

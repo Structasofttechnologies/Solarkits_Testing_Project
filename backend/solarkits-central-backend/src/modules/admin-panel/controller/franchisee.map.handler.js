@@ -16,22 +16,94 @@ const DistrictLevel = GeoLevel2 || Level2;
 const { Level2: BoundaryLevel2 } = require('../models/boundary_db');
 
 /**
+ * Curated Vibrant Franchisee Color Palette
+ * Distinct, high-contrast themes for onboarded franchisees against the Black & White base map.
+ */
+const FRANCHISEE_COLOR_PALETTE = [
+  { key: 'emerald', fill: '#10b981', border: '#059669', text: '#065f46', bg: '#d1fae5', name: 'Emerald' },
+  { key: 'indigo',  fill: '#6366f1', border: '#4f46e5', text: '#3730a3', bg: '#e0e7ff', name: 'Royal Indigo' },
+  { key: 'amber',   fill: '#f59e0b', border: '#d97706', text: '#92400e', bg: '#fef3c7', name: 'Solar Amber' },
+  { key: 'cyan',    fill: '#06b6d4', border: '#0891b2', text: '#155e75', bg: '#cffafe', name: 'Electric Cyan' },
+  { key: 'rose',    fill: '#f43f5e', border: '#e11d48', text: '#9f1239', bg: '#ffe4e6', name: 'Crimson Rose' },
+  { key: 'purple',  fill: '#a855f7', border: '#9333ea', text: '#6b21a8', bg: '#f3e8ff', name: 'Velvet Purple' },
+  { key: 'orange',  fill: '#f97316', border: '#ea580c', text: '#9a3412', bg: '#ffedd5', name: 'Deep Orange' },
+  { key: 'blue',    fill: '#2563eb', border: '#1d4ed8', text: '#1e40af', bg: '#dbeafe', name: 'Classic Blue' },
+  { key: 'lime',    fill: '#84cc16', border: '#65a30d', text: '#3f6212', bg: '#ecfccb', name: 'Vibrant Lime' },
+  { key: 'teal',    fill: '#14b8a6', border: '#0d9488', text: '#115e59', bg: '#ccfbf1', name: 'Nordic Teal' },
+  { key: 'fuchsia', fill: '#d946ef', border: '#c026d3', text: '#86198f', bg: '#fae8ff', name: 'Neon Fuchsia' },
+  { key: 'sky',     fill: '#0284c7', border: '#0369a1', text: '#075985', bg: '#e0f2fe', name: 'Cerulean Sky' },
+];
+
+/**
+ * Deterministically resolve a unique theme for an onboarded franchisee / cluster
+ */
+const getFranchiseeTheme = (identifier) => {
+  if (!identifier) return FRANCHISEE_COLOR_PALETTE[0];
+  const str = String(identifier);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  const index = Math.abs(hash) % FRANCHISEE_COLOR_PALETTE.length;
+  return FRANCHISEE_COLOR_PALETTE[index];
+};
+
+/**
  * Helper to compute color status for a district
+ * Pure Black & White / Grayscale by default, vibrant distinct colors only for onboarded franchisees!
  */
 const determineDistrictColor = (cluster, reseller) => {
   if (!cluster || !cluster.is_active || cluster.status === 'inactive') {
-    return { color: '#94a3b8', statusKey: 'grey', label: 'Inactive / Unconfigured' }; // Grey
+    return {
+      color: '#f8fafc',
+      stroke: '#cbd5e1',
+      statusKey: 'unassigned',
+      label: 'Unconfigured Territory',
+      isAllotted: false,
+    };
   }
   if (reseller && reseller.store_category === 'company_store') {
-    return { color: '#2563eb', statusKey: 'blue', label: 'Company-Owned Store' }; // Blue
+    return {
+      color: '#2563eb',
+      stroke: '#1d4ed8',
+      statusKey: 'company_store',
+      label: 'Company-Owned Store',
+      isAllotted: true,
+      theme: { fill: '#2563eb', border: '#1d4ed8', text: '#1e40af', bg: '#dbeafe', name: 'Company Blue' },
+    };
   }
   if (cluster.status === 'allotted' && cluster.assigned_franchisee_id) {
-    return { color: '#16a34a', statusKey: 'green', label: 'Franchisee Allotted & Active' }; // Green
+    const fId = reseller?._id || cluster.assigned_franchisee_id?._id || cluster.assigned_franchisee_id;
+    const theme = getFranchiseeTheme(fId);
+    return {
+      color: theme.fill,
+      stroke: theme.border,
+      statusKey: 'allotted',
+      label: 'Franchisee Allotted & Active',
+      isAllotted: true,
+      theme,
+    };
   }
   if (cluster.status === 'reserved') {
-    return { color: '#eab308', statusKey: 'yellow', label: 'Application In Progress / Reserved' }; // Yellow
+    return {
+      color: '#fef3c7',
+      stroke: '#d97706',
+      statusKey: 'reserved',
+      label: 'Application In Progress / Reserved',
+      isAllotted: false,
+      theme: { fill: '#fef3c7', border: '#d97706', text: '#92400e', bg: '#fef3c7', name: 'Reserved Amber' },
+    };
   }
-  return { color: '#dc2626', statusKey: 'red', label: 'Available – Franchisee Pending' }; // Red
+  // Available Cluster (Pending Franchisee Onboarding) -> Neutral monochrome light slate so base map remains Black & White!
+  return {
+    color: '#e2e8f0',
+    stroke: '#94a3b8',
+    statusKey: 'available',
+    label: 'Available – Franchisee Pending',
+    isAllotted: false,
+    theme: { fill: '#e2e8f0', border: '#94a3b8', text: '#475569', bg: '#f1f5f9', name: 'Neutral Available' },
+  };
 };
 
 /**
@@ -63,6 +135,31 @@ exports.get_india_territory_map_data = async (req, res) => {
       }
     }
 
+    // Build unique color mapping for active onboarded franchisees
+    const activeFranchiseeMap = new Map();
+    for (const clu of clusters) {
+      if (clu.status === 'allotted' && clu.assigned_franchisee_id) {
+        const fId = String(clu.assigned_franchisee_id._id || clu.assigned_franchisee_id);
+        if (!activeFranchiseeMap.has(fId)) {
+          const theme = getFranchiseeTheme(fId);
+          activeFranchiseeMap.set(fId, {
+            franchisee_id: fId,
+            franchisee_name: clu.assigned_franchisee_id?.business_name || 'Allotted Franchisee',
+            cluster_name: clu.cluster_name || clu.name,
+            cluster_code: clu.cluster_code || clu.code,
+            state_name: clu.state_id?.name || '',
+            districts_count: (clu.district_ids || []).length,
+            color: theme.fill,
+            stroke: theme.border,
+            bg: theme.bg,
+            text: theme.text,
+            theme_name: theme.name,
+          });
+        }
+      }
+    }
+    const activeFranchiseeLegends = Array.from(activeFranchiseeMap.values());
+
     // 2. Fetch all districts (optionally filtered by state)
     const districtQuery = { is_active: true, $or: [{ deleted_at: null }, { deleted_at: { $exists: false } }] };
     if (state_id) districtQuery.level_1 = state_id;
@@ -84,10 +181,10 @@ exports.get_india_territory_map_data = async (req, res) => {
       const franchisee = clu?.assigned_franchisee_id;
       const colorMeta = determineDistrictColor(clu, franchisee);
 
-      if (colorMeta.statusKey === 'green') allottedCount++;
-      else if (colorMeta.statusKey === 'yellow') inProgressCount++;
-      else if (colorMeta.statusKey === 'red') availableCount++;
-      else if (colorMeta.statusKey === 'blue') companyStoreCount++;
+      if (colorMeta.statusKey === 'allotted') allottedCount++;
+      else if (colorMeta.statusKey === 'reserved') inProgressCount++;
+      else if (colorMeta.statusKey === 'available') availableCount++;
+      else if (colorMeta.statusKey === 'company_store') companyStoreCount++;
       else unconfiguredCount++;
 
       return {
@@ -98,11 +195,14 @@ exports.get_india_territory_map_data = async (req, res) => {
         lat: d.lat || 0,
         lng: d.lng || 0,
         color: colorMeta.color,
+        stroke: colorMeta.stroke,
         status_key: colorMeta.statusKey,
         status_label: colorMeta.label,
+        is_allotted: colorMeta.isAllotted,
+        theme: colorMeta.theme || null,
         cluster_id: clu?._id || null,
-        cluster_name: clu?.cluster_name || null,
-        cluster_code: clu?.cluster_code || null,
+        cluster_name: clu?.cluster_name || clu?.name || null,
+        cluster_code: clu?.cluster_code || clu?.code || null,
         franchisee_id: franchisee?._id || null,
         franchisee_name: franchisee?.business_name || null,
         primary_bde_name: clu?.primary_bde_id?.full_name || null,
@@ -130,6 +230,7 @@ exports.get_india_territory_map_data = async (req, res) => {
         in_progress_districts: inProgressCount,
         company_store_districts: companyStoreCount,
         unconfigured_districts: unconfiguredCount,
+        active_franchisee_legends: activeFranchiseeLegends,
       },
       data: {
         districts: districtsWithStatus,
@@ -301,6 +402,9 @@ exports.get_district_popup_details = async (req, res) => {
         franchisee_status: colorMeta.label,
         status_key: colorMeta.statusKey,
         color: colorMeta.color,
+        stroke: colorMeta.stroke,
+        theme: colorMeta.theme,
+        is_allotted: colorMeta.isAllotted,
         // Franchisee Store Info
         franchisee: franchisee ? {
           id: franchisee._id,

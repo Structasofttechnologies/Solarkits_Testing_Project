@@ -418,6 +418,7 @@ export default function FranchiseeTerritoryMap({ onCreateClusterFromDistrict }) 
             {mapProvider === 'vector' ? (
               <IndiaChoroplethMap
                 districtsData={districts}
+                activeFranchiseeLegends={summary.active_franchisee_legends || []}
                 selectedState={selectedStateName}
                 selectedCluster={selectedCluster}
                 selectedStatus={selectedStatus}
