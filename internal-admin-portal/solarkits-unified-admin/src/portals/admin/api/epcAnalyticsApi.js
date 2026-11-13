@@ -45,6 +45,20 @@ export const epcAnalyticsApi = {
   },
 
   /**
+   * Fetch 8-Feature EPC Buying Behavior & Order Analytics suite
+   */
+  getEpcBuyingAnalytics: async (id, params = {}) => {
+    try {
+      const q = buildQuery(params);
+      const res = await axios.get(`${ADMIN_API}/epc-analytics/epc-buying-analytics/${id}?${q}`, headers());
+      return res.data;
+    } catch (err) {
+      console.warn('epcAnalyticsApi.getEpcBuyingAnalytics error:', err.message || err);
+      return null;
+    }
+  },
+
+  /**
    * Update EPC Behavioral Profile (Status, Tier, Recovery Discount, Notes, Assigned BDE)
    */
   updateEpcBehavior: async (id, payload) => {

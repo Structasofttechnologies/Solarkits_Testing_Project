@@ -26,7 +26,7 @@ import {
   FiX,
   FiTrendingUp,
 } from "react-icons/fi";
-import EpcBuyingAnalytics from "./components/EpcBuyingAnalytics";
+// Note: EPC Buying Behavior & Analytics moved to Unified Admin Portal EpcProfileDrawer
 import { setAlert } from "@/features/alert.slice";
 import Button from "@/Components/Button";
 import Dialog from "@/Components/Dialog";
@@ -639,16 +639,16 @@ export default function EpcProfile() {
         <button
           onClick={() => setActiveTab("states")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${activeTab === "states"
-              ? "bg-gradient-to-r from-primary to-primary-end text-white shadow-md shadow-primary/25"
-              : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+            ? "bg-gradient-to-r from-primary to-primary-end text-white shadow-md shadow-primary/25"
+            : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
             }`}
         >
           <FiShield size={16} />
           <span>1. Multi-State GST Onboarding</span>
           <span
             className={`text-xs px-2 py-0.5 rounded-full font-bold ${activeTab === "states"
-                ? "bg-white/20 text-white"
-                : "bg-surface-hover text-text-muted border border-border"
+              ? "bg-white/20 text-white"
+              : "bg-surface-hover text-text-muted border border-border"
               }`}
           >
             {profileData?.onboarded_states?.length || 0}
@@ -658,40 +658,23 @@ export default function EpcProfile() {
         <button
           onClick={() => setActiveTab("offices")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${activeTab === "offices"
-              ? "bg-gradient-to-r from-primary to-primary-end text-white shadow-md shadow-primary/25"
-              : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+            ? "bg-gradient-to-r from-primary to-primary-end text-white shadow-md shadow-primary/25"
+            : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
             }`}
         >
           <FiHome size={16} />
           <span>2. Multi-District Offices & Home Office Tagging</span>
           <span
             className={`text-xs px-2 py-0.5 rounded-full font-bold ${activeTab === "offices"
-                ? "bg-white/20 text-white"
-                : "bg-surface-hover text-text-muted border border-border"
+              ? "bg-white/20 text-white"
+              : "bg-surface-hover text-text-muted border border-border"
               }`}
           >
             {profileData?.offices?.length || 0}
           </span>
         </button>
 
-        <button
-          onClick={() => setActiveTab("analytics")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${activeTab === "analytics"
-              ? "bg-gradient-to-r from-primary to-primary-end text-white shadow-md shadow-primary/25"
-              : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
-            }`}
-        >
-          <FiTrendingUp size={16} />
-          <span>3. Buying Behavior & Order Analytics</span>
-          <span
-            className={`text-xs px-2 py-0.5 rounded-full font-bold ${activeTab === "analytics"
-                ? "bg-white/20 text-white"
-                : "bg-accent/20 text-accent border border-accent/30"
-              }`}
-          >
-            Analytics
-          </span>
-        </button>
+
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -885,8 +868,8 @@ export default function EpcProfile() {
             <button
               onClick={() => setSelectedStateFilter("all")}
               className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${selectedStateFilter === "all"
-                  ? "bg-gradient-to-r from-primary to-primary-end text-white shadow-sm shadow-primary/25"
-                  : "bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+                ? "bg-gradient-to-r from-primary to-primary-end text-white shadow-sm shadow-primary/25"
+                : "bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover"
                 }`}
             >
               All States ({profileData?.offices?.length || 0})
@@ -900,15 +883,15 @@ export default function EpcProfile() {
                   key={st.state_id}
                   onClick={() => setSelectedStateFilter(st.state_id)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${selectedStateFilter === st.state_id
-                      ? "bg-gradient-to-r from-primary to-primary-end text-white shadow-sm shadow-primary/25"
-                      : "bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+                    ? "bg-gradient-to-r from-primary to-primary-end text-white shadow-sm shadow-primary/25"
+                    : "bg-surface border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover"
                     }`}
                 >
                   <span>{st.state_name}</span>
                   <span
                     className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${selectedStateFilter === st.state_id
-                        ? "bg-white/20 text-white"
-                        : "bg-surface-hover text-text-muted border border-border/80"
+                      ? "bg-white/20 text-white"
+                      : "bg-surface-hover text-text-muted border border-border/80"
                       }`}
                   >
                     {count}
@@ -956,8 +939,8 @@ export default function EpcProfile() {
                   <div
                     key={office.id || office._id}
                     className={`bg-surface rounded-2xl border transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-md ${office.is_home_office
-                        ? "border-amber-400/80 ring-2 ring-amber-400/20"
-                        : "border-border hover:border-primary/40"
+                      ? "border-amber-400/80 ring-2 ring-amber-400/20"
+                      : "border-border hover:border-primary/40"
                       }`}
                   >
                     <div>
@@ -1073,10 +1056,7 @@ export default function EpcProfile() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* TAB 3: BUYING BEHAVIOR & ORDER ANALYTICS DASHBOARD                 */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === "analytics" && <EpcBuyingAnalytics />}
+
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* MODAL: ONBOARD NEW STATE WITH GST                                   */}
@@ -1170,10 +1150,10 @@ export default function EpcProfile() {
                 maxLength={15}
                 required
                 className={`w-full px-3.5 py-2.5 bg-surface border rounded-xl font-mono text-sm font-bold uppercase tracking-wider text-text-primary focus:outline-none transition-colors ${gstStateValidation
-                    ? gstStateValidation.isValid
-                      ? "border-success/60 focus:border-success"
-                      : "border-danger focus:border-danger bg-danger/5"
-                    : "border-border focus:border-primary"
+                  ? gstStateValidation.isValid
+                    ? "border-success/60 focus:border-success"
+                    : "border-danger focus:border-danger bg-danger/5"
+                  : "border-border focus:border-primary"
                   }`}
               />
               {gstStateValidation && (
@@ -1191,8 +1171,8 @@ export default function EpcProfile() {
             {gstStateValidation && (
               <div
                 className={`mt-1.5 text-xs p-2 rounded-lg flex items-start gap-1.5 ${gstStateValidation.isValid
-                    ? "bg-success/10 text-success border border-success/20 font-bold"
-                    : "bg-danger/10 text-danger border border-danger/20 font-bold"
+                  ? "bg-success/10 text-success border border-success/20 font-bold"
+                  : "bg-danger/10 text-danger border border-danger/20 font-bold"
                   }`}
               >
                 {gstStateValidation.isValid ? (
