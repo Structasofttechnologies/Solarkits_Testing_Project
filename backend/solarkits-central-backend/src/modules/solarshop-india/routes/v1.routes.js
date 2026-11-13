@@ -9,5 +9,6 @@ router.use("/bde", require("./v1.routes/bde.portal.route"));
 router.use("/estimator", require("./v1.routes/estimator.route"));
 router.use("/estimates", require("./v1.routes/estimates.route"));
 router.use("/website-leads", require("../../admin-panel/routes/website.epc.lead.route"));
+router.use("/knowledge-center", require("./v1.routes/knowledge_center.route"));
 
 module.exports = router;

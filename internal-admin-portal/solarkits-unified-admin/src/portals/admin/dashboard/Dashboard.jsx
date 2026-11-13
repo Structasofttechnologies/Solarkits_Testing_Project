@@ -9,7 +9,7 @@ import Loader from "../components/Loader";
 import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
-import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaChartLine } from "react-icons/fa";
+import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaChartLine, FaGraduationCap } from "react-icons/fa";
 import {
   MdAccountTree,
   MdEngineering,
@@ -48,6 +48,7 @@ const OperationsDashboard = lazy(() => import("../pages/dashboard/operations-das
 const StoreDashboard = lazy(() => import("../pages/dashboard/store-dashboard/StoreDashboard"));
 const EpcAnalyticsDashboard = lazy(() => import("../pages/dashboard/epc-analytics/EpcAnalyticsDashboard"));
 const NotFound = lazy(() => import("../pages/NotFound"));
+const KnowledgeCenterManagement = lazy(() => import("../pages/dashboard/knowledge-center/KnowledgeCenterManagement"));
 
 /* ===================== MENU CONFIG ===================== */
 
@@ -323,12 +324,6 @@ const menus = [
           unique_id: "ADM_WEBSITE_LEADS"
         }
       ]
-    },
-    {
-      name: "Website EPC Leads",
-      icon: <FiUsers />,
-      path: "/admin-panel/website-configurations/epc-leads",
-      unique_id: "ADM_WEBSITE_LEADS"
     }
   ],
   [
@@ -340,6 +335,12 @@ const menus = [
       icon: <FaIndustry />,
       path: "/admin-panel/industry-content/cms",
       unique_id: "ADM_INDUSTRY_CONTENT",
+    },
+    {
+      name: "Knowledge Center",
+      icon: <FaGraduationCap />,
+      path: "/admin-panel/knowledge-center",
+      unique_id: "ADM_KNOWLEDGE_CENTER",
     },
   ],
 ];
@@ -605,6 +606,14 @@ export default function Dashboard() {
                     element={
                       <Suspense fallback={<Loader text="Loading Website Configurations..." />}>
                         <WebsiteConfiguration />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/knowledge-center/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Knowledge Center..." />}>
+                        <KnowledgeCenterManagement moduleUniqueId="ADM_KNOWLEDGE_CENTER" />
                       </Suspense>
                     }
                   />

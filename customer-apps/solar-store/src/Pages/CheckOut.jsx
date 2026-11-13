@@ -376,8 +376,7 @@ export default function CheckOut() {
   }, [checkoutItems]);
 
   const checkGstStatus = async () => {
-    const stateId = selectedState?.id || selectedState?._id;
-    if (!stateId) return;
+    const stateId = selectedState?.id || selectedState?._id || selectedDistrict?.parent_id || selectedDistrict?.state_id || selectedDistrict?.stateId || user?.primaryLocation?.state?._id || user?.primaryLocation?.state || "";
     try {
       const res = await axios.get(`${API_URL}/india/v1/shop/gst/status?state_id=${stateId}`, { withCredentials: true });
       if (res.data?.success && !res.data.verified) {
@@ -786,8 +785,8 @@ export default function CheckOut() {
     }
 
     // Re-verify GST status
-    const stateId = selectedState?.id || selectedState?._id;
-    if (stateId) {
+    const stateId = selectedState?.id || selectedState?._id || selectedDistrict?.parent_id || selectedDistrict?.state_id || selectedDistrict?.stateId || user?.primaryLocation?.state?._id || user?.primaryLocation?.state || "";
+    if (true) {
       try {
         const res = await axios.get(`${API_URL}/india/v1/shop/gst/status?state_id=${stateId}`, { withCredentials: true });
         if (res.data?.success && !res.data.verified) {

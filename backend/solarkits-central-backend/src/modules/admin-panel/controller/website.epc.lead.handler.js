@@ -9,7 +9,8 @@
  */
 
 const mongoose = require('mongoose');
-const { WebsiteEpcLead, BDEProfile, BDENotification, BDETerritoryAssignment } = require('../models/india_solarshop_db');
+const { WebsiteEpcLead, BDEProfile, BDENotification, BDETerritoryAssignment, EpcAccount } = require('../models/india_solarshop_db');
+const bcrypt = require('bcrypt');
 const { sendAdminNotification } = require('../services/admin.notification.service');
 const { GeoLevel1 } = require('../models/geolocation_db');
 
@@ -511,7 +512,53 @@ exports.update_lead = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Lead not found.' });
     }
 
-    if (status) lead.status = status;
+    if (status) {
+      lead.status = (status === 'approved' || status === 'converted') ? 'converted' : status;
+      if (status === 'approved' || status === 'converted') {
+        lead.lead_status = 'Converted';
+        try {
+          const cleanPhone = String(lead.phone || '').replace(/\D/g, '').slice(-10);
+          const epcEmail = (lead.email && lead.email.trim() && !lead.email.includes('@lead.solarkits.in'))
+            ? lead.email.trim().toLowerCase()
+            : `${cleanPhone}@epc.solarkits.in`;
+
+          if (EpcAccount) {
+            let existingAccount = await EpcAccount.findOne({
+              $or: [
+                { email: epcEmail },
+                { whatsapp: cleanPhone }
+              ],
+              deleted_at: null
+            });
+
+            if (!existingAccount) {
+              const defaultPassword = cleanPhone.slice(-4) || '1234';
+              const passwordHash = await bcrypt.hash(defaultPassword, 10);
+              await EpcAccount.create({
+                name: lead.name,
+                email: epcEmail,
+                whatsapp: cleanPhone,
+                password_hash: passwordHash,
+                status: 'approved',
+                onboarding_source: 'lead',
+                state_name: lead.state_name,
+                district_name: lead.district_name,
+                pincode: lead.pincode,
+                is_whatsapp_verified: true,
+                is_email_verified: Boolean(lead.email && !lead.email.includes('@lead.solarkits.in'))
+              });
+              console.log(`Auto-created approved EpcAccount for lead: ${lead.name} (${epcEmail})`);
+            } else {
+              existingAccount.status = 'approved';
+              await existingAccount.save();
+              console.log(`Updated existing EpcAccount status to approved for lead: ${lead.name}`);
+            }
+          }
+        } catch (accErr) {
+          console.warn('Auto-create EpcAccount error on lead approval:', accErr.message);
+        }
+      }
+    }
     if (remarks !== undefined) lead.remarks = remarks;
 
     if (assigned_bde_id) {
