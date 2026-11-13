@@ -8,7 +8,7 @@ import {
   FaWarehouse, FaTruckLoading, FaFileInvoice, FaRedo, FaUpload,
   FaBuilding, FaExclamationTriangle, FaCopy, FaCheck, FaExternalLinkAlt,
   FaSearch, FaBoxOpen, FaRoute, FaBolt, FaUniversity,
-  FaLayerGroup, FaBoxes, FaPhone, FaInfoCircle
+  FaLayerGroup, FaBoxes, FaPhone, FaInfoCircle, FaLock
 } from "react-icons/fa";
 import { BsArrowRepeat } from "react-icons/bs";
 import Button from "@/Components/Button";
@@ -311,6 +311,21 @@ export default function ProjectOrderStatus() {
 
   // ── Milestone 2 Payment Handlers ──────────────────────────────────────────
   const handleOpenMilestonePay = async (order) => {
+    const rawStatus = String(order.order_status || order.status || "").toLowerCase();
+    const isDispatchStageReached = [
+      "ready_for_dispatch",
+      "dispatched",
+      "in_transit",
+      "reached_destination",
+      "delivered",
+      "completed",
+    ].includes(rawStatus) || Boolean(order.dispatch_tracking?.tracking_number) || Boolean(order.dispatch_tracking?.dispatched_at);
+
+    if (!isDispatchStageReached) {
+      alert("Milestone 2 payment activates once order reaches 'Ready for Dispatch' stage in warehouse.");
+      return;
+    }
+
     const totalOrderAmt = order.total_amount || Math.round((order.net_payable_paise || order.grand_total_paise || 0) / 100);
     const remPct = order.payment_milestones?.remaining_percentage ?? (order.payment_milestones?.milestones?.find(m => m.milestone_number === 2)?.percentage || (100 - (order.payment_milestones?.advance_percentage || 30)));
     const remaining = order.payment_milestones?.remaining_amount || Math.round((totalOrderAmt || 0) * (remPct / 100));
@@ -894,10 +909,10 @@ export default function ProjectOrderStatus() {
                                     <strong className="font-black text-emerald-700 dark:text-emerald-300">
                                       {effectiveEstimatedDate
                                         ? new Date(effectiveEstimatedDate).toLocaleDateString("en-IN", {
-                                            day: "numeric",
-                                            month: "short",
-                                            year: "numeric",
-                                          })
+                                          day: "numeric",
+                                          month: "short",
+                                          year: "numeric",
+                                        })
                                         : `Within ${totalSlaDays} Days`}
                                     </strong>
                                   </div>
@@ -921,10 +936,10 @@ export default function ProjectOrderStatus() {
                                           <div key={st.key} className="flex flex-col items-center text-center space-y-1 px-0.5">
                                             <div
                                               className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${isCompleted
-                                                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
-                                                  : isCurrent
-                                                    ? "bg-primary text-white shadow-md shadow-primary/30 ring-4 ring-primary/20 scale-110 animate-pulse"
-                                                    : "bg-surface-hover border border-border text-text-muted"
+                                                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
+                                                : isCurrent
+                                                  ? "bg-primary text-white shadow-md shadow-primary/30 ring-4 ring-primary/20 scale-110 animate-pulse"
+                                                  : "bg-surface-hover border border-border text-text-muted"
                                                 }`}
                                             >
                                               {isCompleted ? "✓" : sIdx + 1}
@@ -940,10 +955,10 @@ export default function ProjectOrderStatus() {
                                             <div className="pt-0.5">
                                               <span
                                                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold whitespace-nowrap border ${isCompleted
-                                                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
-                                                    : isCurrent
-                                                      ? "bg-primary/10 text-primary border-primary/30 shadow-2xs"
-                                                      : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25"
+                                                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                                                  : isCurrent
+                                                    ? "bg-primary/10 text-primary border-primary/30 shadow-2xs"
+                                                    : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25"
                                                   }`}
                                                 title={`Turnaround Time configured by Admin: ${st.stepDays} Day${st.stepDays > 1 ? "s" : ""}`}
                                               >
@@ -1420,6 +1435,17 @@ export default function ProjectOrderStatus() {
                                     const m2Amount = order.payment_milestones?.remaining_amount || Math.max(0, Math.round((order.total_amount || 0) * (remPct / 100)));
                                     const m2Utr = m2?.utr_number;
 
+                                    // Check if order journey has reached Ready for Dispatch / Dispatched stage
+                                    const rawStatus = String(order.order_status || order.status || "").toLowerCase();
+                                    const isDispatchStageReached = [
+                                      "ready_for_dispatch",
+                                      "dispatched",
+                                      "in_transit",
+                                      "reached_destination",
+                                      "delivered",
+                                      "completed",
+                                    ].includes(rawStatus) || Boolean(order.dispatch_tracking?.tracking_number) || Boolean(order.dispatch_tracking?.dispatched_at);
+
                                     return (
                                       <div className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between ${isM2Verified ? "bg-emerald-500/5 border-emerald-500/30" : isM2Pending ? "bg-blue-500/5 border-blue-500/30" : "bg-purple-500/5 border-purple-500/30"}`}>
                                         <div>
@@ -1432,7 +1458,9 @@ export default function ProjectOrderStatus() {
                                             </span>
                                           </div>
                                           <p className="text-[10px] text-text-secondary leading-tight mt-0.5">
-                                            Required before materials are released from warehouse for courier transit.
+                                            {isDispatchStageReached
+                                              ? "Required before materials are released from warehouse for courier transit."
+                                              : "Payment unlocks when order reaches Stage 4 (Ready for Dispatch) in warehouse."}
                                           </p>
                                         </div>
 
@@ -1451,15 +1479,31 @@ export default function ProjectOrderStatus() {
                                                 <FaRegClock size={10} /> Accounts Reviewing
                                               </span>
                                             </>
+                                          ) : !isDispatchStageReached ? (
+                                            <div className="flex items-center justify-between w-full flex-wrap gap-2 pt-0.5">
+                                              <span className="text-[10px] font-bold text-text-muted flex items-center gap-1">
+                                                <FaLock size={10} className="text-amber-500 shrink-0" />
+                                                Payable at Ready for Dispatch stage
+                                              </span>
+                                              <button
+                                                type="button"
+                                                disabled
+                                                className="px-3 py-1.5 bg-surface-hover border border-border text-text-muted rounded-lg text-xs font-bold shadow-none flex items-center gap-1.5 cursor-not-allowed opacity-75"
+                                                title="Milestone 2 payment will become active when warehouse completes picking and stages order for dispatch."
+                                              >
+                                                <FaLock size={10} className="text-amber-500" />
+                                                <span>Pay {remPct}% Balance (Locked)</span>
+                                              </button>
+                                            </div>
                                           ) : (
-                                            <div className="flex items-center justify-between w-full">
+                                            <div className="flex items-center justify-between w-full flex-wrap gap-2">
                                               <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
-                                                ● Balance Due
+                                                ● Balance Due Before Dispatch
                                               </span>
                                               <button
                                                 type="button"
                                                 onClick={() => handleOpenMilestonePay(order)}
-                                                className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                                                className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all cursor-pointer animate-pulse"
                                               >
                                                 <span>Pay {remPct}% Balance (₹{Number(m2Amount).toLocaleString("en-IN")})</span>
                                               </button>
@@ -1494,10 +1538,10 @@ export default function ProjectOrderStatus() {
                                   <strong className="font-black">
                                     {estimatedDate
                                       ? `${new Date(estimatedDate).toLocaleDateString("en-IN", {
-                                          day: "numeric",
-                                          month: "short",
-                                          year: "numeric",
-                                        })} (${totalSlaDays} Business Days SLA)`
+                                        day: "numeric",
+                                        month: "short",
+                                        year: "numeric",
+                                      })} (${totalSlaDays} Business Days SLA)`
                                       : `${totalSlaDays} Business Days`}
                                   </strong>
                                 </span>
@@ -2297,7 +2341,21 @@ export default function ProjectOrderStatus() {
                                             </span>
                                           </div>
                                           <p className="text-[10px] text-text-secondary leading-tight mt-0.5">
-                                            Required before materials are released from warehouse for courier transit.
+                                            {(() => {
+                                              const childRawStatus = String(child.status || child.order_status || "").toLowerCase();
+                                              const isChildDispatchStageReached = [
+                                                "ready_for_dispatch",
+                                                "dispatched",
+                                                "in_transit",
+                                                "reached_destination",
+                                                "delivered",
+                                                "completed",
+                                              ].includes(childRawStatus) || Boolean(child.dispatch_tracking?.tracking_number) || Boolean(child.dispatch_tracking?.dispatched_at);
+
+                                              return isChildDispatchStageReached
+                                                ? "Required before materials are released from warehouse for courier transit."
+                                                : "Payment unlocks when order reaches Stage 4 (Ready for Dispatch) in warehouse.";
+                                            })()}
                                           </p>
                                         </div>
 
@@ -2316,6 +2374,32 @@ export default function ProjectOrderStatus() {
                                                 <FaRegClock size={10} /> Accounts Reviewing
                                               </span>
                                             </>
+                                          ) : !(() => {
+                                            const childRawStatus = String(child.status || child.order_status || "").toLowerCase();
+                                            return [
+                                              "ready_for_dispatch",
+                                              "dispatched",
+                                              "in_transit",
+                                              "reached_destination",
+                                              "delivered",
+                                              "completed",
+                                            ].includes(childRawStatus) || Boolean(child.dispatch_tracking?.tracking_number) || Boolean(child.dispatch_tracking?.dispatched_at);
+                                          })() ? (
+                                            <div className="flex items-center justify-between w-full pt-1 flex-wrap gap-2">
+                                              <span className="text-[10px] font-bold text-text-muted flex items-center gap-1">
+                                                <FaLock size={10} className="text-amber-500" />
+                                                Payable at Ready for Dispatch stage
+                                              </span>
+                                              <button
+                                                type="button"
+                                                disabled
+                                                className="px-3.5 py-1.5 bg-surface-hover border border-border text-text-muted rounded-lg text-xs font-bold shadow-none flex items-center gap-1.5 cursor-not-allowed opacity-75"
+                                                title="Milestone 2 payment activates once order reaches 'Ready for Dispatch' stage."
+                                              >
+                                                <FaLock size={10} className="text-amber-500" />
+                                                <span>Pay {childRemPct}% Balance (Locked)</span>
+                                              </button>
+                                            </div>
                                           ) : (
                                             <div className="flex items-center justify-between w-full pt-1">
                                               <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">
@@ -2324,7 +2408,7 @@ export default function ProjectOrderStatus() {
                                               <button
                                                 type="button"
                                                 onClick={() => handleOpenMilestonePay(child)}
-                                                className="px-3.5 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                                                className="px-3.5 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-black shadow-sm flex items-center gap-1.5 transition-all cursor-pointer animate-pulse"
                                               >
                                                 <span>Pay {childRemPct}% Balance (₹{Number(m2Amount).toLocaleString("en-IN")})</span>
                                               </button>
@@ -2667,8 +2751,8 @@ export default function ProjectOrderStatus() {
                   type="button"
                   onClick={() => setMilestonePaymentGateway("icici")}
                   className={`flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${milestonePaymentGateway === "icici"
-                      ? "bg-[#264baa] text-white shadow-md shadow-[#264baa]/30"
-                      : "text-text-secondary hover:text-text-primary"
+                    ? "bg-[#264baa] text-white shadow-md shadow-[#264baa]/30"
+                    : "text-text-secondary hover:text-text-primary"
                     }`}
                 >
                   <span>⚡ ICICI eCollection (VAN)</span>
@@ -2682,8 +2766,8 @@ export default function ProjectOrderStatus() {
                   type="button"
                   onClick={() => setMilestonePaymentGateway("offline")}
                   className={`flex-1 py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${milestonePaymentGateway === "offline"
-                      ? "bg-amber-600 text-white shadow-md shadow-amber-600/30"
-                      : "text-text-secondary hover:text-text-primary"
+                    ? "bg-amber-600 text-white shadow-md shadow-amber-600/30"
+                    : "text-text-secondary hover:text-text-primary"
                     }`}
                 >
                   <span>🏦 Company Escrow Bank</span>

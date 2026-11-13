@@ -39,6 +39,9 @@ const QuoteAnalyticsAdmin = lazy(() => import("../pages/solar-shop/quote-setting
 const ProjectBomSettingsAdmin = lazy(() => import("../pages/solar-shop/project-bom-settings/ProjectBomSettings"));
 const EstimatorSettingsAdmin = lazy(() => import("../pages/solar-shop/estimator-settings/EstimatorSettings"));
 
+// ── Franchisee Cluster & Business Model Module ─────────────────────────────────
+const FranchiseClusterHub = lazy(() => import("../pages/solar-shop/franchisee-clusters/FranchiseClusterHub"));
+
 // ── Region Payment Configuration & Offline Approval Queue ───────────────────
 const RegionPaymentConfig = lazy(() => import("../pages/solar-shop/payment-configuration/RegionPaymentConfig"));
 const OfflineApprovalQueue = lazy(() => import("../pages/solar-shop/payment-configuration/OfflineApprovalQueue"));
@@ -450,6 +453,65 @@ const menus = [
                     unique_id: "RSL_WALLET",
                     badgeKey: "wallet"
                 },
+                {
+                    name: "Franchisee Clusters",
+                    icon: <FiMapPin />,
+                    path: "/admin-panel/solar-shop/franchise-clusters",
+                    unique_id: "RSL_MGMT"
+                },
+            ]
+        },
+        // ── Section 8: Franchisee Cluster Management ─────────────────────────
+        {
+            step: "13.1",
+            badgeKey: "clusters",
+            name: "Franchisee Cluster Management",
+            icon: <FiMapPin />,
+            path: "/admin-panel/solar-shop/franchise-clusters",
+            unique_id: "RSL_MGMT",
+            subMenu: [
+                {
+                    name: "Cluster Management",
+                    icon: <FiLayers />,
+                    path: "/admin-panel/solar-shop/franchise-clusters?tab=clusters",
+                    unique_id: "RSL_MGMT"
+                },
+                {
+                    name: "India Territory Map",
+                    icon: <FiMapPin />,
+                    path: "/admin-panel/solar-shop/franchise-clusters?tab=map",
+                    unique_id: "RSL_MGMT"
+                },
+                {
+                    name: "Agreement Management",
+                    icon: <FiFileText />,
+                    path: "/admin-panel/solar-shop/franchise-clusters?tab=agreements",
+                    unique_id: "RSL_MGMT"
+                },
+                {
+                    name: "Goal Settings",
+                    icon: <FiSliders />,
+                    path: "/admin-panel/solar-shop/franchise-clusters?tab=goals",
+                    unique_id: "RSL_MGMT"
+                },
+                {
+                    name: "Performance Dashboard",
+                    icon: <FiBarChart2 />,
+                    path: "/admin-panel/solar-shop/franchise-clusters?tab=performance",
+                    unique_id: "RSL_MGMT"
+                },
+                {
+                    name: "BDE Management",
+                    icon: <FiUsers />,
+                    path: "/admin-panel/solar-shop/franchise-clusters?tab=bde",
+                    unique_id: "RSL_MGMT"
+                },
+                {
+                    name: "Support & Tickets",
+                    icon: <FiTool />,
+                    path: "/admin-panel/solar-shop/franchise-clusters?tab=tickets",
+                    unique_id: "RSL_MGMT"
+                }
             ]
         },
         // ── EPC Quotation Management Module ─────────────────────────────────
@@ -1297,6 +1359,48 @@ export default function SolarShopDashboard() {
                                             <Suspense fallback={<Loader text="Loading Service Tickets..." />}>
                                                 <ServiceTicketsAdmin />
                                             </Suspense>
+                                        }
+                                    />
+
+                                    {/* ── Franchisee Cluster & Business Model Management ────── */}
+                                    <Route
+                                        path="/franchise-clusters/*"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="RSL_MGMT">
+                                                <Suspense fallback={<Loader text="Loading Franchisee Clusters & Business Model..." />}>
+                                                    <FranchiseClusterHub />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/franchise-clusters/*"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="RSL_MGMT">
+                                                <Suspense fallback={<Loader text="Loading Franchisee Clusters & Business Model..." />}>
+                                                    <FranchiseClusterHub />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/franchise-clusters"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="RSL_MGMT">
+                                                <Suspense fallback={<Loader text="Loading Franchisee Clusters..." />}>
+                                                    <FranchiseClusterHub />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/franchise-clusters"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="RSL_MGMT">
+                                                <Suspense fallback={<Loader text="Loading Franchisee Clusters..." />}>
+                                                    <FranchiseClusterHub />
+                                                </Suspense>
+                                            </PermissionGuard>
                                         }
                                     />
 

@@ -198,6 +198,9 @@ adminRouter.use('/operations-dashboard', require('./modules/admin-panel/routes/o
 adminRouter.use('/store-dashboard', require('./modules/admin-panel/routes/store.dashboard.route'));
 adminRouter.use('/epc-analytics', require('./modules/admin-panel/routes/epc.analytics.route'));
 
+// ─── Franchisee Cluster & Business Model Module ───
+adminRouter.use('/franchise-clusters', require('./modules/admin-panel/routes/franchisee.cluster.route'));
+
 app.use('/admin-api', adminRouter);
 app.use('/api', adminRouter);
 app.use('/api/admin-api', adminRouter);

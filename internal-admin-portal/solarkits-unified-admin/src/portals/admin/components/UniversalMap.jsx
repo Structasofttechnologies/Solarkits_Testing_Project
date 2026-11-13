@@ -126,6 +126,19 @@ export default function UniversalMap({
     }
   }, [center]);
 
+  // Guard: If Google Maps JavaScript API is not yet loaded in window, do not render GoogleMap component
+  if (typeof window === "undefined" || typeof google === "undefined" || !google.maps) {
+    return (
+      <div
+        style={containerStyle}
+        className="flex flex-col items-center justify-center bg-slate-50 text-slate-400 p-4 border border-dashed border-slate-200 rounded-xl"
+      >
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mb-2" />
+        <span className="text-xs font-semibold text-slate-500">Loading map visualizer...</span>
+      </div>
+    );
+  }
+
   return (
     <GoogleMap
       mapContainerStyle={containerStyle}

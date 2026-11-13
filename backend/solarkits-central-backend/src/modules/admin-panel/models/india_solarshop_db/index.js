@@ -267,5 +267,10 @@ module.exports = {
  
   // --- EPC Buying Analytics Module ---
   EpcCartActivityLog,
- 
+
+  // --- Franchisee Cluster & Business Model Module ---
+  FranchiseeCluster: require('./franchisee_clusters.schema'),
+  FranchiseeAgreement: require('./franchisee_agreements.schema'),
+  FranchiseeClusterGoal: require('./franchisee_cluster_goals.schema'),
+  SolarKitsServiceTicket: require('../../../solarshop-india/models/india_solarshop_db/solarkits_service_tickets.schema'),
 };

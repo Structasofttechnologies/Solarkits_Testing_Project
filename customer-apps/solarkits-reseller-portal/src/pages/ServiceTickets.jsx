@@ -12,40 +12,55 @@ import api from "../services/api";
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+const TICKET_TYPES = [
+  { value: "business_support", label: "Business Support", desc: "Support regarding BDE, schemes, onboarding, or sales", icon: "🤝", defaultDept: "Sales & BDE", defaultTat: "24h" },
+  { value: "product", label: "Product Issue", desc: "Technical or performance issue with solar kit products", icon: "⚡", defaultDept: "Technical", defaultTat: "48h" },
+  { value: "replacement", label: "Replacement Request", desc: "Request for replacement of damaged or non-functional items", icon: "🔄", defaultDept: "Technical", defaultTat: "48h" },
+  { value: "delivery", label: "Delivery Issue", desc: "Dispatched material delayed, damaged, or incomplete", icon: "🚚", defaultDept: "Logistics & Dispatch", defaultTat: "24h" },
+  { value: "payment", label: "Payment & Accounts", desc: "Payment reconciliation, ledger issues, or commission queries", icon: "💳", defaultDept: "Accounts & Finance", defaultTat: "24h" },
+];
+
+const PRIORITY_CONFIG = {
+  low: { label: "Low Priority", color: "#6b7280", bg: "#f3f4f6", tat: "72 Hours" },
+  medium: { label: "Medium Priority", color: "#2563eb", bg: "#eff6ff", tat: "48 Hours" },
+  high: { label: "High Priority", color: "#d97706", bg: "#fffbeb", tat: "24 Hours" },
+  critical: { label: "Critical Priority", color: "#dc2626", bg: "#fef2f2", tat: "12 Hours" },
+};
+
 const ISSUE_CATEGORIES = [
-  { value: "physical_damage",    label: "Physical Damage",    icon: "⚡" },
-  { value: "non_functional",     label: "Not Working / Non-Functional", icon: "🔌" },
-  { value: "missing_part",       label: "Missing Part",       icon: "🔍" },
-  { value: "wrong_item",         label: "Wrong Item Supplied", icon: "❌" },
+  { value: "physical_damage", label: "Physical Damage", icon: "⚡" },
+  { value: "non_functional", label: "Not Working / Non-Functional", icon: "🔌" },
+  { value: "missing_part", label: "Missing Part", icon: "🔍" },
+  { value: "wrong_item", label: "Wrong Item Supplied", icon: "❌" },
   { value: "installation_issue", label: "Installation Issue", icon: "🔧" },
-  { value: "other",              label: "Other",              icon: "📋" },
+  { value: "other", label: "Other", icon: "📋" },
 ];
 
 const WARRANTY_OPTIONS = [
-  { value: "under_warranty",    label: "Under Warranty" },
-  { value: "out_of_warranty",   label: "Out of Warranty" },
-  { value: "unknown",           label: "Not Sure" },
+  { value: "under_warranty", label: "Under Warranty" },
+  { value: "out_of_warranty", label: "Out of Warranty" },
+  { value: "unknown", label: "Not Sure" },
 ];
 
 const STATUS_CONFIG = {
-  raised:                   { label: "Raised",          color: "#3b82f6", bg: "#eff6ff",  border: "#bfdbfe", icon: HiOutlineTicket },
-  under_review:             { label: "Under Review",    color: "#f59e0b", bg: "#fffbeb",  border: "#fde68a", icon: FiEye },
-  approved:                 { label: "Approved",        color: "#10b981", bg: "#f0fdf4",  border: "#a7f3d0", icon: FiCheckCircle },
-  rejected:                 { label: "Rejected",        color: "#ef4444", bg: "#fef2f2",  border: "#fecaca", icon: FiXCircle },
-  replacement_processing:   { label: "Processing",      color: "#8b5cf6", bg: "#f5f3ff",  border: "#ddd6fe", icon: FiRefreshCw },
-  dispatched:               { label: "Dispatched",      color: "#0ea5e9", bg: "#f0f9ff",  border: "#bae6fd", icon: FiTruck },
-  delivered:                { label: "Delivered",       color: "#22c55e", bg: "#f0fdf4",  border: "#86efac", icon: FiPackage },
-  closed:                   { label: "Closed",          color: "#6b7280", bg: "#f9fafb",  border: "#e5e7eb", icon: FiCheck },
+  raised: { label: "Raised", color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe", icon: HiOutlineTicket },
+  under_review: { label: "Under Review", color: "#f59e0b", bg: "#fffbeb", border: "#fde68a", icon: FiEye },
+  approved: { label: "Approved", color: "#10b981", bg: "#f0fdf4", border: "#a7f3d0", icon: FiCheckCircle },
+  rejected: { label: "Rejected", color: "#ef4444", bg: "#fef2f2", border: "#fecaca", icon: FiXCircle },
+  replacement_processing: { label: "Processing", color: "#8b5cf6", bg: "#f5f3ff", border: "#ddd6fe", icon: FiRefreshCw },
+  dispatched: { label: "Dispatched", color: "#0ea5e9", bg: "#f0f9ff", border: "#bae6fd", icon: FiTruck },
+  delivered: { label: "Delivered", color: "#22c55e", bg: "#f0fdf4", border: "#86efac", icon: FiPackage },
+  closed: { label: "Closed", color: "#6b7280", bg: "#f9fafb", border: "#e5e7eb", icon: FiCheck },
 };
 
 const STATUS_TABS = [
-  { key: "all",                 label: "All" },
-  { key: "raised",              label: "Open" },
-  { key: "under_review",        label: "Under Review" },
-  { key: "approved",            label: "Approved" },
-  { key: "rejected",            label: "Rejected" },
-  { key: "dispatched",          label: "Dispatched" },
-  { key: "closed",              label: "Closed" },
+  { key: "all", label: "All" },
+  { key: "raised", label: "Open" },
+  { key: "under_review", label: "Under Review" },
+  { key: "approved", label: "Approved" },
+  { key: "rejected", label: "Rejected" },
+  { key: "dispatched", label: "Dispatched" },
+  { key: "closed", label: "Closed" },
 ];
 
 // ── Status Badge ─────────────────────────────────────────────────────────────
@@ -121,11 +136,19 @@ export default function ServiceTickets() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: 50 });
-      if (activeTab !== "all") params.append("status", activeTab);
-      const res = await api.get(`/india/v1/reseller/service-tickets?${params}`);
-      if (res.data?.success) {
-        setTickets(res.data.data.tickets || []);
-        setTotalTickets(res.data.data.total || 0);
+      if (activeTab !== "all") params.append("ticket_status", activeTab);
+      // Try centralized franchise cluster tickets first
+      let res = await api.get(`/india/v1/franchise-clusters/tickets/list?${params}`).catch(() => null);
+      if (res?.data?.status === "success" && Array.isArray(res.data.data)) {
+        setTickets(res.data.data);
+        setTotalTickets(res.data.count || res.data.data.length);
+      } else {
+        if (activeTab !== "all") params.set("status", activeTab);
+        res = await api.get(`/india/v1/reseller/service-tickets?${params}`);
+        if (res?.data?.success) {
+          setTickets(res.data.data.tickets || []);
+          setTotalTickets(res.data.data.total || 0);
+        }
       }
     } catch (err) {
       console.error("Fetch tickets error:", err);
@@ -172,7 +195,7 @@ export default function ServiceTickets() {
   };
 
   const showSuccess = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(""), 4000); };
-  const showError   = (msg) => { setErrorMsg(msg);   setTimeout(() => setErrorMsg(""), 4000); };
+  const showError = (msg) => { setErrorMsg(msg); setTimeout(() => setErrorMsg(""), 4000); };
 
   return (
     <div className="min-h-screen" style={{ background: "var(--color-bg)", color: "var(--color-text-primary)" }}>
@@ -287,6 +310,27 @@ export default function ServiceTickets() {
                             {ticket.ticket_number}
                           </span>
                           <StatusBadge status={ticket.ticket_status} />
+                          {ticket.ticket_type && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-indigo-50 text-indigo-700">
+                              {TICKET_TYPES.find(t => t.value === ticket.ticket_type)?.icon || "📋"} {ticket.ticket_type.replace(/_/g, ' ')}
+                            </span>
+                          )}
+                          {ticket.priority && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold capitalize"
+                              style={{ color: PRIORITY_CONFIG[ticket.priority]?.color, background: PRIORITY_CONFIG[ticket.priority]?.bg }}>
+                              {ticket.priority} Priority
+                            </span>
+                          )}
+                          {ticket.assigned_department && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 uppercase">
+                              Dept: {ticket.assigned_department}
+                            </span>
+                          )}
+                          {ticket.tat_deadline && new Date(ticket.tat_deadline) < new Date() && !['resolved', 'closed', 'rejected'].includes(ticket.ticket_status) && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300">
+                              ⚠️ SLA Overdue
+                            </span>
+                          )}
                         </div>
                         <p className="font-bold text-sm mt-1 truncate" style={{ color: "var(--color-text-primary)" }}>
                           {ticket.item_name}
@@ -372,10 +416,12 @@ function CreateTicketWizard({ onBack, onSuccess, onError }) {
   const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
+    ticket_type: "business_support",
+    priority: "medium",
     order_id: "", order_number: "", invoice_number: "",
     kit_id: "", kit_name: "", kit_capacity: "",
     item_name: "", item_serial_number: "",
-    issue_category: "", problem_description: "",
+    issue_category: "other", problem_description: "",
     installation_date: "", installation_address: { line: "", city: "", state: "", pincode: "" },
     project_details: "", warranty_status: "unknown",
   });
@@ -385,7 +431,7 @@ function CreateTicketWizard({ onBack, onSuccess, onError }) {
 
   // Fetch completed orders
   useEffect(() => {
-    if (step === 1) {
+    if (step === 2) {
       setOrdersLoading(true);
       api.get("/india/v1/reseller/po/my-orders")
         .then((res) => {
@@ -417,13 +463,15 @@ function CreateTicketWizard({ onBack, onSuccess, onError }) {
 
   const validateStep = () => {
     const errs = {};
+    if (step === 1) {
+      if (!form.ticket_type) errs.ticket_type = "Please select a ticket category";
+    }
     if (step === 3) {
-      if (!form.item_name.trim()) errs.item_name = "Item name is required";
+      if (!form.item_name.trim()) errs.item_name = "Subject or Item name is required";
     }
     if (step === 4) {
-      if (!form.issue_category) errs.issue_category = "Please select an issue category";
-      if (!form.problem_description.trim()) errs.problem_description = "Please describe the problem";
-      if (form.problem_description.trim().length < 20) errs.problem_description = "Please provide at least 20 characters";
+      if (!form.problem_description.trim()) errs.problem_description = "Please describe the problem or request";
+      if (form.problem_description.trim().length < 10) errs.problem_description = "Please provide at least 10 characters";
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -442,10 +490,20 @@ function CreateTicketWizard({ onBack, onSuccess, onError }) {
       if (!payload.order_id) delete payload.order_id;
       if (!payload.kit_id) delete payload.kit_id;
 
-      const res = await api.post("/india/v1/reseller/service-tickets/raise", payload);
-      if (!res.data?.success) throw new Error(res.data?.message || "Failed to raise ticket");
-
-      const { ticket_id, ticket_number } = res.data.data;
+      let res;
+      let ticket_id, ticket_number;
+      try {
+        res = await api.post("/india/v1/franchise-clusters/tickets/create", payload);
+        if (res.data?.status === "success") {
+          ticket_id = res.data.data.ticket_id;
+          ticket_number = res.data.data.ticket_number;
+        }
+      } catch (err) {
+        res = await api.post("/india/v1/reseller/service-tickets/raise", payload);
+        if (!res.data?.success) throw new Error(res.data?.message || "Failed to raise ticket");
+        ticket_id = res.data.data.ticket_id;
+        ticket_number = res.data.data.ticket_number;
+      }
 
       // Step 2: Upload proof files if any
       if (files.length > 0) {
@@ -453,7 +511,7 @@ function CreateTicketWizard({ onBack, onSuccess, onError }) {
         files.forEach((f) => fd.append("files", f));
         await api.post(`/india/v1/reseller/service-tickets/${ticket_id}/upload-proof`, fd, {
           headers: { "Content-Type": "multipart/form-data" },
-        }).catch(() => {}); // Non-blocking
+        }).catch(() => { }); // Non-blocking
       }
 
       onSuccess(ticket_number);
@@ -464,7 +522,7 @@ function CreateTicketWizard({ onBack, onSuccess, onError }) {
     }
   };
 
-  const stepTitles = ["Select Order", "Kit Details", "Item Details", "Describe Issue", "Upload Proof"];
+  const stepTitles = ["Category & Priority", "Select Order", "Kit Details", "Describe Issue", "Upload Proof"];
   const progress = ((step - 1) / (TOTAL_STEPS - 1)) * 100;
 
   return (
@@ -510,12 +568,92 @@ function CreateTicketWizard({ onBack, onSuccess, onError }) {
       {/* Step Content */}
       <div className="p-6 rounded-2xl mb-5" style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)" }}>
         <AnimatePresence mode="wait">
-          {/* STEP 1: Select Order */}
+          {/* STEP 1: Ticket Category & Priority */}
           {step === 1 && (
             <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-              <h2 className="font-black text-base mb-1" style={{ color: "var(--color-text-primary)" }}>Select Order</h2>
+              <h2 className="font-black text-base mb-1" style={{ color: "var(--color-text-primary)" }}>Ticket Category & Priority</h2>
               <p className="text-xs mb-4" style={{ color: "var(--color-text-secondary)" }}>
-                Choose the order containing the kit with the issue, or skip if you don't have the order reference.
+                Select the defined category and priority level for your support or replacement ticket
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold mb-2" style={{ color: "var(--color-text-secondary)" }}>
+                    Select Category <span style={{ color: "var(--color-danger)" }}>*</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {TICKET_TYPES.map((t) => (
+                      <div
+                        key={t.value}
+                        onClick={() => {
+                          setField("ticket_type", t.value);
+                          if (!form.item_name || ["Business Support Request", "Product Technical Issue", "Replacement Request", "Delivery Material Issue", "Payment & Accounts Query"].includes(form.item_name)) {
+                            setField("item_name", t.label);
+                          }
+                        }}
+                        className="p-3.5 rounded-xl cursor-pointer transition-all border text-left"
+                        style={{
+                          background: form.ticket_type === t.value ? "var(--color-primary)" : "var(--color-bg)",
+                          color: form.ticket_type === t.value ? "white" : "var(--color-text-primary)",
+                          borderColor: form.ticket_type === t.value ? "var(--color-primary)" : "var(--color-border)",
+                        }}
+                      >
+                        <div className="flex items-center gap-2 font-black text-sm">
+                          <span>{t.icon}</span>
+                          <span>{t.label}</span>
+                        </div>
+                        <p className={`text-[11px] mt-1 line-clamp-2 ${form.ticket_type === t.value ? "text-white/80" : "text-slate-500"}`}>
+                          {t.desc}
+                        </p>
+                        <div className="mt-2 text-[10px] font-bold opacity-80">
+                          Route: {t.defaultDept} • SLA: {t.defaultTat}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {errors.ticket_type && <p className="text-[11px] mt-1 text-rose-500">{errors.ticket_type}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold mb-2" style={{ color: "var(--color-text-secondary)" }}>
+                    Priority Level
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {Object.entries(PRIORITY_CONFIG).map(([k, v]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setField("priority", k)}
+                        className="p-2.5 rounded-xl text-left border transition-all"
+                        style={{
+                          background: form.priority === k ? v.color : "var(--color-bg)",
+                          color: form.priority === k ? "white" : "var(--color-text-primary)",
+                          borderColor: form.priority === k ? v.color : "var(--color-border)",
+                        }}
+                      >
+                        <div className="text-xs font-black">{v.label}</div>
+                        <div className={`text-[10px] mt-0.5 ${form.priority === k ? "text-white/80" : "text-slate-400"}`}>
+                          TAT: {v.tat}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 2: Select Order */}
+          {step === 2 && (
+            <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="font-black text-base" style={{ color: "var(--color-text-primary)" }}>Select Order</h2>
+                {["business_support", "payment"].includes(form.ticket_type) && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">Optional for {form.ticket_type.replace(/_/g, ' ')}</span>
+                )}
+              </div>
+              <p className="text-xs mb-4" style={{ color: "var(--color-text-secondary)" }}>
+                Choose the order containing the kit or materials related to this ticket, or proceed directly.
               </p>
 
               {ordersLoading ? (
@@ -577,94 +715,114 @@ function CreateTicketWizard({ onBack, onSuccess, onError }) {
             </motion.div>
           )}
 
-          {/* STEP 2: Kit Details */}
-          {step === 2 && (
-            <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-              <h2 className="font-black text-base mb-1" style={{ color: "var(--color-text-primary)" }}>Kit Details</h2>
-              <p className="text-xs mb-4" style={{ color: "var(--color-text-secondary)" }}>Enter the kit type and capacity details.</p>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>Kit Name / Type</label>
-                  <input type="text" value={form.kit_name} onChange={(e) => setField("kit_name", e.target.value)}
-                    placeholder="e.g. Solar On-Grid Kit, Off-Grid Kit"
-                    className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-                    style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }} />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>Kit Capacity</label>
-                  <input type="text" value={form.kit_capacity} onChange={(e) => setField("kit_capacity", e.target.value)}
-                    placeholder="e.g. 5kW, 10kW, 15kW"
-                    className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-                    style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }} />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>Installation Date (Optional)</label>
-                  <input type="date" value={form.installation_date} onChange={(e) => setField("installation_date", e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-                    style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }} />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>Warranty Status</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {WARRANTY_OPTIONS.map((opt) => (
-                      <button key={opt.value} onClick={() => setField("warranty_status", opt.value)}
-                        className="py-2 px-3 rounded-xl text-xs font-bold transition-all"
-                        style={form.warranty_status === opt.value
-                          ? { background: "var(--color-primary)", color: "white" }
-                          : { background: "var(--color-bg)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" }
-                        }>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* STEP 3: Item Details */}
+          {/* STEP 3: Kit & Item Details */}
           {step === 3 && (
             <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-              <h2 className="font-black text-base mb-1" style={{ color: "var(--color-text-primary)" }}>Item Details</h2>
-              <p className="text-xs mb-4" style={{ color: "var(--color-text-secondary)" }}>Specify the item from the kit that needs replacement or service.</p>
+              <h2 className="font-black text-base mb-1" style={{ color: "var(--color-text-primary)" }}>
+                {['business_support', 'payment'].includes(form.ticket_type) ? "Request & Subject Details" : "Kit & Item Details"}
+              </h2>
+              <p className="text-xs mb-4" style={{ color: "var(--color-text-secondary)" }}>
+                {['business_support', 'payment'].includes(form.ticket_type)
+                  ? "Provide the subject title and any reference details for your support ticket."
+                  : "Specify the solar combo kit and affected item that requires service or replacement."}
+              </p>
+
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-                    Item Name <span style={{ color: "var(--color-danger)" }}>*</span>
+                    {['business_support', 'payment'].includes(form.ticket_type) ? "Request Subject / Title" : "Item / Component Name"}{" "}
+                    <span style={{ color: "var(--color-danger)" }}>*</span>
                   </label>
-                  <input type="text" value={form.item_name} onChange={(e) => setField("item_name", e.target.value)}
-                    placeholder="e.g. Solar Panel, Inverter, Battery, DC Cable"
+                  <input
+                    type="text"
+                    value={form.item_name}
+                    onChange={(e) => setField("item_name", e.target.value)}
+                    placeholder={
+                      form.ticket_type === "business_support"
+                        ? "e.g. BDE assistance needed for Rajkot dealer onboarding"
+                        : form.ticket_type === "payment"
+                          ? "e.g. Commission ledger discrepancy for March 2026"
+                          : "e.g. Solar Panel 540W Mono, 5kW Inverter"
+                    }
                     className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-                    style={{ background: "var(--color-bg)", border: `1px solid ${errors.item_name ? "#ef4444" : "var(--color-border)"}`, color: "var(--color-text-primary)" }} />
+                    style={{ background: "var(--color-bg)", border: `1px solid ${errors.item_name ? "#ef4444" : "var(--color-border)"}`, color: "var(--color-text-primary)" }}
+                  />
                   {errors.item_name && <p className="text-[11px] mt-1" style={{ color: "#ef4444" }}>{errors.item_name}</p>}
                 </div>
+
+                {['product', 'replacement'].includes(form.ticket_type) && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>Kit Name / Type</label>
+                        <input
+                          type="text"
+                          value={form.kit_name}
+                          onChange={(e) => setField("kit_name", e.target.value)}
+                          placeholder="e.g. Solar On-Grid Kit"
+                          className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                          style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>Kit Capacity</label>
+                        <input
+                          type="text"
+                          value={form.kit_capacity}
+                          onChange={(e) => setField("kit_capacity", e.target.value)}
+                          placeholder="e.g. 5kW, 10kW"
+                          className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                          style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>Serial / Model Number (Optional)</label>
+                      <input
+                        type="text"
+                        value={form.item_serial_number}
+                        onChange={(e) => setField("item_serial_number", e.target.value)}
+                        placeholder="Enter item serial number if visible"
+                        className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                        style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>Warranty Status</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {WARRANTY_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setField("warranty_status", opt.value)}
+                            className="py-2 px-3 rounded-xl text-xs font-bold transition-all"
+                            style={form.warranty_status === opt.value
+                              ? { background: "var(--color-primary)", color: "white" }
+                              : { background: "var(--color-bg)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" }
+                            }
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div>
-                  <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>Serial Number (Optional)</label>
-                  <input type="text" value={form.item_serial_number} onChange={(e) => setField("item_serial_number", e.target.value)}
-                    placeholder="Enter serial/model number if available"
-                    className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-                    style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }} />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>Project / Site Details (Optional)</label>
-                  <textarea value={form.project_details} onChange={(e) => setField("project_details", e.target.value)}
-                    placeholder="e.g. Rooftop installation at client's factory in Pune"
-                    rows={3}
+                  <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                    Additional Reference / Project Notes (Optional)
+                  </label>
+                  <textarea
+                    value={form.project_details}
+                    onChange={(e) => setField("project_details", e.target.value)}
+                    placeholder="Enter customer site, quotation ref, or specific context..."
+                    rows={2}
                     className="w-full px-3 py-2.5 rounded-xl text-sm outline-none resize-none"
-                    style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }} />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>Installation Site Address (Optional)</label>
-                  <div className="space-y-2">
-                    {["line", "city", "state", "pincode"].map((field) => (
-                      <input key={field} type="text"
-                        value={form.installation_address[field]}
-                        onChange={(e) => setAddressField(field, e.target.value)}
-                        placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
-                        className="w-full px-3 py-2 rounded-xl text-sm outline-none"
-                        style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }} />
-                    ))}
-                  </div>
+                    style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+                  />
                 </div>
               </div>
             </motion.div>

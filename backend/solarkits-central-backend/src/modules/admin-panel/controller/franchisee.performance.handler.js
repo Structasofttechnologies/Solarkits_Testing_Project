@@ -1,22 +1,29 @@
 /**
  * franchisee.performance.handler.js
  *
- * Admin analytics endpoints for Franchisee Performance Tracker.
- * Permission code: FPO_ANALYTICS
- * Prefix: /admin-api/franchisee/performance
+ * Unified performance analytics handler:
+ * 1. Admin analytics endpoints for legacy Franchisee Performance Tracker (Permission code: FPO_ANALYTICS, Prefix: /admin-api/franchisee/performance)
+ * 2. Section 5 Franchisee Cluster Performance Dashboard (Prefix: /admin-api/franchise-clusters/performance/dashboard)
  */
 
 const mongoose = require('mongoose');
 const {
+  FranchiseeCluster,
+  Reseller,
+  BDEProfile,
+  FranchiseeAgreement,
+  FranchiseeClusterGoal,
+  SolarKitsServiceTicket,
+  EpcAccount,
+  FpoOrder,
   FranchiseeTargetProgress,
   FranchiseeAlert,
-  FpoOrder,
-  Reseller,
 } = require('../models/india_solarshop_db');
+const { GeoLevel1, GeoLevel2, Level1, Level2 } = require('../models/geolocation_db');
 const { getPerformanceAnalytics } = require('../services/franchisee.goal.service');
 const { evaluateAlerts, evaluatePoAlerts } = require('../services/franchisee.alert.service');
 
-// ── PERFORMANCE TRACKER (Admin) ───────────────────────────────────────────────
+// ── 1. PERFORMANCE TRACKER (Legacy Admin Analytics) ──────────────────────────
 const get_performance_tracker = async (req, res) => {
   try {
     const now = new Date();
@@ -53,7 +60,7 @@ const get_performance_tracker = async (req, res) => {
   }
 };
 
-// ── LOCATION ANALYTICS ────────────────────────────────────────────────────────
+// ── 2. LOCATION ANALYTICS (Legacy) ───────────────────────────────────────────
 const get_location_analytics = async (req, res) => {
   try {
     const now = new Date();
@@ -107,7 +114,7 @@ const get_location_analytics = async (req, res) => {
   }
 };
 
-// ── SINGLE FRANCHISEE PERFORMANCE ────────────────────────────────────────────
+// ── 3. SINGLE FRANCHISEE PERFORMANCE (Legacy) ────────────────────────────────
 const get_franchisee_performance = async (req, res) => {
   try {
     const { id } = req.params;
@@ -156,7 +163,7 @@ const get_franchisee_performance = async (req, res) => {
   }
 };
 
-// ── ALERTS ────────────────────────────────────────────────────────────────────
+// ── 4. ALERTS (Legacy) ────────────────────────────────────────────────────────
 const get_alerts = async (req, res) => {
   try {
     const { status, alert_type, franchisee_id, month, year, page = 1, limit = 50 } = req.query;
@@ -189,7 +196,7 @@ const get_alerts = async (req, res) => {
   }
 };
 
-// ── RESOLVE ALERT ─────────────────────────────────────────────────────────────
+// ── 5. RESOLVE ALERT (Legacy) ─────────────────────────────────────────────────
 const resolve_alert = async (req, res) => {
   try {
     const { id } = req.body;
@@ -207,7 +214,7 @@ const resolve_alert = async (req, res) => {
   }
 };
 
-// ── RUN ALERT EVALUATION ──────────────────────────────────────────────────────
+// ── 6. RUN ALERT EVALUATION (Legacy) ──────────────────────────────────────────
 const run_alert_evaluation = async (req, res) => {
   try {
     const { franchisee_id, month, year } = req.body;
@@ -228,7 +235,7 @@ const run_alert_evaluation = async (req, res) => {
   }
 };
 
-// ── EXPORT CSV ────────────────────────────────────────────────────────────────
+// ── 7. EXPORT CSV (Legacy) ────────────────────────────────────────────────────
 const export_performance_csv = async (req, res) => {
   try {
     const now = new Date();
@@ -264,6 +271,218 @@ const export_performance_csv = async (req, res) => {
   }
 };
 
+// ── 8. SECTION 5: FRANCHISEE CLUSTER PERFORMANCE DASHBOARD ───────────────────
+const get_performance_dashboard = async (req, res) => {
+  try {
+    const {
+      financial_year,
+      month,
+      state_id,
+      district_id,
+      cluster_id,
+      franchisee_id,
+      bde_id,
+    } = req.query;
+
+    const currentYear = new Date().getFullYear();
+    const currentMonth = Number(month) || (new Date().getMonth() + 1);
+    const defaultFY = currentMonth >= 4 ? `${currentYear}-${String(currentYear + 1).slice(2)}` : `${currentYear - 1}-${String(currentYear).slice(2)}`;
+    const fy = financial_year || defaultFY;
+
+    // Filter clusters
+    const clusterQuery = { deleted_at: null, is_active: true };
+    if (state_id) clusterQuery.state_id = state_id;
+    if (district_id) clusterQuery.district_ids = district_id;
+    if (cluster_id) clusterQuery._id = cluster_id;
+    if (franchisee_id) clusterQuery.assigned_franchisee_id = franchisee_id;
+    if (bde_id) clusterQuery.$or = [{ primary_bde_id: bde_id }, { support_bde_ids: bde_id }];
+
+    const clusters = await FranchiseeCluster.find(clusterQuery)
+      .populate('state_id', 'name')
+      .populate('assigned_franchisee_id', 'business_name mobile email store_category gst_number reseller_lifecycle_status')
+      .populate('primary_bde_id', 'full_name mobile_number email bde_id')
+      .lean();
+
+    // Overall KPI Counters
+    let totalFranchiseesCount = 0;
+    let activeFranchiseesCount = 0;
+    let aggregateEpcGoal = 0;
+    let aggregateEpcActual = 0;
+    let aggregateLiveEpcGoal = 0;
+    let aggregateLiveEpcActual = 0;
+    let aggregateMonthlyKitGoal = 0;
+    let aggregateMonthlyKitActual = 0;
+    let aggregateAnnualRevenue = 0;
+
+    const validStatuses = ['CONFIRMED', 'PAID', 'PROCESSING', 'DISPATCHED', 'DELIVERED', 'COMPLETED'];
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+    const performanceRows = [];
+
+    for (const clu of clusters) {
+      const franchisee = clu.assigned_franchisee_id;
+      if (franchisee) {
+        totalFranchiseesCount++;
+        if (franchisee.reseller_lifecycle_status === 'active' || clu.status === 'allotted') {
+          activeFranchiseesCount++;
+        }
+      }
+
+      // Fetch goals for this cluster and FY
+      const goal = await FranchiseeClusterGoal.findOne({
+        cluster_id: clu._id,
+        financial_year: fy,
+        deleted_at: null,
+      }).lean();
+
+      const epcGoal = goal?.annual_epc_goal || 0;
+      const liveEpcGoal = goal?.annual_live_epc_goal || 0;
+
+      const currentMonthGoal = (goal?.monthly_kit_goals || []).find(m => m.month === currentMonth);
+      const monthlyKitGoal = currentMonthGoal?.target_kits_quantity || 0;
+      const monthlyRevenueGoal = currentMonthGoal?.target_revenue || 0;
+
+      aggregateEpcGoal += epcGoal;
+      aggregateLiveEpcGoal += liveEpcGoal;
+      aggregateMonthlyKitGoal += monthlyKitGoal;
+
+      let epcActual = 0;
+      let liveEpcActual = 0;
+      let actualKitsThisMonth = 0;
+      let actualRevenueThisMonth = 0;
+      let annualKitsActual = 0;
+      let annualRevenueActual = 0;
+
+      if (franchisee) {
+        // EPC counts
+        const approvedEpcs = await EpcAccount.find({
+          $or: [
+            { onboarded_by_reseller_id: franchisee._id },
+            { primary_reseller_id: franchisee._id },
+            { districts: { $in: clu.district_ids } },
+          ],
+          status: 'approved',
+          deleted_at: null,
+        }).lean();
+
+        epcActual = approvedEpcs.length;
+        liveEpcActual = approvedEpcs.filter(
+          e => e.last_activity_at && new Date(e.last_activity_at) >= ninetyDaysAgo
+        ).length;
+
+        aggregateEpcActual += epcActual;
+        aggregateLiveEpcActual += liveEpcActual;
+
+        // Monthly orders
+        const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
+        const endOfMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59);
+
+        const monthlyOrders = await FpoOrder.find({
+          reseller_id: franchisee._id,
+          status: { $in: validStatuses },
+          created_at: { $gte: startOfMonth, $lte: endOfMonth },
+        }).lean();
+
+        for (const ord of monthlyOrders) {
+          actualKitsThisMonth += Number(ord.total_kits_count || ord.total_quantity || 1);
+          actualRevenueThisMonth += Number((ord.total_amount_paise || 0) / 100);
+        }
+
+        aggregateMonthlyKitActual += actualKitsThisMonth;
+
+        // Annual orders
+        const allOrders = await FpoOrder.find({
+          reseller_id: franchisee._id,
+          status: { $in: validStatuses },
+        }).lean();
+
+        for (const ord of allOrders) {
+          annualKitsActual += Number(ord.total_kits_count || ord.total_quantity || 1);
+          annualRevenueActual += Number((ord.total_amount_paise || 0) / 100);
+        }
+
+        aggregateAnnualRevenue += annualRevenueActual;
+      }
+
+      const achievementPct = monthlyKitGoal > 0 ? Math.round((actualKitsThisMonth / monthlyKitGoal) * 100) : 0;
+      const epcAchievementPct = epcGoal > 0 ? Math.round((epcActual / epcGoal) * 100) : 0;
+      const liveAchievementPct = liveEpcGoal > 0 ? Math.round((liveEpcActual / liveEpcGoal) * 100) : 0;
+
+      performanceRows.push({
+        cluster_id: clu._id,
+        cluster_name: clu.cluster_name,
+        cluster_code: clu.cluster_code,
+        state_name: clu.state_name,
+        franchisee_id: franchisee?._id || null,
+        franchisee_name: franchisee?.business_name || 'Unassigned',
+        bde_name: clu.primary_bde_id?.full_name || 'Unassigned',
+        epc_goal: epcGoal,
+        epc_actual: epcActual,
+        epc_achievement_pct: epcAchievementPct,
+        live_epc_goal: liveEpcGoal,
+        live_epc_actual: liveEpcActual,
+        live_epc_achievement_pct: liveAchievementPct,
+        monthly_kit_goal: monthlyKitGoal,
+        actual_kits: actualKitsThisMonth,
+        monthly_kit_achievement_pct: achievementPct,
+        monthly_revenue_goal: monthlyRevenueGoal,
+        actual_revenue_this_month: actualRevenueThisMonth,
+        annual_kits_actual: annualKitsActual,
+        annual_revenue_actual: annualRevenueActual,
+      });
+    }
+
+    // Sort to extract Top & Low performers
+    const sortedByAchievement = [...performanceRows].sort(
+      (a, b) => b.monthly_kit_achievement_pct - a.monthly_kit_achievement_pct
+    );
+    const topPerformers = sortedByAchievement.slice(0, 5);
+    const lowPerformers = [...sortedByAchievement].reverse().slice(0, 5);
+
+    // Count pending agreement renewals
+    const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const pendingRenewalsCount = await FranchiseeAgreement.countDocuments({
+      status: { $in: ['expiring_soon', 'expired', 'renewal_pending'] },
+      end_date: { $lte: thirtyDaysFromNow },
+      deleted_at: null,
+    });
+
+    // Count open tickets
+    const openTicketsCount = await SolarKitsServiceTicket.countDocuments({
+      ticket_status: { $in: ['open', 'assigned', 'in_progress', 'waiting', 'raised', 'under_review'] },
+      deleted_at: null,
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      financial_year: fy,
+      month: currentMonth,
+      kpis: {
+        total_franchisees: totalFranchiseesCount,
+        active_franchisees: activeFranchiseesCount,
+        epc_goal: aggregateEpcGoal,
+        epc_actual: aggregateEpcActual,
+        epc_achievement_pct: aggregateEpcGoal > 0 ? Math.round((aggregateEpcActual / aggregateEpcGoal) * 100) : 0,
+        live_epc_goal: aggregateLiveEpcGoal,
+        live_epc_actual: aggregateLiveEpcActual,
+        live_epc_achievement_pct: aggregateLiveEpcGoal > 0 ? Math.round((aggregateLiveEpcActual / aggregateLiveEpcGoal) * 100) : 0,
+        monthly_kit_goal: aggregateMonthlyKitGoal,
+        monthly_kit_actual: aggregateMonthlyKitActual,
+        kit_achievement_pct: aggregateMonthlyKitGoal > 0 ? Math.round((aggregateMonthlyKitActual / aggregateMonthlyKitGoal) * 100) : 0,
+        total_revenue: aggregateAnnualRevenue,
+        pending_renewals: pendingRenewalsCount,
+        open_tickets: openTicketsCount,
+      },
+      table: performanceRows,
+      top_performers: topPerformers,
+      low_performers: lowPerformers,
+    });
+  } catch (err) {
+    console.error('Error in get_performance_dashboard:', err);
+    return res.status(500).json({ status: 'error', message: err.message || 'Internal server error.' });
+  }
+};
+
 module.exports = {
   get_performance_tracker,
   get_location_analytics,
@@ -272,4 +491,5 @@ module.exports = {
   resolve_alert,
   run_alert_evaluation,
   export_performance_csv,
+  get_performance_dashboard,
 };
