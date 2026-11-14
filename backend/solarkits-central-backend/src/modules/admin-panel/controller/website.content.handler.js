@@ -154,8 +154,7 @@ const DEFAULT_SOLAR_STORE_CONTENT = {
           tag: "🌞 India's #1 Solar Kits Marketplace",
           title: "Complete Solar Kits\nFor Homes & Business",
           subtitle: "Certified pre-configured & custom solar kits — panels, inverter, mounting structure & BOS in one box. Save up to ₹78,000 with PM Surya Ghar Subsidy.",
-          cta1: { label: "Shop Solar Kits", href: "#products" },
-          cta2: { label: "Calculate Savings", href: "#calculator" },
+          cta1: { label: "Shop Solar Kits", href: "/shop" },
           bg: "from-navy via-primary-700 to-primary-500",
           image: "",
           image_opacity: "30",
@@ -165,8 +164,7 @@ const DEFAULT_SOLAR_STORE_CONTENT = {
           tag: "💰 PM Surya Ghar Yojana",
           title: "Get Govt. Subsidy\nUp to ₹78,000 on Solar Kits",
           subtitle: "Under PM Surya Ghar Muft Bijli Yojana, install 1kW-3kW Rooftop Solar Kits with verified subsidy approval. Apply now through SolarKits!",
-          cta1: { label: "Check Subsidy Kits", href: "#subsidy" },
-          cta2: { label: "Talk to Expert", href: "#contact" },
+          cta1: { label: "Check Subsidy Kits", href: "/shop" },
           bg: "from-[#0D3B6E] via-[#1565C0] to-[#29ABE2]",
           image: "",
           image_opacity: "30",
@@ -176,8 +174,7 @@ const DEFAULT_SOLAR_STORE_CONTENT = {
           tag: "⚡ Complete Plug & Play Solar Kits",
           title: "Everything You Need\nin One Box",
           subtitle: "From 1kW Home Kits to 100kW Commercial Kits — our complete kits include high-efficiency panels, inverter, mounting structures & AC/DC BOS. Fast delivery across India!",
-          cta1: { label: "View Solar Kits", href: "#products" },
-          cta2: { label: "Get Free Quote", href: "#quote" },
+          cta1: { label: "View Solar Kits", href: "/shop" },
           bg: "from-[#0D3B6E] to-primary-600",
           image: "",
           image_opacity: "30",
@@ -497,7 +494,7 @@ const DEFAULT_SOLAR_STORE_CONTENT = {
         button_text: "Send Bulk Query",
       },
       description: "Quality solar kits, honest guidance and reliable support for homes, farms and businesses across India.",
-      phone: "1800-SOLAR-KIT",
+      phone: "+91 77779 39842",
       email: "support@solarkits.in",
       address: "Mumbai, Maharashtra, India",
       shop_links: ["On-Grid Solar Kits", "Off-Grid Solar Kits", "Hybrid Solar Kits", "Commercial Solar Kits"],
@@ -505,7 +502,7 @@ const DEFAULT_SOLAR_STORE_CONTENT = {
       policy_links: ["Privacy", "Terms", "Returns", "Shipping"],
       copyright_text: "© 2026 SolarKits™ Pvt. Ltd. All Rights Reserved.",
       floating_whatsapp: {
-        number: "919876543210",
+        number: "917777939842",
         label: "Chat on WhatsApp",
       },
     },
@@ -1050,9 +1047,28 @@ exports.get_public_solar_store_content = async (req, res) => {
       doc = await WebsiteContent.create(DEFAULT_SOLAR_STORE_CONTENT);
     }
 
+    const sections = JSON.parse(JSON.stringify(doc.sections || DEFAULT_SOLAR_STORE_CONTENT.sections));
+    if (sections && sections.hero && Array.isArray(sections.hero.slides)) {
+      sections.hero.slides = sections.hero.slides.map((s) => {
+        const slide = { ...s };
+        if (slide.cta1) {
+          slide.cta1 = { ...slide.cta1, href: '/shop' };
+        }
+        if (slide.cta2 && slide.cta2.label && /buy\s*now|calculate\s*savings/i.test(slide.cta2.label)) {
+          delete slide.cta2;
+        }
+        return slide;
+      });
+    }
+    if (sections && sections.footer) {
+      if (!sections.footer.floating_whatsapp) sections.footer.floating_whatsapp = {};
+      sections.footer.floating_whatsapp.number = '917777939842';
+      sections.footer.phone = '+91 77779 39842';
+    }
+
     return res.status(200).json({
       status: 'success',
-      data: doc.sections || DEFAULT_SOLAR_STORE_CONTENT.sections,
+      data: sections,
     });
   } catch (error) {
     console.error('get_public_solar_store_content error:', error);
@@ -1064,7 +1080,6 @@ exports.get_public_solar_store_content = async (req, res) => {
   }
 };
 
-// ── Public Endpoint for SolarKits Main Website Landing & Policies Content ─────
 exports.get_public_solarkits_content = async (req, res) => {
   try {
     let doc = await WebsiteContent.findOne({ website_key: 'solar-kits' }).lean();

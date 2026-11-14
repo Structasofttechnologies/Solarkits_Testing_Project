@@ -23,6 +23,8 @@ import EpcProfile from "./profile/EpcProfile";
 import EpcTeamUsers from "./users/EpcTeamUsers";
 import EpcQuotations from "./dashboard/EpcQuotations";
 import EpcQuoteDetail from "./dashboard/EpcQuoteDetail";
+import KnowledgeCenter from "./dashboard/KnowledgeCenter";
+import { FaGraduationCap } from "react-icons/fa";
 import {
   MdDashboard,
   MdShoppingCart,
@@ -72,6 +74,7 @@ export default function Board() {
     return [
       defaultGroup,
       [
+        { name: "Knowledge Center", icon: <FaGraduationCap />, path: "/knowledge-center", requiresAuth: true },
         { name: "Find Nearby Store", icon: <FaMapMarkerAlt />, path: "/store-locator" },
         { name: "Track Order Status", icon: <MdListAlt />, path: "/track-status", requiresAuth: true },
       ],
@@ -157,6 +160,9 @@ export default function Board() {
             <Route path="/bulk-buy" element={<ProtectedRoute><BulkBuy /></ProtectedRoute>} />
             <Route path="/request-order" element={<ProtectedRoute><BulkOrderCart /></ProtectedRoute>} />
             <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
+            <Route path="/knowledge-center" element={<ProtectedRoute><KnowledgeCenter /></ProtectedRoute>} />
+            <Route path="/how-to-use" element={<ProtectedRoute><KnowledgeCenter /></ProtectedRoute>} />
+            <Route path="/tutorials" element={<ProtectedRoute><KnowledgeCenter /></ProtectedRoute>} />
             <Route path="/store-locator" element={<StoreLocatorPage />} />
             <Route path="/find-store" element={<StoreLocatorPage />} />
             <Route path="/stores" element={<StoreLocatorPage />} />

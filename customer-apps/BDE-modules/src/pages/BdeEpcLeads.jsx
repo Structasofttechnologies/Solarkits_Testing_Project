@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { INDIAN_STATES_DISTRICTS } from '../data/territoryData';
 import {
   Users,
   Plus,
@@ -282,11 +283,35 @@ export default function BdeEpcLeads() {
   }, [epcTypes]);
 
   // Derive districts for the currently selected state in formData
-  const selectedStateTerritory = territories.find(
-    (t) => t.state_name?.toLowerCase() === formData.state_name?.toLowerCase()
-  ) || (territories.length === 1 ? territories[0] : null);
+  const availableDistricts = useMemo(() => {
+    const curState = (formData.state_name || '').trim();
+    if (!curState) return [];
 
-  const availableDistricts = selectedStateTerritory?.district_names || territory?.district_names || [];
+    // 1. Check if BDE assigned territory matches this state
+    const matched = territories.find(
+      (t) => t.state_name?.toLowerCase() === curState.toLowerCase()
+    );
+    if (matched && Array.isArray(matched.district_names) && matched.district_names.length > 0) {
+      return matched.district_names;
+    }
+
+    // 2. Check INDIAN_STATES_DISTRICTS master list for this state
+    const stateKey = Object.keys(INDIAN_STATES_DISTRICTS).find(
+      (k) => k.toLowerCase() === curState.toLowerCase()
+    );
+    if (stateKey && Array.isArray(INDIAN_STATES_DISTRICTS[stateKey]) && INDIAN_STATES_DISTRICTS[stateKey].length > 0) {
+      const list = [...INDIAN_STATES_DISTRICTS[stateKey]];
+      if (formData.district_name && !list.includes(formData.district_name)) {
+        list.unshift(formData.district_name);
+      }
+      return list;
+    }
+
+    if (formData.district_name) {
+      return [formData.district_name];
+    }
+    return [];
+  }, [formData.state_name, formData.district_name, territories]);
 
   // Derive districts and territories for bulkSettings
   const bulkSelectedStateTerritory = territories.find(
@@ -319,7 +344,11 @@ export default function BdeEpcLeads() {
 
   const handleStateSelect = (selectedState) => {
     const matchedTerritory = territories.find((t) => t.state_name === selectedState);
-    const firstDistrict = matchedTerritory?.district_names?.[0] || '';
+    let firstDistrict = matchedTerritory?.district_names?.[0] || '';
+    if (!firstDistrict) {
+      const stateKey = Object.keys(INDIAN_STATES_DISTRICTS).find((k) => k.toLowerCase() === selectedState?.toLowerCase());
+      firstDistrict = stateKey && INDIAN_STATES_DISTRICTS[stateKey]?.[0] ? INDIAN_STATES_DISTRICTS[stateKey][0] : '';
+    }
     setFormData((prev) => ({
       ...prev,
       state_name: selectedState,
@@ -759,14 +788,30 @@ export default function BdeEpcLeads() {
   const handleOpenEditModal = (lead) => {
     setEditLead(lead);
     setFormErrors({});
+    const leadState = lead.state_name || lead.state || (territories[0]?.state_name || '');
+    
+    // Resolve initial district from lead, or state's first district, NOT defaulting to another state's district
+    let initialDistrict = lead.district_name || lead.district || '';
+    if (!initialDistrict) {
+      const matched = territories.find((t) => t.state_name?.toLowerCase() === leadState.toLowerCase());
+      if (matched && matched.district_names?.[0]) {
+        initialDistrict = matched.district_names[0];
+      } else {
+        const stateKey = Object.keys(INDIAN_STATES_DISTRICTS).find((k) => k.toLowerCase() === leadState.toLowerCase());
+        if (stateKey && INDIAN_STATES_DISTRICTS[stateKey]?.[0]) {
+          initialDistrict = INDIAN_STATES_DISTRICTS[stateKey][0];
+        }
+      }
+    }
+
     setFormData({
       company_name: lead.company_name || '',
       contact_person: lead.contact_person || '',
       mobile_number: lead.mobile_number || '',
       email: lead.email || '',
       gst_number: lead.gst_number || '',
-      state_name: lead.state_name || (territories[0]?.state_name || ''),
-      district_name: lead.district_name || (territories[0]?.district_names?.[0] || ''),
+      state_name: leadState,
+      district_name: initialDistrict,
       pincode: lead.pincode || '',
       address_line: lead.address_line || '',
       lead_source: lead.lead_source || 'direct_visit',

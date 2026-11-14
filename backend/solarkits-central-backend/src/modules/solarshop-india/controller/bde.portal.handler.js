@@ -1329,6 +1329,31 @@ exports.list_epc_leads = async (req, res) => {
     const stateName = territory?.state_name;
     const districtNames = territory?.district_names || [];
 
+    // All active territory state names for this BDE
+    const bdeStates = [...new Set(territories.map((t) => t.state_name?.trim()).filter(Boolean))];
+
+    // Auto-unassign any leads assigned to this BDE whose state does not match BDE's territory (e.g. Uttar Pradesh leads assigned to a Gujarat BDE)
+    if (bdeStates.length > 0) {
+      const statePatterns = bdeStates.map((s) => new RegExp(`^${s}$`, 'i'));
+      await EPCLead.updateMany(
+        {
+          deleted_at: null,
+          $or: [{ current_bde_id: bdeId }, { assigned_bde_id: bdeId }],
+          state_name: { $nin: statePatterns, $ne: null },
+        },
+        {
+          $set: {
+            current_bde_id: null,
+            assigned_bde_id: null,
+            assigned_bde_name: null,
+            assigned_bde_phone: null,
+            assigned_at: null,
+            status: 'new',
+          },
+        }
+      ).catch((err) => console.warn('[Auto-unassign mismatch] Warning:', err.message));
+    }
+
     // Strictly scoped to leads belonging to this BDE
     const baseQuery = {
       deleted_at: null,
@@ -1337,6 +1362,12 @@ exports.list_epc_leads = async (req, res) => {
         { created_by_bde_id: bdeId },
       ],
     };
+
+    // Strictly restrict leads to BDE's assigned territory state(s)
+    if (bdeStates.length > 0) {
+      const statePatterns = bdeStates.map((s) => new RegExp(`^${s}$`, 'i'));
+      baseQuery.state_name = { $in: statePatterns };
+    }
 
     if (search && search.trim()) {
       const s = search.trim();
@@ -3502,15 +3533,25 @@ exports.assign_franchise_partner = async (req, res) => {
 exports.get_bde_onboarded_epcs = async (req, res) => {
   try {
     const bdeId = req.user.id;
-    const territory = await _getBdeTerritoryScope(bdeId);
+    const territories = await _getBdeTerritories(bdeId);
+    const territory = territories[0] || null;
     const stateName = territory?.state_name;
+    const districtNames = (territory?.district_names || []).map((d) => (typeof d === 'string' ? d : d.name)).filter(Boolean);
+
+    const orConditions = [
+      { onboarded_by_bde_id: bdeId },
+      { assigned_bde_id: bdeId },
+    ];
+    if (districtNames.length > 0) {
+      orConditions.push({ district_name: { $in: districtNames } });
+    }
+    if (stateName) {
+      orConditions.push({ state_name: new RegExp(`^${stateName}$`, 'i') });
+    }
 
     const query = {
       deleted_at: null,
-      $or: [
-        { onboarded_by_bde_id: bdeId },
-        { assigned_bde_id: bdeId },
-      ],
+      $or: orConditions,
     };
 
     let epcs = await EpcAccount.find(query)
@@ -3536,11 +3577,19 @@ exports.get_bde_onboarded_epcs = async (req, res) => {
 
     const defaultFranchisee = await Reseller.findOne({ deleted_at: null, is_operational: true }).lean();
 
-    const result = epcs.map((e) => {
-      const assignedFranchisee = relMap.get(e._id.toString()) || e.primary_reseller_id || e.onboarded_by_reseller_id || defaultFranchisee;
+    const seenIds = new Set();
+    const seenGstins = new Set();
+    const result = [];
+
+    epcs.forEach((e) => {
+      const idStr = e._id.toString();
+      seenIds.add(idStr);
+      if (e.gstin) seenGstins.add(e.gstin.trim().toUpperCase());
+
+      const assignedFranchisee = relMap.get(idStr) || e.primary_reseller_id || e.onboarded_by_reseller_id || defaultFranchisee;
       const companyName = e.gstin_trade_name || e.gstin_legal_name || e.name || 'EPC Solar Partner';
 
-      return {
+      result.push({
         _id: e._id,
         id: e._id,
         epc_id: e.epc_id || e._id,
@@ -3555,13 +3604,68 @@ exports.get_bde_onboarded_epcs = async (req, res) => {
         state: e.state_name || stateName || 'Gujarat',
         address: e.address || '',
         pincode: e.pincode || '',
-        status: e.status,
+        status: e.status || 'ACTIVE',
         onboarded_by_bde_id: e.onboarded_by_bde_id,
         assigned_franchisee_id: assignedFranchisee?._id || assignedFranchisee?.id || null,
         assigned_franchisee_name: assignedFranchisee?.business_name || assignedFranchisee?.name || 'Franchise Partner',
         assigned_franchisee_code: assignedFranchisee?.reseller_code || 'FR-N/A',
         assigned_franchisee: assignedFranchisee || null,
-      };
+      });
+    });
+
+    // 2. Also fetch all EPC Leads assigned to or created by this BDE (matching BDE territory state)
+    const bdeStates = [...new Set(territories.map((t) => t.state_name?.trim()).filter(Boolean))];
+    const leadQuery = {
+      deleted_at: null,
+      $or: [
+        { current_bde_id: bdeId },
+        { created_by_bde_id: bdeId },
+      ],
+    };
+    if (bdeStates.length > 0) {
+      leadQuery.state_name = { $in: bdeStates.map((s) => new RegExp(`^${s}$`, 'i')) };
+    }
+
+    const leads = await EPCLead.find(leadQuery)
+      .populate('assigned_franchisee_id', 'business_name reseller_code contact_person mobile address')
+      .sort({ created_at: -1 })
+      .lean();
+
+    leads.forEach((l) => {
+      const idStr = l._id.toString();
+      const cleanGst = l.gst_number ? l.gst_number.trim().toUpperCase() : null;
+      if (seenIds.has(idStr) || (cleanGst && seenGstins.has(cleanGst))) {
+        return; // Already added
+      }
+      seenIds.add(idStr);
+      if (cleanGst) seenGstins.add(cleanGst);
+
+      const assignedFranchisee = l.assigned_franchisee_id || defaultFranchisee;
+      const companyName = l.company_name || l.contact_person || 'EPC Partner';
+
+      result.push({
+        _id: l._id,
+        id: l._id,
+        epc_id: l.lead_id || l._id,
+        company_name: companyName,
+        name: l.contact_person || companyName,
+        contact_person: l.contact_person || companyName,
+        mobile: l.mobile_number || l.whatsapp_number || '',
+        phone: l.mobile_number || l.whatsapp_number || '',
+        email: l.email || '',
+        gstin: l.gst_number || '',
+        district: l.district_name || 'Regional',
+        state: l.state_name || stateName || 'Gujarat',
+        address: l.address || '',
+        pincode: l.pincode || '',
+        status: l.lead_status || 'Assigned',
+        onboarded_by_bde_id: l.created_by_bde_id || bdeId,
+        assigned_franchisee_id: assignedFranchisee?._id || assignedFranchisee?.id || null,
+        assigned_franchisee_name: assignedFranchisee?.business_name || assignedFranchisee?.name || 'Franchise Partner',
+        assigned_franchisee_code: assignedFranchisee?.reseller_code || 'FR-N/A',
+        assigned_franchisee: assignedFranchisee || null,
+        is_lead_source: true,
+      });
     });
 
     return res.status(200).json({ status: 'success', data: result });
@@ -4171,6 +4275,25 @@ exports.create_bde_po_order = async (req, res) => {
     let epcAccount = null;
     if (epc_id && mongoose.Types.ObjectId.isValid(epc_id)) {
       epcAccount = await EpcAccount.findById(epc_id).lean();
+      if (!epcAccount) {
+        const lead = await EPCLead.findById(epc_id).lean();
+        if (lead) {
+          epcAccount = {
+            _id: lead._id,
+            id: lead._id,
+            name: lead.contact_person || lead.company_name,
+            gstin_trade_name: lead.company_name,
+            gstin_legal_name: lead.company_name,
+            gstin: lead.gst_number || '',
+            mobile: lead.mobile_number || lead.whatsapp_number || '',
+            whatsapp: lead.whatsapp_number || lead.mobile_number || '',
+            email: lead.email || '',
+            district_name: lead.district_name || 'Regional',
+            state_name: lead.state_name || 'Gujarat',
+            primary_reseller_id: lead.assigned_franchisee_id || null,
+          };
+        }
+      }
     }
 
     // Optional Franchisee association (BDE creates PO for EPC on behalf of company)

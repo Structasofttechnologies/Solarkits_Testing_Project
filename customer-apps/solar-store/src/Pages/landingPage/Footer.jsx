@@ -44,6 +44,7 @@ export default function Footer({ footerConfig }) {
     name: "",
     phone: "",
     state_name: "",
+    gstin: "",
     pincode: "",
   });
   const [statesList, setStatesList] = useState([]);
@@ -76,7 +77,8 @@ export default function Footer({ footerConfig }) {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const finalVal = name === "gstin" ? value.toUpperCase() : value;
+    setFormData((prev) => ({ ...prev, [name]: finalVal }));
     if (errorMsg) setErrorMsg("");
   };
 
@@ -85,7 +87,7 @@ export default function Footer({ footerConfig }) {
     setErrorMsg("");
 
     if (!formData.name.trim()) {
-      setErrorMsg("Please enter your name or company name.");
+      setErrorMsg("Please enter your contractor or EPC company name.");
       return;
     }
     const cleanPhone = formData.phone.replace(/\D/g, "");
@@ -98,12 +100,25 @@ export default function Footer({ footerConfig }) {
       return;
     }
 
+    const cleanGst = (formData.gstin || "").trim().toUpperCase();
+    if (!cleanGst) {
+      setErrorMsg("Please enter your 15-digit GSTIN (GST Number).");
+      return;
+    }
+    if (cleanGst.length !== 15) {
+      setErrorMsg("GSTIN must be exactly 15 characters (e.g. 24AAAAA0000A1Z5).");
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = {
         name: formData.name.trim(),
+        company_name: formData.name.trim(),
         phone: cleanPhone.slice(-10),
         state_name: formData.state_name,
+        gst_number: cleanGst,
+        gstin: cleanGst,
         pincode: formData.pincode.trim() || undefined,
         estimated_quantity: formData.pincode.trim() || "Bulk Order (5+ Kits)",
         project_type: "Bulk Solar Combo Kits",
@@ -119,7 +134,7 @@ export default function Footer({ footerConfig }) {
 
       if (res.data?.success) {
         setSuccessData(res.data.data);
-        setFormData({ name: "", phone: "", state_name: "", pincode: "" });
+        setFormData({ name: "", phone: "", state_name: "", gstin: "", pincode: "" });
       } else {
         setErrorMsg(res.data?.message || "Failed to submit inquiry.");
       }
@@ -178,7 +193,7 @@ export default function Footer({ footerConfig }) {
                           Bulk Inquiry Received!
                         </h4>
                         <p className="mt-1 text-xs text-white/85 leading-relaxed">
-                          Thank you, <span className="font-semibold text-white">{successData.name}</span>! Your bulk request for <span className="font-semibold text-white">{successData.state_name}</span> has been logged under ID <span className="font-mono font-bold text-accent">{successData.lead_id}</span>.
+                          Thank you, <span className="font-semibold text-white">{successData.name}</span>! Your bulk request for <span className="font-semibold text-white">{successData.state_name}</span> {successData.gst_number && <>with GSTIN <span className="font-mono font-semibold text-white">{successData.gst_number}</span> </>}has been logged under ID <span className="font-mono font-bold text-accent">{successData.lead_id}</span>.
                         </p>
                         <p className="mt-2 text-[11px] text-white/70">
                           Our Regional Business Development Executive (BDE) will contact you shortly on <span className="font-mono text-white font-medium">+91 {successData.phone}</span> with wholesale pricing & kit availability.
@@ -265,10 +280,26 @@ export default function Footer({ footerConfig }) {
                         </select>
                       </div>
 
-                      {/* Pincode or Quantity */}
+                      {/* GSTIN Field */}
                       <div>
                         <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-1">
-                          Pincode / Bulk Quantity
+                          GSTIN (15-Digit GST Number) *
+                        </label>
+                        <input
+                          type="text"
+                          name="gstin"
+                          maxLength={15}
+                          value={formData.gstin}
+                          onChange={handleInputChange}
+                          placeholder="e.g. 24AAAAA0000A1Z5"
+                          className="w-full rounded-xl border border-white/25 bg-white px-3.5 py-2.5 text-xs text-navy outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-accent font-mono uppercase"
+                        />
+                      </div>
+
+                      {/* Pincode or Quantity (Optional) */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-1">
+                          Pincode / Bulk Quantity (Optional)
                         </label>
                         <input
                           type="text"

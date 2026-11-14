@@ -19,6 +19,7 @@ import {
   FiSend,
 } from 'react-icons/fi';
 import { authHeaderObj } from '../../../app/authHeader';
+import SendEpcWelcomeAccessModal from '../../../components/SendEpcWelcomeAccessModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -54,6 +55,8 @@ export default function WebsiteEpcLeads() {
   // Multi-Selection State
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
   const [targetBdeId, setTargetBdeId] = useState('');
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [selectedLeadForAccess, setSelectedLeadForAccess] = useState(null);
 
   // Show Toast
   const showToast = (message, type = 'success') => {
@@ -313,7 +316,7 @@ export default function WebsiteEpcLeads() {
               </option>
               {availableBdes.map((bde) => (
                 <option key={bde._id} value={bde._id} className="text-slate-900">
-                  {bde.full_name} ({bde.bde_id}) - {bde.mobile_number}
+                  {bde.full_name} ({bde.bde_id}) - {bde.state_names?.length > 0 ? bde.state_names.join(', ') : 'Unassigned State'}
                 </option>
               ))}
             </select>
@@ -511,8 +514,28 @@ export default function WebsiteEpcLeads() {
 
                       {/* Contractor / EPC Name & Phone */}
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900 dark:text-white text-xs">
-                          {lead.name}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-bold text-slate-900 dark:text-white text-xs">
+                            {lead.name}
+                          </span>
+                          {/* GST Status Badge as per Boss's rule */}
+                          {lead.gst_verification_status === 'verified_automatic' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                              ✓ Auto Verified (Database)
+                            </span>
+                          ) : (lead.gst_verification_status === 'verified_admin' || lead.status === 'converted' || lead.status === 'approved') && (lead.gst_number || lead.gstin) ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+                              ✓ Verified by Admin ({lead.gst_number || lead.gstin})
+                            </span>
+                          ) : (lead.gst_number || lead.gstin) ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                              ⏳ GST: {lead.gst_number || lead.gstin} (Verify on Approve)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                              ⚠️ GST at Checkout
+                            </span>
+                          )}
                         </div>
                         <div className="mt-1 flex items-center gap-2 text-xs">
                           <a
@@ -578,50 +601,130 @@ export default function WebsiteEpcLeads() {
 
                       {/* Status */}
                       <td className="py-3.5 px-4">
-                        <select
-                          value={lead.status}
-                          onChange={(e) => handleUpdateLead(lead._id, { status: e.target.value })}
-                          className={`rounded-lg px-2 py-1 text-[11px] font-bold outline-none border cursor-pointer ${
-                            lead.status === 'new'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
-                              : lead.status === 'assigned'
-                              ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
-                              : lead.status === 'contacted'
-                              ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800'
-                              : lead.status === 'converted'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                              : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400'
-                          }`}
-                        >
-                          <option value="new">New / Pending</option>
-                          <option value="assigned">Assigned</option>
-                          <option value="contacted">Contacted</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="converted">Converted ✅</option>
-                          <option value="rejected">Closed / Rejected</option>
-                        </select>
+                        {(() => {
+                          const isApproved = lead.status === 'converted' || lead.status === 'approved' || lead.status === 'onboarded';
+                          const hasBde = Boolean(lead.assigned_bde_id && (typeof lead.assigned_bde_id === 'object' ? lead.assigned_bde_id._id : lead.assigned_bde_id));
+
+                          if (isApproved) {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shadow-2xs whitespace-nowrap">
+                                ✓ Converted & Approved
+                              </span>
+                            );
+                          }
+
+                          if (hasBde) {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800 whitespace-nowrap">
+                                ⚡ BDE Assigned (Pending Approval)
+                              </span>
+                            );
+                          }
+
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 whitespace-nowrap">
+                              ⏳ New / Pending
+                            </span>
+                          );
+                        })()}
                       </td>
 
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right">
-                        <select
-                          value={lead.assigned_bde_id?._id || ''}
-                          onChange={(e) => {
-                            if (e.target.value === '') {
-                              handleUpdateLead(lead._id, { assigned_bde_id: 'unassign' });
-                            } else {
-                              handleUpdateLead(lead._id, { assigned_bde_id: e.target.value });
+                        <div className="flex items-center justify-end gap-2">
+                          {(() => {
+                            const isApproved = lead.status === 'converted' || lead.status === 'approved' || lead.status === 'onboarded';
+                            const hasBde = Boolean(lead.assigned_bde_id && (typeof lead.assigned_bde_id === 'object' ? lead.assigned_bde_id._id : lead.assigned_bde_id));
+
+                            const leadState = (lead.state_name || lead.state || '').trim().toLowerCase();
+                            const stateMatchedBdes = availableBdes.filter((bde) => {
+                              if (!leadState) return true;
+                              return (bde.state_names || []).some((s) => s.toLowerCase() === leadState);
+                            });
+
+                            // 1. STEP 1: If not approved yet -> ONLY show "✓ Approve EPC" button
+                            if (!isApproved) {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateLead(lead._id, { status: 'converted' })}
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-sm transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                                  title="Step 1: Approve this EPC Contractor"
+                                >
+                                  <span>✓ Approve EPC</span>
+                                </button>
+                              );
                             }
-                          }}
-                          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                        >
-                          <option value="">{lead.assigned_bde_id ? 'Change BDE' : '+ Assign BDE'}</option>
-                          {availableBdes.map((bde) => (
-                            <option key={bde._id} value={bde._id}>
-                              {bde.full_name} ({bde.bde_id})
-                            </option>
-                          ))}
-                        </select>
+
+                            // 2. STEP 2: If Approved, BUT BDE is not yet assigned -> ONLY show BDE Assign Dropdown
+                            if (isApproved && !hasBde) {
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2 py-1 rounded-md border border-amber-200 whitespace-nowrap">
+                                    Step 2: Assign BDE
+                                  </span>
+                                  <select
+                                    value=""
+                                    onChange={(e) => {
+                                      if (e.target.value) handleUpdateLead(lead._id, { assigned_bde_id: e.target.value });
+                                    }}
+                                    className="rounded-xl border-2 border-indigo-400 dark:border-indigo-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-300 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
+                                  >
+                                    <option value="">+ Assign BDE</option>
+                                    {stateMatchedBdes.map((bde) => (
+                                      <option key={bde._id} value={bde._id}>
+                                        {bde.full_name} ({bde.bde_id})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              );
+                            }
+
+                            // 3. STEP 3: If Approved AND BDE Assigned -> SHOW "Send Access" button!
+                            return (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedLeadForAccess({
+                                      company_name: lead.name,
+                                      name: lead.name,
+                                      email: lead.email || '',
+                                      whatsapp: lead.phone,
+                                      phone_number: lead.phone,
+                                      assigned_bde_name: lead.assigned_bde_name || lead.assigned_bde_id?.full_name,
+                                      assigned_bde_phone: lead.assigned_bde_phone || lead.assigned_bde_id?.mobile_number
+                                    });
+                                    setShowWelcomeModal(true);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 shadow-md shadow-emerald-600/25 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                                  title="Step 3: Send Welcome Login Access & PIN Setup"
+                                >
+                                  <FiSend className="text-xs" />
+                                  <span>Send Access</span>
+                                </button>
+
+                                <select
+                                  value={lead.assigned_bde_id?._id || ''}
+                                  onChange={(e) => {
+                                    if (e.target.value === 'unassign') handleUpdateLead(lead._id, { assigned_bde_id: 'unassign' });
+                                    else if (e.target.value) handleUpdateLead(lead._id, { assigned_bde_id: e.target.value });
+                                  }}
+                                  className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] text-slate-600 dark:text-slate-300 outline-none cursor-pointer"
+                                  title="Change BDE if needed"
+                                >
+                                  <option value={lead.assigned_bde_id?._id || ''}>Change BDE</option>
+                                  {stateMatchedBdes.map((bde) => (
+                                    <option key={bde._id} value={bde._id}>
+                                      {bde.full_name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -657,6 +760,12 @@ export default function WebsiteEpcLeads() {
           </div>
         )}
       </div>
+
+      <SendEpcWelcomeAccessModal
+        isOpen={showWelcomeModal}
+        onClose={() => setShowWelcomeModal(false)}
+        epc={selectedLeadForAccess}
+      />
     </div>
   );
 }

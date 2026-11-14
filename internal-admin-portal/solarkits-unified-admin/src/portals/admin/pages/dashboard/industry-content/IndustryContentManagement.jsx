@@ -228,6 +228,89 @@ export default function IndustryContentManagement() {
   const [relatedKitIds, setRelatedKitIds] = useState([]);
   const [kitSearchText, setKitSearchText] = useState("");
 
+  // Dynamically filter kits matching selected Industry and Territory
+  const filteredSolarKits = useMemo(() => {
+    return allSolarKits.filter((kit) => {
+      const kid = String(kit.id || kit._id);
+      const isChecked = relatedKitIds.includes(kid);
+
+      // Search text filter
+      if (kitSearchText.trim()) {
+        const q = kitSearchText.toLowerCase();
+        const kName = (kit.name || "").toLowerCase();
+        const catName = (kit.category_id?.name || kit.category || "").toLowerCase();
+        if (!kName.includes(q) && !catName.includes(q)) {
+          return false;
+        }
+      }
+
+      // If already linked/checked, keep visible
+      if (isChecked) return true;
+
+      // 1. Industry filtering
+      if (assignedIndustryIds && assignedIndustryIds.length > 0) {
+        const kitIndustryId = String(
+          kit.category_id?.industry_type_id?._id ||
+          kit.category_id?.industry_type_id ||
+          kit.industry_type_id ||
+          ""
+        );
+        const kitIndustryName = String(
+          kit.category_id?.industry_type_id?.name || ""
+        ).toLowerCase();
+
+        const matchesIndustry = assignedIndustryIds.some((selectedId) => {
+          if (String(selectedId) === kitIndustryId) return true;
+          const indObj = industries.find((i) => String(i._id || i.id) === String(selectedId));
+          if (indObj && kitIndustryName && indObj.name.toLowerCase() === kitIndustryName) {
+            return true;
+          }
+          return false;
+        });
+
+        if (!matchesIndustry) {
+          return false;
+        }
+      }
+
+      // 2. State & District filtering
+      if (!isAllStates && applicableStates && applicableStates.length > 0) {
+        const rawStates = kit.state_ids || kit.category_id?.state_ids || [];
+        const kitStateNames = rawStates.map((s) => {
+          if (typeof s === "string") return s.toLowerCase();
+          return (s.name || s._id || "").toString().toLowerCase();
+        });
+
+        if (kitStateNames.length > 0) {
+          const matchesState = applicableStates.some((selectedState) =>
+            kitStateNames.includes(String(selectedState).toLowerCase())
+          );
+          if (!matchesState) {
+            return false;
+          }
+        }
+
+        if (applicableDistricts && applicableDistricts.length > 0) {
+          const rawDistricts = kit.district_ids || kit.applicable_districts || [];
+          const kitDistrictNames = rawDistricts.map((d) => {
+            if (typeof d === "string") return d.toLowerCase();
+            return (d.name || d._id || "").toString().toLowerCase();
+          });
+          if (kitDistrictNames.length > 0) {
+            const matchesDistrict = applicableDistricts.some((selDist) =>
+              kitDistrictNames.includes(String(selDist).toLowerCase())
+            );
+            if (!matchesDistrict) {
+              return false;
+            }
+          }
+        }
+      }
+
+      return true;
+    });
+  }, [allSolarKits, relatedKitIds, kitSearchText, assignedIndustryIds, isAllStates, applicableStates, applicableDistricts, industries]);
+
   const showAlert = (type, message) => {
     setAlert({ type, message });
     setTimeout(() => setAlert(null), 4500);
@@ -1649,21 +1732,29 @@ export default function IndustryContentManagement() {
                       )}
                     </div>
 
+                    {/* Live Matching Summary */}
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-semibold px-1">
+                      <span>
+                        Showing {filteredSolarKits.length} of {allSolarKits.length} kits
+                        {assignedIndustryIds.length > 0 && ` • ${assignedIndustryIds.length} industry filtered`}
+                        {!isAllStates && applicableStates.length > 0 && ` • ${applicableStates.length} state(s)`}
+                      </span>
+                      {filteredSolarKits.length === 0 && allSolarKits.length > 0 && (
+                        <span className="text-amber-500 font-bold">No kits match current filters</span>
+                      )}
+                    </div>
+
                     {allSolarKits.length === 0 ? (
                       <p className="text-[11px] text-slate-500 py-2">
                         No product configuration kits loaded yet. Create kits in Product Configurations &gt; Solar Kits to link them here.
                       </p>
+                    ) : filteredSolarKits.length === 0 ? (
+                      <div className="p-3 text-center rounded-lg bg-amber-50/60 dark:bg-amber-900/10 border border-dashed border-amber-200 dark:border-amber-800 text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+                        No product configuration kits match the selected Industry & State/District filters.
+                      </div>
                     ) : (
                       <div className="max-h-44 overflow-y-auto space-y-1.5 p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
-                        {allSolarKits
-                          .filter((kit) => {
-                            if (!kitSearchText.trim()) return true;
-                            const q = kitSearchText.toLowerCase();
-                            const kName = (kit.name || "").toLowerCase();
-                            const catName = (kit.category_id?.name || kit.category || "").toLowerCase();
-                            return kName.includes(q) || catName.includes(q);
-                          })
-                          .map((kit) => {
+                        {filteredSolarKits.map((kit) => {
                             const kid = String(kit.id || kit._id);
                             const isChecked = relatedKitIds.includes(kid);
                             const catName = kit.category_id?.name || kit.category || "Solar Kit";

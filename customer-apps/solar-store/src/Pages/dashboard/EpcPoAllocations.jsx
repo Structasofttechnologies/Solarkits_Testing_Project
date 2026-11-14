@@ -760,7 +760,7 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
   useEffect(() => {
     const rawApiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
     const baseUrl = rawApiUrl.replace(/\/api\/?$/, "").replace(/\/+$/, "");
-    const userPhone = user?.whatsapp || user?.registered_whatsapp || user?.mobile || "9876543210";
+    const userPhone = user?.whatsapp || user?.registered_whatsapp || user?.mobile || "7777939842";
 
     fetch(`${baseUrl}/api/v1/payments/icici/van-details?phone=${userPhone}`)
       .then((res) => res.json())
@@ -2409,7 +2409,7 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
                     const totalKw = (reorderQty * kitCapacityKw).toFixed(1);
                     const totalWeightKg = (reorderQty * 75).toFixed(0);
 
-                    const userPhone = user?.whatsapp || user?.registered_whatsapp || user?.mobile || "9876543210";
+                    const userPhone = user?.whatsapp || user?.registered_whatsapp || user?.mobile || "7777939842";
                     const vanAccount = iciciVanDetails?.account_number || iciciVanDetails?.van_account_number || `SLRK${userPhone}`;
                     const vanIfsc = iciciVanDetails?.ifsc_code || "ICIC0000104";
 
@@ -2797,7 +2797,7 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
                                   <input
                                     type="text"
                                     required
-                                    placeholder="e.g. 9876543210"
+                                    placeholder="e.g. 7777939842"
                                     value={reorderAddress.contact_phone}
                                     onChange={(e) => setReorderAddress((prev) => ({ ...prev, contact_phone: e.target.value }))}
                                     className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs outline-none focus:border-primary"

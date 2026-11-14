@@ -80,6 +80,17 @@ const schema = new mongoose.Schema({
     default: '5+ Kits',
     trim: true,
   },
+  gst_number: {
+    type: String,
+    default: null,
+    trim: true,
+    uppercase: true,
+  },
+  gst_verification_status: {
+    type: String,
+    enum: ['verified_automatic', 'verified_admin', 'pending_admin', 'unverified'],
+    default: 'pending_admin',
+  },
   query_message: {
     type: String,
     default: null,

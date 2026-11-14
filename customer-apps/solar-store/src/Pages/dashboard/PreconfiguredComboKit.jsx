@@ -63,15 +63,14 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
   const urlIndustry = searchParams.get("industry") || searchParams.get("sector");
   const urlKitId = searchParams.get("kit") || searchParams.get("kit_id");
   const urlCategory = searchParams.get("category");
+  const urlCapacity = searchParams.get("kw") || searchParams.get("capacity");
+  const urlSearch = searchParams.get("search") || searchParams.get("q");
 
   const [filters, setFilters] = useState({
  
+    capacityKW: "all",
     industryType: urlIndustry || "all",
     category: urlCategory || "all",
- 
-    capacityKW: "all",
-    industryType: "all",
-    category: "all",
  
     subCategory: "all",
     systemType: "all",
@@ -104,7 +103,32 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
     if (urlCategory) {
       setFilters((prev) => ({ ...prev, category: urlCategory }));
     }
-  }, [urlIndustry, urlCategory]);
+    if (urlCapacity) {
+      const num = parseFloat(urlCapacity);
+      if (!isNaN(num)) {
+        setSelectedCapacity(num);
+        setFilters((prev) => ({ ...prev, capacityKW: String(num) }));
+      }
+    }
+    if (urlSearch) {
+      setSearchTerm(urlSearch);
+    }
+  }, [urlIndustry, urlCategory, urlCapacity, urlSearch]);
+
+  useEffect(() => {
+    if (urlCapacity && availableKits.length > 0 && !selected) {
+      const num = parseFloat(urlCapacity);
+      const match = availableKits.find((k) => {
+        const cap = parseFloat(k.capacityKW || k.system_capacity || k.capacity);
+        if (cap === num) return true;
+        const name = (k.name || "").toLowerCase();
+        return name.includes(num + " kw") || name.includes(num + "kw") || name.includes(num + " k.w.");
+      });
+      if (match) {
+        setSelected(String(match.id));
+      }
+    }
+  }, [urlCapacity, availableKits, selected]);
 
   useEffect(() => {
     if (urlKitId && availableKits.length > 0) {

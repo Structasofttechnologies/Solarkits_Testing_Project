@@ -80,7 +80,7 @@ export default function FaqContactSection({ onOpenLeadModal, faqConfig }) {
   const deskBadge = faqConfig?.consultation_desk?.badge_text || "Priority B2B Desk";
   const deskTitle = faqConfig?.consultation_desk?.title || "Request Partner Consultation";
   const deskSubtitle = faqConfig?.consultation_desk?.subtitle || "Have questions regarding state distribution or container pricing? Our team will call back within 2 hours.";
-  const whatsappNum = faqConfig?.consultation_desk?.whatsapp_number || "919876543210";
+  const whatsappNum = faqConfig?.consultation_desk?.whatsapp_number || "917777939842";
   const whatsappBtnText = faqConfig?.consultation_desk?.whatsapp_button_text || "Chat Directly on WhatsApp";
   const submitBtnText = faqConfig?.consultation_desk?.submit_button_text || "Request Callback Now →";
 
@@ -313,7 +313,7 @@ export default function FaqContactSection({ onOpenLeadModal, faqConfig }) {
                         pattern="[6-9][0-9]{9}"
                         value={formData.mobile}
                         onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                        placeholder="9876543210"
+                        placeholder="7777939842"
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-[#253880] shadow-xs"
                       />
                     </div>

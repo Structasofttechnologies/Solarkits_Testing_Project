@@ -8,6 +8,7 @@ const schema = new mongoose.Schema({
   registered_whatsapp: { type: String, default: null },
   is_registered_same_as_whatsapp: { type: Boolean, default: false },
   password_hash: { type: String, required: true },
+  security_pin: { type: String, default: null, trim: true },
   company_id: { type: mongoose.Schema.Types.ObjectId, ref: 'epc_companies', default: null },
   states: [{ type: mongoose.Schema.Types.ObjectId, ref: 'geolocation_level_1' }],
   districts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'geolocation_level_2' }],
@@ -21,8 +22,9 @@ const schema = new mongoose.Schema({
 
   // --- Phase 5: Reseller Onboarding Pipeline (backward-compatible) ---
   onboarded_by_reseller_id: { type: mongoose.Schema.Types.ObjectId, ref: 'resellers', default: null },
-  onboarding_source:        { type: String, enum: ['direct', 'reseller', 'bde'], default: 'direct' },
+  onboarding_source:        { type: String, enum: ['direct', 'reseller', 'bde', 'portal', 'lead', 'government', 'verified', 'database', 'website'], default: 'direct' },
   reseller_assigned_date:   { type: Date, default: null },
+  gst_verification_status:  { type: String, enum: ['verified_automatic', 'verified_admin', 'pending_admin', 'unverified'], default: 'unverified' },
 
   // --- BDE Onboarding & Attribution Pipeline ---
   onboarded_by_bde_id:      { type: mongoose.Schema.Types.ObjectId, ref: 'bde_profiles', default: null },
@@ -60,6 +62,7 @@ const schema = new mongoose.Schema({
 });
 
 schema.index({ gstin: 1 }, { sparse: true });
+schema.index({ security_pin: 1 }, { sparse: true });
 schema.index({ primary_reseller_id: 1, deleted_at: 1 });
 schema.index({ onboarded_by_reseller_id: 1, deleted_at: 1 });
 

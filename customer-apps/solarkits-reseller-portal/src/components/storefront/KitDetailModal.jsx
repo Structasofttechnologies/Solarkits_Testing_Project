@@ -45,7 +45,7 @@ export default function KitDetailModal({
     const text = encodeURIComponent(
       `Hello SolarKits,\nI would like full technical datasheet and dealer bulk quote for:\n*${kit.name}*\nCapacity: ${kit.capacityDisplay}\nPanel: ${kit.panelWattage}W (${kit.dcrStatus})\nSKU: ${kit.id}`
     );
-    window.open(`https://wa.me/919876543210?text=${text}`, "_blank");
+    window.open(`https://wa.me/917777939842?text=${text}`, "_blank");
   };
 
   return (

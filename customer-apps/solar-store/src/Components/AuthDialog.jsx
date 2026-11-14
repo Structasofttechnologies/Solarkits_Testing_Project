@@ -192,7 +192,7 @@ export default function AuthDialog() {
                   setEmailOrPhone(e.target.value);
                   if (errorMessage) setErrorMessage("");
                 }}
-                placeholder="customer@solarkits.com or 9876543210"
+                placeholder="customer@solarkits.com or 7777939842"
                 className="w-full pl-9 pr-3 py-2.5 text-xs bg-surface-hover dark:bg-slate-800/80 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-text-primary transition-all"
                 autoFocus
               />

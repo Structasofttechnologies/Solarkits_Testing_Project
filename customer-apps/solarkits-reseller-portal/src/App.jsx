@@ -23,6 +23,7 @@ import EpcQuotes from "./pages/EpcQuotes";
 import CreateEpcQuote from "./pages/CreateEpcQuote";
 import EpcQuoteDetail from "./pages/EpcQuoteDetail";
 import EpcQuoteFollowupList from "./pages/EpcQuoteFollowupList";
+import KnowledgeCenter from "./pages/KnowledgeCenter";
 
 export default function App() {
   return (
@@ -65,6 +66,8 @@ export default function App() {
           <Route path='/epc-quotes/create' element={<CreateEpcQuote />} />
           <Route path='/epc-quotes/:id' element={<EpcQuoteDetail />} />
           <Route path='/epc-quote-followups' element={<EpcQuoteFollowupList />} />
+          <Route path='/knowledge-center' element={<KnowledgeCenter />} />
+          <Route path='/how-to-use' element={<KnowledgeCenter />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

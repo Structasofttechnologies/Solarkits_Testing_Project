@@ -126,7 +126,16 @@ export default function Navbar() {
     }
 
     if (href.startsWith("http://") || href.startsWith("https://")) {
-      window.open(href, "_blank", "noopener,noreferrer");
+      let targetHref = href;
+      const isLocal = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+      if (isLocal) {
+        if (href.includes("store.solarkits.in")) {
+          targetHref = import.meta.env.VITE_STORE_URL || "http://localhost:5179";
+        } else if (href.includes("franchise.solarkits.in")) {
+          targetHref = import.meta.env.VITE_FRANCHISE_URL || "http://localhost:5178";
+        }
+      }
+      window.open(targetHref, "_blank", "noopener,noreferrer");
       return;
     }
 
