@@ -686,14 +686,41 @@ exports.get_bde_dashboard = async (req, res) => {
     });
 
     // PO & Kit orders in territory
-    const fpoOrders = await FpoOrder.find({
-      reseller_id: { $in: franchiseeIds },
-      status: { $nin: ['CANCELLED', 'EXPIRED'] },
-    }).lean();
+    const dashboardFpoFilters = [
+      { created_by: new mongoose.Types.ObjectId(bdeId) },
+      { created_by_role: 'BDE' },
+    ];
+    if (franchiseeIds.length > 0) {
+      dashboardFpoFilters.push({ reseller_id: { $in: franchiseeIds } });
+      dashboardFpoFilters.push({ franchisee_id: { $in: franchiseeIds } });
+    }
+    if (stateNames.length > 0) {
+      dashboardFpoFilters.push({ 'customer_details.state': { $in: stateNames.map((s) => new RegExp(`^${s}$`, 'i')) } });
+      dashboardFpoFilters.push({ 'delivery_address.state_name': { $in: stateNames.map((s) => new RegExp(`^${s}$`, 'i')) } });
+    }
 
-    const totalOrdersCount = fpoOrders.length;
+    const [fpoOrders, epcOrders] = await Promise.all([
+      FpoOrder.find({
+        $or: dashboardFpoFilters,
+        status: { $nin: ['CANCELLED', 'EXPIRED'] },
+      }).lean(),
+      EpcOrder.find({
+        $or: [
+          ...(franchiseeIds.length > 0 ? [{ reseller_id: { $in: franchiseeIds } }] : []),
+          ...(stateNames.length > 0 ? [{ 'delivery_address.state_name': { $in: stateNames.map((s) => new RegExp(`^${s}$`, 'i')) } }] : [])
+        ],
+        order_status: { $nin: ['cancelled', 'rejected'] }
+      }).lean().catch(() => [])
+    ]);
+
+    const totalOrdersCount = fpoOrders.length + epcOrders.length;
     let totalKitsOrdered = 0;
     fpoOrders.forEach((order) => {
+      (order.items || []).forEach((item) => {
+        totalKitsOrdered += Number(item.quantity || 0);
+      });
+    });
+    epcOrders.forEach((order) => {
       (order.items || []).forEach((item) => {
         totalKitsOrdered += Number(item.quantity || 0);
       });
@@ -706,7 +733,7 @@ exports.get_bde_dashboard = async (req, res) => {
           (f) => f.address?.district_name && f.address.district_name.toLowerCase().trim() === dName.toLowerCase().trim()
         );
 
-        const [dLeads, dOnboarded, dOrders] = await Promise.all([
+        const [dLeads, dOnboarded, dFpoOrders, dEpcOrders] = await Promise.all([
           EPCLead.countDocuments({
             deleted_at: null,
             district_name: new RegExp(`^${dName}$`, 'i'),
@@ -717,13 +744,26 @@ exports.get_bde_dashboard = async (req, res) => {
             lead_status: { $in: ['Onboarded', 'Assigned to Franchisee'] },
           }),
           FpoOrder.find({
-            reseller_id: { $in: dFranchisees.map(f => f._id) },
+            $or: [
+              { 'customer_details.district': new RegExp(`^${dName}$`, 'i') },
+              { 'delivery_address.district_name': new RegExp(`^${dName}$`, 'i') },
+              ...(dFranchisees.length > 0 ? [{ reseller_id: { $in: dFranchisees.map(f => f._id) } }, { franchisee_id: { $in: dFranchisees.map(f => f._id) } }] : [])
+            ],
             status: { $nin: ['CANCELLED', 'EXPIRED'] },
-          }).lean(),
+          }).lean().catch(() => []),
+          EpcOrder.find({
+            'delivery_address.district_name': new RegExp(`^${dName}$`, 'i'),
+            order_status: { $nin: ['cancelled', 'rejected'] }
+          }).lean().catch(() => [])
         ]);
 
         let dKits = 0;
-        dOrders.forEach((o) => {
+        (dFpoOrders || []).forEach((o) => {
+          (o.items || []).forEach((item) => {
+            dKits += Number(item.quantity || 0);
+          });
+        });
+        (dEpcOrders || []).forEach((o) => {
           (o.items || []).forEach((item) => {
             dKits += Number(item.quantity || 0);
           });
@@ -2648,7 +2688,20 @@ exports.get_territory_order_history = async (req, res) => {
     const fIds = franchisees.map((f) => f._id);
 
     // 1. Franchisee FPO Orders
-    const matchQuery = { reseller_id: { $in: fIds } };
+    const fpoOrFilters = [
+      { created_by: new mongoose.Types.ObjectId(bdeId) },
+      { 'status_history.changed_by': new mongoose.Types.ObjectId(bdeId) },
+      { created_by_role: 'BDE' },
+    ];
+    if (fIds.length > 0) {
+      fpoOrFilters.push({ reseller_id: { $in: fIds } });
+      fpoOrFilters.push({ franchisee_id: { $in: fIds } });
+    }
+    if (stateName) {
+      fpoOrFilters.push({ 'customer_details.state': new RegExp('^' + stateName + '$', 'i') });
+      fpoOrFilters.push({ 'delivery_address.state_name': new RegExp('^' + stateName + '$', 'i') });
+    }
+    const matchQuery = { $or: fpoOrFilters };
     if (status && status !== 'all') matchQuery.status = status.toUpperCase();
 
     if (month && year) {
@@ -2698,24 +2751,27 @@ exports.get_territory_order_history = async (req, res) => {
 
     // Map Franchisee Orders
     fpoOrders.forEach((o) => {
-      const f = fMap[o.reseller_id?.toString()] || {};
+      const f = fMap[o.franchisee_id?.toString()] || fMap[o.reseller_id?.toString()] || {};
+      const fName = f.business_name || o.customer_details?.company_name || o.customer_details?.name || 'Franchise Partner';
+      const fCode = f.reseller_code || (o.franchisee_id ? 'FP-' + o.franchisee_id.toString().slice(-4).toUpperCase() : 'BDE-PO');
+      const fDistrict = f.address?.district_name || o.customer_details?.district || 'Regional';
       (o.items || []).forEach((item) => {
         flattened.push({
           order_id: o._id,
           po_number: o.po_number || ('PO-' + o._id.toString().slice(-6).toUpperCase()),
-          order_date: o.createdAt,
-          franchisee_name: f.business_name || 'Partner',
-          franchisee_code: f.reseller_code || 'RS-N/A',
-          district: f.address?.district_name || 'Regional',
+          order_date: o.createdAt || o.created_at,
+          franchisee_name: fName,
+          franchisee_code: fCode,
+          district: fDistrict,
           item_name: item.item_name || 'Standard Combo Kit',
           kit_type: item.item_name || 'Standard Combo Kit',
           project_type: item.project_type_name || 'Residential On-Grid',
-          capacity: item.capacity_kw || (item.item_name?.match(/(\d+(\.\d+)?)\s*kW/i) ? item.item_name.match(/(\d+(\.\d+)?)\s*kW/i)[0] : '2.2 kW'),
+          capacity: item.capacity_kw || (item.item_name?.match(/(\d+(\.\d+)?)\s*k\.?w\.?/i) ? item.item_name.match(/(\d+(\.\d+)?)\s*k\.?w\.?/i)[0] : '1 kW'),
           quantity: item.quantity,
           unit_price: (item.unit_price_paise || 0) / 100,
           order_value: (item.total_price_paise || 0) / 100,
           order_status: o.status,
-          epc_source: o.epc_id ? 'EPC Buyer Network' : 'Direct Stock',
+          epc_source: o.is_token_booking ? 'Franchisee Token PO' : (o.epc_id ? 'EPC Buyer Network' : 'Franchisee PO'),
         });
       });
     });
@@ -2804,22 +2860,29 @@ exports.get_kit_sales_analytics = async (req, res) => {
     });
 
     // 2. Query both Franchisee Orders (FpoOrder) and Direct EPC Orders (EpcOrder)
-    const fpoQuery = { status: { $nin: ['CANCELLED', 'EXPIRED'] } };
+    const fpoOrFilters = [
+      { created_by: new mongoose.Types.ObjectId(bdeId) },
+      { 'status_history.changed_by': new mongoose.Types.ObjectId(bdeId) },
+      { created_by_role: 'BDE' },
+    ];
+    if (fIds.length > 0) {
+      fpoOrFilters.push({ reseller_id: { $in: fIds } });
+      fpoOrFilters.push({ franchisee_id: { $in: fIds } });
+    }
+    if (stateName) {
+      fpoOrFilters.push({ 'customer_details.state': new RegExp('^' + stateName + '$', 'i') });
+      fpoOrFilters.push({ 'delivery_address.state_name': new RegExp('^' + stateName + '$', 'i') });
+    }
+
+    const fpoQuery = {
+      $or: fpoOrFilters,
+      status: { $nin: ['CANCELLED', 'EXPIRED'] },
+    };
     if (franchisee_id && franchisee_id !== 'all') {
-      fpoQuery.reseller_id = franchisee_id;
-    } else if (fIds.length > 0) {
-      fpoQuery.$or = [{ reseller_id: { $in: fIds } }, { bde_id: bdeId }, { reseller_id: null }];
-    } else {
-      fpoQuery.$or = [{ bde_id: bdeId }, { reseller_id: null }];
+      fpoQuery.$and = [{ $or: [{ reseller_id: franchisee_id }, { franchisee_id }] }];
     }
     if (district_name && district_name !== 'all') {
-      // Filter by district if specified
-      const districtFranchisees = franchisees.filter(
-        (f) => f.address?.district_name && f.address.district_name.toLowerCase() === district_name.toLowerCase()
-      );
-      if (districtFranchisees.length > 0) {
-        fpoQuery.reseller_id = { $in: districtFranchisees.map((f) => f._id) };
-      }
+      fpoQuery['customer_details.district'] = new RegExp(`^${district_name}$`, 'i');
     }
     if (month && year) {
       const start = new Date(Number(year), Number(month) - 1, 1);
