@@ -123,6 +123,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
   const [selectedDistrict, setSelectedDistrict] = useState(null);
 
   const [boundaries, setBoundaries] = useState([]);
+  const [districtCenter, setDistrictCenter] = useState(null);
   const [loadingBoundaries, setLoadingBoundaries] = useState(false);
   const [allWarehousesInDistrict, setAllWarehousesInDistrict] = useState([]);
 
@@ -137,6 +138,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
   const fetchDistrictBoundary = useCallback(async (districtObj) => {
     if (!districtObj) {
       setBoundaries([]);
+      setDistrictCenter(null);
       return;
     }
 
@@ -163,18 +165,36 @@ export default function AddWarehouse({ moduleUniqueId }) {
         { headers: { ...authHeaderObj() } }
       );
 
-      if (res.data.district?.geometry) {
+      const dist = res.data.district;
+
+      if (dist?.geometry?.coordinates?.length > 0) {
         setBoundaries([{
           id: districtObj.value || districtObj.id,
           level: 'district',
-          geometry: res.data.district.geometry
+          geometry: dist.geometry
         }]);
       } else {
         setBoundaries([]);
       }
+
+      // Set district center for automatic map zoom & address fetching
+      setDistrictCenter({
+        lat: dist?.lat || 0,
+        lng: dist?.lng || 0,
+        name: districtName,
+        state: stateName,
+        country: countryName
+      });
     } catch (err) {
       console.error("Failed to load district boundary", err);
       setBoundaries([]);
+      setDistrictCenter({
+        lat: 0,
+        lng: 0,
+        name: districtObj.name || districtObj.text,
+        state: statesList.find(s => s.value === selectedState)?.name,
+        country: countriesList.find(c => c.value === selectedCountry)?.name
+      });
     } finally {
       setLoadingBoundaries(false);
     }
@@ -356,7 +376,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
       ...prev,
       lat: mapData.lat,
       lng: mapData.lng,
-      address: mapData.address || prev.address,
+      address: mapData.address || prev.address || (districtName ? `${districtName}, ${stateName}, ${countryName}` : ""),
       pincode: mapData.pincode || prev.pincode,
       country: countryName,
       state: stateName,
@@ -409,8 +429,11 @@ export default function AddWarehouse({ moduleUniqueId }) {
       return;
     }
 
+    const resolvedAddress = data.address?.trim() || `${districtName}, ${stateName}, ${countryName}`;
+
     const payload = {
       ...data,
+      address: resolvedAddress,
       country: countryName,
       state: stateName,
       district: districtName
@@ -674,7 +697,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
                     </div>
                     <Button
                       onClick={() => {
-                        setData(prev => ({ ...prev, lat: "", lng: "", address: "", country: "", state: "", district: "", pincode: "" }));
+                        setData(prev => ({ ...prev, lat: "", lng: "", address: "", pincode: "" }));
                       }}
                       variant="ghost"
                       size="sm"
@@ -765,6 +788,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
                   mode="full"
                   onSelect={handleMapSelect}
                   boundaries={boundaries}
+                  districtCenter={districtCenter}
                   existingWarehouses={allWarehousesInDistrict}
                   currentWarehouseId={warehouseId}
                   onLocationError={(msg) => {
@@ -839,10 +863,10 @@ export default function AddWarehouse({ moduleUniqueId }) {
                   <div className="space-y-4">
                     <CustomInput
                       type="textarea"
-                      label="Address"
+                      label="Address *"
                       value={data.address}
-                      disabled
-                      placeholder="Address will be auto-filled from map selection"
+                      onChange={(e) => setData(prev => ({ ...prev, address: e.target.value }))}
+                      placeholder="Auto-filled from map selection (or enter exact plot/shed details)"
                     />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -871,8 +895,8 @@ export default function AddWarehouse({ moduleUniqueId }) {
                       <CustomInput
                         label="Postal Code"
                         value={data.pincode}
-                        disabled
-                        placeholder="Select on map"
+                        onChange={(e) => setData(prev => ({ ...prev, pincode: e.target.value }))}
+                        placeholder="Auto-filled from map (or enter)"
                       />
                     </div>
                   </div>
