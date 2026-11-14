@@ -137,24 +137,26 @@ const seedCMS = async () => {
   const defaultAdminUsers = [
     {
       name: 'Super Admin',
-      email: (process.env.SUPER_ADMIN_EMAIL || 'rahil.sunnovative@gmail.com').toLowerCase().trim(),
+      email: (process.env.SUPER_ADMIN_EMAIL || 'ravi.s@sunnovative.com').toLowerCase().trim(),
       phone: process.env.SUPER_ADMIN_PHONE || '9913421453',
+      passcode: '4404',
     },
     {
       name: 'Accountant',
       email: 'sushilpiprotar@gmail.com',
       phone: '9876543211',
+      passcode: '1234',
     },
     {
       name: 'Account Manager',
       email: 'rahil@solarkits.com',
       phone: '9876543212',
+      passcode: '1234',
     },
   ];
 
-  const defaultPasscodeHash = await bcrypt.hash('1234', 10);
-
   for (const admin of defaultAdminUsers) {
+    const adminPasscodeHash = await bcrypt.hash(admin.passcode || '1234', 10);
     const exists = await CmsUser.findOne({ email: admin.email });
     if (!exists) {
       await CmsUser.create({
@@ -164,7 +166,7 @@ const seedCMS = async () => {
         phone: admin.phone,
         parent_user_id: null,
         role_id: superAdminRole._id,
-        passcode: defaultPasscodeHash,
+        passcode: adminPasscodeHash,
         is_verified: true,
         is_system: true,
         is_protected: true,
@@ -180,7 +182,7 @@ const seedCMS = async () => {
         is_protected: true
       };
       if (!exists.passcode) {
-        updateData.passcode = defaultPasscodeHash;
+        updateData.passcode = adminPasscodeHash;
       }
       await CmsUser.findByIdAndUpdate(exists._id, { $set: updateData });
       console.log(`  ✓ Verified & updated admin account: ${admin.email}`);
@@ -228,14 +230,14 @@ const seedCMS = async () => {
   const accountPanel = await CmsPanel.findOne({ url_prefix: '/account-panel', is_deleted: false });
   if (accountPanel && clusterLevel) {
     const accModules = [
-      { name: 'Accounts Dashboard',         unique_code: 'ACC_HOME' },
-      { name: 'E-Way Bill Management',       unique_code: 'ACC_EWAY' },
+      { name: 'Accounts Dashboard', unique_code: 'ACC_HOME' },
+      { name: 'E-Way Bill Management', unique_code: 'ACC_EWAY' },
       { name: 'Customer Invoice Management', unique_code: 'ACC_INVOICES' },
-      { name: 'Inventory Inward Invoices',   unique_code: 'ACC_INWARD_INV' },
-      { name: 'Supplier Registry',           unique_code: 'ACC_SUPPLIERS' },
-      { name: 'Purchase Orders',             unique_code: 'ACC_PO' },
-      { name: 'Supplier Payments',           unique_code: 'ACC_PAYMENTS' },
-      { name: 'Completed Deliveries',        unique_code: 'ACC_DELIVERIES' }
+      { name: 'Inventory Inward Invoices', unique_code: 'ACC_INWARD_INV' },
+      { name: 'Supplier Registry', unique_code: 'ACC_SUPPLIERS' },
+      { name: 'Purchase Orders', unique_code: 'ACC_PO' },
+      { name: 'Supplier Payments', unique_code: 'ACC_PAYMENTS' },
+      { name: 'Completed Deliveries', unique_code: 'ACC_DELIVERIES' }
     ];
 
     const accBulkOps = accModules.map((m) => ({
@@ -272,7 +274,7 @@ const seedCMS = async () => {
   if (opsPanel && clusterLevel) {
     // Upsert parent groups first
     const groups = [
-      { name: 'Order Operations',       unique_code: 'OP_OPS_GROUP' },
+      { name: 'Order Operations', unique_code: 'OP_OPS_GROUP' },
       { name: 'Intelligence & Reports', unique_code: 'OP_INTEL_GROUP' }
     ];
 
@@ -304,13 +306,13 @@ const seedCMS = async () => {
     }
 
     const opsModules = [
-      { name: 'Dashboard',             unique_code: 'OP_HOME',           parentCode: null },
-      { name: 'Order Fulfillment',      unique_code: 'OP_FULFILLMENT',    parentCode: 'OP_OPS_GROUP' },
-      { name: 'Stock Transfer Mgmt',    unique_code: 'OP_STOCK_TRANSFER', parentCode: 'OP_OPS_GROUP' },
-      { name: 'Supplier Procurement',   unique_code: 'OP_PROCUREMENT',    parentCode: 'OP_OPS_GROUP' },
-      { name: 'Warehouse Stock Report', unique_code: 'OP_WH_STOCK',       parentCode: 'OP_OPS_GROUP' },
-      { name: 'Analytics Suite',        unique_code: 'OP_ANALYTICS',      parentCode: 'OP_INTEL_GROUP' },
-      { name: 'Demand Prediction AI',   unique_code: 'OP_PREDICTION',     parentCode: 'OP_INTEL_GROUP' }
+      { name: 'Dashboard', unique_code: 'OP_HOME', parentCode: null },
+      { name: 'Order Fulfillment', unique_code: 'OP_FULFILLMENT', parentCode: 'OP_OPS_GROUP' },
+      { name: 'Stock Transfer Mgmt', unique_code: 'OP_STOCK_TRANSFER', parentCode: 'OP_OPS_GROUP' },
+      { name: 'Supplier Procurement', unique_code: 'OP_PROCUREMENT', parentCode: 'OP_OPS_GROUP' },
+      { name: 'Warehouse Stock Report', unique_code: 'OP_WH_STOCK', parentCode: 'OP_OPS_GROUP' },
+      { name: 'Analytics Suite', unique_code: 'OP_ANALYTICS', parentCode: 'OP_INTEL_GROUP' },
+      { name: 'Demand Prediction AI', unique_code: 'OP_PREDICTION', parentCode: 'OP_INTEL_GROUP' }
     ];
 
     const opsBulkOps = opsModules.map((m) => ({

@@ -17,12 +17,23 @@ import {
   UserCheck,
 } from 'lucide-react';
 
+// 🔒 Only show demo credentials on localhost — never on live domains
+const isLocalhost = Boolean(
+  typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname === '[::1]' ||
+    window.location.hostname.endsWith('.localhost')
+  ) &&
+  !window.location.hostname.includes('solarkits.in')
+);
+
 export default function BdeLogin() {
   const { login } = useBdeAuth();
   const navigate = useNavigate();
 
   // Identifier state
-  const [identifier, setIdentifier] = useState('rahul.bde@solarkits.com');
+  const [identifier, setIdentifier] = useState(isLocalhost ? 'rahul.bde@solarkits.com' : '');
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -97,34 +108,36 @@ export default function BdeLogin() {
           </p>
         </div>
 
-        {/* Demo Credentials Quick-Select Pill Bar */}
-        <div className="p-3 bg-blue-50/80 border border-blue-100 rounded-2xl space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-[#F49222]" />
-              Auto-filled Demo Credentials
-            </span>
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-              Ready to Login
-            </span>
-          </div>
+        {/* Demo Credentials Quick-Select Pill Bar — localhost only */}
+        {isLocalhost && (
+          <div className="p-3 bg-blue-50/80 border border-blue-100 rounded-2xl space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-[#F49222]" />
+                Auto-filled Demo Credentials
+              </span>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                Ready to Login
+              </span>
+            </div>
 
-          <div className="flex flex-wrap gap-1.5 pt-0.5">
-            {DEMO_ACCOUNTS.map((acc, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => handleFillDemo(acc)}
-                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all ${identifier === acc.identifier
-                  ? 'bg-[#0575B8] text-white shadow-xs'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-                  }`}
-              >
-                {acc.label}
-              </button>
-            ))}
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {DEMO_ACCOUNTS.map((acc, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleFillDemo(acc)}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all ${identifier === acc.identifier
+                    ? 'bg-[#0575B8] text-white shadow-xs'
+                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                >
+                  {acc.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Error Alert */}
         {error && (
