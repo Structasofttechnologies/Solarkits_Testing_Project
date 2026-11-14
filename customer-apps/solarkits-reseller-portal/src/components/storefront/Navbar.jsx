@@ -41,7 +41,7 @@ export default function Navbar({ onOpenLeadModal }) {
   ];
 
   const handleWhatsApp = () => {
-    window.open("https://wa.me/919876543210?text=Hello%20SolarKits,%20I%20am%20interested%20in%20Solarkits%20and%20Franchise.", "_blank");
+    window.open("https://wa.me/917777939842?text=Hello%20SolarKits,%20I%20am%20interested%20in%20Solarkits%20and%20Franchise.", "_blank");
   };
 
   return (

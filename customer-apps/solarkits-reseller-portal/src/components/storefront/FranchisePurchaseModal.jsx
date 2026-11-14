@@ -824,7 +824,7 @@ export default function FranchisePurchaseModal({
                             type="tel"
                             maxLength={10}
                             disabled={mobileOtpSent}
-                            placeholder="e.g. 9876543210"
+                            placeholder="e.g. 7777939842"
                             value={form.mobile}
                             onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, "") })}
                             className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#253880] shadow-xs disabled:bg-slate-100"

@@ -1,39 +1,59 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiChevronLeft, FiChevronRight, FiPause, FiPlay } from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight, FiPause, FiPlay, FiArrowRight } from "react-icons/fi";
 
-// Local authentic real-life solar project photographs (bundled locally via Vite - zero black screen & instant loading)
-import solarImg1 from "../../assets/images/solar_project_1.jpg";
-import solarImg2 from "../../assets/images/solar_project_2.jpg";
-import solarImg3 from "../../assets/images/solar_project_3.jpg";
-import solarImg4 from "../../assets/images/solar_project_4.jpg";
-import solarImg5 from "../../assets/images/solar_project_5.jpg";
+// Option C High-Definition B2B Solar Kit & Franchise Carousel Banners
+import slide1kW from "../../assets/images/solarkits_slide_1kw.png";
+import slide2kW from "../../assets/images/solarkits_slide_2kw.png";
+import slide3kW from "../../assets/images/solarkits_slide_3kw.png";
+import bannerMaster from "../../assets/images/solarkits_banner_1_2_3kw.png";
+import slideFranchise from "../../assets/images/solarkits_slide_franchise.png";
 
 const SOLAR_IMAGES = [
   {
     id: 1,
-    url: solarImg1,
-    alt: "Real Commercial Solar Panels Installation",
+    url: slide1kW,
+    alt: "1 kW On-Grid DCR Solar Kit with 500W Panels & BOSkit Box - SolarKits",
+    title: "1 kW DCR Solar Combo Kit",
+    buttonLabel: "BUY 1 kW KIT NOW",
+    kw: 1,
+    isFranchise: false,
   },
   {
     id: 2,
-    url: solarImg2,
-    alt: "Real Industrial Rooftop Solar Array",
+    url: slide2kW,
+    alt: "2 kW On-Grid DCR Solar Kit with 500W Panels & Smart Inverter - SolarKits",
+    title: "2 kW DCR Solar Combo Kit",
+    buttonLabel: "BUY 2 kW KIT NOW",
+    kw: 2,
+    isFranchise: false,
   },
   {
     id: 3,
-    url: solarImg3,
-    alt: "Real Ground Mounted Solar Power Plant",
+    url: slide3kW,
+    alt: "3 kW On-Grid DCR Solar Kit with 500W Modules & Wi-Fi Inverter - SolarKits",
+    title: "3 kW DCR Solar Combo Kit",
+    buttonLabel: "BUY 3 kW KIT NOW",
+    kw: 3,
+    isFranchise: false,
   },
   {
     id: 4,
-    url: solarImg4,
-    alt: "Real Agricultural Solar Panel Field",
+    url: bannerMaster,
+    alt: "Complete 1kW | 2kW | 3kW On-Grid DCR Solar Kits - SolarKits",
+    title: "1kW, 2kW, 3kW Combo Packages",
+    buttonLabel: "BUY SOLAR KITS NOW",
+    kw: null,
+    isFranchise: false,
   },
   {
     id: 5,
-    url: solarImg5,
-    alt: "Real Utility Solar Infrastructure Project",
+    url: slideFranchise,
+    alt: "Become a SolarKits Franchisee - Regional Distribution Partnership",
+    title: "Regional Franchisee Program",
+    buttonLabel: "BECOME A FRANCHISEE",
+    kw: null,
+    isFranchise: true,
   },
 ];
 
@@ -48,7 +68,7 @@ export default function HeroSection() {
 
   // Preload all local images on component mount for zero latency
   useEffect(() => {
-    [solarImg1, solarImg2, solarImg3, solarImg4, solarImg5].forEach((src) => {
+    [slide1kW, slide2kW, slide3kW, bannerMaster, slideFranchise].forEach((src) => {
       const img = new Image();
       img.src = src;
     });
@@ -64,6 +84,24 @@ export default function HeroSection() {
 
   const handleSelectSlide = (idx) => {
     setCurrentIndex(idx);
+  };
+
+  // Direct Store / Franchisee Redirection
+  const handleCtaClick = () => {
+    const current = SOLAR_IMAGES[currentIndex];
+    const isLocal = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+    const storeBase = import.meta.env.VITE_STORE_URL || (isLocal ? "http://localhost:5179" : "https://store.solarkits.in");
+    const franchiseBase = import.meta.env.VITE_FRANCHISE_URL || (isLocal ? "http://localhost:5178" : "https://franchise.solarkits.in");
+
+    if (current.isFranchise) {
+      window.open(franchiseBase, "_blank", "noopener,noreferrer");
+    } else if (current.kw) {
+      // Direct redirect to specific kW kit in Solar Store
+      window.open(`${storeBase}/shop?kw=${current.kw}`, "_blank", "noopener,noreferrer");
+    } else {
+      // Direct redirect to B2B Storefront where Franchisees & EPCs can buy kits directly
+      window.open(`${storeBase}/shop`, "_blank", "noopener,noreferrer");
+    }
   };
 
   // Autoplay Effect
@@ -110,10 +148,13 @@ export default function HeroSection() {
       onMouseLeave={() => setIsPlaying(true)}
       style={{
         width: "100%",
-        height: "100vh",
+        height: "calc(100vh - 74px)",
+        minHeight: "480px",
+        maxHeight: "720px",
+        marginTop: "74px", // Navbar offset so banner starts cleanly below the fixed header
         position: "relative",
         overflow: "hidden",
-        backgroundColor: "#0f172a",
+        backgroundColor: "#081430",
       }}
     >
       {/* Background Image Base Layer (Guarantees no black screen) */}
@@ -126,8 +167,8 @@ export default function HeroSection() {
           left: 0,
           width: "100%",
           height: "100%",
-          objectFit: "cover",
-          filter: "brightness(0.9)",
+          objectFit: "contain",
+          objectPosition: "center",
         }}
       />
 
@@ -138,34 +179,64 @@ export default function HeroSection() {
             key={SOLAR_IMAGES[currentIndex].id}
             src={SOLAR_IMAGES[currentIndex].url}
             alt={SOLAR_IMAGES[currentIndex].alt}
-            initial={{ opacity: 0, scale: 1.03 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.8, ease: "easeInOut" }}
+            transition={{ duration: 0.6, ease: "easeInOut" }}
             style={{
               position: "absolute",
               top: 0,
               left: 0,
               width: "100%",
               height: "100%",
-              objectFit: "cover",
+              objectFit: "contain",
+              objectPosition: "center",
               display: "block",
             }}
           />
         </AnimatePresence>
       </div>
 
-      {/* Subtle Vignette & Gradient Depth Overlay */}
+      {/* Real Interactive Action Button (Single Clean Working CTA) */}
       <div
         style={{
           position: "absolute",
-          inset: 0,
-          background:
-            "radial-gradient(circle at center, transparent 40%, rgba(15,23,42,0.3) 100%), linear-gradient(to bottom, rgba(15,23,42,0.2) 0%, transparent 25%, transparent 75%, rgba(15,23,42,0.5) 100%)",
-          pointerEvents: "none",
-          zIndex: 2,
+          left: "max(28px, calc(50% - 690px))",
+          bottom: "44px",
+          zIndex: 15,
+          display: "flex",
+          alignItems: "center",
         }}
-      />
+      >
+        <motion.button
+          onClick={handleCtaClick}
+          whileHover={{ scale: 1.05, boxShadow: "0 10px 25px rgba(244, 146, 34, 0.45)" }}
+          whileTap={{ scale: 0.96 }}
+          style={{
+            padding: "14px 30px",
+            background: SOLAR_IMAGES[currentIndex].isFranchise
+              ? "linear-gradient(135deg, #10B981 0%, #059669 100%)"
+              : "linear-gradient(135deg, #F49222 0%, #E07D10 100%)",
+            color: SOLAR_IMAGES[currentIndex].isFranchise ? "#ffffff" : "#0a1428",
+            borderRadius: "10px",
+            fontSize: "1rem",
+            fontWeight: 800,
+            cursor: "pointer",
+            border: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "10px",
+            boxShadow: SOLAR_IMAGES[currentIndex].isFranchise
+              ? "0 6px 20px rgba(16, 185, 129, 0.35)"
+              : "0 6px 20px rgba(244, 146, 34, 0.35)",
+            fontFamily: "inherit",
+            letterSpacing: "0.4px",
+          }}
+        >
+          <span>{SOLAR_IMAGES[currentIndex].buttonLabel}</span>
+          <FiArrowRight style={{ strokeWidth: 2.8 }} />
+        </motion.button>
+      </div>
 
       {/* Floating Glassmorphic Left Arrow Button */}
       <button
@@ -243,18 +314,18 @@ export default function HeroSection() {
       <div
         style={{
           position: "absolute",
-          bottom: "32px",
+          bottom: "24px",
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 10,
-          background: "rgba(15, 23, 42, 0.55)",
+          background: "rgba(15, 23, 42, 0.65)",
           backdropFilter: "blur(16px)",
           border: "1px solid rgba(255, 255, 255, 0.2)",
           borderRadius: "50px",
-          padding: "10px 24px",
+          padding: "8px 22px",
           display: "flex",
           alignItems: "center",
-          gap: "18px",
+          gap: "16px",
           boxShadow: "0 10px 30px rgba(0, 0, 0, 0.4)",
         }}
       >
@@ -286,7 +357,7 @@ export default function HeroSection() {
                 width: idx === currentIndex ? "32px" : "12px",
                 height: "12px",
                 borderRadius: "6px",
-                background: idx === currentIndex ? "#ffffff" : "rgba(255, 255, 255, 0.35)",
+                background: idx === currentIndex ? "#F49222" : "rgba(255, 255, 255, 0.35)",
                 border: "none",
                 cursor: "pointer",
                 transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -317,8 +388,8 @@ export default function HeroSection() {
             transition={{ duration: AUTOPLAY_DURATION / 1000, ease: "linear" }}
             style={{
               height: "100%",
-              background: "#3b82f6",
-              boxShadow: "0 0 10px #3b82f6",
+              background: "#F49222",
+              boxShadow: "0 0 10px #F49222",
             }}
           />
         </div>

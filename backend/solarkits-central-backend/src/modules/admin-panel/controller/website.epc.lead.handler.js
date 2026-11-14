@@ -9,7 +9,8 @@
  */
 
 const mongoose = require('mongoose');
-const { WebsiteEpcLead, BDEProfile, BDENotification } = require('../models/india_solarshop_db');
+const { WebsiteEpcLead, BDEProfile, BDENotification, BDETerritoryAssignment, EpcAccount } = require('../models/india_solarshop_db');
+const bcrypt = require('bcrypt');
 const { sendAdminNotification } = require('../services/admin.notification.service');
 const { GeoLevel1 } = require('../models/geolocation_db');
 
@@ -46,6 +47,8 @@ exports.submit_website_lead = async (req, res) => {
       estimated_quantity,
       query_message,
       project_type,
+      gst_number,
+      gstin,
     } = req.body;
 
     // Validation
@@ -77,6 +80,7 @@ exports.submit_website_lead = async (req, res) => {
 
     const leadId = await generateLeadId();
     const trimmedName = name.trim();
+    const finalGst = (gst_number || gstin) ? String(gst_number || gstin).trim().toUpperCase() : null;
 
     const newLead = await WebsiteEpcLead.create({
       lead_id: leadId,
@@ -97,6 +101,8 @@ exports.submit_website_lead = async (req, res) => {
       lead_status: 'New',
       lead_source: 'portal',
       source: 'solar-store-bulk-banner',
+      gst_number: finalGst,
+      gst_verification_status: finalGst ? 'pending_admin' : 'unverified',
     });
 
     // Real-time notification to Admin bell icon
@@ -309,14 +315,44 @@ exports.list_website_leads = async (req, res) => {
     // Distinct states in leads for quick filter dropdown
     const availableStates = await WebsiteEpcLead.distinct('state_name', { deleted_at: null });
 
-    // Active BDEs for assignment dropdown
-    const availableBdes = await BDEProfile.find({
+    // Active BDEs for assignment dropdown with active territory assignments
+    const rawBdes = await BDEProfile.find({
       status: { $ne: 'inactive' },
       deleted_at: null,
     })
       .select('_id bde_id full_name mobile_number email')
       .sort({ full_name: 1 })
       .lean();
+
+    const bdeIds = rawBdes.map((b) => b._id);
+    const territories = await BDETerritoryAssignment.find({
+      bde_id: { $in: bdeIds },
+      status: 'active',
+    }).lean();
+
+    const territoryMap = new Map();
+    territories.forEach((t) => {
+      const bId = t.bde_id.toString();
+      if (!territoryMap.has(bId)) territoryMap.set(bId, []);
+      territoryMap.get(bId).push({
+        state_id: t.state_id,
+        state_name: t.state_name,
+        district_names: t.district_names || [],
+      });
+    });
+
+    const availableBdes = rawBdes.map((b) => {
+      const bTerritories = territoryMap.get(b._id.toString()) || [];
+      const stateNames = [...new Set(bTerritories.map((t) => t.state_name).filter(Boolean))];
+      const districtNames = [...new Set(bTerritories.flatMap((t) => t.district_names || []).filter(Boolean))];
+      return {
+        ...b,
+        territories: bTerritories,
+        state_names: stateNames,
+        district_names: districtNames,
+        display_label: `${b.full_name} (${b.bde_id}) - ${stateNames.length > 0 ? stateNames.join(', ') : 'No Territory Assigned'}`,
+      };
+    });
 
     return res.json({
       success: true,
@@ -374,6 +410,29 @@ exports.bulk_assign_leads = async (req, res) => {
       }
       return { lead_id: id };
     });
+
+    // Verify BDE active territory matches the leads' states
+    const bdeTerritories = await BDETerritoryAssignment.find({
+      bde_id: bde._id,
+      status: 'active',
+    }).lean();
+    const bdeStates = [...new Set(bdeTerritories.map((t) => t.state_name?.trim().toLowerCase()).filter(Boolean))];
+
+    if (bdeStates.length > 0 && !req.body.override_territory) {
+      const leadsToAssign = await WebsiteEpcLead.find({ $or: idFilters, deleted_at: null }).lean();
+      const mismatchedLeads = leadsToAssign.filter((l) => {
+        const leadState = (l.state_name || l.state || '').trim().toLowerCase();
+        return leadState && !bdeStates.includes(leadState);
+      });
+
+      if (mismatchedLeads.length > 0) {
+        const mismatchNames = [...new Set(mismatchedLeads.map((l) => l.state_name || l.state))];
+        return res.status(400).json({
+          success: false,
+          message: `Territory Mismatch: BDE ${bde.full_name} is assigned to ${bdeStates.map(s => s.toUpperCase()).join(', ')}, but ${mismatchedLeads.length} selected lead(s) are from ${mismatchNames.join(', ')}. Please select a BDE covering that state.`,
+        });
+      }
+    }
 
     const result = await WebsiteEpcLead.updateMany(
       { $or: idFilters, deleted_at: null },
@@ -458,13 +517,88 @@ exports.update_lead = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Lead not found.' });
     }
 
-    if (status) lead.status = status;
+    if (status) {
+      lead.status = (status === 'approved' || status === 'converted') ? 'converted' : status;
+      if (status === 'approved' || status === 'converted') {
+        lead.lead_status = 'Converted';
+        try {
+          const cleanPhone = String(lead.phone || '').replace(/\D/g, '').slice(-10);
+          const epcEmail = (lead.email && lead.email.trim() && !lead.email.includes('@lead.solarkits.in'))
+            ? lead.email.trim().toLowerCase()
+            : `${cleanPhone}@epc.solarkits.in`;
+
+          if (EpcAccount) {
+            let existingAccount = await EpcAccount.findOne({
+              $or: [
+                { email: epcEmail },
+                { whatsapp: cleanPhone }
+              ],
+              deleted_at: null
+            });
+
+            if (!existingAccount) {
+              const defaultPassword = cleanPhone.slice(-4) || '1234';
+              const passwordHash = await bcrypt.hash(defaultPassword, 10);
+              const leadGst = lead.gst_number ? String(lead.gst_number).trim().toUpperCase() : null;
+              lead.gst_verification_status = leadGst ? 'verified_admin' : 'unverified';
+              const createdAcc = await EpcAccount.create({
+                name: lead.name,
+                company_name: lead.company_name || lead.name,
+                email: epcEmail,
+                whatsapp: cleanPhone,
+                password_hash: passwordHash,
+                status: 'approved',
+                onboarding_source: 'website',
+                gstin: leadGst,
+                is_gstin_active: Boolean(leadGst),
+                gst_verification_status: leadGst ? 'verified_admin' : 'unverified',
+                state_name: lead.state_name,
+                district_name: lead.district_name,
+                pincode: lead.pincode,
+                is_whatsapp_verified: true,
+                is_email_verified: Boolean(lead.email && !lead.email.includes('@lead.solarkits.in'))
+              });
+              console.log(`Auto-created approved EpcAccount for lead: ${lead.name} (${epcEmail})`);
+            } else {
+              existingAccount.status = 'approved';
+              const leadGstExisting = lead.gst_number ? String(lead.gst_number).trim().toUpperCase() : null;
+              if (leadGstExisting) {
+                existingAccount.gstin = leadGstExisting;
+                existingAccount.is_gstin_active = true;
+                existingAccount.gst_verification_status = 'verified_admin';
+                lead.gst_verification_status = 'verified_admin';
+              }
+              await existingAccount.save();
+              console.log(`Updated existing EpcAccount status to approved for lead: ${lead.name}`);
+            }
+          }
+        } catch (accErr) {
+          console.warn('Auto-create EpcAccount error on lead approval:', accErr.message);
+        }
+      }
+    }
     if (remarks !== undefined) lead.remarks = remarks;
 
     if (assigned_bde_id) {
       if (mongoose.Types.ObjectId.isValid(assigned_bde_id)) {
         const bde = await BDEProfile.findById(assigned_bde_id);
         if (bde) {
+          // Check state territory match
+          const leadState = (lead.state_name || lead.state || '').trim().toLowerCase();
+          if (leadState && !req.body.override_territory) {
+            const bdeTerritories = await BDETerritoryAssignment.find({
+              bde_id: bde._id,
+              status: 'active',
+            }).lean();
+            const bdeStates = [...new Set(bdeTerritories.map((t) => t.state_name?.trim().toLowerCase()).filter(Boolean))];
+            if (bdeStates.length > 0 && !bdeStates.includes(leadState)) {
+              return res.status(400).json({
+                success: false,
+                message: `Territory Mismatch: BDE ${bde.full_name} is assigned to ${bdeStates.map(s => s.toUpperCase()).join(', ')}, but this lead is from ${lead.state_name || lead.state}. Please choose a BDE covering ${lead.state_name || lead.state}.`,
+              });
+            }
+          }
+
           lead.assigned_bde_id = bde._id;
           lead.assigned_bde_name = bde.full_name;
           lead.assigned_bde_phone = bde.mobile_number;

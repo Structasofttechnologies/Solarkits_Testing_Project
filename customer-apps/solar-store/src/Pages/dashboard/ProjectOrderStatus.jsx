@@ -391,13 +391,13 @@ export default function ProjectOrderStatus() {
     }
 
     // 3. Fetch ICICI Virtual Account (VAN) details
-    const userPhone = order.delivery_address?.contact_phone || order.buyer_phone || user?.whatsapp || user?.mobile || "9876543210";
+    const userPhone = order.delivery_address?.contact_phone || order.buyer_phone || user?.whatsapp || user?.mobile || "7777939842";
     const cleanPhone = String(userPhone).replace(/\D/g, "");
     setVanLoading(true);
     try {
       const rawApiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
       const baseUrl = rawApiUrl.replace(/\/api\/?$/, "").replace(/\/+$/, "");
-      const res = await fetch(`${baseUrl}/api/v1/payments/icici/van-details?phone=${cleanPhone || "9876543210"}`);
+      const res = await fetch(`${baseUrl}/api/v1/payments/icici/van-details?phone=${cleanPhone || "7777939842"}`);
       const d = await res.json();
       if (d?.success && d.data) {
         setIciciVanDetails(d.data);
@@ -2852,12 +2852,12 @@ export default function ProjectOrderStatus() {
                         Your Unique Virtual Account No. (VAN)
                       </span>
                       <span className="font-mono font-black text-[#264baa] dark:text-blue-200 text-base tracking-wider">
-                        {iciciVanDetails?.virtual_account_number || `SLRK${(milestonePaymentModalOrder.delivery_address?.contact_phone || user?.whatsapp || '9876543210').slice(-10)}`}
+                        {iciciVanDetails?.virtual_account_number || `SLRK${(milestonePaymentModalOrder.delivery_address?.contact_phone || user?.whatsapp || '7777939842').slice(-10)}`}
                       </span>
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleCopyModalText(iciciVanDetails?.virtual_account_number || `SLRK${(milestonePaymentModalOrder.delivery_address?.contact_phone || user?.whatsapp || '9876543210').slice(-10)}`, "modal_van")}
+                      onClick={() => handleCopyModalText(iciciVanDetails?.virtual_account_number || `SLRK${(milestonePaymentModalOrder.delivery_address?.contact_phone || user?.whatsapp || '7777939842').slice(-10)}`, "modal_van")}
                       className="px-2.5 py-1.5 bg-[#264baa] hover:bg-[#1f3f91] text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition-all cursor-pointer"
                     >
                       {copiedModalField === "modal_van" ? <FaCheck size={11} /> : <FaCopy size={11} />}
@@ -2885,13 +2885,13 @@ export default function ProjectOrderStatus() {
                     <div className="bg-surface p-2.5 rounded-xl border border-border flex justify-between items-center">
                       <div>
                         <span className="text-text-muted text-[10px] block font-medium">UPI ID</span>
-                        <span className="font-mono font-bold text-text-primary dark:text-white text-xs truncate max-w-[130px]" title={iciciVanDetails?.upi_handle || `SLRK${(milestonePaymentModalOrder.delivery_address?.contact_phone || user?.whatsapp || '9876543210').slice(-10)}@icici`}>
-                          {iciciVanDetails?.upi_handle || `SLRK${(milestonePaymentModalOrder.delivery_address?.contact_phone || user?.whatsapp || '9876543210').slice(-10)}@icici`}
+                        <span className="font-mono font-bold text-text-primary dark:text-white text-xs truncate max-w-[130px]" title={iciciVanDetails?.upi_handle || `SLRK${(milestonePaymentModalOrder.delivery_address?.contact_phone || user?.whatsapp || '7777939842').slice(-10)}@icici`}>
+                          {iciciVanDetails?.upi_handle || `SLRK${(milestonePaymentModalOrder.delivery_address?.contact_phone || user?.whatsapp || '7777939842').slice(-10)}@icici`}
                         </span>
                       </div>
                       <button
                         type="button"
-                        onClick={() => handleCopyModalText(iciciVanDetails?.upi_handle || `SLRK${(milestonePaymentModalOrder.delivery_address?.contact_phone || user?.whatsapp || '9876543210').slice(-10)}@icici`, "modal_upi")}
+                        onClick={() => handleCopyModalText(iciciVanDetails?.upi_handle || `SLRK${(milestonePaymentModalOrder.delivery_address?.contact_phone || user?.whatsapp || '7777939842').slice(-10)}@icici`, "modal_upi")}
                         className="p-1 text-text-secondary hover:text-[#264baa] transition-colors cursor-pointer"
                       >
                         {copiedModalField === "modal_upi" ? <FaCheck className="text-emerald-500" size={11} /> : <FaCopy size={11} />}

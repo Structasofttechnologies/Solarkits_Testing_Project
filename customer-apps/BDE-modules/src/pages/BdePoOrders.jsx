@@ -1195,36 +1195,22 @@ export default function BdePoOrders() {
           };
         });
     } else {
-      if (allocateSingleTarget === 'single_epc') {
-        if (!allocateSingleEpcId) {
-          setAllocateError('Please select an onboarded EPC Partner, or switch to Warehouse Stock.');
-          return;
-        }
-        const buyer = combinedEpcList.find((b) => (b._id || b.id)?.toString() === allocateSingleEpcId?.toString());
-        epcList = [
-          {
-            epc_buyer_id: allocateSingleEpcId,
-            company_name: buyer?.company_name || buyer?.name || 'EPC Partner',
-            buyer_name: buyer?.buyer_name || buyer?.name || 'EPC Partner',
-            gstin: buyer?.gstin || null,
-            allocated_quantity: totalCommitted,
-            token_amount_paise: poTotalTokenPaise,
-            payment_status: (allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? 'PAID' : 'PENDING',
-          },
-        ];
-      } else {
-        epcList = [
-          {
-            epc_buyer_id: null,
-            company_name: 'Franchise Warehouse Stock',
-            buyer_name: 'Warehouse Stock',
-            gstin: null,
-            allocated_quantity: totalCommitted,
-            token_amount_paise: poTotalTokenPaise,
-            payment_status: (allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? 'PAID' : 'PENDING',
-          },
-        ];
+      if (!allocateSingleEpcId) {
+        setAllocateError('Please select an onboarded EPC Partner.');
+        return;
       }
+      const buyer = combinedEpcList.find((b) => (b._id || b.id)?.toString() === allocateSingleEpcId?.toString());
+      epcList = [
+        {
+          epc_buyer_id: allocateSingleEpcId,
+          company_name: buyer?.company_name || buyer?.name || 'EPC Partner',
+          buyer_name: buyer?.buyer_name || buyer?.name || 'EPC Partner',
+          gstin: buyer?.gstin || null,
+          allocated_quantity: totalCommitted,
+          token_amount_paise: poTotalTokenPaise,
+          payment_status: (allocatingOrder.token_paid_paise >= poTotalTokenPaise && poTotalTokenPaise > 0) ? 'PAID' : 'PENDING',
+        },
+      ];
     }
 
     const allocGstRate = allocatingOrder.items?.[0]?.gst_rate != null
@@ -1249,11 +1235,6 @@ export default function BdePoOrders() {
       if (res.data?.status === 'success') {
         setAllocateModal(false);
         await fetchOrders(true);
-        // Automatically open Stage 3 Token Modal
-        const updated = res.data.data;
-        if (updated) {
-          handleOpenTokenModal(updated);
-        }
       } else {
         setAllocateError(res.data?.message || 'Failed to allocate EPC to PO.');
       }
@@ -1825,16 +1806,6 @@ export default function BdePoOrders() {
                           </button>
                         )}
 
-                        {/* Pay Token */}
-                        {!isTokenPaid && (
-                          <button
-                            onClick={() => handleOpenTokenModal(order)}
-                            className="px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-lg transition"
-                          >
-                            Pay Token
-                          </button>
-                        )}
-
                         {/* Validate PO */}
                         {isTokenPaid && order.status !== 'VALIDATED' && (
                           <button
@@ -2023,15 +1994,6 @@ export default function BdePoOrders() {
                         className="px-3 py-1.5 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-xl transition"
                       >
                         Allocate EPC
-                      </button>
-                    )}
-
-                    {!isTokenPaid && (
-                      <button
-                        onClick={() => handleOpenTokenModal(order)}
-                        className="px-3 py-1.5 text-xs font-bold text-blue-800 bg-blue-100 hover:bg-blue-200 rounded-xl transition"
-                      >
-                        Pay Token
                       </button>
                     )}
 
@@ -2717,63 +2679,25 @@ export default function BdePoOrders() {
               {/* Single PO Allocation */}
               {allocatingOrder.po_category !== 'COMBINE_PO' ? (
                 <div className="space-y-4">
-                  <label className="block text-xs font-bold uppercase text-slate-700">
-                    Assign Quota Destination
-                  </label>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setAllocateSingleTarget('single_epc')}
-                      className={`p-3.5 rounded-xl border text-left transition ${allocateSingleTarget === 'single_epc'
-                        ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/20'
-                        : 'border-slate-200 hover:bg-slate-50'
-                        }`}
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-slate-700 mb-1.5">
+                      Choose EPC Partner <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={allocateSingleEpcId}
+                      onChange={(e) => setAllocateSingleEpcId(e.target.value)}
+                      required
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-slate-900">Onboarded EPC Partner</span>
-                        {allocateSingleTarget === 'single_epc' && <Check className="w-4 h-4 text-blue-600" />}
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1">Assign to an authorized EPC contractor.</p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setAllocateSingleTarget('warehouse')}
-                      className={`p-3.5 rounded-xl border text-left transition ${allocateSingleTarget === 'warehouse'
-                        ? 'border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/20'
-                        : 'border-slate-200 hover:bg-slate-50'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-slate-900">Franchise Warehouse Stock</span>
-                        {allocateSingleTarget === 'warehouse' && <Check className="w-4 h-4 text-blue-600" />}
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1">Keep stock in Franchise Hub.</p>
-                    </button>
+                      <option value="">-- Select EPC Partner --</option>
+                      {combinedEpcList.map((buyer) => (
+                        <option key={buyer._id || buyer.id} value={buyer._id || buyer.id}>
+                          {buyer.company_name || buyer.name} • GSTIN: {buyer.gstin || 'Unregistered'} (
+                          {buyer.district || 'Regional'})
+                        </option>
+                      ))}
+                    </select>
                   </div>
-
-                  {allocateSingleTarget === 'single_epc' && (
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-700 mb-1.5">
-                        Choose EPC Partner <span className="text-rose-500">*</span>
-                      </label>
-                      <select
-                        value={allocateSingleEpcId}
-                        onChange={(e) => setAllocateSingleEpcId(e.target.value)}
-                        required
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">-- Select EPC Partner --</option>
-                        {combinedEpcList.map((buyer) => (
-                          <option key={buyer._id || buyer.id} value={buyer._id || buyer.id}>
-                            {buyer.company_name || buyer.name} • GSTIN: {buyer.gstin || 'Unregistered'} (
-                            {buyer.district || 'Regional'})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
                 </div>
               ) : (
                 /* Combine PO Multi-EPC Distribution Table */
@@ -2850,7 +2774,7 @@ export default function BdePoOrders() {
                 <button
                   type="submit"
                   disabled={allocateSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-amber-600/25 transition flex items-center gap-2"
+                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-blue-600/25 transition flex items-center gap-2"
                 >
                   {allocateSubmitting ? (
                     <>
@@ -2859,8 +2783,8 @@ export default function BdePoOrders() {
                     </>
                   ) : (
                     <>
-                      <span>Confirm Allocation &amp; Proceed to Token Payment</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <span>Confirm Allocation to EPC Partner</span>
+                      <Check className="w-4 h-4" />
                     </>
                   )}
                 </button>
@@ -3059,43 +2983,98 @@ export default function BdePoOrders() {
                 </div>
               )}
 
-              {/* Quota balance info */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between text-xs">
-                <div>
-                  <div className="text-slate-400 text-[10px] font-bold uppercase">Locked Quota Remaining</div>
-                  <div className="font-extrabold text-base text-slate-900 mt-0.5">
-                    {reorderOrder.remaining_quantity != null ? reorderOrder.remaining_quantity : 100} Kits Available
+              {/* Complete PO & Allocation Details */}
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                {/* EPC Partner Details */}
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="text-[10px] text-slate-400 uppercase font-bold">Onboarded EPC Partner</div>
+                  <div className="font-bold text-slate-900 mt-0.5 truncate">
+                    {reorderOrder.items?.[0]?.epc_allocations?.[0]?.company_name ||
+                      reorderOrder.customer_details?.company_name ||
+                      reorderOrder.customer_details?.name ||
+                      'EPC Partner'}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    GSTIN: {reorderOrder.items?.[0]?.epc_allocations?.[0]?.gstin || reorderOrder.customer_details?.gstin || 'Unregistered'}
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    {reorderOrder.items?.[0]?.item_name || 'ComboKit Blueprint'}
+                    {reorderOrder.customer_details?.district || 'Regional'}, {reorderOrder.customer_details?.state || 'Gujarat'}
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded">
-                    Price: ₹{((reorderOrder.items?.[0]?.unit_price_paise || 0) / 100).toLocaleString('en-IN')}/kit
-                  </span>
+
+                {/* Franchisee Store Details */}
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="text-[10px] text-slate-400 uppercase font-bold">Franchisee Store Hub</div>
+                  <div className="font-bold text-slate-900 mt-0.5 truncate">
+                    {reorderOrder.franchisee_id?.business_name || reorderOrder.customer_details?.franchisee_name || 'SolarKits Central Hub'}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Code: {reorderOrder.franchisee_id?.reseller_code || 'FR-CENTRAL'}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Status: <span className="text-emerald-600 font-bold">Active Store</span>
+                  </div>
                 </div>
               </div>
 
+              {/* Quota Balance & Blueprint Specs */}
+              {(() => {
+                const reorderItem = reorderOrder.items?.[0] || {};
+                const totalCommitted = Number(reorderOrder.target_committed_quantity || reorderOrder.total_booked_quantity || reorderItem.quantity || 100);
+                const remaining = reorderOrder.remaining_quantity != null ? reorderOrder.remaining_quantity : totalCommitted;
+                const fulfilled = Math.max(0, totalCommitted - remaining);
+                const unitPriceInr = (reorderItem.unit_price_paise || 0) / 100;
+                const totalTokenInr = Number(reorderOrder.token_amount_paise || reorderOrder.token_paid_paise || 0) / 100;
+                const tokenPerKit = totalCommitted > 0 ? Math.round(totalTokenInr / totalCommitted) : 0;
+
+                return (
+                  <div className="p-4 bg-indigo-50/60 border border-indigo-200 rounded-2xl text-xs space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] text-indigo-700 uppercase font-bold">ComboKit Blueprint</span>
+                        <div className="font-extrabold text-sm text-slate-900 mt-0.5">
+                          {reorderItem.item_name || 'ComboKit Blueprint'}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-indigo-700 uppercase font-bold">Locked Unit Price</span>
+                        <div className="font-black text-indigo-900 text-sm">
+                          ₹{unitPriceInr.toLocaleString('en-IN')}/kit
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 pt-2 border-t border-indigo-200/60 text-center">
+                      <div className="bg-white p-2 rounded-lg border border-indigo-100">
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Total Quota</span>
+                        <span className="font-extrabold text-slate-900 text-xs">{totalCommitted} Kits</span>
+                      </div>
+                      <div className="bg-white p-2 rounded-lg border border-indigo-100">
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Fulfilled</span>
+                        <span className="font-extrabold text-blue-600 text-xs">{fulfilled} Kits</span>
+                      </div>
+                      <div className="bg-white p-2 rounded-lg border border-indigo-100 ring-2 ring-indigo-400/30">
+                        <span className="text-[9px] text-indigo-600 uppercase font-bold block">Remaining</span>
+                        <span className="font-extrabold text-indigo-700 text-xs">{remaining} Kits</span>
+                      </div>
+                      <div className="bg-white p-2 rounded-lg border border-indigo-100">
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Escrow/Kit</span>
+                        <span className="font-extrabold text-emerald-700 text-xs">₹{tokenPerKit}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Reorder Quantity */}
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-700 mb-1.5">
-                  Drawdown Quantity (Kits) <span className="text-rose-500">*</span>
-                </label>
-                <div className="flex items-center gap-2 mb-2">
-                  {[5, 10, 15, 20].map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => setReorderQty(q)}
-                      className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition ${Number(reorderQty) === q
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                        : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'
-                        }`}
-                    >
-                      {q} Kits
-                    </button>
-                  ))}
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="text-xs font-bold uppercase text-slate-700">
+                    Drawdown Quantity (Kits) <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[11px] text-slate-500">
+                    Max Available: <strong className="text-indigo-600 font-bold">{reorderOrder.remaining_quantity != null ? reorderOrder.remaining_quantity : 100} Kits</strong>
+                  </span>
                 </div>
                 <input
                   type="number"
@@ -3103,6 +3082,7 @@ export default function BdePoOrders() {
                   max={reorderOrder.remaining_quantity || 100}
                   value={reorderQty}
                   onChange={(e) => setReorderQty(e.target.value)}
+                  placeholder="Enter kits to drawdown (e.g. 5)"
                   required
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />

@@ -34,6 +34,7 @@ import PageHeader from "@/components/PageHeader";
 import Pagination from "@/components/Pagination";
 import CustomTable from "@/components/CustomTable";
 import IconButton from "@/components/IconButton";
+import SendEpcWelcomeAccessModal from "../../../components/SendEpcWelcomeAccessModal";
 
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -62,6 +63,8 @@ export default function ApproveNewEPCIndia({ moduleUniqueId, countryId }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [selectedEpcForAccess, setSelectedEpcForAccess] = useState(null);
 
   // Search and Filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -1236,6 +1239,11 @@ export default function ApproveNewEPCIndia({ moduleUniqueId, countryId }) {
           </div>
         </div>
       </Dialog>
+      <SendEpcWelcomeAccessModal
+        isOpen={showWelcomeModal}
+        onClose={() => setShowWelcomeModal(false)}
+        epc={selectedEpcForAccess}
+      />
     </div>
   );
 }

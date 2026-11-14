@@ -86,6 +86,7 @@ export default function SignUp() {
     epcId: "",
     whatsappNumber: "",
     registeredNumber: "", // New field for manual EPC
+    gstin: "", // Mandatory for manual EPC
     districtId: "",
     districtName: "",
 
@@ -746,7 +747,8 @@ export default function SignUp() {
         state: formData.stateId,
         district: formData.districtId,
         company_id: formData.epcId || null,
-        company_name: isCustomEpc ? formData.customEpcName : null
+        company_name: isCustomEpc ? formData.customEpcName : null,
+        gstin: formData.gstin ? formData.gstin.trim().toUpperCase() : null
       };
 
       if (userType === "predefined") {
@@ -812,6 +814,15 @@ export default function SignUp() {
       }
 
       // Manual EPC specific validations
+      // GSTIN Validation (Mandatory for New / Custom EPC)
+      if (!formData.gstin?.trim()) {
+        newErrors.gstin = "GSTIN is mandatory for new EPC registration";
+        isValid = false;
+      } else if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(formData.gstin.trim())) {
+        newErrors.gstin = "Please enter a valid 15-character GSTIN (e.g. 24AAAAA0000A1Z5)";
+        isValid = false;
+      }
+
       if (!formData.registeredNumber?.trim()) {
         newErrors.registeredNumber = "Registered number is required";
         isValid = false;
@@ -1240,7 +1251,22 @@ export default function SignUp() {
                           </div>
                         )}
 
-                        {selectedEpcData && !showEmailDropdown && !isCustomEpc && (
+                        {selectedEpcData && !isCustomEpc && (
+                            <div className={`mt-2 mb-2 p-2.5 rounded-lg border text-xs flex items-center justify-between ${
+                              selectedEpcData.has_gstin ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'
+                            }`}>
+                              <span className="font-semibold">
+                                {selectedEpcData.has_gstin
+                                  ? `✓ Pre-verified Database GST: ${selectedEpcData.gst_number || 'On file'}`
+                                  : 'ℹ️ GSTIN is optional during signup. You will be prompted at checkout.'}
+                              </span>
+                              <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-white/80 border">
+                                {selectedEpcData.has_gstin ? 'Verified' : 'Checkout Prompt'}
+                              </span>
+                            </div>
+                          )}
+
+                          {selectedEpcData && !showEmailDropdown && !isCustomEpc && (
                           <div className="mt-3">
                             <CustomInput
                               label="Email"

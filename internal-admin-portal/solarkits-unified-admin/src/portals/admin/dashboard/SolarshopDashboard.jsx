@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf } from "react-icons/fa";
+import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf, FaGraduationCap } from "react-icons/fa";
 import { HiCube } from "react-icons/hi";
 import { useSelector, useDispatch } from "react-redux";
 import { setAlert } from "../features/alert.slice";
@@ -38,6 +38,7 @@ const QuoteAnalyticsAdmin = lazy(() => import("../pages/solar-shop/quote-setting
 // ── Know My Margin (KMM) Estimator Module ────────────────────────────────────
 const ProjectBomSettingsAdmin = lazy(() => import("../pages/solar-shop/project-bom-settings/ProjectBomSettings"));
 const EstimatorSettingsAdmin = lazy(() => import("../pages/solar-shop/estimator-settings/EstimatorSettings"));
+const KnowledgeCenterManagement = lazy(() => import("../pages/dashboard/knowledge-center/KnowledgeCenterManagement"));
 
 // ── Franchisee Cluster & Business Model Module ─────────────────────────────────
 const FranchiseClusterHub = lazy(() => import("../pages/solar-shop/franchisee-clusters/FranchiseClusterHub"));
@@ -87,7 +88,7 @@ const AdminOrderApprovalDashboard = lazy(() => import("../pages/solar-shop/order
 const menus = [
     [{ step: "01", badgeKey: "01", name: "Dashboard", icon: <FaHome />, path: "/admin-panel/solar-shop/home", unique_id: "00000000" }],
     [
-        { step: "02", badgeKey: "02", name: "Website EPC Leads", icon: <FaUsers />, path: "/admin-panel/solar-shop/approve-new-epc", unique_id: "ADM_APPROVE_EPC" },
+        { step: "02", badgeKey: "02", name: "Approve New EPC", icon: <FaUsers />, path: "/admin-panel/solar-shop/approve-new-epc", unique_id: "ADM_APPROVE_EPC" },
         {
             step: "03",
             badgeKey: "03",
@@ -385,13 +386,6 @@ const menus = [
                     path: "/admin-panel/solar-shop/reseller-management/leads",
                     unique_id: "RSL_MGMT",
                     badgeKey: "leads"
-                },
-                {
-                    name: "Website EPC Leads",
-                    icon: <FiUsers />,
-                    path: "/admin-panel/website-configurations/epc-leads",
-                    unique_id: "ADM_WEBSITE_CONFIG",
-                    badgeKey: "website-leads"
                 },
                 {
                     name: "Onboard New Store",

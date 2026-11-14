@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, Outlet, Navigate } from "react-router-d
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FiZap,
+  FiVideo,
   FiHome,
   FiShield,
   FiMapPin,
@@ -57,6 +58,7 @@ const NAV_ITEMS = [
   { name: "My Commission", icon: FiPercent, path: "/my-commission" },
   { name: "My Earnings", icon: FiCreditCard, path: "/wallet" },
   { name: "Service Tickets", icon: FiTool, path: "/service-tickets" },
+  { name: "Knowledge Center", icon: FiVideo, path: "/knowledge-center" },
 ];
 
 export default function DashboardLayout() {

@@ -16,7 +16,6 @@ const SLIDES = [
     title: "Complete Solar Kits\nFor Homes & Business",
     subtitle: "Certified pre-configured & custom solar kits — panels, inverter, mounting structure & BOS in one box. Save up to ₹78,000 with PM Surya Ghar Subsidy.",
     cta1: { label: "Shop Solar Kits", href: "/shop" },
-    cta2: { label: "Calculate Savings", href: "#calculator" },
     bg: "from-navy via-primary-700 to-primary-500",
     image: heroImg,
   },
@@ -26,7 +25,6 @@ const SLIDES = [
     title: "Get Govt. Subsidy\nUp to ₹78,000 on Solar Kits",
     subtitle: "Under PM Surya Ghar Muft Bijli Yojana, install 1kW-3kW Rooftop Solar Kits with verified subsidy approval. Apply now through SolarKits!",
     cta1: { label: "Check Subsidy Kits", href: "/shop" },
-    cta2: { label: "Talk to Expert", href: "#contact" },
     bg: "from-[#0D3B6E] via-[#1565C0] to-[#29ABE2]",
     image: heroImg,
   },
@@ -36,7 +34,6 @@ const SLIDES = [
     title: "Everything You Need\nin One Box",
     subtitle: "From 1kW Home Kits to 100kW Commercial Kits — our complete kits include high-efficiency panels, inverter, mounting structures & AC/DC BOS. Fast delivery across India!",
     cta1: { label: "View Solar Kits", href: "/shop" },
-    cta2: { label: "Get Free Quote", href: "#quote" },
     bg: "from-[#0D3B6E] to-primary-600",
     image: heroImg,
   },
@@ -53,10 +50,27 @@ export default function HeroSection({ heroConfig }) {
     { val: "50 MW+", label: "Installed Capacity" },
   ];
 
-  const handleCtaClick = (e, href) => {
-    if (href && href.startsWith("/")) {
-      e.preventDefault();
+  const handleCtaClick = (e, href, label) => {
+    e.preventDefault();
+    if (
+      !href ||
+      href === "#products" ||
+      href === "#subsidy" ||
+      href.includes("shop") ||
+      /shop|subsidy|kits|buy/i.test(label || "")
+    ) {
+      navigate("/shop");
+    } else if (href.startsWith("/")) {
       navigate(href);
+    } else if (href.startsWith("#")) {
+      const el = document.querySelector(href);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      } else {
+        navigate("/shop");
+      }
+    } else {
+      window.open(href, "_blank", "noopener,noreferrer");
     }
   };
 
@@ -151,17 +165,18 @@ export default function HeroSection({ heroConfig }) {
                   >
                     {slide.cta1 && slide.cta1.label && (
                       <a
-                        href={slide.cta1.href || "#products"}
-                        onClick={(e) => handleCtaClick(e, slide.cta1.href)}
+                        href={slide.cta1.href || "/shop"}
+                        onClick={(e) => handleCtaClick(e, slide.cta1.href, slide.cta1.label)}
                         className="flex items-center gap-2 px-6 py-3.5 bg-accent hover:bg-accent-600 text-white font-bold text-base rounded-xl shadow-lg hover:shadow-glow transition-all duration-300 group cursor-pointer"
                       >
                         {slide.cta1.label}
                         <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
                       </a>
                     )}
-                    {slide.cta2 && slide.cta2.label && (
+                    {slide.cta2 && slide.cta2.label && !/buy\s*now|calculate\s*savings/i.test(slide.cta2.label) && (
                       <a
                         href={slide.cta2.href || "#calculator"}
+                        onClick={(e) => handleCtaClick(e, slide.cta2.href, slide.cta2.label)}
                         className="flex items-center gap-2 px-6 py-3.5 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white font-semibold text-base rounded-xl border border-white/30 transition-all duration-300"
                       >
                         {slide.cta2.label}

@@ -25,7 +25,7 @@ export default function Footer({ onOpenLeadModal, footerConfig }) {
   const address = footerConfig?.contact?.address || "SolarKits Tech Park, Phase-1 Central Logistics Hub, Pune, Maharashtra 411045";
   const phone = footerConfig?.contact?.phone || "+91 (020) 6789-SOLAR / 1800-SOLAR-KIT";
   const email = footerConfig?.contact?.email || "franchise@solarkits.in | b2b@solarkits.in";
-  const whatsappNum = footerConfig?.contact?.whatsapp_number || "919876543210";
+  const whatsappNum = footerConfig?.contact?.whatsapp_number || "917777939842";
   const whatsappBtnText = footerConfig?.contact?.whatsapp_button_text || "WhatsApp B2B";
   const callbackBtnText = footerConfig?.contact?.callback_button_text || "Request Callback";
 

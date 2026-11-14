@@ -15,7 +15,7 @@ export default function CtaBanner({ ctaConfig }) {
   const heading = ctaConfig?.heading || "Ready to Power Your Home with Clean Solar Energy?";
   const subtitle = ctaConfig?.subtitle || "Get pre-configured solar kits delivered directly to your doorstep. Free sizing assistance from certified solar engineers.";
   const buttonText = ctaConfig?.button_text || "Request Free Consultation";
-  const phone = ctaConfig?.phone || "+91 (020) 6789-SOLAR";
+  const phone = ctaConfig?.phone || "+91 77779 39842";
 
   return (
     <section
