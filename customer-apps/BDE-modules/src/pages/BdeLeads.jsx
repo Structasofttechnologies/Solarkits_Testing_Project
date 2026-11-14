@@ -34,7 +34,7 @@ import { useBdeAuth } from '../context/BdeAuthContext';
 import BdeFranchiseOnboardingModal from '../components/BdeFranchiseOnboardingModal';
 
 export default function BdeLeads() {
-  const { canOnboardFranchise } = useBdeAuth();
+  const { canOnboardFranchise, canOnboardEpc } = useBdeAuth();
   const navigate = useNavigate();
   const [leads, setLeads] = useState([]);
   const [pipeline, setPipeline] = useState(null);
@@ -271,14 +271,16 @@ export default function BdeLeads() {
           </span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => navigate('/epc-leads')}
-          className="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-600 hover:text-slate-900"
-        >
-          <Zap className="w-4 h-4 text-amber-500" />
-          <span>EPC Contractor Leads (Field Pipeline)</span>
-        </button>
+        {canOnboardEpc !== false && (
+          <button
+            type="button"
+            onClick={() => navigate('/epc-leads')}
+            className="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-600 hover:text-slate-900"
+          >
+            <Zap className="w-4 h-4 text-amber-500" />
+            <span>EPC Contractor Leads (Field Pipeline)</span>
+          </button>
+        )}
       </div>
 
       {/* Header */}

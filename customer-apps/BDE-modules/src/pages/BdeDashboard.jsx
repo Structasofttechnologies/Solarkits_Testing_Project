@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBdeAuth } from '../context/BdeAuthContext';
 import api from '../services/api';
+import BdeFranchiseeGoalsSection from '../components/BdeFranchiseeGoalsSection';
 import {
   User,
   ShieldCheck,
@@ -30,7 +31,7 @@ import {
 } from 'lucide-react';
 
 export default function BdeDashboard() {
-  const { user, canOnboardEpc } = useBdeAuth();
+  const { user, canOnboardEpc, canOnboardFranchise } = useBdeAuth();
   const navigate = useNavigate();
 
   const [dashboardData, setDashboardData] = useState(null);
@@ -40,6 +41,12 @@ export default function BdeDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
+    if (window.location.hash === '#franchisee-goals-section') {
+      setTimeout(() => {
+        const el = document.getElementById('franchisee-goals-section');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 400);
+    }
   }, []);
 
   const fetchDashboardData = async () => {
@@ -135,18 +142,25 @@ export default function BdeDashboard() {
                 <ShieldCheck className="w-4 h-4" /> GST Onboard EPC
               </button>
             )}
-            <button
-              onClick={() => navigate('/epc-leads')}
-              className="px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold rounded-2xl text-xs transition flex items-center gap-2"
-            >
-              <Users className="w-4 h-4" /> EPC Leads
-            </button>
-            <button
-              onClick={() => navigate('/franchisees')}
-              className="px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold rounded-2xl text-xs transition flex items-center gap-2"
-            >
-              <Store className="w-4 h-4" /> Franchisee Goals
-            </button>
+            {canOnboardEpc !== false && (
+              <button
+                onClick={() => navigate('/epc-leads')}
+                className="px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold rounded-2xl text-xs transition flex items-center gap-2"
+              >
+                <Users className="w-4 h-4" /> EPC Leads
+              </button>
+            )}
+            {canOnboardFranchise !== false && (
+              <button
+                onClick={() => {
+                  const el = document.getElementById('franchisee-goals-section');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold rounded-2xl text-xs transition flex items-center gap-2 cursor-pointer"
+              >
+                <Store className="w-4 h-4" /> Franchisee Goals
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -479,86 +493,99 @@ export default function BdeDashboard() {
         </div>
       </div>
 
-      {/* Target Progress & Quick Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Franchisee Signups Target */}
-        <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Franchisee Signups</span>
-            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-2xl">
-              <Target className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-slate-900">{goals.monthly_signup_achieved || 0}</span>
-              <span className="text-xs text-slate-400 font-semibold">/ {goals.monthly_franchisee_signup_goal || 5} target</span>
-            </div>
-            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-blue-600 h-full rounded-full transition-all"
-                style={{ width: `${goals.monthly_signup_progress_pct || 0}%` }}
-              />
-            </div>
-            <p className="text-[11px] font-semibold text-blue-600">{goals.monthly_signup_progress_pct || 0}% completed</p>
-          </div>
+      {/* 6. FRANCHISEE MONTHLY GOAL VS ACHIEVEMENT (MERGED) */}
+      {canOnboardFranchise !== false && (
+        <div id="franchisee-goals-section" className="scroll-mt-6">
+          <BdeFranchiseeGoalsSection />
         </div>
+      )}
+
+      {/* Target Progress & Quick Cards Grid */}
+      <div className={`grid grid-cols-1 ${canOnboardFranchise !== false && canOnboardEpc !== false ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
+        {/* Franchisee Signups Target */}
+        {canOnboardFranchise !== false && (
+          <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Franchisee Signups</span>
+              <div className="p-2.5 bg-blue-50 text-blue-600 rounded-2xl">
+                <Target className="w-5 h-5" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-slate-900">{goals.monthly_signup_achieved || 0}</span>
+                <span className="text-xs text-slate-400 font-semibold">/ {goals.monthly_franchisee_signup_goal || 0} target</span>
+              </div>
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-blue-600 h-full rounded-full transition-all"
+                  style={{ width: `${goals.monthly_signup_progress_pct || 0}%` }}
+                />
+              </div>
+              <p className="text-[11px] font-semibold text-blue-600">{goals.monthly_signup_progress_pct || 0}% completed</p>
+            </div>
+          </div>
+        )}
 
         {/* EPC Onboarding Target */}
-        <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">EPC Onboardings</span>
-            <div className="p-2.5 bg-teal-50 text-teal-600 rounded-2xl">
-              <ShieldCheck className="w-5 h-5" />
+        {canOnboardEpc !== false && (
+          <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">EPC Onboardings</span>
+              <div className="p-2.5 bg-teal-50 text-teal-600 rounded-2xl">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-teal-700">{goals.monthly_epc_onboarded_achieved || 0}</span>
+                <span className="text-xs text-slate-400 font-semibold">/ {goals.monthly_epc_onboard_goal || 0} target</span>
+              </div>
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-teal-600 h-full rounded-full transition-all"
+                  style={{
+                    width: `${goals.monthly_epc_onboard_goal > 0
+                      ? Math.min(100, Math.round(((goals.monthly_epc_onboarded_achieved || 0) / goals.monthly_epc_onboard_goal) * 100))
+                      : 0
+                      }%`,
+                  }}
+                />
+              </div>
+              <p className="text-[11px] font-semibold text-teal-600">
+                {goals.monthly_epc_onboard_goal > 0
+                  ? Math.round(((goals.monthly_epc_onboarded_achieved || 0) / goals.monthly_epc_onboard_goal) * 100)
+                  : 0}
+                % verified & onboarded
+              </p>
             </div>
           </div>
-          <div className="space-y-1">
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-teal-700">{goals.monthly_epc_onboarded_achieved || 0}</span>
-              <span className="text-xs text-slate-400 font-semibold">/ {goals.monthly_epc_onboard_goal || 10} target</span>
-            </div>
-            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-teal-600 h-full rounded-full transition-all"
-                style={{
-                  width: `${goals.monthly_epc_onboard_goal > 0
-                    ? Math.min(100, Math.round(((goals.monthly_epc_onboarded_achieved || 0) / goals.monthly_epc_onboard_goal) * 100))
-                    : 0
-                    }%`,
-                }}
-              />
-            </div>
-            <p className="text-[11px] font-semibold text-teal-600">
-              {goals.monthly_epc_onboard_goal > 0
-                ? Math.round(((goals.monthly_epc_onboarded_achieved || 0) / goals.monthly_epc_onboard_goal) * 100)
-                : 0}
-              % verified & onboarded
-            </p>
-          </div>
-        </div>
+        )}
 
         {/* Network Kits Ordered Target */}
-        <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Network Kit Orders</span>
-            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-2xl">
-              <Package className="w-5 h-5" />
+        {(canOnboardFranchise !== false || (goals.monthly_network_kit_goal || 0) > 0) && (
+          <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Network Kit Orders</span>
+              <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-2xl">
+                <Package className="w-5 h-5" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-emerald-700">{goals.monthly_network_kits_achieved || 0}</span>
+                <span className="text-xs text-slate-400 font-semibold">/ {goals.monthly_network_kit_goal || 0} kits</span>
+              </div>
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-emerald-600 h-full rounded-full transition-all"
+                  style={{ width: `${Math.min(100, goals.network_kit_achievement_pct || 0)}%` }}
+                />
+              </div>
+              <p className="text-[11px] font-semibold text-emerald-600">{goals.network_kit_achievement_pct || 0}% kit goal achievement</p>
             </div>
           </div>
-          <div className="space-y-1">
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-emerald-700">{goals.monthly_network_kits_achieved || 0}</span>
-              <span className="text-xs text-slate-400 font-semibold">/ {goals.monthly_network_kit_goal || 250} kits</span>
-            </div>
-            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-emerald-600 h-full rounded-full transition-all"
-                style={{ width: `${Math.min(100, goals.network_kit_achievement_pct || 0)}%` }}
-              />
-            </div>
-            <p className="text-[11px] font-semibold text-emerald-600">{goals.network_kit_achievement_pct || 0}% kit goal achievement</p>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

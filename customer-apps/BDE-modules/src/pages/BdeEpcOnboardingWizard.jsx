@@ -56,34 +56,26 @@ export default function BdeEpcOnboardingWizard() {
     state_name: initialLead?.state_name || 'Maharashtra',
     district_name: initialLead?.district_name || 'Pune',
     pincode: initialLead?.pincode || '',
-    epc_type: initialLead?.epc_type || 'New EPC',
+    epc_type: initialLead?.epc_type || '',
   });
-  const [epcTypes, setEpcTypes] = useState([
-    { name: 'Government Contractor', code: 'govt_contractor' },
-    { name: 'Tender Bidder', code: 'tender_bidder' },
-    { name: 'New EPC', code: 'new_epc' },
-    { name: 'Experienced EPC', code: 'experienced_epc' },
-  ]);
+  const [epcTypes, setEpcTypes] = useState([]);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [createdEpcAccount, setCreatedEpcAccount] = useState(null);
   const [copiedCredentials, setCopiedCredentials] = useState(false);
 
-  // Fetch Dynamic Active EPC Classification Types
+  // Fetch Dynamic Active EPC Classification Types from Admin Master
   useEffect(() => {
     api.get('/epc-types/active')
       .then((res) => {
-        if (res.data?.status === 'success' && Array.isArray(res.data.data) && res.data.data.length > 0) {
+        if (res.data?.status === 'success' && Array.isArray(res.data.data)) {
           setEpcTypes(res.data.data);
+          if (res.data.data.length > 0) {
+            setFormData((prev) => (!prev.epc_type ? { ...prev, epc_type: res.data.data[0].name } : prev));
+          }
         }
       })
-      .catch(() => {
-        api.get('/india/v1/epc-types/active')
-          .then((res2) => {
-            if (res2.data?.status === 'success' && Array.isArray(res2.data.data) && res2.data.data.length > 0) {
-              setEpcTypes(res2.data.data);
-            }
-          })
-          .catch(() => { });
+      .catch((err) => {
+        console.error('Failed to load active EPC types:', err);
       });
   }, []);
 
@@ -536,6 +528,10 @@ export default function BdeEpcOnboardingWizard() {
                   onChange={(e) => setFormData({ ...formData, epc_type: e.target.value })}
                   className="w-full bg-white border border-blue-300 rounded-xl px-3.5 py-2.5 text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-xs shadow-xs"
                 >
+                  {!formData.epc_type && <option value="">Select EPC Classification Type</option>}
+                  {formData.epc_type && !epcTypes.some(t => t.name === formData.epc_type) && (
+                    <option value={formData.epc_type}>{formData.epc_type}</option>
+                  )}
                   {epcTypes.map((t) => (
                     <option key={t.id || t._id || t.code || t.name} value={t.name}>
                       {t.name}
@@ -543,7 +539,7 @@ export default function BdeEpcOnboardingWizard() {
                   ))}
                 </select>
                 <p className="text-[11px] text-slate-500 mt-1.5 font-medium">
-                  Classify whether this contractor is a Government Contractor, Tender Bidder, New EPC, or Experienced EPC.
+                  Select contractor classification configured in Admin Master Settings.
                 </p>
               </div>
             </div>

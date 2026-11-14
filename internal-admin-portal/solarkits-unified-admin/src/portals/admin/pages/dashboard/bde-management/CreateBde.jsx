@@ -8,6 +8,10 @@ import {
   FaCheckCircle,
   FaExclamationCircle,
   FaInfoCircle,
+  FaCloudUploadAlt,
+  FaFilePdf,
+  FaTrashAlt,
+  FaCamera,
 } from 'react-icons/fa';
 import { bdeApi } from '../../../api/bdeApi';
 
@@ -37,6 +41,16 @@ export default function CreateBde({ moduleUniqueId = 'ADM_BDE_MGMT' }) {
     initial_password: '1234',
   });
 
+  const [aadhaarFile, setAadhaarFile] = useState(null);
+  const [aadhaarPreview, setAadhaarPreview] = useState(null);
+  const [panFile, setPanFile] = useState(null);
+  const [panPreview, setPanPreview] = useState(null);
+  const [profilePhotoFile, setProfilePhotoFile] = useState(null);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState(null);
+
+  const [aadhaarDragOver, setAadhaarDragOver] = useState(false);
+  const [panDragOver, setPanDragOver] = useState(false);
+
   const [states, setStates] = useState([]);
   const [districts, setDistricts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -47,6 +61,76 @@ export default function CreateBde({ moduleUniqueId = 'ADM_BDE_MGMT' }) {
   useEffect(() => {
     fetchStates();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (aadhaarPreview && aadhaarPreview.startsWith('blob:')) URL.revokeObjectURL(aadhaarPreview);
+      if (panPreview && panPreview.startsWith('blob:')) URL.revokeObjectURL(panPreview);
+      if (profilePhotoPreview && profilePhotoPreview.startsWith('blob:')) URL.revokeObjectURL(profilePhotoPreview);
+    };
+  }, [aadhaarPreview, panPreview, profilePhotoPreview]);
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const handleDocumentSelect = (type, file) => {
+    if (!file) return;
+
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setValidationErrors(prev => ({
+        ...prev,
+        [type === 'aadhaar' ? 'aadhaar_document' : 'pan_document']: 'File size exceeds 10MB limit',
+      }));
+      return;
+    }
+
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowed.includes(file.type) && !/\.(jpe?g|png|webp|pdf)$/i.test(file.name)) {
+      setValidationErrors(prev => ({
+        ...prev,
+        [type === 'aadhaar' ? 'aadhaar_document' : 'pan_document']: 'Only JPG, PNG, WEBP and PDF files are allowed',
+      }));
+      return;
+    }
+
+    const isImage = file.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(file.name);
+    const previewUrl = isImage ? URL.createObjectURL(file) : null;
+
+    if (type === 'aadhaar') {
+      if (aadhaarPreview && aadhaarPreview.startsWith('blob:')) URL.revokeObjectURL(aadhaarPreview);
+      setAadhaarFile(file);
+      setAadhaarPreview(previewUrl);
+      setValidationErrors(prev => ({ ...prev, aadhaar_document: null }));
+    } else if (type === 'pan') {
+      if (panPreview && panPreview.startsWith('blob:')) URL.revokeObjectURL(panPreview);
+      setPanFile(file);
+      setPanPreview(previewUrl);
+      setValidationErrors(prev => ({ ...prev, pan_document: null }));
+    }
+  };
+
+  const handleProfilePhotoSelect = (file) => {
+    if (!file) return;
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setValidationErrors(prev => ({ ...prev, profile_photo: 'Photo size exceeds 5MB limit' }));
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setValidationErrors(prev => ({ ...prev, profile_photo: 'Only image files are allowed for profile photo' }));
+      return;
+    }
+    if (profilePhotoPreview && profilePhotoPreview.startsWith('blob:')) URL.revokeObjectURL(profilePhotoPreview);
+    setProfilePhotoFile(file);
+    setProfilePhotoPreview(URL.createObjectURL(file));
+    setValidationErrors(prev => ({ ...prev, profile_photo: null }));
+  };
 
   const fetchStates = async () => {
     try {
@@ -115,11 +199,11 @@ export default function CreateBde({ moduleUniqueId = 'ADM_BDE_MGMT' }) {
     if (!formData.pan_number.trim() || !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.pan_number.toUpperCase())) {
       errs.pan_number = 'Valid 10-character PAN number (e.g. ABCDE1234F) is required';
     }
-    if (!formData.aadhaar_document_url.trim()) {
-      errs.aadhaar_document_url = 'Aadhaar document URL/proof is required';
+    if (!aadhaarFile && !formData.aadhaar_document_url.trim()) {
+      errs.aadhaar_document = 'Aadhaar document photo or PDF is required';
     }
-    if (!formData.pan_document_url.trim()) {
-      errs.pan_document_url = 'PAN document URL/proof is required';
+    if (!panFile && !formData.pan_document_url.trim()) {
+      errs.pan_document = 'PAN document photo or PDF is required';
     }
     if (!formData.pin || !/^\d{4}$/.test(String(formData.pin).trim())) {
       errs.pin = '4-digit numeric PIN is required (0-9)';
@@ -138,29 +222,49 @@ export default function CreateBde({ moduleUniqueId = 'ADM_BDE_MGMT' }) {
     setLoading(true);
     try {
       const cleanPin = String(formData.pin || '1234').trim();
-      const payload = {
-        full_name: formData.full_name.trim(),
-        bde_id: formData.bde_id.trim() || undefined,
-        mobile_number: formData.mobile_number.trim(),
-        email: formData.email.trim().toLowerCase(),
-        address: formData.address.trim(),
-        state_id: formData.state_id || undefined,
-        state_name: formData.state_name || undefined,
-        district_id: formData.district_id || undefined,
-        district_name: formData.district_name || undefined,
-        joining_date: formData.joining_date,
-        profile_photo: formData.profile_photo.trim() || undefined,
-        aadhaar_number: formData.aadhaar_number.trim(),
-        aadhaar_document_url: formData.aadhaar_document_url.trim(),
-        pan_number: formData.pan_number.trim().toUpperCase(),
-        pan_document_url: formData.pan_document_url.trim(),
-        kyc_remarks: formData.kyc_remarks.trim() || undefined,
-        pin: cleanPin,
-        initial_pin: cleanPin,
-        initial_password: cleanPin,
-      };
+      const postData = new FormData();
+      postData.append('full_name', formData.full_name.trim());
+      if (formData.bde_id && formData.bde_id.trim()) {
+        postData.append('bde_id', formData.bde_id.trim());
+      }
+      postData.append('mobile_number', formData.mobile_number.trim());
+      postData.append('email', formData.email.trim().toLowerCase());
+      postData.append('address', formData.address.trim());
+      if (formData.state_id) postData.append('state_id', formData.state_id);
+      if (formData.state_name) postData.append('state_name', formData.state_name);
+      if (formData.district_id) postData.append('district_id', formData.district_id);
+      if (formData.district_name) postData.append('district_name', formData.district_name);
+      postData.append('joining_date', formData.joining_date);
 
-      const res = await bdeApi.createBde(payload, moduleUniqueId);
+      if (profilePhotoFile) {
+        postData.append('profile_photo', profilePhotoFile);
+      } else if (formData.profile_photo.trim()) {
+        postData.append('profile_photo', formData.profile_photo.trim());
+      }
+
+      postData.append('aadhaar_number', formData.aadhaar_number.trim());
+      postData.append('pan_number', formData.pan_number.trim().toUpperCase());
+
+      if (aadhaarFile) {
+        postData.append('aadhaar_document', aadhaarFile);
+      } else if (formData.aadhaar_document_url.trim()) {
+        postData.append('aadhaar_document_url', formData.aadhaar_document_url.trim());
+      }
+
+      if (panFile) {
+        postData.append('pan_document', panFile);
+      } else if (formData.pan_document_url.trim()) {
+        postData.append('pan_document_url', formData.pan_document_url.trim());
+      }
+
+      if (formData.kyc_remarks.trim()) {
+        postData.append('kyc_remarks', formData.kyc_remarks.trim());
+      }
+      postData.append('pin', cleanPin);
+      postData.append('initial_pin', cleanPin);
+      postData.append('initial_password', cleanPin);
+
+      const res = await bdeApi.createBde(postData, moduleUniqueId);
       setSuccess(`BDE profile created successfully with ID: ${res.data?.bde?.bde_id || res.data?.bde_id}`);
       setTimeout(() => {
         navigate('/admin-panel/bde-management/all');
@@ -290,16 +394,52 @@ export default function CreateBde({ moduleUniqueId = 'ADM_BDE_MGMT' }) {
                 )}
               </div>
 
-              {/* Profile Photo URL */}
+              {/* Profile Photo */}
               <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 uppercase tracking-wider block text-[11px]">Profile Photo URL (Optional)</label>
-                <input
-                  type="url"
-                  value={formData.profile_photo}
-                  onChange={(e) => handleChange('profile_photo', e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-[#0575B8] focus:bg-white"
-                />
+                <label className="font-bold text-slate-700 uppercase tracking-wider block text-[11px]">Profile Photo (Optional)</label>
+                <div className="flex items-center gap-3">
+                  {profilePhotoPreview ? (
+                    <div className="relative group shrink-0">
+                      <img
+                        src={profilePhotoPreview}
+                        alt="Profile preview"
+                        className="w-10 h-10 rounded-full object-cover border-2 border-[#0575B8] shadow-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (profilePhotoPreview.startsWith('blob:')) URL.revokeObjectURL(profilePhotoPreview);
+                          setProfilePhotoFile(null);
+                          setProfilePhotoPreview(null);
+                        }}
+                        className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-1 text-[8px] hover:bg-rose-600 transition"
+                        title="Remove photo"
+                      >
+                        <FaTrashAlt />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="w-10 h-10 rounded-full bg-slate-100 hover:bg-blue-50 border-2 border-dashed border-slate-300 hover:border-[#0575B8] flex items-center justify-center text-slate-500 hover:text-[#0575B8] cursor-pointer transition shrink-0" title="Click to upload avatar">
+                      <FaCamera className="text-xs" />
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/jpg"
+                        className="hidden"
+                        onChange={(e) => e.target.files?.[0] && handleProfilePhotoSelect(e.target.files[0])}
+                      />
+                    </label>
+                  )}
+                  <input
+                    type="url"
+                    value={formData.profile_photo}
+                    onChange={(e) => handleChange('profile_photo', e.target.value)}
+                    placeholder="Upload photo or enter URL (Optional)"
+                    className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-[#0575B8] focus:bg-white"
+                  />
+                </div>
+                {validationErrors.profile_photo && (
+                  <p className="text-[11px] text-rose-600 font-bold">{validationErrors.profile_photo}</p>
+                )}
               </div>
 
               {/* Joining Date */}
@@ -404,37 +544,197 @@ export default function CreateBde({ moduleUniqueId = 'ADM_BDE_MGMT' }) {
                 )}
               </div>
 
-              {/* Aadhaar Document URL */}
+              {/* Aadhaar Document Upload */}
               <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 uppercase tracking-wider block text-[11px]">Aadhaar Document URL *</label>
-                <input
-                  type="url"
-                  required
-                  value={formData.aadhaar_document_url}
-                  onChange={(e) => handleChange('aadhaar_document_url', e.target.value)}
-                  placeholder="https://... (Cloudinary/Storage URL)"
-                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-slate-900 text-xs focus:outline-none focus:border-[#0575B8] focus:bg-white ${validationErrors.aadhaar_document_url ? 'border-rose-500' : 'border-slate-300'
-                    }`}
-                />
-                {validationErrors.aadhaar_document_url && (
-                  <p className="text-[11px] text-rose-600 font-bold">{validationErrors.aadhaar_document_url}</p>
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 uppercase tracking-wider block text-[11px]">
+                    Aadhaar Document Photo / PDF *
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-medium">Front & back / e-Aadhaar</span>
+                </div>
+
+                {aadhaarFile ? (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      {aadhaarPreview ? (
+                        <img
+                          src={aadhaarPreview}
+                          alt="Aadhaar preview"
+                          className="w-14 h-14 object-cover rounded-xl border border-slate-200 shrink-0 bg-white"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center shrink-0 border border-rose-200">
+                          <FaFilePdf className="text-2xl" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-800 truncate">{aadhaarFile.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] font-semibold text-slate-500">{formatFileSize(aadhaarFile.size)}</span>
+                          <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[9px] font-bold border border-emerald-200 flex items-center gap-1">
+                            <FaCheckCircle className="text-[8px]" /> Ready to upload
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <label className="px-3 py-1.5 text-xs font-bold text-[#0575B8] bg-blue-50 hover:bg-blue-100 rounded-xl cursor-pointer transition">
+                        Change
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/jpg,application/pdf"
+                          className="hidden"
+                          onChange={(e) => e.target.files?.[0] && handleDocumentSelect('aadhaar', e.target.files[0])}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (aadhaarPreview && aadhaarPreview.startsWith('blob:')) URL.revokeObjectURL(aadhaarPreview);
+                          setAadhaarFile(null);
+                          setAadhaarPreview(null);
+                        }}
+                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                        title="Remove file"
+                      >
+                        <FaTrashAlt className="text-xs" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label
+                    onDragOver={(e) => { e.preventDefault(); setAadhaarDragOver(true); }}
+                    onDragLeave={() => setAadhaarDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setAadhaarDragOver(false);
+                      if (e.dataTransfer.files?.[0]) handleDocumentSelect('aadhaar', e.dataTransfer.files[0]);
+                    }}
+                    className={`border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-center transition cursor-pointer ${aadhaarDragOver
+                        ? 'border-[#0575B8] bg-blue-50/40'
+                        : validationErrors.aadhaar_document
+                          ? 'border-rose-400 bg-rose-50/20'
+                          : 'border-slate-200 bg-slate-50 hover:bg-slate-100/60 hover:border-[#0575B8]'
+                      }`}
+                  >
+                    <div className="p-2.5 bg-blue-50 text-[#0575B8] rounded-xl">
+                      <FaCloudUploadAlt className="text-xl" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">
+                        Click to upload or drag & drop Aadhaar
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
+                        JPG, PNG, WEBP or PDF (max 10MB)
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/jpg,application/pdf"
+                      className="hidden"
+                      onChange={(e) => e.target.files?.[0] && handleDocumentSelect('aadhaar', e.target.files[0])}
+                    />
+                  </label>
+                )}
+                {validationErrors.aadhaar_document && (
+                  <p className="text-[11px] text-rose-600 font-bold">{validationErrors.aadhaar_document}</p>
                 )}
               </div>
 
-              {/* PAN Document URL */}
+              {/* PAN Document Upload */}
               <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 uppercase tracking-wider block text-[11px]">PAN Document URL *</label>
-                <input
-                  type="url"
-                  required
-                  value={formData.pan_document_url}
-                  onChange={(e) => handleChange('pan_document_url', e.target.value)}
-                  placeholder="https://... (Cloudinary/Storage URL)"
-                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-slate-900 text-xs focus:outline-none focus:border-[#0575B8] focus:bg-white ${validationErrors.pan_document_url ? 'border-rose-500' : 'border-slate-300'
-                    }`}
-                />
-                {validationErrors.pan_document_url && (
-                  <p className="text-[11px] text-rose-600 font-bold">{validationErrors.pan_document_url}</p>
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 uppercase tracking-wider block text-[11px]">
+                    PAN Document Photo / PDF *
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-medium">Signed PAN card copy</span>
+                </div>
+
+                {panFile ? (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      {panPreview ? (
+                        <img
+                          src={panPreview}
+                          alt="PAN preview"
+                          className="w-14 h-14 object-cover rounded-xl border border-slate-200 shrink-0 bg-white"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center shrink-0 border border-rose-200">
+                          <FaFilePdf className="text-2xl" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-800 truncate">{panFile.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] font-semibold text-slate-500">{formatFileSize(panFile.size)}</span>
+                          <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[9px] font-bold border border-emerald-200 flex items-center gap-1">
+                            <FaCheckCircle className="text-[8px]" /> Ready to upload
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <label className="px-3 py-1.5 text-xs font-bold text-[#0575B8] bg-blue-50 hover:bg-blue-100 rounded-xl cursor-pointer transition">
+                        Change
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/jpg,application/pdf"
+                          className="hidden"
+                          onChange={(e) => e.target.files?.[0] && handleDocumentSelect('pan', e.target.files[0])}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (panPreview && panPreview.startsWith('blob:')) URL.revokeObjectURL(panPreview);
+                          setPanFile(null);
+                          setPanPreview(null);
+                        }}
+                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                        title="Remove file"
+                      >
+                        <FaTrashAlt className="text-xs" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label
+                    onDragOver={(e) => { e.preventDefault(); setPanDragOver(true); }}
+                    onDragLeave={() => setPanDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setPanDragOver(false);
+                      if (e.dataTransfer.files?.[0]) handleDocumentSelect('pan', e.dataTransfer.files[0]);
+                    }}
+                    className={`border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-center transition cursor-pointer ${panDragOver
+                        ? 'border-[#0575B8] bg-blue-50/40'
+                        : validationErrors.pan_document
+                          ? 'border-rose-400 bg-rose-50/20'
+                          : 'border-slate-200 bg-slate-50 hover:bg-slate-100/60 hover:border-[#0575B8]'
+                      }`}
+                  >
+                    <div className="p-2.5 bg-blue-50 text-[#0575B8] rounded-xl">
+                      <FaCloudUploadAlt className="text-xl" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">
+                        Click to upload or drag & drop PAN
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
+                        JPG, PNG, WEBP or PDF (max 10MB)
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/jpg,application/pdf"
+                      className="hidden"
+                      onChange={(e) => e.target.files?.[0] && handleDocumentSelect('pan', e.target.files[0])}
+                    />
+                  </label>
+                )}
+                {validationErrors.pan_document && (
+                  <p className="text-[11px] text-rose-600 font-bold">{validationErrors.pan_document}</p>
                 )}
               </div>
             </div>

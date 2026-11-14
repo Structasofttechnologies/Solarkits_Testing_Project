@@ -142,10 +142,46 @@ exports.create_bde = async (req, res) => {
       });
     }
 
-    if (!aadhaar_document_url || !pan_document_url) {
+    // Resolve uploaded files from req.files or fallback to body URLs
+    let finalAadhaarUrl = aadhaar_document_url ? String(aadhaar_document_url).trim() : null;
+    let finalPanUrl = pan_document_url ? String(pan_document_url).trim() : null;
+    let finalProfilePhoto = req.body.profile_photo ? String(req.body.profile_photo).trim() : null;
+
+    if (Array.isArray(req.files) && req.files.length > 0) {
+      const aadhaarFile = req.files.find(f =>
+        f.fieldname === 'aadhaar_document' ||
+        f.fieldname === 'aadhaar_document_url' ||
+        f.fieldname === 'aadhaar_file' ||
+        f.fieldname === 'aadhaar'
+      );
+      if (aadhaarFile && aadhaarFile.path) {
+        finalAadhaarUrl = aadhaarFile.path;
+      }
+
+      const panFile = req.files.find(f =>
+        f.fieldname === 'pan_document' ||
+        f.fieldname === 'pan_document_url' ||
+        f.fieldname === 'pan_file' ||
+        f.fieldname === 'pan'
+      );
+      if (panFile && panFile.path) {
+        finalPanUrl = panFile.path;
+      }
+
+      const profilePhotoFile = req.files.find(f =>
+        f.fieldname === 'profile_photo' ||
+        f.fieldname === 'profile_image' ||
+        f.fieldname === 'profile'
+      );
+      if (profilePhotoFile && profilePhotoFile.path) {
+        finalProfilePhoto = profilePhotoFile.path;
+      }
+    }
+
+    if (!finalAadhaarUrl || !finalPanUrl) {
       return res.status(400).json({
         status: 'error',
-        message: 'Both Aadhaar document and PAN document uploads are required',
+        message: 'Both Aadhaar document and PAN document files/uploads are required',
       });
     }
 
@@ -194,7 +230,7 @@ exports.create_bde = async (req, res) => {
     const bde = await BDEProfile.create({
       bde_id: finalBdeId,
       full_name: full_name.trim(),
-      profile_photo: req.body.profile_photo || null,
+      profile_photo: finalProfilePhoto || null,
       mobile_number: cleanMobile,
       email: cleanEmail,
       address: address ? address.trim() : null,
@@ -215,8 +251,8 @@ exports.create_bde = async (req, res) => {
       bde_id: bde._id,
       aadhaar_number: cleanAadhaar,
       pan_number: cleanPan,
-      aadhaar_document_url,
-      pan_document_url,
+      aadhaar_document_url: finalAadhaarUrl,
+      pan_document_url: finalPanUrl,
       kyc_status: 'pending',
       kyc_remarks: kyc_remarks || null,
     });
@@ -426,8 +462,33 @@ exports.upload_kyc = async (req, res) => {
       kyc.pan_number = cleanPan;
     }
 
-    if (aadhaar_document_url) kyc.aadhaar_document_url = aadhaar_document_url;
-    if (pan_document_url) kyc.pan_document_url = pan_document_url;
+    let finalAadhaarUrl = aadhaar_document_url ? String(aadhaar_document_url).trim() : null;
+    let finalPanUrl = pan_document_url ? String(pan_document_url).trim() : null;
+
+    if (Array.isArray(req.files) && req.files.length > 0) {
+      const aadhaarFile = req.files.find(f =>
+        f.fieldname === 'aadhaar_document' ||
+        f.fieldname === 'aadhaar_document_url' ||
+        f.fieldname === 'aadhaar_file' ||
+        f.fieldname === 'aadhaar'
+      );
+      if (aadhaarFile && aadhaarFile.path) {
+        finalAadhaarUrl = aadhaarFile.path;
+      }
+
+      const panFile = req.files.find(f =>
+        f.fieldname === 'pan_document' ||
+        f.fieldname === 'pan_document_url' ||
+        f.fieldname === 'pan_file' ||
+        f.fieldname === 'pan'
+      );
+      if (panFile && panFile.path) {
+        finalPanUrl = panFile.path;
+      }
+    }
+
+    if (finalAadhaarUrl) kyc.aadhaar_document_url = finalAadhaarUrl;
+    if (finalPanUrl) kyc.pan_document_url = finalPanUrl;
     if (kyc_remarks !== undefined) kyc.kyc_remarks = kyc_remarks;
 
     kyc.kyc_status = 'pending';
@@ -1146,6 +1207,18 @@ exports.assign_goals = async (req, res) => {
     }
     await bde.save();
 
+    const isFranchiseEnabled = bde.can_onboard_franchise !== false;
+    const isEpcEnabled = bde.can_onboard_epc !== false;
+
+    // Zero out targets for permissions that are disabled
+    const finalMonthlyFranchiseeSignup = isFranchiseEnabled ? Number(monthly_franchisee_signup_goal || 0) : 0;
+    const finalQuarterlyFranchiseeSignup = isFranchiseEnabled ? Number(quarterly_franchisee_signup_goal || 0) : 0;
+    const finalOperationalStore = isFranchiseEnabled ? Number(operational_store_goal || 0) : 0;
+    const finalNetworkKit = isFranchiseEnabled ? Number(monthly_network_kit_goal || 0) : 0;
+
+    const finalMonthlyEpcLead = isEpcEnabled ? Number(monthly_epc_lead_goal || 0) : 0;
+    const finalMonthlyEpcOnboard = isEpcEnabled ? Number(monthly_epc_onboard_goal || 0) : 0;
+
     const currentMonth = month || (new Date().getMonth() + 1);
     const currentQuarter = quarter || (Math.floor(new Date().getMonth() / 3) + 1);
 
@@ -1161,14 +1234,14 @@ exports.assign_goals = async (req, res) => {
       month: currentMonth,
       quarter: currentQuarter,
       year: Number(year),
-      monthly_franchisee_signup_goal: Number(monthly_franchisee_signup_goal || 0),
-      quarterly_franchisee_signup_goal: Number(quarterly_franchisee_signup_goal || 0),
-      operational_store_goal: Number(operational_store_goal || 0),
-      monthly_epc_lead_goal: Number(monthly_epc_lead_goal || 0),
-      monthly_epc_onboard_goal: Number(monthly_epc_onboard_goal || 0),
-      monthly_network_kit_goal: Number(monthly_network_kit_goal || 0),
-      can_onboard_epc: bde.can_onboard_epc !== false,
-      can_onboard_franchise: bde.can_onboard_franchise !== false,
+      monthly_franchisee_signup_goal: finalMonthlyFranchiseeSignup,
+      quarterly_franchisee_signup_goal: finalQuarterlyFranchiseeSignup,
+      operational_store_goal: finalOperationalStore,
+      monthly_epc_lead_goal: finalMonthlyEpcLead,
+      monthly_epc_onboard_goal: finalMonthlyEpcOnboard,
+      monthly_network_kit_goal: finalNetworkKit,
+      can_onboard_epc: isEpcEnabled,
+      can_onboard_franchise: isFranchiseEnabled,
       start_date: start_date ? new Date(start_date) : new Date(),
       end_date: end_date ? new Date(end_date) : null,
       status: 'active',
@@ -1176,10 +1249,19 @@ exports.assign_goals = async (req, res) => {
       notes: notes || '',
     });
 
+    const activeTargetsMsg = [];
+    if (isFranchiseEnabled) {
+      activeTargetsMsg.push(`Monthly Signups: ${finalMonthlyFranchiseeSignup}, Stores: ${finalOperationalStore}, Kits: ${finalNetworkKit}`);
+    }
+    if (isEpcEnabled) {
+      activeTargetsMsg.push(`EPC Leads: ${finalMonthlyEpcLead}, EPC Onboardings: ${finalMonthlyEpcOnboard}`);
+    }
+    const messageDetail = activeTargetsMsg.length > 0 ? activeTargetsMsg.join(' | ') : 'Targets updated';
+
     await BDENotification.create({
       bde_id: bde._id,
       title: 'New Goals Assigned',
-      message: `Your targets have been updated: Monthly Signups: ${monthly_franchisee_signup_goal}, Stores: ${operational_store_goal}, EPC Leads: ${monthly_epc_lead_goal}, EPC Onboardings: ${monthly_epc_onboard_goal}, Network Kits: ${monthly_network_kit_goal}.${notes ? ' Note: ' + notes : ''}`,
+      message: `Your targets have been updated: ${messageDetail}.${notes ? ' Note: ' + notes : ''}`,
       type: 'goal',
     });
 

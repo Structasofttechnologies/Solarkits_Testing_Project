@@ -71,19 +71,26 @@ export default function BdeLayout() {
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-    { name: 'Franchisee Leads', path: '/leads', icon: Users },
-    { name: 'EPC Leads', path: '/epc-leads', icon: Zap },
-    ...(canOnboardEpc !== false
-      ? [{ name: 'EPC Onboarding', path: '/epc-onboarding', icon: ShieldCheck }]
+    ...(canOnboardFranchise !== false
+      ? [{ name: 'Franchisee Leads', path: '/leads', icon: Users }]
       : []),
-    { name: 'EPC Quotes', path: '/epc-quotes', icon: FileText },
-    { name: 'Quote Follow-ups', path: '/epc-quote-followups', icon: CalendarCheck },
+    ...(canOnboardEpc !== false
+      ? [
+        { name: 'EPC Leads', path: '/epc-leads', icon: Zap },
+        { name: 'EPC Onboarding', path: '/epc-onboarding', icon: ShieldCheck },
+        { name: 'EPC Quotes', path: '/epc-quotes', icon: FileText },
+        { name: 'Quote Follow-ups', path: '/epc-quote-followups', icon: CalendarCheck },
+      ]
+      : []),
     { name: 'Purchase Orders (PO)', path: '/purchase-orders', icon: ShoppingCart },
-    { name: 'EPC Analytics', path: '/epc-analytics', icon: BarChart3 },
-    { name: 'Franchisee Goals', path: '/franchisees', icon: Store },
+    ...(canOnboardEpc !== false
+      ? [{ name: 'EPC Analytics', path: '/epc-analytics', icon: BarChart3 }]
+      : []),
     { name: 'Order History & Kits', path: '/order-history', icon: Package },
     { name: 'Leaderboard Ranking', path: '/ranking', icon: Award },
-    { name: 'Store Setup', path: '/store-setup', icon: ShoppingBag },
+    ...(canOnboardFranchise !== false
+      ? [{ name: 'Store Setup', path: '/store-setup', icon: ShoppingBag }]
+      : []),
     { name: 'Notifications', path: '/notifications', icon: Bell },
   ];
 

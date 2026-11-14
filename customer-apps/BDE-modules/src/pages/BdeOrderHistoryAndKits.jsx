@@ -298,21 +298,27 @@ export default function BdeOrderHistoryAndKits() {
               </div>
 
               <div className="space-y-3">
-                {kitAnalytics?.highest_selling?.map((k, i) => (
-                  <div key={i} className="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-100 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-slate-900 text-xs">{k.kit_name}</h4>
-                      <span className="font-black text-emerald-700 text-sm">{k.units_sold} Sold</span>
+                {kitAnalytics?.highest_selling && kitAnalytics.highest_selling.length > 0 ? (
+                  kitAnalytics.highest_selling.map((k, i) => (
+                    <div key={i} className="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-100 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-slate-900 text-xs">{k.kit_name}</h4>
+                        <span className="font-black text-emerald-700 text-sm">{k.units_sold} Sold</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Capacity: {k.capacity}</span>
+                        <span className="font-semibold text-emerald-700">{k.share_pct}% Market Share</span>
+                      </div>
+                      <div className="w-full bg-emerald-200/60 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${k.share_pct}%` }} />
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Capacity: {k.capacity}</span>
-                      <span className="font-semibold text-emerald-700">{k.share_pct}% Market Share</span>
-                    </div>
-                    <div className="w-full bg-emerald-200/60 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${k.share_pct}%` }} />
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 px-3 bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                    No kits currently in top tier sales
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
@@ -334,21 +340,27 @@ export default function BdeOrderHistoryAndKits() {
               </div>
 
               <div className="space-y-3">
-                {kitAnalytics?.average_selling?.map((k, i) => (
-                  <div key={i} className="p-3.5 bg-teal-50/50 rounded-2xl border border-teal-100 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-slate-900 text-xs">{k.kit_name}</h4>
-                      <span className="font-black text-teal-700 text-sm">{k.units_sold} Sold</span>
+                {kitAnalytics?.average_selling && kitAnalytics.average_selling.length > 0 ? (
+                  kitAnalytics.average_selling.map((k, i) => (
+                    <div key={i} className="p-3.5 bg-teal-50/50 rounded-2xl border border-teal-100 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-slate-900 text-xs">{k.kit_name}</h4>
+                        <span className="font-black text-teal-700 text-sm">{k.units_sold} Sold</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Capacity: {k.capacity}</span>
+                        <span className="font-semibold text-teal-700">{k.share_pct}% Market Share</span>
+                      </div>
+                      <div className="w-full bg-teal-200/60 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-teal-600 h-full rounded-full" style={{ width: `${k.share_pct}%` }} />
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Capacity: {k.capacity}</span>
-                      <span className="font-semibold text-teal-700">{k.share_pct}% Market Share</span>
-                    </div>
-                    <div className="w-full bg-teal-200/60 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-teal-600 h-full rounded-full" style={{ width: `${k.share_pct}%` }} />
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 px-3 bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                    No kits currently in moderate sales tier
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
@@ -370,21 +382,27 @@ export default function BdeOrderHistoryAndKits() {
               </div>
 
               <div className="space-y-3">
-                {kitAnalytics?.lowest_selling?.map((k, i) => (
-                  <div key={i} className="p-3.5 bg-rose-50/50 rounded-2xl border border-rose-100 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-slate-900 text-xs">{k.kit_name}</h4>
-                      <span className="font-black text-rose-700 text-sm">{k.units_sold} Sold</span>
+                {kitAnalytics?.lowest_selling && kitAnalytics.lowest_selling.length > 0 ? (
+                  kitAnalytics.lowest_selling.map((k, i) => (
+                    <div key={i} className="p-3.5 bg-rose-50/50 rounded-2xl border border-rose-100 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-slate-900 text-xs">{k.kit_name}</h4>
+                        <span className="font-black text-rose-700 text-sm">{k.units_sold} Sold</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Capacity: {k.capacity}</span>
+                        <span className="font-semibold text-rose-700">{k.share_pct}% Share</span>
+                      </div>
+                      <div className="w-full bg-rose-200/60 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-rose-600 h-full rounded-full" style={{ width: `${k.share_pct}%` }} />
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Capacity: {k.capacity}</span>
-                      <span className="font-semibold text-rose-700">{k.share_pct}% Share</span>
-                    </div>
-                    <div className="w-full bg-rose-200/60 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-rose-600 h-full rounded-full" style={{ width: `${k.share_pct}%` }} />
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 px-3 bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                    No kits in lowest selling tier
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
