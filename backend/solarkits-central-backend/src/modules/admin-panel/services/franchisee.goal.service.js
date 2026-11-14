@@ -20,6 +20,9 @@ const mongoose = require('mongoose');
 const {
   FranchiseeKitTarget,
   FranchiseeTargetProgress,
+  FranchiseeCluster,
+  FranchiseeClusterGoal,
+  EpcAccount,
   FpoOrder,
   Reseller,
   ResellerPlanSubscription,
@@ -74,6 +77,42 @@ async function resolveEffectiveTarget({ franchisee_id, month, year }) {
       { target_month: null, target_year: null },
     ],
   };
+
+  // 0. Unified Territory Cluster Goal (Primary Single Source of Truth)
+  if (franchisee_id) {
+    const cluster = await FranchiseeCluster.findOne({
+      assigned_franchisee_id: franchisee_id,
+      deleted_at: null,
+    }).populate('state_id', 'name').lean();
+
+    if (cluster) {
+      const fy = currentMonth >= 4 ? `${currentYear}-${String(currentYear + 1).slice(2)}` : `${currentYear - 1}-${String(currentYear).slice(2)}`;
+      const clusterGoal = await FranchiseeClusterGoal.findOne({
+        cluster_id: cluster._id,
+        financial_year: fy,
+        deleted_at: null,
+      }).lean();
+
+      if (clusterGoal) {
+        const mGoal = (clusterGoal.monthly_kit_goals || []).find((m) => m.month === currentMonth);
+        return {
+          _id: clusterGoal._id,
+          target_type: 'CLUSTER',
+          cluster_id: cluster._id,
+          cluster_code: cluster.code,
+          cluster_name: cluster.name,
+          target_quantity: mGoal ? mGoal.target_kits_quantity : 100,
+          target_revenue: mGoal ? mGoal.target_revenue : 0,
+          po_split_kits: mGoal ? mGoal.target_po_kits : 0,
+          loose_split_kits: mGoal ? mGoal.target_loose_orders : 0,
+          annual_epc_goal: clusterGoal.annual_epc_goal || 100,
+          annual_live_epc_goal: clusterGoal.annual_live_epc_goal || 60,
+          live_epc_criteria_days: clusterGoal.live_epc_criteria_days || 90,
+          calculation_stage: 'DELIVERED_QUANTITY',
+        };
+      }
+    }
+  }
 
   // 1. Franchisee-specific override
   if (franchisee_id) {
@@ -338,6 +377,73 @@ async function getGoalWidget(franchisee_id) {
   const month = now.getMonth() + 1;
   const year  = now.getFullYear();
 
+  // Load Cluster & Cluster Goals (Primary Source of Truth)
+  const cluster = await FranchiseeCluster.findOne({
+    assigned_franchisee_id: franchisee_id,
+    deleted_at: null,
+  }).populate('state_id', 'name').lean();
+
+  let clusterGoal = null;
+  let annualEpcGoal = null;
+  let liveEpcGoal = null;
+  let clusterInfo = null;
+
+  const currentYear = year;
+  const currentMonth = month;
+  const fy = currentMonth >= 4 ? `${currentYear}-${String(currentYear + 1).slice(2)}` : `${currentYear - 1}-${String(currentYear).slice(2)}`;
+
+  if (cluster) {
+    clusterGoal = await FranchiseeClusterGoal.findOne({
+      cluster_id: cluster._id,
+      financial_year: fy,
+      deleted_at: null,
+    }).lean();
+
+    // Approved EPCs onboarded for this franchisee or within this cluster
+    const approvedEpcs = await EpcAccount.find({
+      $or: [
+        { onboarded_by_reseller_id: franchisee_id },
+        { primary_reseller_id: franchisee_id },
+        { districts: { $in: cluster.district_ids || [] } },
+      ],
+      status: 'approved',
+      deleted_at: null,
+    }).lean();
+
+    const actualEpcs = approvedEpcs.length;
+    const targetEpcs = clusterGoal?.annual_epc_goal || 100;
+    const epcAchievedPct = targetEpcs > 0 ? Math.round((actualEpcs / targetEpcs) * 100) : 0;
+
+    const thresholdDays = clusterGoal?.live_epc_criteria_days || 90;
+    const cutoffDate = new Date(Date.now() - thresholdDays * 24 * 60 * 60 * 1000);
+    const liveEpcs = approvedEpcs.filter(
+      (e) => e.last_activity_at && new Date(e.last_activity_at) >= cutoffDate
+    ).length;
+    const targetLiveEpcs = clusterGoal?.annual_live_epc_goal || 60;
+    const liveAchievedPct = targetLiveEpcs > 0 ? Math.round((liveEpcs / targetLiveEpcs) * 100) : 0;
+
+    annualEpcGoal = {
+      total_epc_target: targetEpcs,
+      actual_epcs_onboarded: actualEpcs,
+      achievement_pct: epcAchievedPct,
+    };
+
+    liveEpcGoal = {
+      live_epc_target: targetLiveEpcs,
+      actual_live_epcs: liveEpcs,
+      achievement_pct: liveAchievedPct,
+      criteria_days: thresholdDays,
+    };
+
+    clusterInfo = {
+      id: cluster._id,
+      code: cluster.code,
+      name: cluster.name,
+      state: cluster.state_id?.name || '',
+      districts_count: (cluster.district_ids || []).length,
+    };
+  }
+
   // Recalculate dynamically to ensure fresh real-time data
   let progress = await recalculateProgress({ franchisee_id, month, year });
   if (progress && progress.toObject) {
@@ -365,17 +471,33 @@ async function getGoalWidget(franchisee_id) {
 
   const monthName = new Date(year, month - 1, 1).toLocaleString('en-IN', { month: 'long' });
 
+  const currentMonthGoal = (clusterGoal?.monthly_kit_goals || []).find((m) => m.month === month);
+  const monthlyGoalTarget = currentMonthGoal?.target_kits_quantity || progress.target_quantity || 100;
+  const targetRevenue = currentMonthGoal?.target_revenue || 5000000;
+  const eligibleKits = progress.eligible_quantity || 0;
+  const actualRevenue = progress.actual_revenue || 0;
+  const achievementPct = monthlyGoalTarget > 0 ? Math.round((eligibleKits / monthlyGoalTarget) * 100) : 0;
+  const balanceKits = Math.max(0, monthlyGoalTarget - eligibleKits);
+
   const widgetData = {
     period:          `${monthName} ${year}`,
+    financial_year:  fy,
     target_month:    month,
     target_year:     year,
-    monthly_goal:    progress.target_quantity,
-    eligible_kits:   progress.eligible_quantity,
-    balance_kits:    progress.balance_quantity,
-    achievement_pct: progress.achievement_pct,
-    performance_status: progress.performance_status,
+    monthly_goal:    monthlyGoalTarget,
+    target_revenue:  targetRevenue,
+    eligible_kits:   eligibleKits,
+    actual_revenue:  actualRevenue,
+    balance_kits:    balanceKits,
+    achievement_pct: achievementPct,
+    po_split_kits:   currentMonthGoal?.target_po_kits || 80,
+    loose_split_kits:currentMonthGoal?.target_loose_orders || 20,
+    performance_status: classifyPerformance(achievementPct, monthlyGoalTarget),
     days_remaining:  Math.max(0, daysRemaining),
-    has_target:      (progress.target_quantity || 0) > 0,
+    has_target:      true,
+    cluster:         clusterInfo,
+    annual_epc_goal: annualEpcGoal,
+    live_epc_goal:   liveEpcGoal,
     previous_month: prevProgress ? {
       month:           prevMonth,
       year:            prevYear,

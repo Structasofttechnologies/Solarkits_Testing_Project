@@ -16,6 +16,7 @@ const SOLAR_IMAGES = [
     alt: "1 kW On-Grid DCR Solar Kit with 500W Panels & BOSkit Box - SolarKits",
     title: "1 kW DCR Solar Combo Kit",
     buttonLabel: "BUY 1 kW KIT NOW",
+    kw: 1,
     isFranchise: false,
   },
   {
@@ -24,6 +25,7 @@ const SOLAR_IMAGES = [
     alt: "2 kW On-Grid DCR Solar Kit with 500W Panels & Smart Inverter - SolarKits",
     title: "2 kW DCR Solar Combo Kit",
     buttonLabel: "BUY 2 kW KIT NOW",
+    kw: 2,
     isFranchise: false,
   },
   {
@@ -32,6 +34,7 @@ const SOLAR_IMAGES = [
     alt: "3 kW On-Grid DCR Solar Kit with 500W Modules & Wi-Fi Inverter - SolarKits",
     title: "3 kW DCR Solar Combo Kit",
     buttonLabel: "BUY 3 kW KIT NOW",
+    kw: 3,
     isFranchise: false,
   },
   {
@@ -40,6 +43,7 @@ const SOLAR_IMAGES = [
     alt: "Complete 1kW | 2kW | 3kW On-Grid DCR Solar Kits - SolarKits",
     title: "1kW, 2kW, 3kW Combo Packages",
     buttonLabel: "BUY SOLAR KITS NOW",
+    kw: null,
     isFranchise: false,
   },
   {
@@ -48,6 +52,7 @@ const SOLAR_IMAGES = [
     alt: "Become a SolarKits Franchisee - Regional Distribution Partnership",
     title: "Regional Franchisee Program",
     buttonLabel: "BECOME A FRANCHISEE",
+    kw: null,
     isFranchise: true,
   },
 ];
@@ -84,11 +89,18 @@ export default function HeroSection() {
   // Direct Store / Franchisee Redirection
   const handleCtaClick = () => {
     const current = SOLAR_IMAGES[currentIndex];
+    const isLocal = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+    const storeBase = import.meta.env.VITE_STORE_URL || (isLocal ? "http://localhost:5179" : "https://store.solarkits.in");
+    const franchiseBase = import.meta.env.VITE_FRANCHISE_URL || (isLocal ? "http://localhost:5178" : "https://franchise.solarkits.in");
+
     if (current.isFranchise) {
-      window.open("https://franchise.solarkits.in/", "_blank", "noopener,noreferrer");
+      window.open(franchiseBase, "_blank", "noopener,noreferrer");
+    } else if (current.kw) {
+      // Direct redirect to specific kW kit in Solar Store
+      window.open(`${storeBase}/shop?kw=${current.kw}`, "_blank", "noopener,noreferrer");
     } else {
       // Direct redirect to B2B Storefront where Franchisees & EPCs can buy kits directly
-      window.open("https://store.solarkits.in/", "_blank", "noopener,noreferrer");
+      window.open(`${storeBase}/shop`, "_blank", "noopener,noreferrer");
     }
   };
 

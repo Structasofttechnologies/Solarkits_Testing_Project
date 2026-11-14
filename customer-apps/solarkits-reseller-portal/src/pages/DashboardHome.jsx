@@ -29,12 +29,19 @@ export default function DashboardHome() {
   const [territory, setTerritory] = useState(null);
   const [activeSubscription, setActiveSubscription] = useState(null);
   const [goalData, setGoalData] = useState(null);
+  const [clusterInfo, setClusterInfo] = useState(null);
 
-  // Fetch buyers, territories, subscription & target goals
+  // Fetch buyers, territories, cluster info, subscription & target goals
   const fetchDashboardData = () => {
     api.get('/india/v1/reseller/epc-buyers/list')
       .then((res) => {
         if (res.data?.status === "success") setBuyers(res.data.data || []);
+      })
+      .catch(() => { });
+
+    api.get('/india/v1/franchise-clusters/my-cluster-info')
+      .then((res) => {
+        if (res.data?.status === "success") setClusterInfo(res.data.data);
       })
       .catch(() => { });
 
@@ -141,6 +148,133 @@ export default function DashboardHome() {
         </div>
       </div>
 
+      {/* ── Franchise Cluster & BDE Dedicated Banner ── */}
+      {clusterInfo?.cluster && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black shrink-0 border border-indigo-100">
+              <FiLayers size={22} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black uppercase text-indigo-700 tracking-wider">
+                  Cluster: {clusterInfo.cluster.cluster_name} ({clusterInfo.cluster.cluster_code})
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                  {clusterInfo.cluster.is_shared_territory_allowed ? "Shared Territory" : "Exclusive Territory"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                {clusterInfo.cluster.district_ids?.length || 0} districts assigned • Agreement:{" "}
+                <span className="font-bold text-slate-800 capitalize">
+                  {clusterInfo.agreement?.agreement_status?.replace(/_/g, " ") || "Active"}
+                </span>
+                {clusterInfo.agreement?.agreement_end_date && (
+                  <span> (Valid until {new Date(clusterInfo.agreement.agreement_end_date).toLocaleDateString("en-IN")})</span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {clusterInfo.cluster.primary_bde_id && (
+            <div className="flex items-center gap-3 px-3.5 py-2 rounded-2xl bg-slate-50 border border-slate-200 shrink-0 text-xs">
+              <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold">
+                <FiUsers size={15} />
+              </div>
+              <div>
+                <div className="text-[10px] font-extrabold uppercase text-slate-400">Assigned BDE</div>
+                <div className="font-black text-slate-900">{clusterInfo.cluster.primary_bde_id.name}</div>
+                {clusterInfo.cluster.primary_bde_id.phone && (
+                  <div className="text-[11px] font-semibold text-blue-600">{clusterInfo.cluster.primary_bde_id.phone}</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Annual EPC Onboarding & Live EPC Goals (Section 4) ── */}
+      {(clusterInfo?.goal || goalData?.annual_epc_goal) && (() => {
+        const epc = clusterInfo?.goal?.annual_epc_goal || goalData?.annual_epc_goal;
+        const live = clusterInfo?.goal?.live_epc_goal || goalData?.live_epc_goal;
+        const fy = clusterInfo?.goal?.financial_year || goalData?.financial_year || "FY 2026-27";
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Annual EPC Onboarding Goal */}
+            <div className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2 text-xs font-black text-slate-700 uppercase tracking-wider">
+                  <FiUsers className="text-blue-600" size={15} />
+                  Annual EPC Onboarding Goal ({fy})
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-blue-700">
+                  {epc?.achievement_pct || 0}% Achieved
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
+                  <div className="text-[10px] font-bold text-slate-400">Target Goal</div>
+                  <div className="text-xl font-black text-slate-900 mt-0.5">
+                    {epc?.total_epc_target || 0}
+                  </div>
+                  <div className="text-[9px] text-slate-400 font-bold">Registered EPCs</div>
+                </div>
+                <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-100">
+                  <div className="text-[10px] font-bold text-emerald-700">Actual Approved</div>
+                  <div className="text-xl font-black text-emerald-600 mt-0.5">
+                    {epc?.actual_epcs_onboarded || 0}
+                  </div>
+                  <div className="text-[9px] text-emerald-600 font-bold">Onboarded</div>
+                </div>
+                <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-100">
+                  <div className="text-[10px] font-bold text-amber-700">Remaining</div>
+                  <div className="text-xl font-black text-amber-600 mt-0.5">
+                    {Math.max((epc?.total_epc_target || 0) - (epc?.actual_epcs_onboarded || 0), 0)}
+                  </div>
+                  <div className="text-[9px] text-amber-600 font-bold">Pending</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Live Active EPC Goal */}
+            <div className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2 text-xs font-black text-slate-700 uppercase tracking-wider">
+                  <FiZap className="text-amber-500" size={15} />
+                  Live Active EPC Goal ({live?.criteria_days || 90}-Day Active)
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700">
+                  {live?.achievement_pct || 0}% Achieved
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
+                  <div className="text-[10px] font-bold text-slate-400">Live Target</div>
+                  <div className="text-xl font-black text-slate-900 mt-0.5">
+                    {live?.live_epc_target || 0}
+                  </div>
+                  <div className="text-[9px] text-slate-400 font-bold">Active EPCs</div>
+                </div>
+                <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-100">
+                  <div className="text-[10px] font-bold text-emerald-700">Actual Live</div>
+                  <div className="text-xl font-black text-emerald-600 mt-0.5">
+                    {live?.actual_live_epcs || 0}
+                  </div>
+                  <div className="text-[9px] text-emerald-600 font-bold">Qualifying Orders</div>
+                </div>
+                <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-100">
+                  <div className="text-[10px] font-bold text-amber-700">Remaining</div>
+                  <div className="text-xl font-black text-amber-600 mt-0.5">
+                    {Math.max((live?.live_epc_target || 0) - (live?.actual_live_epcs || 0), 0)}
+                  </div>
+                  <div className="text-[9px] text-amber-600 font-bold">Pending Active</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── 2. Franchise Monthly Kit Target & Goal Progress Widget ───────────── */}
       <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border-2 border-blue-100 dark:border-blue-900/40 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -149,10 +283,15 @@ export default function DashboardHome() {
               <FiTarget size={24} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-lg font-black text-slate-900 dark:text-white">
                   Monthly Kit Sales Target & Goal
                 </h2>
+                {goalData?.cluster?.code && (
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                    {goalData.cluster.code}
+                  </span>
+                )}
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${(goalData?.achievement_pct || 0) >= 100
                   ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                   : (goalData?.achievement_pct || 0) >= 70
@@ -169,7 +308,9 @@ export default function DashboardHome() {
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                {goalData?.period || "Current Calendar Month"} territory commitment • Orders placed and fulfilled dynamically reduce your remaining goal
+                {goalData?.period || "Current Calendar Month"} territory commitment
+                {goalData?.target_revenue ? ` • Revenue Goal: ₹${(goalData.target_revenue).toLocaleString('en-IN')}` : ""}
+                {goalData?.po_split_kits ? ` • Split: PO ${goalData.po_split_kits} Kits / Loose ${goalData.loose_split_kits || 0} Kits` : ""}
               </p>
             </div>
           </div>
@@ -193,7 +334,7 @@ export default function DashboardHome() {
             <div className="text-2xl font-black text-slate-900 dark:text-white mt-1.5">
               {goalData?.monthly_goal || 100} <span className="text-xs font-bold text-slate-400">Kits</span>
             </div>
-            <div className="text-[10px] font-semibold text-slate-400 mt-1">Plan Territory Goal</div>
+            <div className="text-[10px] font-semibold text-slate-400 mt-1">Cluster Territory Goal</div>
           </div>
 
           <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40">

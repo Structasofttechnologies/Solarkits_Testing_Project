@@ -19,6 +19,7 @@ const {
   ResellerPlan,
   ResellerPlanSubscription,
   FranchiseeSubtype,
+  FranchiseeCluster,
   StoreSetup,
   StoreStatusHistory,
   CompanyStoreBdeAssignment,
@@ -78,6 +79,7 @@ const create_store = async (req, res) => {
       store_category = 'franchisee_store',
       franchisee_subtype_id,
       plan_id,
+      cluster_id,
       reseller_type_id,
       address = {},
       commercial_mode = 'commission',
@@ -213,9 +215,20 @@ const create_store = async (req, res) => {
     const rawPin = security_pin || '1234';
     const pinHash = await bcrypt.hash(rawPin, 10);
 
-    // Initial lifecycle state
+    // 8.5 Resolve Cluster & Setup Fee (Cluster-Wise Pricing Model)
+    let validCluster = null;
+    let clusterFee = 0;
+    if (cluster_id && mongoose.Types.ObjectId.isValid(cluster_id)) {
+      validCluster = await FranchiseeCluster.findById(cluster_id);
+      if (validCluster && validCluster.is_active && !validCluster.deleted_at) {
+        clusterFee = Number(validCluster.total_payable || validCluster.setup_fee || 0);
+      }
+    }
+
+    const isCompanyStore = store_category === 'company_store';
+    const computedFeeAmount = isCompanyStore ? 0 : (clusterFee > 0 ? clusterFee : Number(plan.setup_cost_amount || 0));
     const initialStatus = 'store_created';
-    const feeStatus = plan.setup_cost_enabled ? 'pending_payment' : 'verified';
+    const feeStatus = isCompanyStore ? 'verified' : (computedFeeAmount > 0 ? 'pending_payment' : 'verified');
 
     // 9. Create Reseller
     const newReseller = await Reseller.create({
@@ -237,21 +250,29 @@ const create_store = async (req, res) => {
       reseller_lifecycle_status: initialStatus,
       activation_status: 'pending',
       fee_payment_status: feeStatus,
-      fee_payment_amount: plan.setup_cost_enabled ? (plan.setup_cost_amount || 0) : 0,
-      bde_id: assignedCompanyBdeId || assignedFranchiseeBdeId || null,
+      fee_payment_amount: computedFeeAmount,
+      bde_id: assignedCompanyBdeId || assignedFranchiseeBdeId || (validCluster?.primary_bde_id || null),
       company_store_bde_id: assignedCompanyBdeId || assignedFranchiseeBdeId || null,
       company_store_bde_assigned_at: (assignedCompanyBdeId || assignedFranchiseeBdeId) ? new Date() : null,
       company_store_bde_assigned_by: (assignedCompanyBdeId || assignedFranchiseeBdeId) ? actorId : null,
       address: {
         line: address.line || null,
         country_id: address.country_id || null,
-        state_id: address.state_id || null,
-        district_id: address.district_id || null,
+        state_id: address.state_id || (validCluster?.state_id || null),
+        district_id: address.district_id || (validCluster?.district_ids?.[0] || null),
         city: address.city || null,
         pincode: address.pincode || null,
       },
       created_by: actorId,
     });
+
+    // If cluster was assigned, bind reseller to cluster and update cluster status
+    if (validCluster) {
+      validCluster.assigned_franchisee_id = newReseller._id;
+      validCluster.status = 'allotted';
+      validCluster.effective_date = new Date();
+      await validCluster.save();
+    }
 
     // 10. Create Plan Subscription
     // Calculate expiry_date from plan validity

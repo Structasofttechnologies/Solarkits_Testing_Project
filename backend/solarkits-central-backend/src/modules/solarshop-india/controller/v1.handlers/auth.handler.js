@@ -3,6 +3,7 @@ const india_solarshop_db = require("../../config/databases").india_solarshop_db;
 
 // Models - India Core DB
 const EpcCompany = require("../../models/india_core_db/epc_companies.schema");
+const EpcCompanyGst = require("../../models/india_core_db/epc_company_gst.schema");
 
 // Models - Solar Shop DB
 const EpcAccount = require("../../models/india_solarshop_db/epc_accounts.schema");
@@ -56,10 +57,26 @@ const get_epcs_by_state = async (req, res) => {
         }
 
         // Map to standard format
+        // Check GSTIN presence in database for these companies
+        const companyIds = epcs.map(ec => ec._id);
+        const gstRecords = await EpcCompanyGst.find({
+            company_id: { $in: companyIds },
+            deleted_at: null
+        }).select('company_id gst_number').lean();
+
+        const gstMap = new Map();
+        gstRecords.forEach(g => {
+            if (g.gst_number) {
+                gstMap.set(String(g.company_id), g.gst_number);
+            }
+        });
+
         const formattedEpcs = epcs.map(ec => ({
             id: ec._id,
             name: ec.name,
-            email: ec.email
+            email: ec.email,
+            has_gstin: gstMap.has(String(ec._id)) || Boolean(ec.gst_number),
+            gst_number: gstMap.get(String(ec._id)) || ec.gst_number || null
         }));
 
         return res.status(200).json({ epcs: formattedEpcs });
@@ -300,7 +317,8 @@ const create_account = async (req, res) => {
             state,
             district,
             company_id,
-            company_name
+            company_name,
+            gstin
         } = req.body;
 
         // Sync with frontend names
@@ -391,6 +409,39 @@ const create_account = async (req, res) => {
         }
 
         const password_hash = await bcrypt.hash(password, 10);
+        const cleanGstin = gstin ? String(gstin).trim().toUpperCase() : null;
+        let onboarding_source = company_id ? "database" : "portal";
+        let gst_verification_status = "unverified";
+        let is_gstin_active = false;
+        let finalGstin = cleanGstin;
+
+        if (company_id) {
+            // Check if company already has GSTIN in database
+            const dbGst = await EpcCompanyGst.findOne({ company_id, deleted_at: null }).lean();
+            if (dbGst && dbGst.gst_number) {
+                gst_verification_status = "verified_automatic";
+                is_gstin_active = true;
+                finalGstin = dbGst.gst_number;
+            } else if (cleanGstin) {
+                gst_verification_status = "verified_automatic";
+                is_gstin_active = true;
+                await EpcCompanyGst.create([{
+                    company_id,
+                    state_id: state,
+                    gst_number: cleanGstin,
+                    deleted_at: null
+                }], { session });
+            } else {
+                gst_verification_status = "unverified";
+                is_gstin_active = false;
+            }
+        } else {
+            // New EPC not in database: Admin must verify
+            onboarding_source = "portal";
+            gst_verification_status = "pending_admin";
+            is_gstin_active = false;
+        }
+
         let status = company_id ? "approved" : "pending";
 
         // ✅ Insert into epc_accounts
@@ -407,7 +458,7 @@ const create_account = async (req, res) => {
                 districts: [district],
                 is_email_verified: true,
                 is_whatsapp_verified: true,
-                status
+                status, onboarding_source, gst_verification_status, gstin: finalGstin, is_gstin_active
             }
         ], { session });
 
@@ -427,6 +478,7 @@ const create_account = async (req, res) => {
                 {
                     account_id: account._id,
                     company_name,
+            gstin,
                     email,
                     whatsapp: finalWhatsapp,
                     state_id: state,

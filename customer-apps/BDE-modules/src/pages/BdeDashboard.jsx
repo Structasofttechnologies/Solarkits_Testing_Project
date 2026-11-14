@@ -34,6 +34,7 @@ export default function BdeDashboard() {
   const navigate = useNavigate();
 
   const [dashboardData, setDashboardData] = useState(null);
+  const [clusterData, setClusterData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -45,9 +46,16 @@ export default function BdeDashboard() {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.get('/dashboard');
-      if (res.data?.status === 'success') {
-        setDashboardData(res.data.data);
+      const [res, clusterRes] = await Promise.allSettled([
+        api.get('/dashboard'),
+        api.get('/franchise-clusters/dashboard'),
+      ]);
+
+      if (res.status === 'fulfilled' && res.value.data?.status === 'success') {
+        setDashboardData(res.value.data.data);
+      }
+      if (clusterRes.status === 'fulfilled' && clusterRes.value.data?.status === 'success') {
+        setClusterData(clusterRes.value.data.data);
       }
     } catch (err) {
       console.error('Failed to load BDE dashboard data', err);
@@ -142,6 +150,200 @@ export default function BdeDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── Section 6.3: Franchisee Cluster & Business Support Management ── */}
+      {clusterData && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-indigo-600" />
+              Assigned Franchisee Clusters & Performance Support
+            </h2>
+            <span className="text-xs font-bold text-slate-500">
+              {clusterData.metrics?.total_clusters || 0} Clusters • {clusterData.metrics?.total_franchisees || 0} Franchisees Mapped
+            </span>
+          </div>
+
+          {/* Clusters Ribbon */}
+          {clusterData.assigned_clusters && clusterData.assigned_clusters.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {clusterData.assigned_clusters.map((clu) => (
+                <div
+                  key={clu.id}
+                  className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between space-y-2 hover:border-indigo-300 transition-colors"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
+                          {clu.cluster_code}
+                        </span>
+                        {clu.is_primary ? (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700">Primary BDE</span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600">Support BDE</span>
+                        )}
+                      </div>
+                      <h4 className="font-black text-sm text-slate-900 mt-1">{clu.cluster_name}</h4>
+                    </div>
+                    <span className="text-xs text-slate-400 font-semibold">{clu.districts_count} Districts</span>
+                  </div>
+
+                  <div className="text-xs pt-2 border-t border-slate-100 flex items-center justify-between text-slate-600">
+                    <span className="text-slate-400 font-medium">Franchisee Store:</span>
+                    <span className="font-bold text-slate-900">{clu.franchisee_name}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Cluster Performance KPIs (Section 6.3) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            {/* Annual EPC Onboarding */}
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <span>Annual EPC Onboarding</span>
+                <Users className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="text-2xl font-black text-slate-900">
+                {clusterData.metrics?.actual_epc_onboarded || 0}
+                <span className="text-xs font-bold text-slate-400 ml-1.5">/ {clusterData.metrics?.annual_epc_goal || 0} Goal</span>
+              </div>
+              <div className="text-[10px] text-blue-600 font-bold">
+                {clusterData.metrics?.annual_epc_goal > 0
+                  ? Math.round(((clusterData.metrics.actual_epc_onboarded || 0) / clusterData.metrics.annual_epc_goal) * 100)
+                  : 0}% Annual Target Completed
+              </div>
+            </div>
+
+            {/* Live Active EPCs */}
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <span>Live Active EPCs</span>
+                <Zap className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className="text-2xl font-black text-slate-900">
+                {clusterData.metrics?.live_epc_count || 0}
+                <span className="text-xs font-bold text-slate-400 ml-1.5">Active (90 Days)</span>
+              </div>
+              <div className="text-[10px] text-amber-600 font-semibold">
+                Actively qualifying with repeat quotes/orders
+              </div>
+            </div>
+
+            {/* Monthly Kit Sales */}
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <span>Monthly Kit Sales</span>
+                <Package className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="text-2xl font-black text-emerald-700">
+                {clusterData.metrics?.actual_monthly_kits || 0}
+                <span className="text-xs font-bold text-slate-400 ml-1.5">/ {clusterData.metrics?.monthly_kit_target || 0} Kits</span>
+              </div>
+              <div className="text-[10px] text-emerald-600 font-bold">
+                {clusterData.metrics?.monthly_achievement_pct || 0}% Monthly Achievement
+              </div>
+            </div>
+          </div>
+
+          {/* Support Tickets & Agreement Expiry Alerts (Section 6.3) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Open Franchisee Tickets */}
+            <div className="p-5 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase text-slate-700 tracking-wider">Open Franchisee Tickets</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">
+                    {clusterData.open_tickets_count || 0} Open
+                  </span>
+                </div>
+                {clusterData.overdue_tickets_count > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                    ⚠️ {clusterData.overdue_tickets_count} Overdue SLA
+                  </span>
+                )}
+              </div>
+
+              {clusterData.open_tickets && clusterData.open_tickets.length > 0 ? (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {clusterData.open_tickets.map((t) => (
+                    <div
+                      key={t._id}
+                      className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-blue-700">{t.ticket_number}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white border border-slate-200 capitalize">
+                            {t.ticket_type?.replace(/_/g, " ") || "Support"}
+                          </span>
+                        </div>
+                        <p className="text-slate-600 font-semibold truncate max-w-xs mt-0.5">
+                          {t.item_name || t.problem_description}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {t.tat_deadline ? `TAT: ${new Date(t.tat_deadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-6 text-center text-xs text-slate-400 font-medium">
+                  No pending support or replacement tickets in assigned clusters.
+                </div>
+              )}
+            </div>
+
+            {/* Agreements Expiring in Assigned Clusters */}
+            <div className="p-5 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-slate-700 tracking-wider">Agreements Expiring Soon</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${clusterData.expiring_agreements_count > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                  {clusterData.expiring_agreements_count || 0} Expiring (30 Days)
+                </span>
+              </div>
+
+              {clusterData.expiring_agreements && clusterData.expiring_agreements.length > 0 ? (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {clusterData.expiring_agreements.map((ag) => (
+                    <div
+                      key={ag._id}
+                      className="p-3 rounded-xl bg-amber-50/60 border border-amber-200 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <div className="font-black text-slate-900">
+                          {ag.franchisee_id?.business_name || "Franchisee Store"}
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          Cluster: {ag.cluster_id?.cluster_name || "Assigned Cluster"}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[10px] font-black text-amber-800">
+                          Expires: {new Date(ag.end_date).toLocaleDateString('en-IN')}
+                        </div>
+                        <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">
+                          Follow-up Required
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-6 text-center text-xs text-slate-400 font-medium">
+                  All franchisee agreements in your clusters are active and up to date.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 5. STATE DASHBOARD — Geography-Focused State Summary */}
       <div className="space-y-3">
@@ -243,20 +445,20 @@ export default function BdeDashboard() {
                         <div className="w-24 bg-slate-100 h-2 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all ${d.goal_achievement_pct >= 100
-                                ? 'bg-emerald-500'
-                                : d.goal_achievement_pct >= 60
-                                  ? 'bg-blue-500'
-                                  : 'bg-amber-500'
+                              ? 'bg-emerald-500'
+                              : d.goal_achievement_pct >= 60
+                                ? 'bg-blue-500'
+                                : 'bg-amber-500'
                               }`}
                             style={{ width: `${Math.min(100, d.goal_achievement_pct)}%` }}
                           />
                         </div>
                         <span
                           className={`font-black text-xs ${d.goal_achievement_pct >= 100
-                              ? 'text-emerald-700'
-                              : d.goal_achievement_pct >= 60
-                                ? 'text-blue-700'
-                                : 'text-amber-700'
+                            ? 'text-emerald-700'
+                            : d.goal_achievement_pct >= 60
+                              ? 'text-blue-700'
+                              : 'text-amber-700'
                             }`}
                         >
                           {d.goal_achievement_pct}%
@@ -320,8 +522,8 @@ export default function BdeDashboard() {
                 className="bg-teal-600 h-full rounded-full transition-all"
                 style={{
                   width: `${goals.monthly_epc_onboard_goal > 0
-                      ? Math.min(100, Math.round(((goals.monthly_epc_onboarded_achieved || 0) / goals.monthly_epc_onboard_goal) * 100))
-                      : 0
+                    ? Math.min(100, Math.round(((goals.monthly_epc_onboarded_achieved || 0) / goals.monthly_epc_onboard_goal) * 100))
+                    : 0
                     }%`,
                 }}
               />

@@ -26,7 +26,7 @@ export default function ShopPage() {
     }
   }, [selectedDistrict?.id, dispatch]);
 
-  const whatsappNumber = "919876543210";
+  const whatsappNumber = "917777939842";
 
   return (
     <div className="min-h-screen bg-solarbg text-text-primary flex flex-col selection:bg-primary-500 selection:text-white">

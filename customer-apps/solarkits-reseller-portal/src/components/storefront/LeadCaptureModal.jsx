@@ -293,7 +293,7 @@ export default function LeadCaptureModal({
     const text = encodeURIComponent(
       `Hello SolarKits Team,\nI am interested in B2B procurement / franchise partnership.\n*Name:* ${formData.fullName || "Partner"}\n*Business:* ${formData.businessName || "Solar Company"}\n*State/District:* ${formData.state}, ${formData.district}\n*Requirement:* ${formData.requiredKitConfig || "Complete SolarKits"}`
     );
-    window.open(`https://wa.me/919876543210?text=${text}`, "_blank");
+    window.open(`https://wa.me/917777939842?text=${text}`, "_blank");
   };
 
   return (
@@ -419,7 +419,7 @@ export default function LeadCaptureModal({
                       pattern="[6-9][0-9]{9}"
                       value={formData.mobileNumber}
                       onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value, whatsappNumber: formData.whatsappNumber || e.target.value })}
-                      placeholder="9876543210"
+                      placeholder="7777939842"
                       className="w-full pl-11 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-[#253880] shadow-xs"
                     />
                   </div>
@@ -437,7 +437,7 @@ export default function LeadCaptureModal({
                       type="tel"
                       value={formData.whatsappNumber}
                       onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
-                      placeholder="9876543210 (For quick quotation)"
+                      placeholder="7777939842 (For quick quotation)"
                       className="w-full pl-11 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-[#253880] shadow-xs"
                     />
                   </div>

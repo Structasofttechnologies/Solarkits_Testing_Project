@@ -230,7 +230,8 @@ function StoreCategoryBadge({ category, subtype }) {
   );
 }
 
-function CommercialsBadge({ commissionEnabled, setupCostEnabled, setupCostAmount }) {
+function CommercialsBadge({ commissionEnabled, storeCategory }) {
+  const isCompany = storeCategory === "company_store";
   return (
     <div className="flex flex-col gap-1 items-end">
       <div className="flex items-center gap-1">
@@ -239,10 +240,12 @@ function CommercialsBadge({ commissionEnabled, setupCostEnabled, setupCostAmount
         }`}>
           {commissionEnabled !== false ? "Comm. ON" : "Comm. OFF"}
         </span>
-        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-          setupCostEnabled !== false ? "bg-info-soft text-primary border-primary/20" : "bg-surface-hover text-text-muted border-border"
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+          isCompany
+            ? "bg-slate-100 text-slate-600 border-slate-200"
+            : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800"
         }`}>
-          {setupCostEnabled !== false ? `Fee: ₹${Number(setupCostAmount || 0).toLocaleString("en-IN")}` : "Fee: Waived"}
+          {isCompany ? "Fee: Waived" : "Fee: Cluster-Based"}
         </span>
       </div>
     </div>
@@ -527,18 +530,29 @@ function FormModal({ mode, initial, onClose, onSaved }) {
             </div>
           </div>
 
-          {/* 4. Commercial Controls & Fees */}
+          {/* 4. Commercial Controls & Cluster-Wise Fees */}
           <div className="p-4 bg-bg/60 rounded-2xl border border-border space-y-3.5">
             <h4 className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
-              <FiDollarSign size={14} /> 4. Commercial Rules & Setup Fees
+              <FiDollarSign size={14} /> 4. Commercial Rules & Territory Scope
             </h4>
 
-            {/* Setup Cost & Commission Toggles */}
+            {/* Information Banner: Cluster-Wise Fees */}
+            <div className="p-3 bg-blue-50/80 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-300 flex items-start gap-2.5">
+              <FiInfo className="text-blue-600 mt-0.5 shrink-0" size={16} />
+              <div>
+                <span className="font-bold">Franchisee Setup Fees are Configured Cluster-Wise:</span>
+                <p className="text-[11px] text-blue-700 dark:text-blue-400 mt-0.5">
+                  In accordance with the new franchise business model, franchisee store setup fees, renewal charges, security deposits, and payment tracking are managed dynamically per territory under <strong>Franchisee Cluster Management</strong>.
+                </p>
+              </div>
+            </div>
+
+            {/* Commission & Operational Controls */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2 border-b border-border/60">
               {/* Commission Toggle */}
               <div className="flex items-center justify-between p-3 rounded-xl bg-surface border border-border">
                 <div>
-                  <div className="text-xs font-bold text-text-primary">Commission</div>
+                  <div className="text-xs font-bold text-text-primary">Commission Eligibility</div>
                   <div className="text-[10px] text-text-muted">
                     {form.commission_enabled ? "Commission payouts enabled" : "Commission disabled"}
                   </div>
@@ -554,23 +568,18 @@ function FormModal({ mode, initial, onClose, onSaved }) {
                 </label>
               </div>
 
-              {/* Setup Cost Toggle */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-surface border border-border">
-                <div>
-                  <div className="text-xs font-bold text-text-primary">Setup Cost</div>
-                  <div className="text-[10px] text-text-muted">
-                    {form.setup_cost_enabled ? "Setup fee required" : "Setup fee waived/zero"}
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.setup_cost_enabled}
-                    onChange={(e) => setForm({ ...form, setup_cost_enabled: e.target.checked })}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary relative"></div>
+              {/* Allowed Territories Count */}
+              <div className="p-3 rounded-xl bg-surface border border-border">
+                <label className="block text-xs font-bold text-text-primary mb-1">
+                  Allowed Territories Count
                 </label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-1.5 rounded-lg border border-border bg-bg text-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                  value={form.allowed_territories_count}
+                  onChange={(e) => setForm({ ...form, allowed_territories_count: e.target.value })}
+                  min={1}
+                />
               </div>
             </div>
 
@@ -592,43 +601,6 @@ function FormModal({ mode, initial, onClose, onSaved }) {
                 </label>
               </div>
             )}
-
-            {/* Fee Inputs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">
-                  Setup Fee Amount (₹)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    disabled={!form.setup_cost_enabled}
-                    className="w-full px-3.5 py-2 pl-8 rounded-xl border border-border bg-surface text-text-primary text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all disabled:opacity-50"
-                    placeholder="0 for Free/Waived"
-                    value={form.setup_cost_amount}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setForm({ ...form, setup_cost_amount: val, one_time_fee: val });
-                    }}
-                    min={0}
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-text-muted">₹</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">
-                  Allowed Territories Count
-                </label>
-                <input
-                  type="number"
-                  className="w-full px-3.5 py-2 rounded-xl border border-border bg-surface text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                  value={form.allowed_territories_count}
-                  onChange={(e) => setForm({ ...form, allowed_territories_count: e.target.value })}
-                  min={1}
-                />
-              </div>
-            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -1850,8 +1822,7 @@ export default function ResellerPlans({ moduleUniqueId }) {
                       <td className="px-4 py-3.5 text-right font-semibold text-text-primary">
                         <CommercialsBadge
                           commissionEnabled={plan.commission_enabled}
-                          setupCostEnabled={plan.setup_cost_enabled}
-                          setupCostAmount={plan.setup_cost_amount ?? plan.one_time_fee}
+                          storeCategory={plan.store_category}
                         />
                         <div className="text-[11px] text-text-muted font-normal mt-1">
                           Validity: {plan.validity_value} {plan.validity_unit}

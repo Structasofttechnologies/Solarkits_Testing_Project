@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Loader from "@/components/Loader";
 import { PermissionGuard } from "../../../components/PermissionGuard";
 
@@ -287,15 +287,14 @@ function ResellerManagement() {
           </PermissionGuard>
         }
       />
+      {/* ── Unified Franchise Goal Settings Redirect: Consolidated to Franchise Cluster Hub ── */}
       <Route
         path="/fpo/kit-targets"
-        element={
-          <PermissionGuard requiredUniqueId="FPO_TARGET">
-            <Suspense fallback={<Loader text="Loading Kit Targets..." />}>
-              <FranchiseeKitTargets />
-            </Suspense>
-          </PermissionGuard>
-        }
+        element={<Navigate to="/admin-panel/solar-shop/franchise-clusters?tab=goals" replace />}
+      />
+      <Route
+        path="fpo/kit-targets"
+        element={<Navigate to="/admin-panel/solar-shop/franchise-clusters?tab=goals" replace />}
       />
       <Route
         path="/fpo/performance"

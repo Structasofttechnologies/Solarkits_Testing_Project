@@ -767,7 +767,7 @@ export default function Login() {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. ravi.s@sunnovative.com or 9876543210"
+                  placeholder="e.g. ravi.s@sunnovative.com or 7777939842"
                   value={resetPinData.identifier}
                   onChange={(e) =>
                     setResetPinData((prev) => ({

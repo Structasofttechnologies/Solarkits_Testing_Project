@@ -56,12 +56,14 @@ export default function StoreCreationWizard() {
   const [subtypes, setSubtypes] = useState([]);
   const [bdes, setBdes] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [clusters, setClusters] = useState([]);
 
   // Form State
   const [formData, setFormData] = useState({
     store_category: "franchisee_store", // "franchisee_store" | "company_store"
     franchisee_subtype_id: "",
     plan_id: "",
+    cluster_id: "",
     business_name: "",
     contact_person: "",
     mobile: "",
@@ -85,7 +87,7 @@ export default function StoreCreationWizard() {
       setLoading(true);
       try {
         const headers = authHeaderObj();
-        const [plansRes, subtypesRes, bdesRes, whRes] = await Promise.all([
+        const [plansRes, subtypesRes, bdesRes, whRes, clustersRes] = await Promise.all([
           axios.get(`${API_BASE}/resellers/plans/list?active_only=true`, { headers }),
           axios.get(`${API_BASE}/store-management/subtypes/list?active_only=true`, { headers }),
           axios
@@ -94,6 +96,9 @@ export default function StoreCreationWizard() {
               axios.get(`${API_BASE}/bde/list?unique_id=RSL_MGMT&req_for=view&limit=100`, { headers }).catch(() => null)
             ),
           axios.get(`${API_BASE}/store-management/warehouses/list?active_only=true`, { headers }),
+          axios
+            .get(`${API_BASE}/franchise-clusters/list`, { headers })
+            .catch(() => ({ data: { data: [] } })),
         ]);
 
         if (plansRes?.data?.data) setPlans(plansRes.data.data);
@@ -101,6 +106,7 @@ export default function StoreCreationWizard() {
         const loadedBdes = bdesRes?.data?.data || bdesRes?.data?.coordinators || [];
         if (loadedBdes) setBdes(loadedBdes);
         if (whRes?.data?.data) setWarehouses(whRes.data.data);
+        if (clustersRes?.data?.data) setClusters(clustersRes.data.data);
       } catch (err) {
         console.error("Failed to load setup metadata:", err);
         dispatch(
@@ -127,6 +133,7 @@ export default function StoreCreationWizard() {
   });
 
   const selectedPlan = plans.find((p) => (p.id || p._id) === formData.plan_id);
+  const selectedCluster = clusters.find((c) => String(c._id || c.id) === String(formData.cluster_id));
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -205,6 +212,7 @@ export default function StoreCreationWizard() {
         store_category: formData.store_category,
         franchisee_subtype_id: formData.franchisee_subtype_id || undefined,
         plan_id: formData.plan_id,
+        cluster_id: formData.cluster_id || undefined,
         business_name: formData.business_name.trim(),
         contact_person: formData.contact_person.trim() || undefined,
         mobile: formData.mobile.trim(),
@@ -457,12 +465,12 @@ export default function StoreCreationWizard() {
                             </div>
                             <span
                               className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full shrink-0 border ${
-                                hasSetupCost
-                                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-800"
-                                  : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                                formData.store_category === "company_store"
+                                  ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                                  : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800"
                               }`}
                             >
-                              {hasSetupCost ? `₹${feeAmount.toLocaleString("en-IN")} Setup Fee` : "Zero Setup Cost"}
+                              {formData.store_category === "company_store" ? "Fee: Waived" : "Fee: Cluster-Based"}
                             </span>
                           </div>
 
@@ -506,6 +514,75 @@ export default function StoreCreationWizard() {
                     </p>
                   )}
                 </div>
+
+                {/* Franchisee Cluster Selection (Cluster-Wise Pricing Model) */}
+                {formData.store_category === "franchisee_store" && (
+                  <div className="pt-2">
+                    <label className="block text-sm font-semibold mb-2 flex items-center justify-between">
+                      <span>Assign Franchisee Cluster (Territory & Setup Fee)</span>
+                      <span className="text-xs text-amber-600 font-bold">New Business Model</span>
+                    </label>
+                    <select
+                      name="cluster_id"
+                      value={formData.cluster_id}
+                      onChange={(e) => {
+                        const cId = e.target.value;
+                        const clu = clusters.find((c) => String(c._id || c.id) === cId);
+                        setFormData((prev) => ({
+                          ...prev,
+                          cluster_id: cId,
+                          ...(clu?.primary_bde_id && !prev.bde_id ? { bde_id: clu.primary_bde_id._id || clu.primary_bde_id } : {}),
+                        }));
+                      }}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 outline-none text-sm font-semibold"
+                    >
+                      <option value="">-- Select Franchisee Cluster (or Assign Later) --</option>
+                      {clusters.map((c) => (
+                        <option key={c._id || c.id} value={c._id || c.id}>
+                          {c.cluster_name} ({c.cluster_code}) • {c.state_id?.name || 'India'} • Total Payable: ₹{Number(c.total_payable || c.setup_fee || 0).toLocaleString('en-IN')} [{c.status}]
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Selected Cluster Details Micro-Card */}
+                    {selectedCluster && (
+                      <div className="mt-3 p-4 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200 dark:border-emerald-800 text-xs">
+                        <div className="flex items-center justify-between pb-2 border-b border-emerald-200/60 dark:border-emerald-800/60">
+                          <span className="font-extrabold text-emerald-900 dark:text-emerald-200 text-sm">
+                            {selectedCluster.cluster_name} ({selectedCluster.cluster_code})
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md font-bold uppercase text-[10px] bg-emerald-200 text-emerald-900">
+                            {selectedCluster.status}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-2.5 text-slate-700 dark:text-slate-300">
+                          <div>
+                            <span className="text-[11px] text-slate-400 block">Franchise Setup Fee</span>
+                            <span className="font-bold text-slate-900 dark:text-white">₹{Number(selectedCluster.setup_fee || 0).toLocaleString('en-IN')}</span>
+                          </div>
+                          <div>
+                            <span className="text-[11px] text-slate-400 block">Security Deposit</span>
+                            <span className="font-bold text-slate-900 dark:text-white">₹{Number(selectedCluster.security_deposit || 0).toLocaleString('en-IN')}</span>
+                          </div>
+                          <div>
+                            <span className="text-[11px] text-slate-400 block">Renewal Fee</span>
+                            <span className="font-bold text-slate-900 dark:text-white">₹{Number(selectedCluster.renewal_fee || 0).toLocaleString('en-IN')}</span>
+                          </div>
+                          <div>
+                            <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-bold block">Total Payable</span>
+                            <span className="font-black text-sm text-emerald-600 dark:text-emerald-300">₹{Number(selectedCluster.total_payable || selectedCluster.setup_fee || 0).toLocaleString('en-IN')}</span>
+                          </div>
+                        </div>
+                        <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                          <span>Agreement Duration: <strong>{selectedCluster.agreement_period_years || 2} Years</strong></span>
+                          {selectedCluster.primary_bde_id && (
+                            <span>• Primary BDE: <strong>{selectedCluster.primary_bde_id.full_name || selectedCluster.primary_bde_id.name || 'Assigned'}</strong></span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -799,11 +876,13 @@ export default function StoreCreationWizard() {
                       <span className="font-semibold">{selectedPlan?.name || "N/A"}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Setup Fee:</span>
-                      <span className="font-semibold">
-                        {(selectedPlan?.setup_cost_enabled !== false && ((selectedPlan?.setup_cost_amount || 0) > 0 || (selectedPlan?.one_time_fee || 0) > 0))
-                          ? `₹${Number(selectedPlan.setup_cost_amount || selectedPlan.one_time_fee || 0).toLocaleString("en-IN")}`
-                          : "Zero Fee"}
+                      <span className="text-slate-500">Franchisee Setup Fee:</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        {formData.store_category === "company_store"
+                          ? "Zero Fee (Company Owned)"
+                          : selectedCluster
+                          ? `₹${Number(selectedCluster.total_payable || selectedCluster.setup_fee || 0).toLocaleString("en-IN")} (${selectedCluster.cluster_name})`
+                          : "Cluster-Configured Fee"}
                       </span>
                     </div>
                     <div className="flex justify-between">

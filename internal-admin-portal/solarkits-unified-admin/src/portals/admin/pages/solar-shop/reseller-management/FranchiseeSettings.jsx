@@ -248,7 +248,7 @@ export default function FranchiseeSettings() {
 
   // Helper to compute stats for a specific plan
   const getPlanStats = useCallback((plan) => {
-    if (!plan) return { totalProducts: 0, assignedKitIds: [], moqConfiguredCount: 0, moqPendingCount: 0, poConfiguredCount: 0, poPendingCount: 0, readinessPct: 0, planMoqRules: [], planPoSettings: [], planTarget: null, targetConfigured: false, targetQuantity: null };
+    if (!plan) return { totalProducts: 0, assignedKitIds: [], moqConfiguredCount: 0, moqPendingCount: 0, poConfiguredCount: 0, poPendingCount: 0, readinessPct: 0, planMoqRules: [], planPoSettings: [] };
 
     const planIdStr = String(plan.id || plan._id);
     const rawIds = (plan.allowed_combo_kit_ids || plan.allowed_combo_kits || [])
@@ -266,13 +266,6 @@ export default function FranchiseeSettings() {
     // Filter rules belonging to this plan
     const planMoqRules = moqRules.filter((r) => r.plan_id && String(r.plan_id._id || r.plan_id) === planIdStr);
     const planPoSettings = poSettings.filter((s) => s.plan_id && String(s.plan_id._id || s.plan_id) === planIdStr);
-
-    // Find Target rule for this plan
-    const planSpecificTarget = kitTargets.find((t) => t.plan_id && String(t.plan_id._id || t.plan_id) === planIdStr);
-    const globalTarget = kitTargets.find((t) => t.target_type === "GLOBAL");
-    const planTarget = planSpecificTarget || globalTarget || null;
-    const targetConfigured = Boolean(planSpecificTarget || globalTarget);
-    const targetQuantity = planTarget?.target_quantity ?? null;
 
     // Check configured products
     const moqConfiguredKits = new Set();
@@ -296,8 +289,8 @@ export default function FranchiseeSettings() {
     const poConfiguredCount = assignedKitIds.filter((id) => poConfiguredKits.has(id)).length;
     const poPendingCount = Math.max(0, totalProducts - poConfiguredCount);
 
-    const totalPossibleConfigs = (totalProducts * 2) + 1;
-    const totalConfigured = moqConfiguredCount + poConfiguredCount + (targetConfigured ? 1 : 0);
+    const totalPossibleConfigs = totalProducts * 2;
+    const totalConfigured = moqConfiguredCount + poConfiguredCount;
     const readinessPct = totalPossibleConfigs > 0 ? Math.round((totalConfigured / totalPossibleConfigs) * 100) : (totalProducts === 0 ? 0 : 100);
 
     return {
@@ -307,28 +300,23 @@ export default function FranchiseeSettings() {
       moqPendingCount,
       poConfiguredCount,
       poPendingCount,
-      planTarget,
-      targetConfigured,
-      targetQuantity,
       readinessPct,
       planMoqRules,
       planPoSettings,
     };
-  }, [moqRules, poSettings, kitTargets, allProductsMap]);
+  }, [moqRules, poSettings, allProductsMap]);
 
   // Overall Global Counts
   const globalSummary = useMemo(() => {
     let totalAssignedProducts = 0;
     let totalMoqConfigured = 0;
     let totalPoConfigured = 0;
-    let totalTargetsConfigured = 0;
 
     plans.forEach((p) => {
       const stats = getPlanStats(p);
       totalAssignedProducts += stats.totalProducts;
       totalMoqConfigured += stats.moqConfiguredCount;
       totalPoConfigured += stats.poConfiguredCount;
-      if (stats.targetConfigured) totalTargetsConfigured += 1;
     });
 
     return {
@@ -336,7 +324,6 @@ export default function FranchiseeSettings() {
       totalAssignedProducts,
       totalMoqConfigured,
       totalPoConfigured,
-      totalTargetsConfigured,
     };
   }, [plans, getPlanStats]);
 
@@ -677,69 +664,6 @@ export default function FranchiseeSettings() {
     }));
   };
 
-const handleOpenTargetModal = (existingTarget = null) => {
-    setModalTargetProduct(null);
-    setModalInitialData(existingTarget || {
-      plan_id: selectedPlan?.id || selectedPlan?._id,
-      target_type: "PLAN",
-      target_quantity: 100,
-      calculation_stage: "DELIVERED_QUANTITY",
-      target_month: new Date().getMonth() + 1,
-      target_year: new Date().getFullYear(),
-      is_recurring: true,
-      carry_forward_enabled: false,
-      grace_period_days: 0,
-      effective_from: new Date().toISOString().slice(0, 10),
-      effective_until: "",
-    });
-    setModalType("target");
-  };
-
-  const handleSaveTarget = async (formData) => {
-    setSavingModal(true);
-    try {
-      const isEdit = Boolean(formData.id || modalInitialData?._id);
-      const targetId = formData.id || modalInitialData?._id;
-      const endpoint = isEdit ? "/update" : "/add";
-
-      const payload = {
-        ...(isEdit && { id: targetId }),
-        plan_id: selectedPlan.id,
-        target_type: "PLAN",
-        target_quantity: Number(formData.target_quantity || 100),
-        calculation_stage: formData.calculation_stage || "DELIVERED_QUANTITY",
-        target_month: Number(formData.target_month || new Date().getMonth() + 1),
-        target_year: Number(formData.target_year || new Date().getFullYear()),
-        is_recurring: Boolean(formData.is_recurring),
-        carry_forward_enabled: Boolean(formData.carry_forward_enabled),
-        grace_period_days: Number(formData.grace_period_days || 0),
-        effective_from: formData.effective_from || new Date().toISOString().slice(0, 10),
-        effective_until: formData.effective_until || null,
-        is_active: formData.is_active !== false,
-      };
-
-      const res = await axios({
-        method: isEdit ? "put" : "post",
-        url: `${API_BASE}/franchisee/kit-targets${endpoint}`,
-        headers: authHeaderObj(),
-        params: { req_for: isEdit ? "edit" : "add", unique_id: "FPO_TARGET" },
-        data: payload,
-      });
-
-      if (res.data?.status === "success") {
-        dispatch(setAlert({ type: "success", message: `Kit Target & Goal saved for ${selectedPlan.name}` }));
-        setModalType(null);
-        fetchAllData();
-      } else {
-        dispatch(setAlert({ type: "error", message: res.data?.message || "Failed to save Kit Target" }));
-      }
-    } catch (err) {
-      dispatch(setAlert({ type: "error", message: err.response?.data?.message || "Failed to save Kit Target" }));
-    } finally {
-      setSavingModal(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* ───────────────────────────────────────────────────────────────────────
@@ -937,21 +861,15 @@ const handleOpenTargetModal = (existingTarget = null) => {
                         </div>
                       </div>
 
-                      {/* 3. Kit Targets & Goals Status */}
+                      {/* 3. Cluster Territory Goals Info */}
                       <div className="flex items-center justify-between p-2.5 rounded-xl bg-bg/80 border border-border text-xs">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold shrink-0">
                             <FiTarget size={13} />
                           </div>
-                          <span className="font-semibold text-text-primary">Kit Target & Goal</span>
+                          <span className="font-semibold text-text-primary">Territory Goals</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          {stats.targetConfigured ? (
-                            <span className="font-bold text-blue-600">{stats.targetQuantity} Kits / Mo</span>
-                          ) : (
-                            <span className="font-bold text-amber-600">Pending Setup</span>
-                          )}
-                        </div>
+                        <span className="font-bold text-primary text-[11px]">Cluster Hub</span>
                       </div>
                     </div>
 
@@ -1010,7 +928,7 @@ const handleOpenTargetModal = (existingTarget = null) => {
           {(() => {
             const stats = getPlanStats(selectedPlan);
             return (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-3.5 rounded-2xl bg-surface border border-border">
                   <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Assigned Products</div>
                   <div className="text-xl font-bold text-text-primary mt-1">{stats.totalProducts}</div>
@@ -1036,18 +954,6 @@ const handleOpenTargetModal = (existingTarget = null) => {
                   </div>
                   <div className="text-[10px] text-amber-600 mt-0.5">{stats.poPendingCount} Pending Setup</div>
                 </div>
-
-                <div className="p-3.5 rounded-2xl bg-surface border border-border">
-                  <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1">
-                    <FiTarget size={12} /> Kit Target
-                  </div>
-                  <div className="text-xl font-bold text-text-primary mt-1">
-                    {stats.targetConfigured ? `${stats.targetQuantity} Kits` : "Not Set"}
-                  </div>
-                  <div className="text-[10px] text-text-muted mt-0.5">
-                    {stats.targetConfigured ? "Monthly Goal Active" : "Pending Setup"}
-                  </div>
-                </div>
               </div>
             );
           })()}
@@ -1057,7 +963,6 @@ const handleOpenTargetModal = (existingTarget = null) => {
             {[
               { id: "moq", label: "MOQ Settings", icon: FiZap, color: "text-warning" },
               { id: "po", label: "PO Settings", icon: FiPackage, color: "text-purple-600" },
-              { id: "target", label: "Kit Targets & Goals", icon: FiTarget, color: "text-blue-600" },
               { id: "contract", label: "PO Order Contract", icon: FiFileText, color: "text-emerald-600" },
             ].map((tab) => {
               const Icon = tab.icon;
@@ -1078,109 +983,27 @@ const handleOpenTargetModal = (existingTarget = null) => {
             })}
           </div>
 
-          {/* TAB 4: KIT TARGETS & GOALS VIEW */}
+          {/* CLUSTER GOAL NOTIFICATION BANNER (IF TARGET TAB ACCESSED) */}
           {activeTab === "target" ? (
-            <div className="space-y-6">
-              {(() => {
-                const stats = getPlanStats(selectedPlan);
-                return (
-                  <>
-                    <div className="p-6 rounded-2xl bg-surface border border-border flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold shrink-0">
-                          <FiTarget size={26} />
-                        </div>
-                        <div>
-                          <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
-                            Monthly Kit Target & Goal Settings
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${stats.targetConfigured
-                                ? "bg-success-soft text-success border border-success/20"
-                                : "bg-warning-soft text-warning border border-warning/20"
-                              }`}>
-                              {stats.targetConfigured ? "Active Target Configured" : "Target Pending Setup"}
-                            </span>
-                          </h3>
-                          <p className="text-xs text-text-muted mt-0.5">
-                            Define the target kit volume for franchisees subscribed to <strong>{selectedPlan.name}</strong>. PO order quantities reduce this target dynamically until month end.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleOpenTargetModal(stats.planTarget)}
-                          className="px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition-all flex items-center gap-1.5 shadow-sm"
-                        >
-                          <FiEdit2 size={13} />
-                          {stats.targetConfigured ? "Edit Plan Target" : "+ Set Monthly Target"}
-                        </button>
-                        <Link
-                          to="/admin-panel/solar-shop/reseller-management/fpo/performance"
-                          className="px-4 py-2.5 rounded-xl bg-surface hover:bg-surface-hover border border-border text-text-primary text-xs font-bold transition-all flex items-center gap-1.5"
-                        >
-                          <FiTrendingUp size={13} className="text-primary" />
-                          Live Performance Tracker
-                        </Link>
-                      </div>
-                    </div>
-
-                    {/* Target Details Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="p-5 rounded-2xl bg-surface border border-border space-y-2">
-                        <div className="text-xs font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
-                          <FiTarget className="text-blue-600" size={14} /> Monthly Goal Quantity
-                        </div>
-                        <div className="text-3xl font-black text-text-primary">
-                          {stats.targetConfigured ? `${stats.targetQuantity} Kits` : "0 Kits"}
-                          <span className="text-xs font-normal text-text-muted ml-2">/ month</span>
-                        </div>
-                        <p className="text-xs text-text-muted">
-                          Overall monthly target assigned to all partner accounts under this plan.
-                        </p>
-                      </div>
-
-                      <div className="p-5 rounded-2xl bg-surface border border-border space-y-2">
-                        <div className="text-xs font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
-                          <FiPackage className="text-purple-600" size={14} /> Calculation Stage
-                        </div>
-                        <div className="text-lg font-bold text-text-primary capitalize">
-                          {(stats.planTarget?.calculation_stage || "DELIVERED_QUANTITY").replace(/_/g, " ").toLowerCase()}
-                        </div>
-                        <p className="text-xs text-text-muted">
-                          Orders count toward the target once they reach this fulfillment stage.
-                        </p>
-                      </div>
-
-                      <div className="p-5 rounded-2xl bg-surface border border-border space-y-2">
-                        <div className="text-xs font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
-                          <FiClock className="text-warning" size={14} /> Recurrence & Grace
-                        </div>
-                        <div className="text-lg font-bold text-text-primary flex items-center gap-2">
-                          <span>{stats.planTarget?.is_recurring !== false ? "Recurring Every Month" : "Single Month Only"}</span>
-                        </div>
-                        <p className="text-xs text-text-muted">
-                          Grace period: {stats.planTarget?.grace_period_days || 0} days into next month.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Target Lifecycle & Realtime Fulfillment Info */}
-                    <div className="p-5 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 flex items-start gap-3.5">
-                      <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5">
-                        <FiInfo size={16} />
-                      </div>
-                      <div className="text-xs space-y-1 text-slate-700 dark:text-slate-300">
-                        <div className="font-bold text-slate-900 dark:text-white">How Target Progress Works in the Franchise System:</div>
-                        <ul className="list-disc pl-4 space-y-1 text-[11px]">
-                          <li>When a Franchise Partner places a PO order (e.g. 20 kits out of a 100-kit monthly goal), the system tracks their progress.</li>
-                          <li>As kits are processed and fulfilled, the remaining target quantity decreases dynamically (100 → 80 → 60 → 0 kits remaining).</li>
-                          <li>The Partner Dashboard (`DashboardHome.jsx`) and Admin Performance Tracker (`FranchiseePerformanceTracker.jsx`) show live progress bars and achievement metrics.</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
+            <div className="p-8 rounded-2xl bg-blue-500/5 border border-blue-500/20 text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center mx-auto">
+                <FiTarget size={28} />
+              </div>
+              <div className="max-w-md mx-auto space-y-1">
+                <h3 className="text-base font-bold text-text-primary">
+                  Franchise Goal Settings have Moved to Cluster Management
+                </h3>
+                <p className="text-xs text-text-muted">
+                  Monthly kit quotas, revenue targets, annual EPC onboarding, and live EPC goals are now configured per cluster territory in Franchise Cluster Hub.
+                </p>
+              </div>
+              <Link
+                to="/admin-panel/solar-shop/franchise-clusters?tab=goals"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover shadow-sm transition-all"
+              >
+                <FiTarget size={14} />
+                Open Franchisee Cluster Goal Settings
+              </Link>
             </div>
           ) : activeTab === "contract" ? (
             /* ───────────────────────────────────────────────────────────────────
@@ -1845,15 +1668,6 @@ const handleOpenTargetModal = (existingTarget = null) => {
             onSave={handleSavePo}
           />
         )}
-        {modalType === "target" && (
-          <KitTargetModal
-            plan={selectedPlan}
-            initialData={modalInitialData}
-            saving={savingModal}
-            onClose={() => setModalType(null)}
-            onSave={handleSaveTarget}
-          />
-        )}
       </AnimatePresence>
     </div>
   );
@@ -2155,103 +1969,5 @@ function PoSettingsModal({ targetProduct, plan, initialData, saving, onClose, on
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. KIT TARGET & GOAL MODAL COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
-function KitTargetModal({ plan, initialData, saving, onClose, onSave }) {
-  const [form, setForm] = useState({
-    id: initialData?._id || initialData?.id || null,
-    target_quantity: initialData?.target_quantity ?? 100,
-    calculation_stage: initialData?.calculation_stage || "DELIVERED_QUANTITY",
-    target_month: initialData?.target_month || new Date().getMonth() + 1,
-    target_year: initialData?.target_year || new Date().getFullYear(),
-    is_recurring: initialData?.is_recurring !== false,
-    carry_forward_enabled: Boolean(initialData?.carry_forward_enabled),
-    grace_period_days: initialData?.grace_period_days ?? 0,
-    effective_from: initialData?.effective_from ? new Date(initialData.effective_from).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-    effective_until: initialData?.effective_until ? new Date(initialData.effective_until).toISOString().slice(0, 10) : "",
-  });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave(form);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-lg overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-bg/50">
-          <div>
-            <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
-              <FiTarget className="text-blue-600" size={18} />
-              Configure Monthly Kit Target & Goal
-            </h3>
-            <p className="text-xs text-text-muted mt-0.5">
-              Plan: {plan?.name} (Overall Monthly Goal)
-            </p>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-hover text-text-muted"><FiX size={18} /></button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 space-y-1">
-            <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-              <FiInfo size={14} className="text-blue-600" /> Plan Monthly Goal Target
-            </div>
-            <p className="text-[11px] text-text-muted">
-              Every partner subscribed to <strong>{plan?.name}</strong> will receive this monthly sales target (e.g. 100 Kits). As PO orders are created and fulfilled, their remaining target balance decreases.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-text-secondary mb-1">Monthly Target (Kits) <span className="text-danger">*</span></label>
-              <input type="number" min={1} required className="w-full px-3.5 py-2 rounded-xl border border-border bg-bg text-text-primary text-sm font-black focus:outline-none focus:ring-2 focus:ring-primary" value={form.target_quantity} onChange={(e) => setForm({ ...form, target_quantity: e.target.value })} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">Calculation Stage</label>
-              <select className="w-full px-3.5 py-2 rounded-xl border border-border bg-bg text-text-primary text-xs focus:outline-none focus:ring-2 focus:ring-primary" value={form.calculation_stage} onChange={(e) => setForm({ ...form, calculation_stage: e.target.value })}>
-                <option value="ORDERED_QUANTITY">Ordered / Placed PO Quantity</option>
-                <option value="DELIVERED_QUANTITY">Delivered Quantity (Recommended)</option>
-                <option value="DISPATCHED_QUANTITY">Dispatched Quantity</option>
-                <option value="PAID_QUANTITY">Paid PO Quantity</option>
-                <option value="APPROVED_PO_QUANTITY">Approved PO Quantity</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-3 rounded-xl bg-bg border border-border">
-            <div>
-              <div className="text-xs font-bold text-text-primary">Recurring Target</div>
-              <div className="text-[10px] text-text-muted">Auto-renews at the beginning of each calendar month</div>
-            </div>
-            <input type="checkbox" checked={form.is_recurring} onChange={(e) => setForm({ ...form, is_recurring: e.target.checked })} className="rounded border-border text-primary focus:ring-primary w-4 h-4 cursor-pointer" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">Effective Month / Year</label>
-              <div className="flex gap-2">
-                <input type="number" min={1} max={12} className="w-16 px-2.5 py-2 rounded-xl border border-border bg-bg text-text-primary text-xs font-bold text-center" value={form.target_month} onChange={(e) => setForm({ ...form, target_month: e.target.value })} />
-                <input type="number" min={2024} max={2035} className="flex-1 px-3 py-2 rounded-xl border border-border bg-bg text-text-primary text-xs font-bold text-center" value={form.target_year} onChange={(e) => setForm({ ...form, target_year: e.target.value })} />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">Grace Period (Days)</label>
-              <input type="number" min={0} max={30} className="w-full px-3.5 py-2 rounded-xl border border-border bg-bg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-primary" value={form.grace_period_days} onChange={(e) => setForm({ ...form, grace_period_days: e.target.value })} />
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-border">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-border text-text-secondary text-xs font-semibold hover:bg-surface-hover">Cancel</button>
-            <button type="submit" disabled={saving} className="flex-1 px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover flex items-center justify-center gap-2 shadow-sm shadow-primary/20">
-              {saving ? <FiLoader className="animate-spin" size={15} /> : <FiCheck size={15} />}
-              {saving ? "Saving..." : "Save Kit Target"}
-            </button>
-          </div>
-        </form>
-      </motion.div>
-    </div>
-  );
-}
 

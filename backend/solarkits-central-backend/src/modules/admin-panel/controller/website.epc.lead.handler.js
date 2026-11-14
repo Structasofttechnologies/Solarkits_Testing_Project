@@ -47,6 +47,8 @@ exports.submit_website_lead = async (req, res) => {
       estimated_quantity,
       query_message,
       project_type,
+      gst_number,
+      gstin,
     } = req.body;
 
     // Validation
@@ -78,6 +80,7 @@ exports.submit_website_lead = async (req, res) => {
 
     const leadId = await generateLeadId();
     const trimmedName = name.trim();
+    const finalGst = (gst_number || gstin) ? String(gst_number || gstin).trim().toUpperCase() : null;
 
     const newLead = await WebsiteEpcLead.create({
       lead_id: leadId,
@@ -98,6 +101,8 @@ exports.submit_website_lead = async (req, res) => {
       lead_status: 'New',
       lead_source: 'portal',
       source: 'solar-store-bulk-banner',
+      gst_number: finalGst,
+      gst_verification_status: finalGst ? 'pending_admin' : 'unverified',
     });
 
     // Real-time notification to Admin bell icon
@@ -534,13 +539,19 @@ exports.update_lead = async (req, res) => {
             if (!existingAccount) {
               const defaultPassword = cleanPhone.slice(-4) || '1234';
               const passwordHash = await bcrypt.hash(defaultPassword, 10);
-              await EpcAccount.create({
+              const leadGst = lead.gst_number ? String(lead.gst_number).trim().toUpperCase() : null;
+              lead.gst_verification_status = leadGst ? 'verified_admin' : 'unverified';
+              const createdAcc = await EpcAccount.create({
                 name: lead.name,
+                company_name: lead.company_name || lead.name,
                 email: epcEmail,
                 whatsapp: cleanPhone,
                 password_hash: passwordHash,
                 status: 'approved',
-                onboarding_source: 'lead',
+                onboarding_source: 'website',
+                gstin: leadGst,
+                is_gstin_active: Boolean(leadGst),
+                gst_verification_status: leadGst ? 'verified_admin' : 'unverified',
                 state_name: lead.state_name,
                 district_name: lead.district_name,
                 pincode: lead.pincode,
@@ -550,6 +561,13 @@ exports.update_lead = async (req, res) => {
               console.log(`Auto-created approved EpcAccount for lead: ${lead.name} (${epcEmail})`);
             } else {
               existingAccount.status = 'approved';
+              const leadGstExisting = lead.gst_number ? String(lead.gst_number).trim().toUpperCase() : null;
+              if (leadGstExisting) {
+                existingAccount.gstin = leadGstExisting;
+                existingAccount.is_gstin_active = true;
+                existingAccount.gst_verification_status = 'verified_admin';
+                lead.gst_verification_status = 'verified_admin';
+              }
               await existingAccount.save();
               console.log(`Updated existing EpcAccount status to approved for lead: ${lead.name}`);
             }

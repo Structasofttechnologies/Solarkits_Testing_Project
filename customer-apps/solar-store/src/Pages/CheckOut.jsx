@@ -43,6 +43,7 @@ export default function CheckOut() {
   const selectedState = useSelector((state) => state.slice.selectedState);
   const [showGstDialog, setShowGstDialog] = useState(false);
   const [gstStateId, setGstStateId] = useState("");
+  const [verifiedGstInfo, setVerifiedGstInfo] = useState(null);
 
   // Company Bank Details
   const [bankDetails, setBankDetails] = useState({
@@ -264,7 +265,7 @@ export default function CheckOut() {
   useEffect(() => {
     const rawApiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
     const baseUrl = rawApiUrl.replace(/\/api\/?$/, "").replace(/\/+$/, "");
-    const userPhone = user?.whatsapp || user?.registered_whatsapp || user?.mobile || "9876543210";
+    const userPhone = user?.whatsapp || user?.registered_whatsapp || user?.mobile || "7777939842";
 
     axios.get(`${baseUrl}/api/v1/payments/icici/van-details?phone=${userPhone}`)
       .then((res) => {
@@ -1293,12 +1294,12 @@ export default function CheckOut() {
                         Your Unique Virtual Account No (VAN)
                       </span>
                       <span className="font-mono font-black text-[#264baa] dark:text-blue-200 text-lg tracking-wider">
-                        {iciciVanDetails?.virtual_account_number || `SLRK${(user?.whatsapp || user?.mobile || '9876543210').slice(-10)}`}
+                        {iciciVanDetails?.virtual_account_number || `SLRK${(user?.whatsapp || user?.mobile || '7777939842').slice(-10)}`}
                       </span>
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleCopyText(iciciVanDetails?.virtual_account_number || `SLRK${(user?.whatsapp || user?.mobile || '9876543210').slice(-10)}`, "van")}
+                      onClick={() => handleCopyText(iciciVanDetails?.virtual_account_number || `SLRK${(user?.whatsapp || user?.mobile || '7777939842').slice(-10)}`, "van")}
                       className="px-3 py-2 bg-[#264baa] hover:bg-[#1f3f91] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md shadow-[#264baa]/30 transition-all active:scale-95"
                     >
                       {copiedField === "van" ? <FiCheck /> : <FiCopy />}
@@ -1581,7 +1582,7 @@ export default function CheckOut() {
                       Site Contact Phone / WhatsApp <span className="text-red-500">*</span>
                     </label>
                     <CustomInput
-                      placeholder="e.g. 9876543210"
+                      placeholder="e.g. 7777939842"
                       value={deliveryAddress.contact_phone}
                       onChange={(e) => setDeliveryAddress((prev) => ({ ...prev, contact_phone: e.target.value }))}
                       required

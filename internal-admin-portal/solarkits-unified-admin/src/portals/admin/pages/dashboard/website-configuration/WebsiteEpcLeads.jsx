@@ -514,8 +514,28 @@ export default function WebsiteEpcLeads() {
 
                       {/* Contractor / EPC Name & Phone */}
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900 dark:text-white text-xs">
-                          {lead.name}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-bold text-slate-900 dark:text-white text-xs">
+                            {lead.name}
+                          </span>
+                          {/* GST Status Badge as per Boss's rule */}
+                          {lead.gst_verification_status === 'verified_automatic' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                              ✓ Auto Verified (Database)
+                            </span>
+                          ) : (lead.gst_verification_status === 'verified_admin' || lead.status === 'converted' || lead.status === 'approved') && (lead.gst_number || lead.gstin) ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+                              ✓ Verified by Admin ({lead.gst_number || lead.gstin})
+                            </span>
+                          ) : (lead.gst_number || lead.gstin) ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                              ⏳ GST: {lead.gst_number || lead.gstin} (Verify on Approve)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                              ⚠️ GST at Checkout
+                            </span>
+                          )}
                         </div>
                         <div className="mt-1 flex items-center gap-2 text-xs">
                           <a

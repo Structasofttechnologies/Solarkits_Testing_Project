@@ -22,7 +22,8 @@ const schema = new mongoose.Schema({
 
   // --- Phase 5: Reseller Onboarding Pipeline (backward-compatible) ---
   onboarded_by_reseller_id: { type: mongoose.Schema.Types.ObjectId, ref: 'resellers', default: null },
-  onboarding_source:        { type: String, enum: ['direct', 'reseller', 'bde', 'portal', 'lead', 'government', 'verified'], default: 'direct' },
+  onboarding_source:        { type: String, enum: ['direct', 'reseller', 'bde', 'portal', 'lead', 'government', 'verified', 'database', 'website'], default: 'direct' },
+  gst_verification_status:  { type: String, enum: ['verified_automatic', 'verified_admin', 'pending_admin', 'unverified'], default: 'unverified' },
   reseller_assigned_date:   { type: Date, default: null },
 
   // --- BDE Onboarding & Attribution Pipeline ---

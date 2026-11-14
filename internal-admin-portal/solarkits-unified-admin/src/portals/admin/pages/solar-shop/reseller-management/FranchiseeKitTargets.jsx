@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useDispatch } from "react-redux";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import {
@@ -21,18 +22,18 @@ const apiFetch = (method, ep, data, params = {}) =>
   });
 
 const TARGET_TYPES = [
-  { value: "GLOBAL",    label: "Global",     icon: FiGlobe,  color: "text-text-secondary", bg: "bg-surface-hover" },
-  { value: "PLAN",      label: "Plan",        icon: FiTarget, color: "text-primary",        bg: "bg-info-soft"     },
-  { value: "STATE",     label: "State",       icon: FiMap,    color: "text-success",        bg: "bg-success-soft"  },
-  { value: "DISTRICT",  label: "District",    icon: FiMapPin, color: "text-warning",        bg: "bg-warning-soft"  },
-  { value: "FRANCHISEE",label: "Franchisee",  icon: FiUser,   color: "text-purple-500",     bg: "bg-purple-50"     },
+  { value: "GLOBAL", label: "Global", icon: FiGlobe, color: "text-text-secondary", bg: "bg-surface-hover" },
+  { value: "PLAN", label: "Plan", icon: FiTarget, color: "text-primary", bg: "bg-info-soft" },
+  { value: "STATE", label: "State", icon: FiMap, color: "text-success", bg: "bg-success-soft" },
+  { value: "DISTRICT", label: "District", icon: FiMapPin, color: "text-warning", bg: "bg-warning-soft" },
+  { value: "FRANCHISEE", label: "Franchisee", icon: FiUser, color: "text-purple-500", bg: "bg-purple-50" },
 ];
 
 const CALC_STAGES = [
-  { value: "ORDERED_QUANTITY",     label: "Ordered / Placed PO Quantity" },
-  { value: "DELIVERED_QUANTITY",   label: "Delivered Quantity" },
-  { value: "DISPATCHED_QUANTITY",  label: "Dispatched Quantity" },
-  { value: "PAID_QUANTITY",        label: "Paid Quantity" },
+  { value: "ORDERED_QUANTITY", label: "Ordered / Placed PO Quantity" },
+  { value: "DELIVERED_QUANTITY", label: "Delivered Quantity" },
+  { value: "DISPATCHED_QUANTITY", label: "Dispatched Quantity" },
+  { value: "PAID_QUANTITY", label: "Paid Quantity" },
   { value: "APPROVED_PO_QUANTITY", label: "Approved PO Quantity" },
 ];
 
@@ -48,17 +49,17 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 export default function FranchiseeKitTargets() {
   const dispatch = useDispatch();
-  const [targets, setTargets]   = useState([]);
-  const [plans, setPlans]       = useState([]);
+  const [targets, setTargets] = useState([]);
+  const [plans, setPlans] = useState([]);
   const [resellers, setResellers] = useState([]);
-  const [loading, setLoading]   = useState(true);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [saving, setSaving]     = useState(false);
-  const [form, setForm]         = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
   const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1);
-  const [filterYear, setFilterYear]   = useState(now.getFullYear());
-  const [filterType, setFilterType]   = useState("");
+  const [filterYear, setFilterYear] = useState(now.getFullYear());
+  const [filterType, setFilterType] = useState("");
   const [progressData, setProgressData] = useState([]);
   const [activeTab, setActiveTab] = useState("targets");
 
@@ -67,8 +68,8 @@ export default function FranchiseeKitTargets() {
     try {
       const params = { req_for: "view", unique_id: "FPO_TARGET" };
       if (filterMonth) params.target_month = filterMonth;
-      if (filterYear)  params.target_year  = filterYear;
-      if (filterType)  params.target_type  = filterType;
+      if (filterYear) params.target_year = filterYear;
+      if (filterType) params.target_type = filterType;
 
       const [targetsRes, plansRes, progressRes] = await Promise.all([
         axios.get(`${API_BASE}/franchisee/kit-targets/list`, { headers: authHeaderObj(), params }),
@@ -99,14 +100,14 @@ export default function FranchiseeKitTargets() {
     try {
       const payload = {
         ...form,
-        target_quantity:   Number(form.target_quantity),
-        target_month:      Number(form.target_month),
-        target_year:       Number(form.target_year),
+        target_quantity: Number(form.target_quantity),
+        target_month: Number(form.target_month),
+        target_year: Number(form.target_year),
         grace_period_days: Number(form.grace_period_days || 0),
-        franchisee_id:     form.franchisee_id || null,
-        plan_id:           form.plan_id       || null,
-        state_id:          form.state_id      || null,
-        district_id:       form.district_id   || null,
+        franchisee_id: form.franchisee_id || null,
+        plan_id: form.plan_id || null,
+        state_id: form.state_id || null,
+        district_id: form.district_id || null,
       };
       if (editingId) {
         await apiFetch("put", "/update", { id: editingId, ...payload });
@@ -141,14 +142,14 @@ export default function FranchiseeKitTargets() {
   };
 
   const statusConfig = {
-    EXCEEDED:       { label: "Exceeded",       color: "text-success",        bg: "bg-success-soft" },
-    ACHIEVED:       { label: "Achieved",        color: "text-success",        bg: "bg-success-soft" },
-    ON_TRACK:       { label: "On Track",        color: "text-primary",        bg: "bg-info-soft"    },
-    BEHIND:         { label: "Behind",          color: "text-warning",        bg: "bg-warning-soft" },
-    LOW_PERFORMANCE:{ label: "Low Performance", color: "text-error",          bg: "bg-error-soft"   },
-    NOT_STARTED:    { label: "Not Started",     color: "text-text-muted",     bg: "bg-surface-hover"},
-    NO_TARGET:      { label: "No Target",       color: "text-text-muted",     bg: "bg-surface-hover"},
-    EXPIRED:        { label: "Expired",         color: "text-text-muted",     bg: "bg-surface-hover"},
+    EXCEEDED: { label: "Exceeded", color: "text-success", bg: "bg-success-soft" },
+    ACHIEVED: { label: "Achieved", color: "text-success", bg: "bg-success-soft" },
+    ON_TRACK: { label: "On Track", color: "text-primary", bg: "bg-info-soft" },
+    BEHIND: { label: "Behind", color: "text-warning", bg: "bg-warning-soft" },
+    LOW_PERFORMANCE: { label: "Low Performance", color: "text-error", bg: "bg-error-soft" },
+    NOT_STARTED: { label: "Not Started", color: "text-text-muted", bg: "bg-surface-hover" },
+    NO_TARGET: { label: "No Target", color: "text-text-muted", bg: "bg-surface-hover" },
+    EXPIRED: { label: "Expired", color: "text-text-muted", bg: "bg-surface-hover" },
   };
 
   return (
@@ -161,9 +162,40 @@ export default function FranchiseeKitTargets() {
           </h1>
           <p className="text-text-muted text-sm mt-0.5">Configure monthly kit order targets per plan, state, district, or franchisee</p>
         </div>
-        <Button id="add-kit-target-btn" onClick={() => { setForm(EMPTY_FORM); setEditingId(null); setShowModal(true); }} leftIcon={<FiPlus />} variant="primary">
-          Add Target
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/admin-panel/solar-shop/franchise-clusters?tab=goals"
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+          >
+            <FiTarget size={14} /> Open Cluster Goal Settings
+          </Link>
+          <Button id="add-kit-target-btn" onClick={() => { setForm(EMPTY_FORM); setEditingId(null); setShowModal(true); }} leftIcon={<FiPlus />} variant="primary">
+            Add Target
+          </Button>
+        </div>
+      </div>
+
+      {/* Cluster Unified Announcement Banner */}
+      <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shrink-0">
+            <FiTarget size={20} />
+          </div>
+          <div>
+            <div className="text-sm font-bold text-text-primary">
+              Unified Cluster Goal System is Active
+            </div>
+            <p className="text-xs text-text-muted">
+              Annual EPC goals, active EPC thresholds, and 12-month kit sales quotas are now managed directly under Franchise Cluster Management Hub.
+            </p>
+          </div>
+        </div>
+        <Link
+          to="/admin-panel/solar-shop/franchise-clusters?tab=goals"
+          className="shrink-0 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover shadow-sm"
+        >
+          Manage Cluster Goals →
+        </Link>
       </div>
 
       {/* Period filter */}

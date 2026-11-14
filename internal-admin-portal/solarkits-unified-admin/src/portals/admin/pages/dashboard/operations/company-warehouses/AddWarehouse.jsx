@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { authHeaderObj } from "@/app/authHeader";
 import { useDispatch } from "react-redux";
@@ -8,7 +8,6 @@ import MapLocationPicker from "@/components/MapLocationPicker";
 import CustomInput from "@/components/CustomInput";
 import DropdownWithSearchInput from "@/components/DropdownWithSearchInput";
 import ReactCountryFlag from "react-country-flag";
-import MultiSelectDropdown from "@/components/MultiSelectDropdown";
 import { setAlert } from "@/features/alert.slice";
 import Button from "@/components/Button";
 import {
@@ -16,17 +15,15 @@ import {
   FiSave,
   FiCheckCircle,
   FiAlertCircle,
-  FiPackage,
   FiGlobe,
   FiMap,
   FiHome,
   FiNavigation2,
   FiClock,
-  FiStar,
-  FiGitBranch,
   FiInfo,
-  FiLayers,
-  FiChevronLeft
+  FiChevronLeft,
+  FiTruck,
+  FiShield
 } from "react-icons/fi";
 import RenderIfPermission, { useHasPermission } from "@/components/PermissionCheck";
 import PageHeader from "@/components/PageHeader";
@@ -36,7 +33,7 @@ import PageHeader from "@/components/PageHeader";
 // Warehouse Type Card Component
 // -------------------------------------------------------
 function WarehouseTypeCard({ type, selected, onClick }) {
-  const isMaster = type === "master";
+  const isCompany = type === "company";
 
   return (
     <button
@@ -45,8 +42,8 @@ function WarehouseTypeCard({ type, selected, onClick }) {
       className={`
         relative w-full text-left p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer
         ${selected
-          ? isMaster
-            ? "border-amber-500 bg-linear-120 from-amber-500/15 to-amber-600/10 shadow-md"
+          ? isCompany
+            ? "border-emerald-500 bg-linear-120 from-emerald-500/15 to-emerald-600/10 shadow-md"
             : "border-primary bg-linear-120 from-primary/15 to-primary/10 shadow-md"
           : "border-border bg-surface hover:border-primary/40 hover:bg-surface-hover"
         }
@@ -54,31 +51,31 @@ function WarehouseTypeCard({ type, selected, onClick }) {
     >
       {/* Selected Indicator */}
       {selected && (
-        <div className={`absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center ${isMaster ? "bg-amber-500" : "bg-primary"}`}>
+        <div className={`absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center ${isCompany ? "bg-emerald-500" : "bg-primary"}`}>
           <FiCheckCircle className="text-white w-3 h-3" />
         </div>
       )}
 
       <div className="flex items-start gap-3">
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-          isMaster
-            ? selected ? "bg-linear-120 from-amber-500 to-amber-600" : "bg-linear-120 from-amber-500/20 to-amber-600/10"
+          isCompany
+            ? selected ? "bg-linear-120 from-emerald-500 to-emerald-600" : "bg-linear-120 from-emerald-500/20 to-emerald-600/10"
             : selected ? "bg-linear-120 from-primary to-primary-end" : "bg-linear-120 from-primary/20 to-primary/10"
         }`}>
-          {isMaster
-            ? <FiStar className={`w-5 h-5 ${selected ? "text-white" : "text-amber-500"}`} />
-            : <FiGitBranch className={`w-5 h-5 ${selected ? "text-white" : "text-primary"}`} />
+          {isCompany
+            ? <FiHome className={`w-5 h-5 ${selected ? "text-white" : "text-emerald-500"}`} />
+            : <FiTruck className={`w-5 h-5 ${selected ? "text-white" : "text-primary"}`} />
           }
         </div>
 
         <div className="flex-1 min-w-0">
-          <p className={`font-semibold text-sm mb-0.5 ${selected ? (isMaster ? "text-amber-600" : "text-primary") : "text-text-primary"}`}>
-            {isMaster ? "Master Warehouse" : "Sub Warehouse"}
+          <p className={`font-semibold text-sm mb-0.5 ${selected ? (isCompany ? "text-emerald-600" : "text-primary") : "text-text-primary"}`}>
+            {isCompany ? "Company Warehouse" : "3PL Warehouse"}
           </p>
           <p className="text-xs text-text-secondary leading-relaxed">
-            {isMaster
-              ? "Primary hub for the cluster. Only one allowed per cluster."
-              : "Optional district facility. Serves alongside the cluster master."
+            {isCompany
+              ? "Owned by company"
+              : "Another staff handling this warehouse"
             }
           </p>
         </div>
@@ -104,7 +101,6 @@ export default function AddWarehouse({ moduleUniqueId }) {
     state: "",
     district: "",
     pincode: "",
-    customers_types: [],
     warehouse_type: "",
     manager_name: "",
     manager_email: "",
@@ -112,7 +108,6 @@ export default function AddWarehouse({ moduleUniqueId }) {
     manager_phone_code: "+91"
   });
   const [loading, setLoading] = useState(false);
-  const [customerTypeOptions, setCustomerTypeOptions] = useState([]);
   const [countries, setCountries] = useState([]);
   const [selectedCountryId, setSelectedCountryId] = useState(null);
   const [minPhoneLen, setMinPhoneLen] = useState(8);
@@ -121,92 +116,76 @@ export default function AddWarehouse({ moduleUniqueId }) {
   // Geographic filter lists and selected values
   const [countriesList, setCountriesList] = useState([]);
   const [statesList, setStatesList] = useState([]);
-  const [clustersList, setClustersList] = useState([]);
+  const [districtsList, setDistrictsList] = useState([]);
 
   const [selectedCountry, setSelectedCountry] = useState("");
   const [selectedState, setSelectedState] = useState("");
-  const [selectedCluster, setSelectedCluster] = useState(null);
+  const [selectedDistrict, setSelectedDistrict] = useState(null);
 
   const [boundaries, setBoundaries] = useState([]);
   const [loadingBoundaries, setLoadingBoundaries] = useState(false);
-  const [allWarehousesInCluster, setAllWarehousesInCluster] = useState([]);
-  const [editModeClusterId, setEditModeClusterId] = useState(null);
+  const [allWarehousesInDistrict, setAllWarehousesInDistrict] = useState([]);
 
-  // Derived cluster info based on selected cluster and warehouses in cluster
-  const hasMaster = allWarehousesInCluster.some(
-    (w) => w.warehouse_type === "master" && w.id !== warehouseId
-  );
-
-  const hasDistrictWarehouse = data.district
-    ? allWarehousesInCluster.some(
-        (w) => w.district?.toLowerCase() === data.district.toLowerCase() && w.id !== warehouseId
-      )
+  // Check if current district already has a registered warehouse
+  const hasDistrictWarehouse = selectedDistrict
+    ? allWarehousesInDistrict.some((w) => w.id !== warehouseId)
     : false;
 
-  const clusterInfo = selectedCluster
-    ? {
-        name: selectedCluster.name,
-        id: selectedCluster.id,
-        hasMaster,
-        hasDistrictWarehouse
-      }
-    : null;
-
   // -------------------------------------------------------
-  // Fetch boundaries for all districts in the cluster
+  // Fetch boundary for the selected district
   // -------------------------------------------------------
-  const fetchClusterBoundaries = useCallback(async (clusterObj) => {
-    if (!clusterObj || !clusterObj.districts || !clusterObj.districts.length) {
+  const fetchDistrictBoundary = useCallback(async (districtObj) => {
+    if (!districtObj) {
       setBoundaries([]);
       return;
     }
 
     setLoadingBoundaries(true);
     try {
-      const countryName = countriesList.find(c => c.value === selectedCountry)?.text.props.children[1];
-      const stateName = statesList.find(s => s.value === selectedState)?.text;
+      const countryObj = countriesList.find(c => c.value === selectedCountry);
+      const countryName = countryObj?.name || (countryObj?.text?.props ? countryObj.text.props.children[1] : countryObj?.text);
+      const stateObj = statesList.find(s => s.value === selectedState);
+      const stateName = stateObj?.text || stateObj?.name;
+      const districtName = districtObj.name || districtObj.text;
 
-      if (!countryName || !stateName) {
+      if (!countryName || !stateName || !districtName) {
         setLoadingBoundaries(false);
         return;
       }
 
-      const promises = clusterObj.districts.map(d =>
-        axios.post(
-          `${API}/geolocation/district?unique_id=${moduleUniqueId}&req_for=view`,
-          {
-            district: d.name,
-            state: stateName,
-            country: countryName,
-          },
-          { headers: { ...authHeaderObj() } }
-        ).then(res => ({
-          id: d.id,
-          level: 'district',
-          geometry: res.data.district?.geometry
-        })).catch(err => {
-          console.error(`Failed to fetch boundary for ${d.name}`, err);
-          return null;
-        })
+      const res = await axios.post(
+        `${API}/geolocation/district?unique_id=${moduleUniqueId}&req_for=view`,
+        {
+          district: districtName,
+          state: stateName,
+          country: countryName,
+        },
+        { headers: { ...authHeaderObj() } }
       );
 
-      const results = await Promise.all(promises);
-      const validBoundaries = results.filter(b => b && b.geometry);
-      setBoundaries(validBoundaries);
+      if (res.data.district?.geometry) {
+        setBoundaries([{
+          id: districtObj.value || districtObj.id,
+          level: 'district',
+          geometry: res.data.district.geometry
+        }]);
+      } else {
+        setBoundaries([]);
+      }
     } catch (err) {
-      console.error("Failed to load cluster boundaries", err);
-      dispatch(setAlert({ type: "error", message: "Failed to load cluster boundaries." }));
+      console.error("Failed to load district boundary", err);
+      setBoundaries([]);
     } finally {
       setLoadingBoundaries(false);
     }
-  }, [API, moduleUniqueId, countriesList, statesList, selectedCountry, selectedState, dispatch]);
+  }, [API, moduleUniqueId, countriesList, statesList, selectedCountry, selectedState]);
 
   // -------------------------------------------------------
-  // Fetch existing warehouses in the cluster
+  // Fetch existing warehouses in the selected district
   // -------------------------------------------------------
-  const fetchClusterWarehouses = useCallback(async (clusterId) => {
-    if (!clusterId) {
-      setAllWarehousesInCluster([]);
+  const fetchDistrictWarehouses = useCallback(async (districtName) => {
+    if (!districtName) {
+      setAllWarehousesInDistrict([]);
       return;
     }
     try {
@@ -214,12 +193,12 @@ export default function AddWarehouse({ moduleUniqueId }) {
         headers: { ...authHeaderObj() },
       });
       const warehouses = res.data.warehouses || [];
-      const clusterWarehouses = warehouses.filter(
-        w => w.cluster_id && w.cluster_id.toString() === clusterId.toString()
+      const districtWarehouses = warehouses.filter(
+        w => (w.district || w.district_name)?.toLowerCase() === districtName.toLowerCase()
       );
-      setAllWarehousesInCluster(clusterWarehouses);
+      setAllWarehousesInDistrict(districtWarehouses);
     } catch (err) {
-      console.error("Failed to fetch warehouses in cluster", err);
+      console.error("Failed to fetch warehouses in district", err);
     }
   }, [API, moduleUniqueId]);
 
@@ -241,6 +220,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
             </span>
           ),
           value: c.id,
+          name: c.name,
           iso2: c.iso2,
         }));
         setCountriesList(formatted);
@@ -254,10 +234,16 @@ export default function AddWarehouse({ moduleUniqueId }) {
   useEffect(() => {
     setStatesList([]);
     setSelectedState("");
-    setClustersList([]);
-    setSelectedCluster(null);
+    setDistrictsList([]);
+    setSelectedDistrict(null);
 
     if (!selectedCountry) return;
+
+    const countryObj = countriesList.find(c => c.value === selectedCountry);
+    const countryName = countryObj?.name || (countryObj?.text?.props ? countryObj.text.props.children[1] : countryObj?.text);
+    if (countryName) {
+      setData(prev => ({ ...prev, country: countryName }));
+    }
 
     const fetchStates = async () => {
       try {
@@ -268,6 +254,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
         );
         const formatted = res.data.states.map(({ id, name }) => ({
           text: name,
+          name: name,
           value: id
         }));
         setStatesList(formatted);
@@ -277,44 +264,61 @@ export default function AddWarehouse({ moduleUniqueId }) {
     };
 
     fetchStates();
-  }, [selectedCountry, API, moduleUniqueId]);
+  }, [selectedCountry, countriesList, API, moduleUniqueId]);
 
   useEffect(() => {
-    setClustersList([]);
-    setSelectedCluster(null);
+    setDistrictsList([]);
+    setSelectedDistrict(null);
 
     if (!selectedState) return;
 
-    const fetchClusters = async () => {
+    const stateObj = statesList.find(s => s.value === selectedState);
+    const stateName = stateObj?.name || stateObj?.text;
+    if (stateName) {
+      setData(prev => ({ ...prev, state: stateName }));
+    }
+
+    const fetchDistricts = async () => {
       try {
-        const res = await axios.get(
-          `${API}/geolocation/clusters/${selectedState}?unique_id=${moduleUniqueId}&req_for=view`,
+        const res = await axios.post(
+          `${API}/geolocation/active-districts?unique_id=${moduleUniqueId}&req_for=view`,
+          { state_id: selectedState },
           { headers: { ...authHeaderObj() } }
         );
-        setClustersList(res.data.clusters || []);
+        const list = res.data.districts || res.data.data || [];
+        const formatted = list.map(d => ({
+          text: d.name,
+          name: d.name,
+          value: d.id || d._id
+        }));
+        setDistrictsList(formatted);
       } catch (err) {
-        console.error("Error fetching clusters:", err);
+        console.error("Error fetching districts:", err);
       }
     };
 
-    fetchClusters();
-  }, [selectedState, API, moduleUniqueId]);
+    fetchDistricts();
+  }, [selectedState, statesList, API, moduleUniqueId]);
 
   useEffect(() => {
-    if (selectedCluster) {
-      fetchClusterBoundaries(selectedCluster);
-      fetchClusterWarehouses(selectedCluster.id);
+    if (selectedDistrict) {
+      const districtName = selectedDistrict.name || selectedDistrict.text;
+      if (districtName) {
+        setData(prev => ({ ...prev, district: districtName }));
+      }
+      fetchDistrictBoundary(selectedDistrict);
+      fetchDistrictWarehouses(selectedDistrict.name);
     } else {
       setBoundaries([]);
-      setAllWarehousesInCluster([]);
+      setAllWarehousesInDistrict([]);
     }
-  }, [selectedCluster, fetchClusterBoundaries, fetchClusterWarehouses]);
+  }, [selectedDistrict, fetchDistrictBoundary, fetchDistrictWarehouses]);
 
   // Resolve IDs from names when editing
   useEffect(() => {
     if (!warehouseId || countriesList.length === 0 || !data.country) return;
     const matched = countriesList.find(c => {
-      const name = c.text?.props?.children?.[1] || c.text;
+      const name = c.name || c.text?.props?.children?.[1] || c.text;
       return name?.toString().toLowerCase() === data.country.toLowerCase();
     });
     if (matched) {
@@ -324,49 +328,40 @@ export default function AddWarehouse({ moduleUniqueId }) {
 
   useEffect(() => {
     if (!warehouseId || statesList.length === 0 || !data.state) return;
-    const matched = statesList.find(s => s.text?.toLowerCase() === data.state.toLowerCase());
+    const matched = statesList.find(s => (s.name || s.text)?.toLowerCase() === data.state.toLowerCase());
     if (matched) {
       setSelectedState(matched.value);
     }
   }, [data.state, statesList, warehouseId]);
 
   useEffect(() => {
-    if (!warehouseId || clustersList.length === 0 || !editModeClusterId) return;
-    const matched = clustersList.find(c => c.id === editModeClusterId);
+    if (!warehouseId || districtsList.length === 0 || !data.district) return;
+    const matched = districtsList.find(d => (d.name || d.text)?.toLowerCase() === data.district.toLowerCase());
     if (matched) {
-      setSelectedCluster(matched);
+      setSelectedDistrict(matched);
     }
-  }, [editModeClusterId, clustersList, warehouseId]);
+  }, [data.district, districtsList, warehouseId]);
 
   // -------------------------------------------------------
   // Handle map selection
   // -------------------------------------------------------
   const handleMapSelect = (mapData) => {
-    if (selectedCluster && mapData.district) {
-      const isDistrictInCluster = selectedCluster.districts.some(
-        d => d.name.toLowerCase() === mapData.district.toLowerCase()
-      );
-      if (!isDistrictInCluster) {
-        dispatch(setAlert({
-          type: "error",
-          message: `The selected location is in '${mapData.district}' district, which is not part of the selected cluster '${selectedCluster.name}'!`,
-          duration: 5000
-        }));
-        setData(prev => ({
-          ...prev,
-          lat: "",
-          lng: "",
-          address: "",
-          country: "",
-          state: "",
-          district: "",
-          pincode: ""
-        }));
-        return;
-      }
-    }
+    const countryObj = countriesList.find(c => c.value === selectedCountry);
+    const countryName = countryObj?.name || (countryObj?.text?.props ? countryObj.text.props.children[1] : countryObj?.text) || mapData.country || data.country;
+    const stateObj = statesList.find(s => s.value === selectedState);
+    const stateName = stateObj?.name || stateObj?.text || mapData.state || data.state;
+    const districtName = selectedDistrict?.name || selectedDistrict?.text || mapData.district || data.district;
 
-    setData((prev) => ({ ...prev, ...mapData }));
+    setData((prev) => ({
+      ...prev,
+      lat: mapData.lat,
+      lng: mapData.lng,
+      address: mapData.address || prev.address,
+      pincode: mapData.pincode || prev.pincode,
+      country: countryName,
+      state: stateName,
+      district: districtName
+    }));
   };
 
   const handlePhoneChange = (e) => {
@@ -398,14 +393,28 @@ export default function AddWarehouse({ moduleUniqueId }) {
       dispatch(setAlert({ type: "error", message: "Please select a location on the map!", duration: 4000 }));
       return;
     }
-    if (data.customers_types.length === 0) {
-      dispatch(setAlert({ type: "error", message: "Please select at least one customer type!", duration: 4000 }));
-      return;
-    }
     if (!data.warehouse_type) {
-      dispatch(setAlert({ type: "error", message: "Please select a warehouse type (Master or Sub)!", duration: 4000 }));
+      dispatch(setAlert({ type: "error", message: "Please select a warehouse type (Company or 3PL)!", duration: 4000 }));
       return;
     }
+
+    const countryObj = countriesList.find(c => c.value === selectedCountry);
+    const countryName = countryObj?.name || (countryObj?.text?.props ? countryObj.text.props.children[1] : countryObj?.text) || data.country;
+    const stateObj = statesList.find(s => s.value === selectedState);
+    const stateName = stateObj?.name || stateObj?.text || data.state;
+    const districtName = selectedDistrict?.name || selectedDistrict?.text || data.district;
+
+    if (!countryName || !stateName || !districtName) {
+      dispatch(setAlert({ type: "error", message: "Please select Country, State, and District!", duration: 4000 }));
+      return;
+    }
+
+    const payload = {
+      ...data,
+      country: countryName,
+      state: stateName,
+      district: districtName
+    };
 
     setLoading(true);
     try {
@@ -417,7 +426,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
       const res = await axios({
         method,
         url,
-        data,
+        data: payload,
         headers: { ...authHeaderObj() }
       });
 
@@ -428,14 +437,14 @@ export default function AddWarehouse({ moduleUniqueId }) {
       }));
 
       if (!warehouseId) {
-        // Reset form only in add mode
+        // Reset form in add mode
         setData({
           lat: "", lng: "", address: "", country: "", state: "",
-          district: "", pincode: "", customers_types: [], warehouse_type: "",
+          district: "", pincode: "", warehouse_type: "",
           manager_name: "", manager_email: "", manager_phone: "",
           manager_phone_code: "+91"
         });
-        setSelectedCluster(null);
+        setSelectedDistrict(null);
       }
     } catch (err) {
       dispatch(setAlert({
@@ -449,31 +458,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
   };
 
   // -------------------------------------------------------
-  // Load customer types
-  // -------------------------------------------------------
-  useEffect(() => {
-    axios.get(`${API}/customers/customers-types?unique_id=${moduleUniqueId}&req_for=view`, {
-      headers: { ...authHeaderObj() },
-    })
-      .then(res => {
-        const opts = res.data.data.map(t => ({
-          value: t.id,
-          text: (
-            <span className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-linear-120 from-primary to-primary-end rounded-full flex items-center justify-center">
-                <FiPackage className="text-white w-3 h-3" />
-              </div>
-              {t.type_name}
-            </span>
-          ),
-        }));
-        setCustomerTypeOptions(opts);
-      })
-      .catch(err => console.log(err));
-  }, []);
-
-  // -------------------------------------------------------
-  // Load active countries
+  // Load active countries for manager phone code
   // -------------------------------------------------------
   useEffect(() => {
     axios.get(`${import.meta.env.VITE_AUTH_API_URL}/countries`, {
@@ -498,7 +483,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
         }
       })
       .catch(err => console.log("Failed to fetch active countries:", err));
-  }, [API, warehouseId]);
+  }, [warehouseId]);
 
   // Sync selected country and lengths when countries or phone code changes
   useEffect(() => {
@@ -544,15 +529,12 @@ export default function AddWarehouse({ moduleUniqueId }) {
           state: wh.state,
           district: wh.district,
           pincode: wh.pincode,
-          customers_types: (wh.customer_types || []).map(t => typeof t === 'object' ? t.id : t),
           warehouse_type: wh.warehouse_type,
           manager_name: wh.manager ? wh.manager.name : "",
           manager_email: wh.manager ? wh.manager.email : "",
           manager_phone: wh.manager ? wh.manager.phone : "",
           manager_phone_code: wh.manager ? (wh.manager.phone_code || "+91") : "+91"
         });
-
-        setEditModeClusterId(wh.cluster_id);
       } catch (err) {
         dispatch(setAlert({
           type: "error",
@@ -580,10 +562,8 @@ export default function AddWarehouse({ moduleUniqueId }) {
   const isSubmitReady =
     data.lat &&
     data.lng &&
-    data.customers_types.length > 0 &&
     data.warehouse_type &&
-    (data.warehouse_type !== "master" || !clusterInfo?.hasMaster) &&
-    (data.warehouse_type !== "sub" || clusterInfo?.hasMaster) &&
+    !hasDistrictWarehouse &&
     isManagerValid;
 
   return (
@@ -610,8 +590,8 @@ export default function AddWarehouse({ moduleUniqueId }) {
           },
           {
             label: "Warehouse Type",
-            value: data.warehouse_type ? (data.warehouse_type === "master" ? "Master" : "Sub") : "Not Set",
-            description: data.warehouse_type === "master" ? "Cluster primary hub" : data.warehouse_type === "sub" ? "District facility" : "Select type below"
+            value: data.warehouse_type ? (data.warehouse_type === "company" ? "Company" : "3PL") : "Not Set",
+            description: data.warehouse_type === "company" ? "Owned by company" : data.warehouse_type === "3pl" ? "Third-party logistics" : "Select type below"
           }
         ]}
       />
@@ -637,7 +617,9 @@ export default function AddWarehouse({ moduleUniqueId }) {
                   <h3 className="font-bold text-text-primary">Select Warehouse Location</h3>
                   <p className="text-text-secondary text-sm">Click on the map to pinpoint the exact location</p>
                 </div>
-              </div>              {/* Cluster Selection Dropdowns */}
+              </div>
+
+              {/* Geographic Selection Dropdowns: Country -> State -> District */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-text-secondary">Country *</label>
@@ -662,16 +644,16 @@ export default function AddWarehouse({ moduleUniqueId }) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-text-secondary">Cluster *</label>
+                  <label className="text-sm font-medium text-text-secondary">District *</label>
                   <DropdownWithSearchInput
-                    options={clustersList.map(c => ({ text: c.name, value: c.id }))}
-                    value={selectedCluster?.id || ""}
+                    options={districtsList}
+                    value={selectedDistrict?.value || ""}
                     onChange={(val) => {
-                      const matched = clustersList.find(c => c.id === val);
-                      setSelectedCluster(matched || null);
+                      const matched = districtsList.find(d => d.value === val);
+                      setSelectedDistrict(matched || null);
                     }}
                     disabled={!selectedState || !!warehouseId}
-                    placeholder="Select Cluster"
+                    placeholder="Select District"
                     className="w-full"
                   />
                 </div>
@@ -702,7 +684,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
                     </Button>
                   </div>
                 </div>
-              ) : selectedCluster ? (
+              ) : selectedDistrict ? (
                 <div className="mb-4 p-4 bg-linear-120 from-amber-500/10 to-amber-600/10 rounded-xl border border-amber-500/20">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-linear-120 from-amber-500 to-amber-600 rounded-lg flex items-center justify-center">
@@ -710,21 +692,21 @@ export default function AddWarehouse({ moduleUniqueId }) {
                     </div>
                     <div>
                       <p className="font-medium text-text-primary">Click on the map to select location</p>
-                      <p className="text-sm text-text-secondary">Select the exact warehouse location inside the cluster boundary</p>
+                      <p className="text-sm text-text-secondary">Select the exact warehouse location inside {selectedDistrict.name} district boundary</p>
                     </div>
                   </div>
                 </div>
               ) : null}
 
-              {/* Cluster Context Banner */}
-              {selectedCluster && (
+              {/* District Context Banner */}
+              {selectedDistrict && (
                 <div className="mb-4">
                   {loadingBoundaries ? (
                     <div className="p-3 bg-linear-120 from-primary/5 to-primary/10 rounded-xl border border-primary/20 flex items-center gap-2">
                       <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      <span className="text-sm text-text-secondary">Loading cluster boundary data...</span>
+                      <span className="text-sm text-text-secondary">Loading district boundary data...</span>
                     </div>
-                  ) : clusterInfo?.hasDistrictWarehouse ? (
+                  ) : hasDistrictWarehouse ? (
                     /* District already occupied */
                     <div className="p-4 bg-linear-120 from-red-500/10 to-red-600/10 rounded-xl border border-red-500/30">
                       <div className="flex items-start gap-3">
@@ -734,48 +716,34 @@ export default function AddWarehouse({ moduleUniqueId }) {
                         <div>
                           <p className="font-semibold text-red-600 text-sm">District Already Has a Warehouse</p>
                           <p className="text-xs text-text-secondary mt-0.5">
-                            This district already has a warehouse registered. Each district is limited to one warehouse.
-                            Please select a different location.
+                            {selectedDistrict.name} district already has a warehouse registered ({allWarehousesInDistrict[0]?.warehouse_code || 'Facility'}). Each district is limited to one warehouse. Please select a different district.
                           </p>
                         </div>
                       </div>
                     </div>
-                  ) : clusterInfo?.name ? (
-                    /* Cluster found, district is free */
-                    <div className={`p-4 rounded-xl border ${
-                      !clusterInfo.hasMaster
-                        ? "bg-linear-120 from-amber-500/10 to-amber-600/10 border-amber-500/30"
-                        : "bg-linear-120 from-primary/5 to-primary/10 border-primary/20"
-                    }`}>
+                  ) : (
+                    /* District ready */
+                    <div className="p-4 rounded-xl border bg-linear-120 from-emerald-500/10 to-emerald-600/10 border-emerald-500/20">
                       <div className="flex items-start gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 bg-linear-120 ${
-                          !clusterInfo.hasMaster ? "from-amber-500 to-amber-600" : "from-primary to-primary-end"
-                        }`}>
-                          <FiLayers className="text-white w-4 h-4" />
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 bg-linear-120 from-emerald-500 to-emerald-600 text-white">
+                          <FiShield className="w-4 h-4" />
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-semibold text-text-primary text-sm">
-                              Cluster: <span className={!clusterInfo.hasMaster ? "text-amber-600" : "text-primary"}>{clusterInfo.name}</span>
+                              District: <span className="text-emerald-600">{selectedDistrict.name}</span>
                             </p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
-                              clusterInfo.hasMaster
-                                ? "bg-green-500/10 text-green-600 border-green-500/20"
-                                : "bg-amber-500/10 text-amber-600 border-amber-500/20"
-                            }`}>
-                              {clusterInfo.hasMaster ? "Master assigned" : "No master yet"}
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium border bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                              Available for Warehouse
                             </span>
                           </div>
-                          {!clusterInfo.hasMaster && (
-                            <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                              <FiInfo className="w-3 h-3 flex-shrink-0" />
-                              This cluster has no master warehouse yet. Consider registering this as a Master.
-                            </p>
-                          )}
+                          <p className="text-xs text-text-secondary mt-1">
+                            Click within the highlighted boundary on the map to pinpoint your warehouse.
+                          </p>
                         </div>
                       </div>
                     </div>
-                  ) : null}
+                  )}
                 </div>
               )}
             </div>
@@ -786,10 +754,10 @@ export default function AddWarehouse({ moduleUniqueId }) {
                 <div className="h-125 rounded-xl border border-border flex items-center justify-center bg-surface-hover">
                   <div className="text-center space-y-3">
                     <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-                    <p className="text-text-secondary text-sm">Loading boundaries and existing warehouses...</p>
+                    <p className="text-text-secondary text-sm">Loading boundaries and existing facilities...</p>
                   </div>
                 </div>
-              ) : selectedCluster ? (
+              ) : selectedDistrict ? (
                 <MapLocationPicker
                   lat={data.lat}
                   lng={data.lng}
@@ -797,7 +765,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
                   mode="full"
                   onSelect={handleMapSelect}
                   boundaries={boundaries}
-                  existingWarehouses={allWarehousesInCluster}
+                  existingWarehouses={allWarehousesInDistrict}
                   currentWarehouseId={warehouseId}
                   onLocationError={(msg) => {
                     dispatch(setAlert({ type: "error", message: msg, duration: 4000 }));
@@ -806,7 +774,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
                 />
               ) : (
                 <div className="h-125 rounded-xl border border-border border-dashed flex items-center justify-center bg-surface-hover">
-                  <p className="text-text-secondary text-sm">Please select a Cluster first to load the map and boundaries.</p>
+                  <p className="text-text-secondary text-sm">Please select a District first to load the map and boundaries.</p>
                 </div>
               )}
             </div>
@@ -826,8 +794,8 @@ export default function AddWarehouse({ moduleUniqueId }) {
               </div>
 
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-120 from-green-500 to-green-600 text-white">
-                  <FiPackage className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-120 from-emerald-500 to-emerald-600 text-white">
+                  <FiHome className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-bold text-text-primary">Warehouse Details</h3>
@@ -840,83 +808,23 @@ export default function AddWarehouse({ moduleUniqueId }) {
                 {/* ── Warehouse Type Selector ── */}
                 <div className="space-y-3">
                   <h3 className="font-semibold text-text-primary flex items-center gap-2 text-sm">
-                    <div className="w-6 h-6 bg-linear-120 from-amber-500/20 to-amber-600/10 rounded flex items-center justify-center">
-                      <FiStar className="text-amber-500 w-3 h-3" />
+                    <div className="w-6 h-6 bg-linear-120 from-primary/20 to-primary/10 rounded flex items-center justify-center">
+                      <FiHome className="text-primary w-3 h-3" />
                     </div>
                     Warehouse Type *
                   </h3>
                   <div className="grid grid-cols-1 gap-3">
                     <WarehouseTypeCard
-                      type="master"
-                      selected={data.warehouse_type === "master"}
+                      type="company"
+                      selected={data.warehouse_type === "company"}
                       onClick={(t) => setData(prev => ({ ...prev, warehouse_type: t }))}
                     />
                     <WarehouseTypeCard
-                      type="sub"
-                      selected={data.warehouse_type === "sub"}
+                      type="3pl"
+                      selected={data.warehouse_type === "3pl"}
                       onClick={(t) => setData(prev => ({ ...prev, warehouse_type: t }))}
                     />
                   </div>
-
-                  {/* Master conflict warning */}
-                  {data.warehouse_type === "master" && clusterInfo?.hasMaster && !clusterInfo?.hasDistrictWarehouse && (
-                    <div className="flex items-start gap-2 p-3 bg-linear-120 from-red-500/10 to-red-600/10 rounded-lg border border-red-500/20">
-                      <FiAlertCircle className="text-red-500 w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-red-600">
-                        This cluster already has a master warehouse. Selecting Master will be rejected by the server.
-                        Please select <strong>Sub</strong> instead.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Sub conflict warning: must have master first */}
-                  {data.warehouse_type === "sub" && !clusterInfo?.hasMaster && !clusterInfo?.hasDistrictWarehouse && (
-                    <div className="flex items-start gap-2 p-3 bg-linear-120 from-red-500/10 to-red-600/10 rounded-lg border border-red-500/20">
-                      <FiAlertCircle className="text-red-500 w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-red-600">
-                        This cluster does not have a master warehouse yet. You must register a <strong>Master</strong> warehouse before you can register a Sub warehouse.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Customer Type Selection ── */}
-                <div className="bg-linear-120 from-primary/5 to-primary/10 rounded-xl p-4 border border-primary/20">
-                  <h3 className="font-semibold text-text-primary mb-3 flex items-center gap-2 text-sm">
-                    <div className="w-6 h-6 bg-linear-120 from-primary to-primary-end rounded flex items-center justify-center">
-                      <FiPackage className="text-white w-3 h-3" />
-                    </div>
-                    Customer Type *
-                  </h3>
-
-                  <MultiSelectDropdown
-                    label="Select Customer Type"
-                    values={data.customers_types}
-                    onChange={(val) => setData((prev) => ({ ...prev, customers_types: val }))}
-                    options={customerTypeOptions}
-                    className="w-full"
-                    placeholder="Select customer types..."
-                  />
-
-                  {data.customers_types.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-border/50">
-                      <p className="text-xs text-text-secondary mb-2">Selected types:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {data.customers_types.map(typeId => {
-                          const type = customerTypeOptions.find(opt => opt.value === typeId);
-                          return (
-                            <div
-                              key={typeId}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-linear-120 from-primary/10 to-primary/5 text-primary border border-primary/20"
-                            >
-                              <FiCheckCircle className="w-3 h-3" />
-                              {type?.text?.props?.children?.[1] || typeId}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* ── Location Details ── */}
@@ -1036,7 +944,7 @@ export default function AddWarehouse({ moduleUniqueId }) {
                     >
                       <Button
                         onClick={handleSubmit}
-                        disabled={loading || !isSubmitReady || clusterInfo?.hasDistrictWarehouse}
+                        disabled={loading || !isSubmitReady || hasDistrictWarehouse}
                         variant="primary"
                         size="lg"
                         fullWidth
@@ -1048,9 +956,11 @@ export default function AddWarehouse({ moduleUniqueId }) {
                           ? "Saving Warehouse..."
                           : warehouseId
                             ? "Update Warehouse"
-                            : data.warehouse_type === "master"
-                              ? "Save Master Warehouse"
-                              : "Save Sub Warehouse"
+                            : data.warehouse_type === "company"
+                              ? "Save Company Warehouse"
+                              : data.warehouse_type === "3pl"
+                                ? "Save 3PL Warehouse"
+                                : "Save Warehouse"
                         }
                       </Button>
                     </RenderIfPermission>
@@ -1070,40 +980,17 @@ export default function AddWarehouse({ moduleUniqueId }) {
                         </div>
                       )}
 
-                      {/* Customer type */}
-                      {data.customers_types.length === 0 ? (
-                        <div className="flex items-center gap-2 text-sm text-amber-600">
-                          <FiAlertCircle className="flex-shrink-0" />
-                          <span>Select at least one customer type</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 text-sm text-green-600">
-                          <FiCheckCircle className="flex-shrink-0" />
-                          <span>{data.customers_types.length} customer type(s) selected ✓</span>
-                        </div>
-                      )}
-
                       {/* Warehouse type */}
                       {!data.warehouse_type ? (
                         <div className="flex items-center gap-2 text-sm text-amber-600">
                           <FiAlertCircle className="flex-shrink-0" />
-                          <span>Select a warehouse type</span>
-                        </div>
-                      ) : data.warehouse_type === "sub" && !clusterInfo?.hasMaster ? (
-                        <div className="flex items-center gap-2 text-sm text-amber-600">
-                          <FiAlertCircle className="flex-shrink-0" />
-                          <span>Must open Master warehouse first</span>
-                        </div>
-                      ) : data.warehouse_type === "master" && clusterInfo?.hasMaster ? (
-                        <div className="flex items-center gap-2 text-sm text-amber-600">
-                          <FiAlertCircle className="flex-shrink-0" />
-                          <span>Cluster already has a Master warehouse</span>
+                          <span>Select a warehouse type (Company or 3PL)</span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 text-sm text-green-600">
                           <FiCheckCircle className="flex-shrink-0" />
                           <span>
-                            {data.warehouse_type === "master" ? "Master" : "Sub"} warehouse selected ✓
+                            {data.warehouse_type === "company" ? "Company Warehouse" : "3PL Warehouse"} selected ✓
                           </span>
                         </div>
                       )}
@@ -1124,10 +1011,10 @@ export default function AddWarehouse({ moduleUniqueId }) {
                       ) : null}
 
                       {/* District conflict */}
-                      {clusterInfo?.hasDistrictWarehouse && (
+                      {hasDistrictWarehouse && (
                         <div className="flex items-center gap-2 text-sm text-red-600">
                           <FiAlertCircle className="flex-shrink-0" />
-                          <span>District already has a warehouse</span>
+                          <span>District already has a registered warehouse</span>
                         </div>
                       )}
                     </div>

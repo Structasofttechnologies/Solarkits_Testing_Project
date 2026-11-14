@@ -2898,29 +2898,40 @@ const get_gst_status = async (req, res) => {
       return res.status(404).json({ success: false, message: "Account not found." });
     }
 
-    if (!account.company_id) {
-      return res.status(200).json({ success: true, verified: false, message: "No company registered yet." });
+    // 1. Check if GST record exists in EpcCompanyGst for this company and state_id
+    let gstRecord = null;
+    if (account.company_id) {
+      gstRecord = await EpcCompanyGst.findOne({
+        company_id: account.company_id,
+        state_id,
+        deleted_at: null
+      }).lean();
     }
 
-    const gstRecord = await EpcCompanyGst.findOne({
-      company_id: account.company_id,
-      state_id,
-      deleted_at: null
-    }).lean();
-
-    if (!gstRecord) {
-      return res.status(200).json({ success: true, verified: false, message: "GST not verified for this state." });
+    // 2. Check if account itself has a verified GSTIN for this state
+    if (!gstRecord && account.gstin && account.is_gstin_active) {
+      if (account.states && account.states.some(s => String(s) === String(state_id))) {
+        gstRecord = { gst_number: account.gstin };
+      }
     }
 
-    const company = await EpcCompany.findById(account.company_id).lean();
+    if (!gstRecord || !gstRecord.gst_number) {
+      return res.status(200).json({
+        success: true,
+        verified: false,
+        message: "GST not verified for this state. GST is mandatory for checkout."
+      });
+    }
+
+    const company = account.company_id ? await EpcCompany.findById(account.company_id).lean() : null;
 
     return res.status(200).json({
       success: true,
       verified: true,
       gst_number: gstRecord.gst_number,
-      company_name: company?.name,
-      legal_name: company?.legal_name,
-      brand_name: company?.brand_name
+      company_name: company?.name || account.name,
+      legal_name: company?.legal_name || account.gstin_legal_name,
+      brand_name: company?.brand_name || account.gstin_trade_name
     });
 
   } catch (error) {
@@ -3196,6 +3207,19 @@ const gst_verify_otp = async (req, res) => {
       { gst_number: formattedGst, deleted_at: null },
       { upsert: true, new: true }
     );
+
+    // Update EpcAccount status & GSTIN
+    account.gstin = formattedGst;
+    account.is_gstin_active = true;
+    account.gstin_verified_at = new Date();
+    account.gstin_legal_name = legalName;
+    account.gstin_trade_name = tradeName;
+    if (account.onboarding_source === 'database') {
+      account.gst_verification_status = 'verified_automatic';
+    } else {
+      account.gst_verification_status = 'verified_admin';
+    }
+    await account.save();
 
     return res.status(200).json({
       success: true,

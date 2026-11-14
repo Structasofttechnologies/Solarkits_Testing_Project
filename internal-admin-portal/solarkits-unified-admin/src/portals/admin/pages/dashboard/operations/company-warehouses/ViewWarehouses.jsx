@@ -33,7 +33,9 @@ import {
     FiGitBranch,
     FiSliders,
     FiChevronDown,
-    FiChevronUp
+    FiChevronUp,
+    FiHome,
+    FiTruck
 } from "react-icons/fi";
 import { FaTimes } from "react-icons/fa";
 import Button from "@/components/Button";
@@ -79,7 +81,6 @@ export default function ViewWarehouses({ moduleUniqueId }) {
     const hasEditPermission = useHasPermission({ requiredUniqueId: moduleUniqueId, permission: "edit" });
     const hasDeletePermission = useHasPermission({ requiredUniqueId: moduleUniqueId, permission: "delete" });
     const [warehouses, setWarehouses] = useState([]);
-    const [customerTypes, setCustomerTypes] = useState([])
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -135,9 +136,8 @@ export default function ViewWarehouses({ moduleUniqueId }) {
     const [filterDistrict, setFilterDistrict] = useState("");
     const [showActive, setShowActive] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
-    const [selectedCustomerTypes, setSelectedCustomerTypes] = useState([]);
     const [selectedValidationStatus, setSelectedValidationStatus] = useState([]);
-    const [filterWarehouseType, setFilterWarehouseType] = useState(""); // "", "master", "sub"
+    const [filterWarehouseType, setFilterWarehouseType] = useState(""); // "", "company", "3pl"
 
     // ---------------------------
     // LOAD DATA
@@ -167,29 +167,8 @@ export default function ViewWarehouses({ moduleUniqueId }) {
         if (showRefresh) setRefreshing(false);
     };
 
-    // Fetch customer types
-    const fetchCustomerTypes = async () => {
-        try {
-            const res = await axios.get(`${API}/customers/customers-types?unique_id=${moduleUniqueId}&req_for=view`, {
-                headers: {
-                    ...authHeaderObj(),
-                },
-            });
-            setCustomerTypes(res.data.data || []);
-        } catch (err) {
-            dispatch(
-                setAlert({
-                    type: "error",
-                    message: err.response?.data?.message || "Failed to load customer types.",
-                    duration: 4000
-                })
-            );
-        }
-    };
-
     useEffect(() => {
         fetchWarehouses();
-        fetchCustomerTypes();
     }, []);
 
     // ---------------------------
@@ -255,21 +234,6 @@ export default function ViewWarehouses({ moduleUniqueId }) {
         }));
     }, [warehouses, filterCountry, filterState]);
 
-    // Customer type options - convert from API response
-    const customerTypeOptions = useMemo(() => {
-        return customerTypes.map(type => ({
-            value: type.id,
-            text: (
-                <span className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-linear-120 from-primary to-primary-end rounded-full flex items-center justify-center">
-                        <FiArchive className="text-white w-3 h-3" />
-                    </div>
-                    {type.type_name}
-                </span>
-            )
-        }));
-    }, [customerTypes]);
-
     // Validation status options
     const validationStatusOptions = useMemo(() => {
         return Object.entries(validationStatus).map(([key, value]) => ({
@@ -295,13 +259,6 @@ export default function ViewWarehouses({ moduleUniqueId }) {
                 w.pincode?.toString().includes(searchQuery) ||
                 w.warehouse_code?.toLowerCase().includes(searchQuery.toLowerCase());
 
-            // Customer type filtering logic
-            const matchesCustomerType = selectedCustomerTypes.length === 0 ?
-                true : // If no types selected, show all
-                w.customer_types?.some(type =>
-                    selectedCustomerTypes.includes(type.id)
-                );
-
             // Validation status filtering logic
             const matchesValidationStatus = selectedValidationStatus.length === 0 ?
                 true : // If no status selected, show all
@@ -315,13 +272,12 @@ export default function ViewWarehouses({ moduleUniqueId }) {
                 (!filterState || w.state === filterState) &&
                 (!filterDistrict || w.district === filterDistrict) &&
                 (!showActive || w.is_active === 1) &&
-                matchesCustomerType &&
                 matchesValidationStatus &&
                 matchesWarehouseType &&
                 matchesSearch
             );
         });
-    }, [warehouses, filterCountry, filterState, filterDistrict, showActive, searchQuery, selectedCustomerTypes, selectedValidationStatus, filterWarehouseType]);
+    }, [warehouses, filterCountry, filterState, filterDistrict, showActive, searchQuery, selectedValidationStatus, filterWarehouseType]);
 
     // Clear all filters
     const clearFilters = () => {
@@ -330,7 +286,6 @@ export default function ViewWarehouses({ moduleUniqueId }) {
         setFilterDistrict("");
         setShowActive(false);
         setSearchQuery("");
-        setSelectedCustomerTypes([]);
         setSelectedValidationStatus([]);
         setFilterWarehouseType("");
     };
@@ -342,7 +297,6 @@ export default function ViewWarehouses({ moduleUniqueId }) {
         filterDistrict,
         showActive,
         searchQuery,
-        selectedCustomerTypes.length > 0,
         selectedValidationStatus.length > 0,
         filterWarehouseType
     ].filter(Boolean).length;
@@ -372,8 +326,8 @@ export default function ViewWarehouses({ moduleUniqueId }) {
                 icon={FiArchive}
                 stats={[
                     { label: "Total", value: warehouses.length, description: "Total Warehouses" },
-                    { label: "Master", value: warehouses.filter(w => w.warehouse_type === "master").length, description: "Master Hubs" },
-                    { label: "Sub", value: warehouses.filter(w => w.warehouse_type === "sub").length, description: "Sub Facilities" },
+                    { label: "Company", value: warehouses.filter(w => w.warehouse_type === "company").length, description: "Owned by Company" },
+                    { label: "3PL", value: warehouses.filter(w => w.warehouse_type === "3pl").length, description: "Third-Party Staff" },
                     { label: "Verified", value: warehouses.filter(w => w.status_id === 4).length, description: "Completed Checks" },
                 ]}
                 actions={
@@ -532,14 +486,7 @@ export default function ViewWarehouses({ moduleUniqueId }) {
                                             <div className="w-1.5 h-3.5 bg-amber-500 rounded-full"></div>
                                             <h4 className="text-[11px] font-bold text-text-secondary uppercase tracking-[0.15em]">Classification & checks</h4>
                                         </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                                            <MultiSelectDropdown
-                                                label="Customer Type"
-                                                values={selectedCustomerTypes}
-                                                onChange={setSelectedCustomerTypes}
-                                                options={customerTypeOptions}
-                                                className="w-full"
-                                            />
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <MultiSelectDropdown
                                                 label="Profile Status"
                                                 values={selectedValidationStatus}
@@ -552,17 +499,17 @@ export default function ViewWarehouses({ moduleUniqueId }) {
                                                 <div className="flex gap-1 flex-1">
                                                     {[
                                                         { value: "", label: "All" },
-                                                        { value: "master", label: "Master", icon: FiStar },
-                                                        { value: "sub", label: "Sub", icon: FiGitBranch }
+                                                        { value: "company", label: "Company", icon: FiHome },
+                                                        { value: "3pl", label: "3PL", icon: FiTruck }
                                                     ].map(opt => (
                                                         <button
                                                             key={opt.value}
                                                             type="button"
                                                             onClick={() => setFilterWarehouseType(opt.value)}
                                                             className={`flex items-center gap-1.5 px-2.5 h-12 rounded-2xl text-xs font-bold border-2 transition-all duration-200 flex-1 justify-center ${filterWarehouseType === opt.value
-                                                                    ? opt.value === "master"
-                                                                        ? "bg-linear-120 from-amber-500 to-amber-600 text-white border-amber-500 shadow-sm"
-                                                                        : opt.value === "sub"
+                                                                    ? opt.value === "company"
+                                                                        ? "bg-linear-120 from-emerald-500 to-emerald-600 text-white border-emerald-500 shadow-sm"
+                                                                        : opt.value === "3pl"
                                                                             ? "bg-linear-120 from-primary to-primary-end text-white border-primary shadow-sm"
                                                                             : "bg-linear-120 from-primary/10 to-primary/5 text-primary border-primary/30"
                                                                     : "bg-surface border-border text-text-secondary hover:border-primary/40 hover:text-text-primary"
@@ -860,19 +807,19 @@ export default function ViewWarehouses({ moduleUniqueId }) {
                                             {/* Warehouse Type Badge & Code */}
                                             <div className="flex flex-col gap-1 items-start">
                                                 <div>
-                                                    {w.warehouse_type === "master" ? (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-xs">
-                                                            <FiStar className="w-3 h-3 text-amber-500" />
-                                                            Master Hub
+                                                    {w.warehouse_type === "company" ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs">
+                                                            <FiHome className="w-3 h-3 text-emerald-500" />
+                                                            Company Warehouse
                                                         </span>
-                                                    ) : w.warehouse_type === "sub" ? (
+                                                    ) : w.warehouse_type === "3pl" ? (
                                                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-primary/10 text-primary dark:text-primary-end border border-primary/20 shadow-xs">
-                                                            <FiGitBranch className="w-3 h-3" />
-                                                            Sub Facility
+                                                            <FiTruck className="w-3 h-3" />
+                                                            3PL Warehouse
                                                         </span>
                                                     ) : (
                                                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-bg text-text-secondary border border-border">
-                                                            Unclassified
+                                                            {w.warehouse_type === "master" ? "Master Hub" : w.warehouse_type === "sub" ? "Sub Facility" : "Facility"}
                                                         </span>
                                                     )}
                                                 </div>
@@ -901,30 +848,7 @@ export default function ViewWarehouses({ moduleUniqueId }) {
                                             <span className="text-text-muted">•</span>
                                             <FiGlobe className="text-primary/70 shrink-0 w-3.5 h-3.5" />
                                             <span>{w.country || "India"}</span>
-                                            {w.cluster && (
-                                                <>
-                                                    <span className="text-text-muted">•</span>
-                                                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border border-primary/20">
-                                                        {w.cluster}
-                                                    </span>
-                                                </>
-                                            )}
                                         </div>
-
-                                        {/* Customer Types */}
-                                        {w.customer_types?.length > 0 && (
-                                            <div className="flex flex-wrap gap-1.5 mb-4">
-                                                {w.customer_types.map((type) => (
-                                                    <span
-                                                        key={type.id}
-                                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 border border-emerald-500/10 uppercase tracking-wider"
-                                                    >
-                                                        <FiCheckCircle size={10} className="text-emerald-500" />
-                                                        {type.type_name}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
 
                                         {/* Manager Info */}
                                         <div className="mb-4 text-xs">

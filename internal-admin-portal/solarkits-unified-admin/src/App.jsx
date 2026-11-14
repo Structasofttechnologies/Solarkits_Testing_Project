@@ -34,12 +34,25 @@ const DeveloperPortalApp = lazy(() => import("./portals/developer/App.jsx"));
 const BoskitAdminPortalApp = lazy(() => import("./portals/boskit/App.jsx"));
 
 
+function NavigateToStore() {
+  const isLocal = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const storeUrl = isLocal
+    ? `http://localhost:5179${window.location.pathname}${window.location.search}`
+    : `https://store.solarkits.in${window.location.pathname}${window.location.search}`;
+  window.location.replace(storeUrl);
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <TestingModeBanner />
       <Suspense fallback={<FullPageLoader />}>
         <Routes>
+          {/* Direct redirect to Solar Store app if accessed via unified admin */}
+          <Route path="/shop/*" element={<NavigateToStore />} />
+          <Route path="/shop" element={<NavigateToStore />} />
+
           {/* BOSKIT B2B Admin Platform */}
           <Route path="/boskit-admin/*" element={<BoskitAdminPortalApp />} />
 

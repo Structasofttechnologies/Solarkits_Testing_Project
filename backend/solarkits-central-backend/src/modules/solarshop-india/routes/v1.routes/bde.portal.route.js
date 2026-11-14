@@ -121,5 +121,9 @@ router.get('/epc-analytics/behavior', verify_bde_auth, epcAnalyticsController.ge
 router.get('/epc-analytics/epc-profile/:id', verify_bde_auth, epcAnalyticsController.get_epc_profile_detail);
 router.put('/epc-analytics/epc-profile/:id/behavior', verify_bde_auth, epcAnalyticsController.update_epc_profile_behavior);
 
+// ── 15. Franchisee Cluster Management & BDE Business Support Module ─────────
+const bdeClusterHandler = require('../../../admin-panel/controller/bde.cluster.handler');
+router.get('/franchise-clusters/dashboard', verify_bde_auth, bdeClusterHandler.get_bde_cluster_dashboard);
+
 module.exports = router;
 

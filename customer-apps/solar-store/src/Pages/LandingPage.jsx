@@ -23,7 +23,7 @@ function LandingPage() {
             .catch((err) => console.warn('Dynamic store content load error:', err));
     }, []);
 
-    const whatsappNumber = dynamicContent?.footer?.floating_whatsapp?.number || "919876543210";
+    const whatsappNumber = dynamicContent?.footer?.floating_whatsapp?.number || "917777939842";
 
     return (
         <div className="min-h-screen bg-solarbg">

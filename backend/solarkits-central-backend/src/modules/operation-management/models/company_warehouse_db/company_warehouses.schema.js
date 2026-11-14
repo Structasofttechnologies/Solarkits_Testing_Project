@@ -10,7 +10,7 @@ const schema = new mongoose.Schema({
   lng:             { type: Number, default: null },
   status:          { type: Number, enum: [1, 2, 3, 4, 5], default: 1 },
   rejection_reason: { type: String, default: null },
-  warehouse_type:  { type: String, enum: ['master', 'sub'], required: true },
+  warehouse_type:  { type: String, enum: ['company', '3pl', 'master', 'sub'], required: true },
   level_0:         { type: mongoose.Schema.Types.ObjectId, default: null }, // Country ID
   level_1:         { type: mongoose.Schema.Types.ObjectId, default: null }, // State ID
   level_2:         { type: mongoose.Schema.Types.ObjectId, default: null }, // District ID
