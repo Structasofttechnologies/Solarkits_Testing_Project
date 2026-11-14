@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Package,
   ChevronDown,
+  Plus,
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -913,50 +914,77 @@ export default function BdeCreateEpcQuote() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
-                {filteredEpcs.map((epc) => {
-                  const isSel = selectedEpc?._id === epc._id;
-                  return (
-                    <div
-                      key={epc._id}
-                      onClick={() => handleSelectEpc(epc)}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition text-left flex flex-col justify-between ${isSel
-                        ? 'border-indigo-600 bg-indigo-50/40 shadow-sm'
-                        : 'border-slate-200 hover:border-slate-300'
-                        }`}
-                    >
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="font-bold text-slate-900 text-sm line-clamp-1">
-                            {epc.company_name || epc.name}
-                          </h4>
-                          {isSel && (
-                            <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                              <Check className="w-3 h-3" />
-                            </div>
-                          )}
-                        </div>
+              {filteredEpcs.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                  {filteredEpcs.map((epc) => {
+                    const isSel = selectedEpc?._id === epc._id;
+                    return (
+                      <div
+                        key={epc._id}
+                        onClick={() => handleSelectEpc(epc)}
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition text-left flex flex-col justify-between ${isSel
+                          ? 'border-indigo-600 bg-indigo-50/40 shadow-sm'
+                          : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="font-bold text-slate-900 text-sm line-clamp-1">
+                              {epc.company_name || epc.name}
+                            </h4>
+                            {isSel && (
+                              <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                                <Check className="w-3 h-3" />
+                              </div>
+                            )}
+                          </div>
 
-                        <div className="text-[11px] font-mono text-slate-500 mt-1">GSTIN: {epc.gstin || '—'}</div>
-                        <div className="mt-2 text-xs text-slate-600 space-y-0.5">
-                          <div>Contact: {epc.contact_person || epc.name || '—'}</div>
-                          <div>Phone: {epc.mobile || epc.phone || '—'}</div>
-                          <div className="text-slate-400 text-[11px]">
-                            {epc.district_name || epc.address?.district || 'District'}, {epc.state_name || epc.address?.state || 'State'}
+                          <div className="text-[11px] font-mono text-slate-500 mt-1">GSTIN: {epc.gstin || '—'}</div>
+                          <div className="mt-2 text-xs text-slate-600 space-y-0.5">
+                            <div>Contact: {epc.contact_person || epc.name || '—'}</div>
+                            <div>Phone: {epc.mobile || epc.phone || '—'}</div>
+                            <div className="text-slate-400 text-[11px]">
+                              {epc.district_name || epc.address?.district || 'District'}, {epc.state_name || epc.address?.state || 'State'}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="mt-3 pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
-                        <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">
-                          Territory Verified
-                        </span>
-                        <span>Pin: {epc.pincode || epc.address?.pincode || '—'}</span>
+                        <div className="mt-3 pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">
+                            Territory Verified
+                          </span>
+                          <span>Pin: {epc.pincode || epc.address?.pincode || '—'}</span>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-8 my-4 text-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 flex flex-col items-center justify-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-xs">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800">
+                      {epcSearch ? 'No matching EPC clients found' : 'No Onboarded EPC Clients Found'}
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-md mt-1">
+                      {epcSearch
+                        ? `No approved EPC matched "${epcSearch}". Try a different name or GSTIN.`
+                        : 'You can only generate quotations for EPC contractors you have onboarded. Please onboard an EPC partner first.'}
+                    </p>
+                  </div>
+                  {!epcSearch && (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/epc-onboarding')}
+                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center gap-2 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" /> Onboard New EPC
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Franchisee Partner Attribution (Optional) */}

@@ -281,37 +281,23 @@ exports.get_eligible_epcs = async (req, res) => {
         epcIds = anyEpcs.map(e => e._id);
       }
     } else if (actor.role === 'bde') {
-      const territory = await BDETerritoryAssignment.findOne({
-        bde_id: actor.id,
-        status: 'active',
-      }).lean();
+      const bdeObjId = mongoose.Types.ObjectId.isValid(actor.id)
+        ? new mongoose.Types.ObjectId(actor.id)
+        : null;
 
-      let bdeEpcs = [];
-      if (territory) {
-        const stateFilter = territory.state_ids?.length > 0
-          ? { state_id: { $in: territory.state_ids } }
-          : {};
-        bdeEpcs = await EpcAccount.find({
-          ...stateFilter,
-          deleted_at: null,
-          status: 'approved',
-          $or: [
-            { onboarded_by_bde_id: actor.id },
-            { districts: { $in: territory.district_ids || [] } },
-          ],
-        }).select('_id').lean();
+      // Only return EPC accounts actually onboarded by or assigned to this BDE
+      const bdeMatch = [{ onboarded_by_bde_id: actor.id }, { assigned_bde_id: actor.id }];
+      if (bdeObjId) {
+        bdeMatch.push({ onboarded_by_bde_id: bdeObjId }, { assigned_bde_id: bdeObjId });
       }
+
+      const bdeEpcs = await EpcAccount.find({
+        deleted_at: null,
+        status: 'approved',
+        $or: bdeMatch,
+      }).select('_id').lean();
 
       epcIds = bdeEpcs.map(e => e._id);
-
-      // Fallback for BDE in dev/demo
-      if (epcIds.length === 0) {
-        const anyEpcs = await EpcAccount.find({
-          deleted_at: null,
-          status: 'approved',
-        }).select('_id').limit(50).lean();
-        epcIds = anyEpcs.map(e => e._id);
-      }
     }
 
     if (epcIds.length === 0) {

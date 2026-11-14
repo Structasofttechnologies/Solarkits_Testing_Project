@@ -13,6 +13,7 @@ const router = express.Router();
 const { verify_bde_auth } = require('../../middlewares/verify_bde_auth');
 const handler = require('../../controller/bde.portal.handler');
 const employeeHandler = require('../../../admin-panel/controller/store.setup.employee.handler');
+const epcTypesHandler = require('../../../admin-panel/controller/epc.types.handler');
 const { upload_any_files } = require('../../../admin-panel/utils/upload.files');
 
 const proofUpload = upload_any_files('public/uploads/store_setup', 10);
@@ -62,8 +63,10 @@ router.put('/leads/stage/:id', verify_bde_auth, handler.update_lead_stage);
 router.post('/leads/start-signup/:id', verify_bde_auth, handler.start_franchisee_signup);
 router.get('/pipeline', verify_bde_auth, handler.get_bde_pipeline);
 
-// ── 1 & 2. EPC Leads Management ───────────────────────────────────────────────
+// ── 1 & 2. EPC Leads Management & Master Classification Types ────────────────
+router.get('/epc-types/active', epcTypesHandler.list_active_epc_types);
 router.post('/epc-leads/create', verify_bde_auth, handler.create_epc_lead);
+router.post('/epc-leads/bulk-create', verify_bde_auth, handler.bulk_create_epc_leads);
 router.get('/epc-leads/list', verify_bde_auth, handler.list_epc_leads);
 router.get('/epc-leads/detail/:id', verify_bde_auth, handler.get_epc_lead_detail);
 router.put('/epc-leads/update/:id', verify_bde_auth, handler.update_epc_lead);

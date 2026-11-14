@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { loadGoogleMaps } from "./LoadGoogleMaps";
 import SearchInputWithDropdown from "./SearchInputWithDropdown";
-import axios from "axios";
 
 export default function MapLocationPicker({
   lat,
@@ -9,6 +8,7 @@ export default function MapLocationPicker({
   onSelect,
   visible,
   boundaries = [],
+  districtCenter = null,
   existingWarehouses = [],
   currentWarehouseId = null,
   onLocationError
@@ -30,7 +30,7 @@ export default function MapLocationPicker({
   )}`;
 
   const extractPaths = (geometry) => {
-    if (!geometry?.coordinates) return [];
+    if (!geometry?.coordinates || !geometry.coordinates.length) return [];
     const { type, coordinates } = geometry;
     const result = [];
     if (type === "Polygon") {
@@ -50,7 +50,11 @@ export default function MapLocationPicker({
 
   const getPolygonCenter = (polygon) => {
     const bounds = new google.maps.LatLngBounds();
-    polygon.getPath().forEach((path) => bounds.extend(path));
+    if (polygon.getPaths) {
+      polygon.getPaths().forEach((ring) => ring.forEach((path) => bounds.extend(path)));
+    } else if (polygon.getPath) {
+      polygon.getPath().forEach((path) => bounds.extend(path));
+    }
     return bounds.getCenter();
   };
 
@@ -96,7 +100,11 @@ export default function MapLocationPicker({
           map: mapInstanceRef.current,
         });
         polygonRefs.current.push(polygon);
-        polygon.getPath().forEach((coord) => bounds.extend(coord));
+        if (polygon.getPaths) {
+          polygon.getPaths().forEach((ring) => ring.forEach((coord) => bounds.extend(coord)));
+        } else if (polygon.getPath) {
+          polygon.getPath().forEach((coord) => bounds.extend(coord));
+        }
       });
     });
 
@@ -222,67 +230,67 @@ export default function MapLocationPicker({
     });
   };
 
+  // ------------------------------------------
+  // 📍 Geocoder: Reverse Geocode Position
+  // ------------------------------------------
   const getAddressDetails = async (lat, lng) => {
-    try {
-      const API = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${API}`;
-
-      const res = await axios.get(url);
-      const data = res.data;
-
-      if (!data.results || data.results.length === 0) {
-        return { address: "", country: "", state: "", district: "", pincode: "" };
+    return new Promise((resolve) => {
+      if (!window.google?.maps?.Geocoder) {
+        return resolve({ address: "", country: "", state: "", district: "", pincode: "" });
       }
 
-      let country = "";
-      let state = "";
-      let district = "";
-      let pincode = "";
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ location: { lat: parseFloat(lat), lng: parseFloat(lng) } }, (results, status) => {
+        if (status !== "OK" || !results || results.length === 0) {
+          return resolve({ address: "", country: "", state: "", district: "", pincode: "" });
+        }
 
-      data.results.forEach((result) => {
-        result.address_components.forEach((c) => {
+        let country = "";
+        let state = "";
+        let district = "";
+        let pincode = "";
 
-          if (!country && c.types.includes("country")) {
-            country = c.long_name;
-          }
+        results.forEach((result) => {
+          result.address_components?.forEach((c) => {
+            if (!country && c.types.includes("country")) {
+              country = c.long_name;
+            }
+            if (!state && c.types.includes("administrative_area_level_1")) {
+              state = c.long_name;
+            }
+            if (!district && c.types.includes("administrative_area_level_2")) {
+              district = c.long_name;
+            }
+            if (!district && c.types.includes("administrative_area_level_3")) {
+              district = c.long_name;
+            }
+            if (!pincode && c.types.includes("postal_code")) {
+              pincode = c.long_name;
+            }
+          });
+        });
 
-          if (!state && c.types.includes("administrative_area_level_1")) {
-            state = c.long_name;
-          }
+        // Best formatted address: prefer premise/street_address/establishment, avoid raw plus_codes
+        const validResults = results.filter(r => !r.types.includes("plus_code") && r.formatted_address);
+        const streetResult = validResults.find(r =>
+          r.types.includes("street_address") ||
+          r.types.includes("premise") ||
+          r.types.includes("subpremise") ||
+          r.types.includes("establishment") ||
+          r.types.includes("route")
+        );
 
-          if (!district && c.types.includes("administrative_area_level_2")) {
-            district = c.long_name;
-          }
+        const address = streetResult?.formatted_address || validResults[0]?.formatted_address || results[0]?.formatted_address || "";
 
-          if (!district && c.types.includes("administrative_area_level_3")) {
-            district = c.long_name;
-          }
-
-          if (!pincode && c.types.includes("postal_code")) {
-            pincode = c.long_name;
-          }
+        resolve({
+          address,
+          country,
+          state,
+          district,
+          pincode,
         });
       });
-
-      // FINAL fallback: take best address
-      const address = data.results.find(r =>
-        r.formatted_address && r.types.includes("street_address")
-      )?.formatted_address ||
-        data.results[0].formatted_address ||
-        "";
-
-      return {
-        address,
-        country,
-        state,
-        district,
-        pincode,
-      };
-
-    } catch (err) {
-      return { address: "", country: "", state: "", district: "", pincode: "" };
-    }
-
+    });
   };
 
   useEffect(() => {
@@ -298,14 +306,15 @@ export default function MapLocationPicker({
         await google.maps.importLibrary("geometry");
 
         const initialPos = {
-          lat: lat ? parseFloat(lat) : 20.5937,
-          lng: lng ? parseFloat(lng) : 78.9629,
+          lat: lat ? parseFloat(lat) : (districtCenter?.lat ? parseFloat(districtCenter.lat) : 20.5937),
+          lng: lng ? parseFloat(lng) : (districtCenter?.lng ? parseFloat(districtCenter.lng) : 78.9629),
         };
+        const hasSpecificPos = Boolean(lat && lng) || Boolean(districtCenter?.lat && districtCenter?.lng);
 
         if (!mapInstanceRef.current) {
           const map = new Map(mapRef.current, {
             center: initialPos,
-            zoom: lat && lng ? 12 : 5,
+            zoom: hasSpecificPos ? 12 : 5,
             gestureHandling: "cooperative",
           });
 
@@ -348,7 +357,7 @@ export default function MapLocationPicker({
               const fallback = getFallbackPosition();
               marker.setPosition(fallback);
               if (onLocationError) {
-                onLocationError("Selected location is outside the selected cluster's district boundaries!");
+                onLocationError("Selected location is outside the selected district boundaries!");
               }
               return;
             }
@@ -358,7 +367,7 @@ export default function MapLocationPicker({
             const newLng = round6(pos.lng());
 
             const details = await getAddressDetails(newLat, newLng);
-            setSearchText(details.address);
+            if (details.address) setSearchText(details.address);
 
             onSelect({
               lat: newLat,
@@ -373,7 +382,7 @@ export default function MapLocationPicker({
           map.addListener("click", async (e) => {
             if (!isWithinBoundaries(e.latLng)) {
               if (onLocationError) {
-                onLocationError("Selected location is outside the selected cluster's district boundaries!");
+                onLocationError("Selected location is outside the selected district boundaries!");
               }
               return;
             }
@@ -385,7 +394,7 @@ export default function MapLocationPicker({
             lastValidPositionRef.current = e.latLng;
 
             const details = await getAddressDetails(newLat, newLng);
-            setSearchText(details.address);
+            if (details.address) setSearchText(details.address);
 
             onSelect({
               lat: newLat,
@@ -407,21 +416,23 @@ export default function MapLocationPicker({
     };
   }, [visible]);
 
+  // Handle boundary updates
   useEffect(() => {
     if (mapInstanceRef.current && visible) {
       drawBoundaries();
 
-      // If lat and lng are not set (first time loading cluster), place the marker at boundary center
+      // If lat and lng are not set and boundary polygon exists, place marker at boundary center
       if ((!lat || !lng) && polygonRefs.current.length > 0 && markerRef.current) {
         const center = getPolygonCenter(polygonRefs.current[0]);
         markerRef.current.setPosition(center);
         lastValidPositionRef.current = center;
         mapInstanceRef.current.setCenter(center);
+        mapInstanceRef.current.setZoom(12);
 
         const newLat = round6(center.lat());
         const newLng = round6(center.lng());
         getAddressDetails(newLat, newLng).then((details) => {
-          setSearchText(details.address);
+          if (details.address) setSearchText(details.address);
           onSelect({
             lat: newLat,
             lng: newLng,
@@ -430,7 +441,67 @@ export default function MapLocationPicker({
         });
       }
     }
-  }, [boundaries, visible, lat, lng]);
+  }, [boundaries, visible]);
+
+  // Center on District whenever districtCenter changes (e.g. user selected district dropdown)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !visible || !districtCenter) return;
+
+    const centerMapToDistrict = async () => {
+      let targetLat = parseFloat(districtCenter.lat);
+      let targetLng = parseFloat(districtCenter.lng);
+
+      // If coordinates not provided in districtCenter, geocode district name
+      if (!targetLat || !targetLng || isNaN(targetLat) || isNaN(targetLng)) {
+        if (window.google?.maps?.Geocoder) {
+          const geocoder = new google.maps.Geocoder();
+          const query = [districtCenter.name, districtCenter.state, districtCenter.country].filter(Boolean).join(", ");
+          try {
+            const geoRes = await new Promise((resolve) => {
+              geocoder.geocode({ address: query }, (results, status) => {
+                if (status === "OK" && results?.[0]?.geometry?.location) {
+                  resolve(results[0].geometry.location);
+                } else {
+                  resolve(null);
+                }
+              });
+            });
+            if (geoRes) {
+              targetLat = geoRes.lat();
+              targetLng = geoRes.lng();
+            }
+          } catch (e) {
+            console.error("Failed to geocode district name:", e);
+          }
+        }
+      }
+
+      if (targetLat && targetLng && !isNaN(targetLat) && !isNaN(targetLng)) {
+        const targetPos = { lat: round6(targetLat), lng: round6(targetLng) };
+        mapInstanceRef.current.setCenter(targetPos);
+        mapInstanceRef.current.setZoom(12);
+
+        if (markerRef.current) {
+          markerRef.current.setPosition(targetPos);
+        }
+        lastValidPositionRef.current = new google.maps.LatLng(targetPos.lat, targetPos.lng);
+
+        // Fetch address & postal code automatically for the district center
+        const details = await getAddressDetails(targetPos.lat, targetPos.lng);
+        const resolvedAddress = details.address || [districtCenter.name, districtCenter.state, districtCenter.country].filter(Boolean).join(", ");
+        setSearchText(resolvedAddress);
+
+        onSelect({
+          lat: targetPos.lat,
+          lng: targetPos.lng,
+          ...details,
+          address: resolvedAddress,
+        });
+      }
+    };
+
+    centerMapToDistrict();
+  }, [districtCenter, visible]);
 
   useEffect(() => {
     if (mapInstanceRef.current && visible) {
@@ -461,23 +532,24 @@ export default function MapLocationPicker({
 
     if (!isWithinBoundaries(latLng)) {
       if (onLocationError) {
-        onLocationError("Selected location is outside the selected cluster's district boundaries!");
+        onLocationError("Selected location is outside the selected district boundaries!");
       }
       return;
     }
 
     mapInstanceRef.current.setCenter({ lat: newLat, lng: newLng });
+    mapInstanceRef.current.setZoom(14);
     markerRef.current.setPosition({ lat: newLat, lng: newLng });
     lastValidPositionRef.current = latLng;
 
     const details = await getAddressDetails(newLat, newLng);
-
-    setSearchText(details.address);
+    setSearchText(details.address || place.address);
 
     onSelect({
       lat: newLat,
       lng: newLng,
       ...details,
+      address: details.address || place.address,
     });
   };
 
@@ -508,8 +580,11 @@ export default function MapLocationPicker({
       markerRef.current = marker;
     }
 
-    // 👇 Always center map on updated location
+    // 👇 Always center map on updated location and zoom in if zoomed out
     map.setCenter(position);
+    if (map.getZoom() < 10) {
+      map.setZoom(12);
+    }
   }, [lat, lng]);
 
   return (

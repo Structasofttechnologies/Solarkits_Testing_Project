@@ -32,7 +32,17 @@ import {
   ArrowUpRight,
   Lock,
   Check,
+  Loader2,
+  UploadCloud,
+  FileSpreadsheet,
+  Download,
+  Trash2,
+  AlertCircle,
+  FileText,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import api from '../services/api';
 import { useBdeAuth } from '../context/BdeAuthContext';
 
@@ -85,7 +95,29 @@ function getStageBadge(stage) {
   return map[stage] || 'bg-slate-50 text-slate-600 border-slate-200';
 }
 
-function getEpcTypeBadge(type) {
+const BADGE_COLOR_MAP = {
+  purple: 'bg-purple-50 text-purple-800 border-purple-200',
+  blue: 'bg-blue-50 text-blue-800 border-blue-200',
+  amber: 'bg-amber-50 text-amber-800 border-amber-200',
+  emerald: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  green: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  rose: 'bg-rose-50 text-rose-800 border-rose-200',
+  red: 'bg-rose-50 text-rose-800 border-rose-200',
+  indigo: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+  teal: 'bg-teal-50 text-teal-800 border-teal-200',
+  cyan: 'bg-cyan-50 text-cyan-800 border-cyan-200',
+  orange: 'bg-orange-50 text-orange-800 border-orange-200',
+  slate: 'bg-slate-100 text-slate-700 border-slate-200',
+};
+
+function getEpcTypeBadge(type, typeList = []) {
+  if (!type) return 'bg-slate-50 text-slate-600 border-slate-200';
+  const matched = (typeList || []).find(
+    (t) => (t.name || '').toLowerCase() === String(type).trim().toLowerCase()
+  );
+  if (matched?.badge_color && BADGE_COLOR_MAP[matched.badge_color]) {
+    return BADGE_COLOR_MAP[matched.badge_color];
+  }
   switch ((type || '').toLowerCase()) {
     case 'government contractor':
       return 'bg-purple-50 text-purple-800 border-purple-200';
@@ -94,13 +126,14 @@ function getEpcTypeBadge(type) {
     case 'experienced epc':
       return 'bg-amber-50 text-amber-800 border-amber-200';
     case 'new epc':
-    default:
       return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+    default:
+      return 'bg-blue-50 text-blue-800 border-blue-200';
   }
 }
 
 export default function BdeEpcLeads() {
-  const { canOnboardEpc } = useBdeAuth();
+  const { canOnboardEpc, canOnboardFranchise } = useBdeAuth();
   const navigate = useNavigate();
   const [leads, setLeads] = useState([]);
   const [stageCounts, setStageCounts] = useState({});
@@ -117,12 +150,7 @@ export default function BdeEpcLeads() {
   const [districtFilter, setDistrictFilter] = useState('all');
   const [epcTypeFilter, setEpcTypeFilter] = useState('all');
   const [epcTypeCounts, setEpcTypeCounts] = useState({});
-  const [epcTypes, setEpcTypes] = useState([
-    { name: 'Government Contractor', code: 'govt_contractor' },
-    { name: 'Tender Bidder', code: 'tender_bidder' },
-    { name: 'New EPC', code: 'new_epc' },
-    { name: 'Experienced EPC', code: 'experienced_epc' },
-  ]);
+  const [epcTypes, setEpcTypes] = useState([]);
 
   // Modals & Drawers
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -133,6 +161,25 @@ export default function BdeEpcLeads() {
   const [followUpNotes, setFollowUpNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState({});
+
+  // Bulk Upload State
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkSettings, setBulkSettings] = useState({
+    state_name: '',
+    district_name: '',
+    lead_source: 'direct_visit',
+    epc_type: '',
+    epc_type_id: null,
+    follow_up_date: '',
+    interested_products: ['Residential On-Grid'],
+    remarks: '',
+  });
+  const [showBulkDefaults, setShowBulkDefaults] = useState(true);
+  const [parsedRows, setParsedRows] = useState([]);
+  const [bulkFilter, setBulkFilter] = useState('all'); // 'all' | 'ready' | 'errors'
+  const [bulkDragOver, setBulkDragOver] = useState(false);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
 
   // Assign Franchisee Modal State
   const [assignModalLead, setAssignModalLead] = useState(null);
@@ -156,13 +203,26 @@ export default function BdeEpcLeads() {
     address_line: '',
     lead_source: 'direct_visit',
     interested_products: ['Residential On-Grid'],
-    epc_type: 'New EPC',
+    epc_type: '',
     follow_up_date: '',
     remarks: '',
   });
 
+  // Fetch Dynamic Active EPC Classification Types from Admin Master
+  const fetchActiveEpcTypes = useCallback(async () => {
+    try {
+      const res = await api.get('/epc-types/active');
+      if (res.data?.status === 'success' && Array.isArray(res.data.data)) {
+        setEpcTypes(res.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load active EPC types:', err);
+    }
+  }, []);
+
   const fetchLeads = useCallback(async () => {
     setLoading(true);
+    fetchActiveEpcTypes();
     try {
       const res = await api.get('/epc-leads/list', {
         params: {
@@ -200,30 +260,27 @@ export default function BdeEpcLeads() {
     } finally {
       setLoading(false);
     }
-  }, [search, stageFilter, districtFilter, epcTypeFilter]);
+  }, [search, stageFilter, districtFilter, epcTypeFilter, fetchActiveEpcTypes]);
 
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
 
-  // Fetch Dynamic Active EPC Classification Types
   useEffect(() => {
-    api.get('/epc-types/active')
-      .then((res) => {
-        if (res.data?.status === 'success' && Array.isArray(res.data.data) && res.data.data.length > 0) {
-          setEpcTypes(res.data.data);
-        }
-      })
-      .catch(() => {
-        api.get('/india/v1/epc-types/active')
-          .then((res2) => {
-            if (res2.data?.status === 'success' && Array.isArray(res2.data.data) && res2.data.data.length > 0) {
-              setEpcTypes(res2.data.data);
-            }
-          })
-          .catch(() => { });
-      });
-  }, []);
+    fetchActiveEpcTypes();
+  }, [fetchActiveEpcTypes]);
+
+  // Keep Form Data & Bulk Settings default EPC Type aligned with active master types
+  useEffect(() => {
+    if (epcTypes.length > 0) {
+      setFormData((prev) => (!prev.epc_type ? { ...prev, epc_type: epcTypes[0].name } : prev));
+      setBulkSettings((prev) => (!prev.epc_type ? {
+        ...prev,
+        epc_type: epcTypes[0].name,
+        epc_type_id: epcTypes[0].id || epcTypes[0]._id || null,
+      } : prev));
+    }
+  }, [epcTypes]);
 
   // Derive districts for the currently selected state in formData
   const availableDistricts = useMemo(() => {
@@ -255,6 +312,35 @@ export default function BdeEpcLeads() {
     }
     return [];
   }, [formData.state_name, formData.district_name, territories]);
+
+  // Derive districts and territories for bulkSettings
+  const bulkSelectedStateTerritory = territories.find(
+    (t) => t.state_name?.toLowerCase() === bulkSettings.state_name?.toLowerCase()
+  ) || (territories.length === 1 ? territories[0] : null);
+
+  const bulkAvailableDistricts = bulkSelectedStateTerritory?.district_names || territory?.district_names || [];
+
+  const handleBulkStateSelect = (selectedState) => {
+    const matchedTerritory = territories.find((t) => t.state_name === selectedState);
+    const firstDistrict = matchedTerritory?.district_names?.[0] || '';
+    setBulkSettings((prev) => ({
+      ...prev,
+      state_name: selectedState,
+      district_name: firstDistrict,
+    }));
+  };
+
+  const handleBulkToggleProduct = (product) => {
+    setBulkSettings((prev) => {
+      const exists = prev.interested_products.includes(product);
+      return {
+        ...prev,
+        interested_products: exists
+          ? prev.interested_products.filter((p) => p !== product)
+          : [...prev.interested_products, product],
+      };
+    });
+  };
 
   const handleStateSelect = (selectedState) => {
     const matchedTerritory = territories.find((t) => t.state_name === selectedState);
@@ -368,11 +454,335 @@ export default function BdeEpcLeads() {
       address_line: '',
       lead_source: 'direct_visit',
       interested_products: ['Residential On-Grid'],
-      epc_type: 'New EPC',
+      epc_type: epcTypes[0]?.name || '',
       follow_up_date: '',
       remarks: '',
     });
     setCreateModalOpen(true);
+  };
+
+  const handleOpenBulkModal = () => {
+    const initialTerritory = territories[0] || territory;
+    const defaultState = formData.state_name || initialTerritory?.state_name || 'Gujarat';
+    const defaultDist = formData.district_name || initialTerritory?.district_names?.[0] || '';
+    setBulkSettings({
+      state_name: defaultState,
+      district_name: defaultDist,
+      lead_source: 'direct_visit',
+      epc_type: epcTypes[0]?.name || '',
+      epc_type_id: epcTypes[0]?.id || epcTypes[0]?._id || null,
+      follow_up_date: '',
+      interested_products: ['Residential On-Grid'],
+      remarks: '',
+    });
+    setParsedRows([]);
+    setBulkFilter('all');
+    setBulkResult(null);
+    setShowBulkDefaults(true);
+    setBulkModalOpen(true);
+  };
+
+  const handleDownloadSampleTemplate = (format = 'xlsx') => {
+    const headers = [
+      'EPC Company Name *',
+      'Contact Person Name *',
+      'Mobile Number *',
+      'Email Address *',
+      'GST Number (Optional)',
+      'State *',
+      'District *',
+      'Pincode',
+      'Address Line',
+      'Lead Source',
+      'EPC Classification Type',
+      'Interested Products',
+      'Follow-up Date (YYYY-MM-DD)',
+      'Remarks & Requirements',
+    ];
+
+    const sampleRow1 = [
+      'Apex Solar Tech Pvt Ltd',
+      'Rajesh Sharma',
+      '9876543210',
+      'contact@apexsolar.in',
+      '24ABCDE1234F1Z5',
+      bulkSettings.state_name || 'Gujarat',
+      bulkSettings.district_name || 'Ahmedabad',
+      '380001',
+      '101 Titanium City Centre, Prahladnagar',
+      'direct_visit',
+      'New EPC',
+      'Residential On-Grid, Commercial On-Grid',
+      '2026-11-25',
+      'Met at Gujarat Solar Expo 2026',
+    ];
+
+    const sampleRow2 = [
+      'Surat Power Solutions',
+      'Pravin Patel',
+      '9825001122',
+      'info@suratpower.com',
+      '',
+      bulkSettings.state_name || 'Gujarat',
+      'Surat',
+      '395001',
+      'Ring Road Industrial Area',
+      'referral',
+      'Experienced EPC',
+      'Commercial On-Grid, Industrial Rooftop',
+      '2026-11-30',
+      'Interested in 50kW solar inverters',
+    ];
+
+    if (format === 'csv') {
+      const csvData = [headers, sampleRow1, sampleRow2]
+        .map(row => row.map(val => `"${String(val || '').replace(/"/g, '""')}"`).join(','))
+        .join('\r\n');
+      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'EPC_Leads_Bulk_Upload_Sample.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow1, sampleRow2]);
+      ws['!cols'] = [
+        { wch: 26 },
+        { wch: 22 },
+        { wch: 16 },
+        { wch: 24 },
+        { wch: 20 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 12 },
+        { wch: 35 },
+        { wch: 16 },
+        { wch: 24 },
+        { wch: 32 },
+        { wch: 20 },
+        { wch: 30 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'EPC Leads');
+      XLSX.writeFile(wb, 'EPC_Leads_Bulk_Upload_Sample.xlsx');
+    }
+  };
+
+  const handleProcessWorkbook = (dataBinary) => {
+    try {
+      const workbook = XLSX.read(dataBinary, { type: 'binary', cellDates: true });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+
+      if (!rows || rows.length === 0) {
+        alert('The uploaded file does not contain any data rows.');
+        return;
+      }
+
+      const allowedStates = territories.map(t => (t.state_name || '').toLowerCase());
+
+      const mapped = rows.map((rawRow, idx) => {
+        const normalized = {};
+        Object.entries(rawRow).forEach(([k, v]) => {
+          const normKey = String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (normKey.includes('company') || normKey.includes('firm') || normKey.includes('contractor') || normKey === 'name') {
+            if (!normalized.company_name) normalized.company_name = v;
+          } else if (normKey.includes('contactperson') || normKey.includes('contactname') || normKey.includes('person') || normKey.includes('owner')) {
+            if (!normalized.contact_person) normalized.contact_person = v;
+          } else if (normKey.includes('mobile') || normKey.includes('phone') || normKey.includes('contactno') || normKey.includes('cell')) {
+            if (!normalized.mobile_number) normalized.mobile_number = v;
+          } else if (normKey.includes('email') || normKey.includes('mail')) {
+            if (!normalized.email) normalized.email = v;
+          } else if (normKey.includes('gst') || normKey.includes('gstin')) {
+            if (!normalized.gst_number) normalized.gst_number = v;
+          } else if (normKey.includes('district') || normKey.includes('city')) {
+            if (!normalized.district_name) normalized.district_name = v;
+          } else if (normKey.includes('state')) {
+            if (!normalized.state_name) normalized.state_name = v;
+          } else if (normKey.includes('pin') || normKey.includes('zip')) {
+            if (!normalized.pincode) normalized.pincode = v;
+          } else if (normKey.includes('address') || normKey.includes('location')) {
+            if (!normalized.address_line) normalized.address_line = v;
+          } else if (normKey.includes('source')) {
+            if (!normalized.lead_source) normalized.lead_source = v;
+          } else if (normKey.includes('classification') || normKey.includes('type') || normKey.includes('epctype')) {
+            if (!normalized.epc_type) normalized.epc_type = v;
+          } else if (normKey.includes('product') || normKey.includes('project')) {
+            if (!normalized.interested_products) normalized.interested_products = v;
+          } else if (normKey.includes('followup') || normKey.includes('follow')) {
+            if (!normalized.follow_up_date) normalized.follow_up_date = v;
+          } else if (normKey.includes('remark') || normKey.includes('note') || normKey.includes('requirement')) {
+            if (!normalized.remarks) normalized.remarks = v;
+          }
+        });
+
+        const company = String(normalized.company_name || '').trim();
+        const contact = String(normalized.contact_person || company || '').trim();
+        const mobile = String(normalized.mobile_number || '').trim().replace(/\D/g, '');
+        const email = String(normalized.email || '').trim().toLowerCase();
+        const state = String(normalized.state_name || bulkSettings.state_name || '').trim();
+        const district = String(normalized.district_name || bulkSettings.district_name || '').trim();
+        const gst = normalized.gst_number ? String(normalized.gst_number).trim().toUpperCase() : '';
+        const pin = normalized.pincode ? String(normalized.pincode).trim().replace(/\D/g, '') : '';
+        const address = normalized.address_line ? String(normalized.address_line).trim() : '';
+        const source = normalized.lead_source ? String(normalized.lead_source).trim() : bulkSettings.lead_source;
+        const epcType = normalized.epc_type ? String(normalized.epc_type).trim() : bulkSettings.epc_type;
+
+        let products = bulkSettings.interested_products;
+        if (normalized.interested_products) {
+          if (Array.isArray(normalized.interested_products)) {
+            products = normalized.interested_products;
+          } else if (typeof normalized.interested_products === 'string' && normalized.interested_products.trim()) {
+            products = normalized.interested_products.split(',').map(s => s.trim()).filter(Boolean);
+          }
+        }
+
+        const followUp = normalized.follow_up_date ? String(normalized.follow_up_date).trim() : bulkSettings.follow_up_date;
+        const remarks = normalized.remarks ? String(normalized.remarks).trim() : bulkSettings.remarks;
+
+        const rowErrors = [];
+        if (!company) rowErrors.push('Missing Company Name');
+        if (!contact) rowErrors.push('Missing Contact Person');
+        if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) rowErrors.push('Invalid 10-digit Mobile (must start with 6-9)');
+        if (!email || !/^\S+@\S+\.\S+$/.test(email)) rowErrors.push('Invalid Email');
+        if (!state) rowErrors.push('Missing State');
+        if (!district) rowErrors.push('Missing District');
+        if (allowedStates.length > 0 && !allowedStates.includes(state.toLowerCase())) {
+          rowErrors.push(`State "${state}" outside territory`);
+        }
+        if (gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gst)) {
+          rowErrors.push('Invalid 15-char GSTIN format');
+        }
+        if (pin && !/^\d{6}$/.test(pin)) {
+          rowErrors.push('Pincode must be 6 digits');
+        }
+
+        return {
+          _id_temp: `temp_${idx}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          company_name: company,
+          contact_person: contact,
+          mobile_number: mobile,
+          email: email,
+          gst_number: gst,
+          state_name: state,
+          district_name: district,
+          pincode: pin,
+          address_line: address,
+          lead_source: source,
+          epc_type: epcType,
+          interested_products: products,
+          follow_up_date: followUp,
+          remarks: remarks,
+          _errors: rowErrors,
+          _isValid: rowErrors.length === 0,
+        };
+      });
+
+      setParsedRows(mapped);
+    } catch (err) {
+      console.error('File parsing error', err);
+      alert('Failed to parse file: ' + err.message);
+    }
+  };
+
+  const handleFileDrop = (e) => {
+    e.preventDefault();
+    setBulkDragOver(false);
+    const files = e.dataTransfer?.files;
+    if (files && files[0]) {
+      handleFileSelected(files[0]);
+    }
+  };
+
+  const handleFileSelected = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      handleProcessWorkbook(e.target.result);
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleUpdateParsedRow = (idTemp, field, value) => {
+    const allowedStates = territories.map(t => (t.state_name || '').toLowerCase());
+    setParsedRows(prev =>
+      prev.map(row => {
+        if (row._id_temp !== idTemp) return row;
+        const updated = { ...row, [field]: value };
+
+        const errors = [];
+        const company = (updated.company_name || '').trim();
+        const contact = (updated.contact_person || company || '').trim();
+        const mobile = String(updated.mobile_number || '').trim().replace(/\D/g, '');
+        const email = String(updated.email || '').trim().toLowerCase();
+        const state = (updated.state_name || '').trim();
+        const district = (updated.district_name || '').trim();
+        const gst = updated.gst_number ? String(updated.gst_number).trim().toUpperCase() : '';
+        const pin = updated.pincode ? String(updated.pincode).trim().replace(/\D/g, '') : '';
+
+        if (!company) errors.push('Missing Company Name');
+        if (!contact) errors.push('Missing Contact Person');
+        if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) errors.push('Invalid 10-digit Mobile (must start with 6-9)');
+        if (!email || !/^\S+@\S+\.\S+$/.test(email)) errors.push('Invalid Email');
+        if (!state) errors.push('Missing State');
+        if (!district) errors.push('Missing District');
+        if (allowedStates.length > 0 && !allowedStates.includes(state.toLowerCase())) {
+          errors.push(`State "${state}" outside territory`);
+        }
+        if (gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gst)) {
+          errors.push('Invalid 15-char GSTIN format');
+        }
+        if (pin && !/^\d{6}$/.test(pin)) {
+          errors.push('Pincode must be 6 digits');
+        }
+
+        return {
+          ...updated,
+          company_name: company,
+          contact_person: contact,
+          mobile_number: mobile,
+          email: email,
+          state_name: state,
+          district_name: district,
+          gst_number: gst,
+          pincode: pin,
+          _errors: errors,
+          _isValid: errors.length === 0,
+        };
+      })
+    );
+  };
+
+  const handleDeleteParsedRow = (idTemp) => {
+    setParsedRows(prev => prev.filter(r => r._id_temp !== idTemp));
+  };
+
+  const handleSubmitBulkUpload = async () => {
+    const validRows = parsedRows.filter(r => r._isValid);
+    if (validRows.length === 0) {
+      alert('There are no valid leads ready to import. Please review and fix any errors first.');
+      return;
+    }
+
+    setBulkSubmitting(true);
+    try {
+      const payload = {
+        leads: validRows,
+        default_settings: bulkSettings,
+      };
+      const res = await api.post('/epc-leads/bulk-create', payload);
+      if (res.data?.status === 'success') {
+        setBulkResult(res.data.data);
+        fetchLeads();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Bulk upload failed');
+    } finally {
+      setBulkSubmitting(false);
+    }
   };
 
   const handleOpenEditModal = (lead) => {
@@ -406,7 +816,7 @@ export default function BdeEpcLeads() {
       address_line: lead.address_line || '',
       lead_source: lead.lead_source || 'direct_visit',
       interested_products: lead.interested_products || ['Residential On-Grid'],
-      epc_type: lead.epc_type || 'New EPC',
+      epc_type: lead.epc_type || epcTypes[0]?.name || '',
       follow_up_date: lead.follow_up_date ? lead.follow_up_date.split('T')[0] : '',
       remarks: lead.remarks || '',
     });
@@ -425,6 +835,9 @@ export default function BdeEpcLeads() {
         if (res.data?.status === 'success') {
           alert('EPC Lead updated successfully!');
           setCreateModalOpen(false);
+          if (detailLead && (detailLead._id === editLead._id || detailLead.id === editLead._id)) {
+            setDetailLead(prev => ({ ...prev, ...formData, ...(res.data?.data || {}) }));
+          }
           fetchLeads();
         }
       } else {
@@ -585,14 +998,16 @@ export default function BdeEpcLeads() {
     <div className="space-y-6">
       {/* Lead Category Switcher */}
       <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit border border-slate-200">
-        <button
-          type="button"
-          onClick={() => navigate('/leads')}
-          className="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-600 hover:text-slate-900"
-        >
-          <Building2 className="w-4 h-4 text-blue-600" />
-          <span>Franchisee Partner Leads (HO Assigned)</span>
-        </button>
+        {canOnboardFranchise !== false && (
+          <button
+            type="button"
+            onClick={() => navigate('/leads')}
+            className="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-600 hover:text-slate-900"
+          >
+            <Building2 className="w-4 h-4 text-blue-600" />
+            <span>Franchisee Partner Leads (HO Assigned)</span>
+          </button>
+        )}
 
         <button
           type="button"
@@ -644,6 +1059,13 @@ export default function BdeEpcLeads() {
               <ShieldCheck className="w-4 h-4" /> GST Onboarding Wizard
             </button>
           )}
+          <button
+            onClick={handleOpenBulkModal}
+            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-indigo-600/20 flex items-center gap-2"
+            title="Bulk Upload 100-200 EPC Leads via Excel / CSV"
+          >
+            <UploadCloud className="w-4 h-4" /> Bulk Upload Leads
+          </button>
           <button
             onClick={handleOpenCreateModal}
             className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-blue-600/20 flex items-center gap-2"
@@ -864,7 +1286,7 @@ export default function BdeEpcLeads() {
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-mono text-[11px] text-blue-600 font-bold">{lead.lead_id}</span>
                         {lead.epc_type && (
-                          <span className={`px-2 py-0.2 rounded-full text-[9px] font-black border uppercase tracking-wider ${getEpcTypeBadge(lead.epc_type)}`}>
+                          <span className={`px-2 py-0.2 rounded-full text-[9px] font-black border uppercase tracking-wider ${getEpcTypeBadge(lead.epc_type, epcTypes)}`}>
                             {lead.epc_type}
                           </span>
                         )}
@@ -1030,7 +1452,7 @@ export default function BdeEpcLeads() {
                         <span className="text-[10px] font-mono text-blue-600 font-bold">{l.lead_id}</span>
                         <div className="flex items-center gap-1">
                           {l.epc_type && (
-                            <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black border ${getEpcTypeBadge(l.epc_type)}`}>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black border ${getEpcTypeBadge(l.epc_type, epcTypes)}`}>
                               {l.epc_type}
                             </span>
                           )}
@@ -1076,6 +1498,614 @@ export default function BdeEpcLeads() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* MODAL: Bulk Upload EPC Leads */}
+      {bulkModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shadow-xs">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black text-slate-900">Bulk Upload EPC Leads</h3>
+                    <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      100 – 200+ Leads Support
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Import contractor leads in bulk via Excel or CSV with dynamic batch defaults and live data correction
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setBulkModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* If Bulk Upload Completed (Result View) */}
+            {bulkResult ? (
+              <div className="flex-1 overflow-y-auto p-6 sm:p-8 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <h4 className="text-xl font-black text-slate-900 mb-1">Bulk Lead Import Complete!</h4>
+                <p className="text-sm text-slate-500 mb-6 max-w-md">
+                  Your EPC contractor prospects have been imported into the pipeline with territory assignment and follow-up tracking.
+                </p>
+
+                <div className="grid grid-cols-3 gap-4 w-full max-w-lg mb-6">
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
+                    <div className="text-xs font-bold text-slate-500">Total Uploaded</div>
+                    <div className="text-2xl font-black text-slate-900 mt-1">{bulkResult.total_received || 0}</div>
+                  </div>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
+                    <div className="text-xs font-bold text-emerald-700">Successfully Created</div>
+                    <div className="text-2xl font-black text-emerald-600 mt-1">{bulkResult.created_count || 0}</div>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
+                    <div className="text-xs font-bold text-amber-700">Skipped (Duplicate)</div>
+                    <div className="text-2xl font-black text-amber-600 mt-1">{bulkResult.skipped_count || 0}</div>
+                  </div>
+                </div>
+
+                {bulkResult.skipped_details && bulkResult.skipped_details.length > 0 && (
+                  <div className="w-full max-w-lg bg-amber-50/70 border border-amber-200 rounded-2xl p-4 text-left mb-6 max-h-48 overflow-y-auto">
+                    <div className="text-xs font-bold text-amber-900 mb-2 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      Skipped Rows ({bulkResult.skipped_details.length}):
+                    </div>
+                    <ul className="text-[11px] text-amber-800 space-y-1 list-disc list-inside">
+                      {bulkResult.skipped_details.map((s, idx) => (
+                        <li key={idx}>
+                          <span className="font-semibold">{s.company_name || 'Row ' + s.row}</span> ({s.mobile_number}): {s.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      setBulkResult(null);
+                      setParsedRows([]);
+                    }}
+                    className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition text-xs"
+                  >
+                    Upload Another Batch
+                  </button>
+                  <button
+                    onClick={() => setBulkModalOpen(false)}
+                    className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition text-xs shadow-xs"
+                  >
+                    Done & View EPC Pipeline
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Main Bulk Upload Work Area */
+              <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 text-xs">
+                {/* 1. Dynamic Batch Defaults (Collapsible) */}
+                <div className="border border-blue-200/80 bg-blue-50/40 rounded-2xl p-4 transition-all">
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkDefaults(!showBulkDefaults)}
+                    className="w-full flex items-center justify-between text-left group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                      <div>
+                        <span className="font-black text-slate-900 text-xs group-hover:text-blue-700 transition">
+                          Dynamic Batch Defaults (Fallback for Missing Row Values)
+                        </span>
+                        <p className="text-[11px] text-slate-500 font-normal">
+                          Set default territory, classification, and source automatically applied when file rows omit these fields
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-blue-600 font-bold text-xs bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-xs">
+                      <span>{showBulkDefaults ? 'Collapse' : 'Configure Defaults'}</span>
+                      {showBulkDefaults ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </div>
+                  </button>
+
+                  {showBulkDefaults && (
+                    <div className="mt-4 pt-4 border-t border-blue-100 grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
+                      {/* State */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Default State *</label>
+                        {territories.length > 1 ? (
+                          <select
+                            value={bulkSettings.state_name}
+                            onChange={(e) => handleBulkStateSelect(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500"
+                          >
+                            {territories.map((t) => (
+                              <option key={t.id || t.state_id || t.state_name} value={t.state_name}>
+                                {t.state_name} ({t.district_names?.length || 0} Districts)
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            readOnly
+                            disabled
+                            value={bulkSettings.state_name}
+                            className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-slate-700 font-bold cursor-not-allowed"
+                          />
+                        )}
+                      </div>
+
+                      {/* District */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Default District *</label>
+                        {bulkAvailableDistricts && bulkAvailableDistricts.length > 0 ? (
+                          <select
+                            value={bulkSettings.district_name}
+                            onChange={(e) => setBulkSettings({ ...bulkSettings, district_name: e.target.value })}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500"
+                          >
+                            <option value="">Select District</option>
+                            {bulkAvailableDistricts.map((d) => (
+                              <option key={d} value={d}>
+                                {d}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            placeholder="e.g. Ahmedabad"
+                            value={bulkSettings.district_name}
+                            onChange={(e) => setBulkSettings({ ...bulkSettings, district_name: e.target.value })}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500"
+                          />
+                        )}
+                      </div>
+
+                      {/* Lead Source */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Default Lead Source</label>
+                        <select
+                          value={bulkSettings.lead_source}
+                          onChange={(e) => setBulkSettings({ ...bulkSettings, lead_source: e.target.value })}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500"
+                        >
+                          {LEAD_SOURCES.map((s) => (
+                            <option key={s.value} value={s.value}>
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* EPC Classification Type */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Default Classification Type</label>
+                        <select
+                          value={bulkSettings.epc_type}
+                          onChange={(e) => {
+                            const matched = epcTypes.find(t => t.name === e.target.value);
+                            setBulkSettings({
+                              ...bulkSettings,
+                              epc_type: e.target.value,
+                              epc_type_id: matched?.id || matched?._id || null,
+                            });
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500"
+                        >
+                          {!bulkSettings.epc_type && <option value="">Select Default EPC Type</option>}
+                          {epcTypes.map((t) => (
+                            <option key={t.id || t._id || t.code || t.name} value={t.name}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Follow-up Date */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Default Follow-up Date</label>
+                        <input
+                          type="date"
+                          value={bulkSettings.follow_up_date}
+                          onChange={(e) => setBulkSettings({ ...bulkSettings, follow_up_date: e.target.value })}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+
+                      {/* Campaign Note */}
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Batch / Campaign Note</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Gujarat Solar Expo 2026 contractor leads"
+                          value={bulkSettings.remarks}
+                          onChange={(e) => setBulkSettings({ ...bulkSettings, remarks: e.target.value })}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+
+                      {/* Interested Products Pills */}
+                      <div className="sm:col-span-3 pt-1">
+                        <label className="block font-bold text-slate-700 mb-1">Default Products of Interest</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {PRODUCT_TYPES.map((p) => {
+                            const isSelected = bulkSettings.interested_products.includes(p);
+                            return (
+                              <button
+                                type="button"
+                                key={p}
+                                onClick={() => handleBulkToggleProduct(p)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${isSelected
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                                  }`}
+                              >
+                                {p}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Upload Box & Template Downloads */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  {/* Left Column: Template Download Card */}
+                  <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/60 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                        <h4 className="font-bold text-slate-800 text-xs">Standard Bulk Templates</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mb-3">
+                        Download pre-formatted templates matching EPC database columns with sample contractor data:
+                      </p>
+                      <ul className="text-[10px] text-slate-500 space-y-1 mb-4 list-disc list-inside">
+                        <li>Handles 100 to 200+ contractor rows</li>
+                        <li>Includes column validation instructions</li>
+                        <li>Supports optional GSTIN and Pincode</li>
+                      </ul>
+                    </div>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadSampleTemplate('xlsx')}
+                        className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-xs transition text-xs"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Download Excel Template (.xlsx)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadSampleTemplate('csv')}
+                        className="w-full py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-bold flex items-center justify-center gap-1.5 transition text-xs"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Download CSV Template (.csv)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right Column (2 spans): Dropzone */}
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setBulkDragOver(true);
+                    }}
+                    onDragLeave={() => setBulkDragOver(false)}
+                    onDrop={handleFileDrop}
+                    className={`lg:col-span-2 border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center text-center transition cursor-pointer ${bulkDragOver
+                      ? 'border-blue-500 bg-blue-50/50 scale-[0.99]'
+                      : 'border-slate-300 hover:border-blue-400 bg-slate-50/30'
+                      }`}
+                    onClick={() => document.getElementById('epc-bulk-file-input')?.click()}
+                  >
+                    <input
+                      id="epc-bulk-file-input"
+                      type="file"
+                      accept=".xlsx, .xls, .csv"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          handleFileSelected(e.target.files[0]);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
+                      <UploadCloud className="w-6 h-6" />
+                    </div>
+                    <p className="font-bold text-slate-800 text-sm mb-1">
+                      Click to choose file or drag & drop here
+                    </p>
+                    <p className="text-[11px] text-slate-500 max-w-sm mb-3">
+                      Supports Excel (<span className="font-mono font-semibold">.xlsx, .xls</span>) and Comma-Separated Values (<span className="font-mono font-semibold">.csv</span>). Designed for 100 to 200+ contractor rows.
+                    </p>
+                    <span className="inline-block px-3 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 shadow-xs">
+                      Browse Computer
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Interactive Review & Inline Edit Grid */}
+                {parsedRows.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    {/* Filter & Toolbar */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+                        <button
+                          type="button"
+                          onClick={() => setBulkFilter('all')}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition ${bulkFilter === 'all'
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                          All Leads ({parsedRows.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBulkFilter('ready')}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${bulkFilter === 'ready'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'text-emerald-700 hover:bg-emerald-50'
+                            }`}
+                        >
+                          <span>Ready to Import</span>
+                          <span className="px-1.5 py-0.2 bg-white/20 rounded-full text-[10px]">
+                            {parsedRows.filter(r => r._isValid).length}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBulkFilter('errors')}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${bulkFilter === 'errors'
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : 'text-rose-700 hover:bg-rose-50'
+                            }`}
+                        >
+                          <span>Needs Correction</span>
+                          <span className="px-1.5 py-0.2 bg-white/20 rounded-full text-[10px]">
+                            {parsedRows.filter(r => !r._isValid).length}
+                          </span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setParsedRows([])}
+                          className="px-3 py-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Clear All Rows
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Table Container */}
+                    <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+                      <div className="max-h-[360px] overflow-x-auto overflow-y-auto">
+                        <table className="w-full text-left border-collapse text-[11px]">
+                          <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-200">
+                            <tr>
+                              <th className="py-2.5 px-3 w-10 text-center">#</th>
+                              <th className="py-2.5 px-3 w-28">Status</th>
+                              <th className="py-2.5 px-3 min-w-[180px]">Company Name *</th>
+                              <th className="py-2.5 px-3 min-w-[150px]">Contact Person *</th>
+                              <th className="py-2.5 px-3 min-w-[130px]">Mobile Number *</th>
+                              <th className="py-2.5 px-3 min-w-[170px]">Email Address *</th>
+                              <th className="py-2.5 px-3 min-w-[140px]">GSTIN (Opt)</th>
+                              <th className="py-2.5 px-3 min-w-[120px]">District *</th>
+                              <th className="py-2.5 px-3 min-w-[140px]">Classification</th>
+                              <th className="py-2.5 px-3 w-12 text-center">Del</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-normal">
+                            {parsedRows
+                              .filter((r) => {
+                                if (bulkFilter === 'ready') return r._isValid;
+                                if (bulkFilter === 'errors') return !r._isValid;
+                                return true;
+                              })
+                              .map((row, idx) => {
+                                const rowErrors = row._errors || [];
+                                const isValid = row._isValid;
+                                return (
+                                  <tr
+                                    key={row._id_temp}
+                                    className={`hover:bg-slate-50/80 transition ${!isValid ? 'bg-rose-50/30' : ''}`}
+                                  >
+                                    <td className="py-2 px-3 text-center text-slate-400 font-mono">
+                                      {idx + 1}
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      {isValid ? (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                          <Check className="w-2.5 h-2.5" /> Valid
+                                        </span>
+                                      ) : (
+                                        <div
+                                          className="inline-flex items-center gap-1 text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full cursor-help"
+                                          title={rowErrors.join(' • ')}
+                                        >
+                                          <AlertCircle className="w-2.5 h-2.5" />
+                                          <span>{rowErrors.length} Issue{rowErrors.length > 1 ? 's' : ''}</span>
+                                        </div>
+                                      )}
+                                    </td>
+                                    {/* Company Name */}
+                                    <td className="py-2 px-3">
+                                      <input
+                                        type="text"
+                                        value={row.company_name}
+                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'company_name', e.target.value)}
+                                        placeholder="Company Name"
+                                        className={`w-full bg-transparent border rounded-lg px-2 py-1 text-slate-900 font-semibold focus:bg-white focus:outline-none ${!row.company_name ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
+                                      />
+                                    </td>
+                                    {/* Contact Person */}
+                                    <td className="py-2 px-3">
+                                      <input
+                                        type="text"
+                                        value={row.contact_person}
+                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'contact_person', e.target.value)}
+                                        placeholder="Contact Person"
+                                        className={`w-full bg-transparent border rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none ${!row.contact_person ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
+                                      />
+                                    </td>
+                                    {/* Mobile */}
+                                    <td className="py-2 px-3">
+                                      <input
+                                        type="text"
+                                        maxLength={10}
+                                        value={row.mobile_number}
+                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'mobile_number', e.target.value)}
+                                        placeholder="10 digits"
+                                        className={`w-full bg-transparent border rounded-lg px-2 py-1 font-mono text-slate-800 focus:bg-white focus:outline-none ${!row.mobile_number || !/^[6-9]\d{9}$/.test(row.mobile_number) ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
+                                      />
+                                    </td>
+                                    {/* Email */}
+                                    <td className="py-2 px-3">
+                                      <input
+                                        type="email"
+                                        value={row.email}
+                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'email', e.target.value)}
+                                        placeholder="Email"
+                                        className={`w-full bg-transparent border rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none ${!row.email || !/^\S+@\S+\.\S+$/.test(row.email) ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
+                                      />
+                                    </td>
+                                    {/* GSTIN */}
+                                    <td className="py-2 px-3">
+                                      <input
+                                        type="text"
+                                        maxLength={15}
+                                        value={row.gst_number || ''}
+                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'gst_number', e.target.value)}
+                                        placeholder="Optional GSTIN"
+                                        className={`w-full bg-transparent border rounded-lg px-2 py-1 font-mono uppercase text-slate-800 focus:bg-white focus:outline-none ${row.gst_number && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(row.gst_number) ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
+                                      />
+                                    </td>
+                                    {/* District */}
+                                    <td className="py-2 px-3">
+                                      <input
+                                        type="text"
+                                        value={row.district_name || ''}
+                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'district_name', e.target.value)}
+                                        placeholder="District"
+                                        className={`w-full bg-transparent border rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none ${!row.district_name ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
+                                      />
+                                    </td>
+                                    {/* Classification */}
+                                    <td className="py-2 px-3">
+                                      <select
+                                        value={row.epc_type || bulkSettings.epc_type}
+                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'epc_type', e.target.value)}
+                                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:outline-none focus:border-blue-500"
+                                      >
+                                        {row.epc_type && !epcTypes.some(t => t.name === row.epc_type) && (
+                                          <option value={row.epc_type}>{row.epc_type}</option>
+                                        )}
+                                        {epcTypes.map((t) => (
+                                          <option key={t.id || t._id || t.code || t.name} value={t.name}>
+                                            {t.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                    {/* Action */}
+                                    <td className="py-2 px-3 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteParsedRow(row._id_temp)}
+                                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                                        title="Delete Row"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Modal Footer (Only shown when not showing result screen) */}
+            {!bulkResult && (
+              <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50">
+                <div className="flex items-center gap-3 text-xs text-slate-500">
+                  {parsedRows.length > 0 ? (
+                    <>
+                      <span>
+                        Total Rows: <strong className="text-slate-900">{parsedRows.length}</strong>
+                      </span>
+                      <span>•</span>
+                      <span className="text-emerald-700 font-bold">
+                        Ready: {parsedRows.filter(r => r._isValid).length}
+                      </span>
+                      {parsedRows.some(r => !r._isValid) && (
+                        <>
+                          <span>•</span>
+                          <span className="text-rose-600 font-bold">
+                            Errors: {parsedRows.filter(r => !r._isValid).length}
+                          </span>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <span>No file chosen yet. Download sample template above or drop your leads file.</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setBulkModalOpen(false)}
+                    className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-100 text-xs transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={parsedRows.filter(r => r._isValid).length === 0 || bulkSubmitting}
+                    onClick={handleSubmitBulkUpload}
+                    className="px-5 py-2 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs flex items-center gap-2 text-xs transition"
+                  >
+                    {bulkSubmitting ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Importing Leads...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-3.5 h-3.5" />
+                        <span>
+                          Import {parsedRows.filter(r => r._isValid).length > 0 ? parsedRows.filter(r => r._isValid).length : ''} Leads
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1356,6 +2386,13 @@ export default function BdeEpcLeads() {
                     onChange={(e) => setFormData({ ...formData, epc_type: e.target.value })}
                     className="w-full bg-white border border-blue-300 rounded-xl px-3 py-2 text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-xs shadow-xs"
                   >
+                    {!formData.epc_type && <option value="">Select EPC Classification Type</option>}
+                    {/* If editing an existing lead whose type was subsequently deactivated in Admin */}
+                    {editLead && formData.epc_type && !epcTypes.some(t => t.name === formData.epc_type) && (
+                      <option value={formData.epc_type}>
+                        {formData.epc_type} (Inactive Master Type)
+                      </option>
+                    )}
                     {epcTypes.map((t) => (
                       <option key={t.id || t._id || t.code || t.name} value={t.name}>
                         {t.name}
@@ -1363,7 +2400,7 @@ export default function BdeEpcLeads() {
                     ))}
                   </select>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    Specify whether contractor is a Government Contractor, Tender Bidder, New EPC, or Experienced EPC.
+                    Select contractor classification configured in Admin Master Settings.
                   </p>
                 </div>
               </div>
@@ -1492,12 +2529,21 @@ export default function BdeEpcLeads() {
                 <span className="font-mono text-xs text-blue-600 font-bold">{detailLead.lead_id}</span>
                 <h3 className="text-base font-black text-slate-900">{detailLead.company_name}</h3>
               </div>
-              <button
-                onClick={() => setDetailLead(null)}
-                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleOpenEditModal(detailLead)}
+                  className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Edit Full EPC Profile"
+                >
+                  <Edit3 className="w-3.5 h-3.5" /> Edit Profile
+                </button>
+                <button
+                  onClick={() => setDetailLead(null)}
+                  className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
@@ -1584,6 +2630,16 @@ export default function BdeEpcLeads() {
                       </span>
                     </div>
                   )}
+                  <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between">
+                    <span className="text-[11px] text-slate-500">Need to update info, address or contact?</span>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditModal(detailLead)}
+                      className="px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg font-bold text-[11px] flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Edit3 className="w-3 h-3" /> Update Profile
+                    </button>
+                  </div>
                 </div>
               </div>
 

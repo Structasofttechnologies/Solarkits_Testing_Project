@@ -44,7 +44,7 @@ export default function App() {
               <Route path="/epc-quotes/create" element={<BdeCreateEpcQuote />} />
               <Route path="/epc-quotes/:id" element={<BdeEpcQuoteDetail />} />
               <Route path="/epc-quote-followups" element={<BdeEpcQuoteFollowupList />} />
-              <Route path="/franchisees" element={<BdeFranchisees />} />
+              <Route path="/franchisees" element={<Navigate to="/#franchisee-goals-section" replace />} />
               <Route path="/order-history" element={<BdeOrderHistoryAndKits />} />
               <Route path="/ranking" element={<BdePerformanceRanking />} />
               <Route path="/goals" element={<BdeGoals />} />
