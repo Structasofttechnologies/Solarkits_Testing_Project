@@ -31,6 +31,8 @@ require("../../models/india_solarshop_db/combo_kits.schema");
 
 const GeoLevel0 = require("../../models/geolocation_db/geo_level_0.schema");
 const GeoLevel1 = require("../../models/geolocation_db/geo_level_1.schema");
+const WarehouseClusterMapping = require("../../../admin-panel/models/core_db/warehouse_cluster_mapping.schema");
+const RegionalCluster = require("../../../admin-panel/models/core_db/regional_cluster.schema");
 const { india_solarshop_db, core_db } = require("../../config/databases");
 
 // Register external referenced schemas on india_solarshop_db connection to allow populate()
@@ -315,6 +317,106 @@ const computeKitAvailableStock = async (kit, warehouseId, otherCartDepletion = {
   return availableStockKits;
 };
 
+/**
+ * Resolves fulfillment warehouses for a customer's location.
+ * Priority 1: State-wise Cluster & Warehouse Routing (WarehouseClusterMapping)
+ * If mapped warehouses exist for the customer's state, returns those warehouses.
+ * Priority 2: Sub-warehouse in customer's district.
+ * Priority 3: Master warehouse in cluster.
+ * Fallback: Active warehouses.
+ */
+const resolveWarehousesForLocation = async ({ targetDistrictId, clusterId, stateId }) => {
+  // 1. Resolve State Name
+  let stateName = null;
+  if (stateId) {
+    try {
+      const sDoc = await GeoLevel1.findById(stateId).lean();
+      if (sDoc) stateName = sDoc.name;
+    } catch (e) {}
+  }
+  if (!stateName && targetDistrictId) {
+    try {
+      const dDoc = await GeoLevel2.findById(targetDistrictId).lean();
+      if (dDoc?.level_1) {
+        const sDoc = await GeoLevel1.findById(dDoc.level_1).lean();
+        if (sDoc) stateName = sDoc.name;
+      }
+    } catch (e) {}
+  }
+
+  // 2. State-wise Cluster & Warehouse Routing (New Logic)
+  if (stateName) {
+    try {
+      const clusterMappings = await WarehouseClusterMapping.find({
+        states: { $regex: new RegExp(`^${stateName.trim()}$`, 'i') },
+        status: 'Active',
+        deleted_at: null
+      }).lean();
+
+      if (clusterMappings.length > 0) {
+        const mappedWhCodes = clusterMappings.map(m => m.warehouse_code).filter(Boolean);
+        const mappedWhIds = clusterMappings.map(m => m.warehouse_id).filter(id => id && mongoose.Types.ObjectId.isValid(id));
+
+        const whConditions = [];
+        if (mappedWhIds.length > 0) whConditions.push({ _id: { $in: mappedWhIds } });
+        if (mappedWhCodes.length > 0) whConditions.push({ warehouse_code: { $in: mappedWhCodes } });
+
+        if (whConditions.length > 0) {
+          const mappedWarehouses = await CompanyWarehouse.find({
+            $or: whConditions,
+            is_active: true,
+            deleted_at: null
+          }).lean();
+
+          if (mappedWarehouses.length > 0) {
+            return { warehouses: mappedWarehouses, stateName, isClusterRouted: true, clusterMappings };
+          }
+        }
+      }
+    } catch (routeErr) {
+      console.warn("Error in resolveWarehousesForLocation cluster routing:", routeErr.message);
+    }
+  }
+
+  // 3. Fallback: Find sub warehouses in this district
+  let warehouses = [];
+  if (targetDistrictId && mongoose.Types.ObjectId.isValid(targetDistrictId)) {
+    warehouses = await CompanyWarehouse.find({
+      level_2: new mongoose.Types.ObjectId(targetDistrictId),
+      warehouse_type: 'sub',
+      is_active: true,
+      deleted_at: null
+    }).lean();
+  }
+
+  // 4. Fall back to master warehouse if no sub warehouses exist
+  if (warehouses.length === 0 && clusterId) {
+    const clusterDistricts = await GeoLevel2.find({ cluster: clusterId, deleted_at: null }).select('_id').lean();
+    const clusterDistrictIds = clusterDistricts.map(d => d._id);
+
+    const masterWarehouse = await CompanyWarehouse.findOne({
+      level_2: { $in: clusterDistrictIds },
+      warehouse_type: 'master',
+      is_active: true,
+      deleted_at: null
+    }).lean();
+
+    if (masterWarehouse) {
+      warehouses = [masterWarehouse];
+    }
+  }
+
+  // 5. Ultimate fallback to all active warehouses
+  if (warehouses.length === 0) {
+    warehouses = await CompanyWarehouse.find({
+      is_active: true,
+      deleted_at: null
+    }).lean();
+  }
+
+  return { warehouses, stateName, isClusterRouted: false, clusterMappings: [] };
+};
+
 const get_combo_kits_by_district = async (req, res) => {
   try {
     const { district_id, pincode } = req.query;
@@ -407,40 +509,12 @@ const get_combo_kits_by_district = async (req, res) => {
       console.warn('Error querying BestSellerKit for district:', bsErr.message);
     }
 
-    // Find sub warehouses in this district
-    let warehouses = await CompanyWarehouse.find({
-      level_2: new mongoose.Types.ObjectId(targetDistrictId),
-      warehouse_type: 'sub',
-      is_active: true,
-      deleted_at: null
-    }).lean();
-
-    // Fall back to master warehouse or any active warehouse if no sub warehouses exist in the selected district
-    if (warehouses.length === 0) {
-      if (clusterId) {
-        const clusterDistricts = await GeoLevel2.find({ cluster: clusterId, deleted_at: null }).select('_id').lean();
-        const clusterDistrictIds = clusterDistricts.map(d => d._id);
-
-        const masterWarehouse = await CompanyWarehouse.findOne({
-          level_2: { $in: clusterDistrictIds },
-          warehouse_type: 'master',
-          is_active: true,
-          deleted_at: null
-        }).lean();
-
-        if (masterWarehouse) {
-          warehouses = [masterWarehouse];
-        }
-      }
-
-      if (warehouses.length === 0) {
-        const fallbackWarehouses = await CompanyWarehouse.find({
-          is_active: true,
-          deleted_at: null
-        }).lean();
-        warehouses = fallbackWarehouses;
-      }
-    }
+    // Resolve fulfillment warehouses (Priority 1: Cluster Routing, Priority 2: District sub, Priority 3: Master)
+    const { warehouses, stateName: resolvedStateName } = await resolveWarehousesForLocation({
+      targetDistrictId,
+      clusterId,
+      stateId
+    });
 
     let warehouseIds = warehouses.map(w => w._id);
 
@@ -473,6 +547,22 @@ const get_combo_kits_by_district = async (req, res) => {
     const map = new Map();
     [...(k1 || []), ...(k2 || [])].forEach(k => map.set(k._id.toString(), k));
     let kits = Array.from(map.values());
+
+    // Filter kits by activation restricted_states if configured
+    if (resolvedStateName) {
+      const allowedKitIdSet = new Set();
+      activations.forEach(act => {
+        const kId = (act.combo_kit_id?._id || act.combo_kit_id)?.toString();
+        if (!kId) return;
+        const restr = act.restricted_states;
+        if (!Array.isArray(restr) || restr.length === 0 || restr.includes('all')) {
+          allowedKitIdSet.add(kId);
+        } else if (restr.some(s => s.toLowerCase() === resolvedStateName.toLowerCase())) {
+          allowedKitIdSet.add(kId);
+        }
+      });
+      kits = kits.filter(k => allowedKitIdSet.has(k._id.toString()));
+    }
 
     if (kits.length === 0) {
       return res.status(200).json({ success: true, source: "db", data: [] });
@@ -1996,30 +2086,12 @@ const get_inventory_status = async (req, res) => {
     const districtDoc = await GeoLevel2.findById(targetDistrictId).lean();
     const clusterId = districtDoc?.cluster || null;
 
-    // Find sub warehouses in this district
-    let warehouses = await CompanyWarehouse.find({
-      level_2: new mongoose.Types.ObjectId(targetDistrictId),
-      warehouse_type: 'sub',
-      is_active: true,
-      deleted_at: null
-    }).lean();
-
-    // Fall back to master warehouse if no sub warehouses exist
-    if (warehouses.length === 0 && clusterId) {
-      const clusterDistricts = await GeoLevel2.find({ cluster: clusterId, deleted_at: null }).select('_id').lean();
-      const clusterDistrictIds = clusterDistricts.map(d => d._id);
-
-      const masterWarehouse = await CompanyWarehouse.findOne({
-        level_2: { $in: clusterDistrictIds },
-        warehouse_type: 'master',
-        is_active: true,
-        deleted_at: null
-      }).lean();
-
-      if (masterWarehouse) {
-        warehouses = [masterWarehouse];
-      }
-    }
+    // Resolve fulfillment warehouses (Priority 1: Cluster Routing, Priority 2: District sub, Priority 3: Master)
+    const { warehouses } = await resolveWarehousesForLocation({
+      targetDistrictId,
+      clusterId,
+      stateId: districtDoc?.level_1
+    });
 
     if (warehouses.length === 0) {
       return res.status(200).json({ success: true, stock: {} });

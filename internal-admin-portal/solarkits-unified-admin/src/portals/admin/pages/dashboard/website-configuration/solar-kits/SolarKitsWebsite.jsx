@@ -160,34 +160,34 @@ const DEFAULT_SOLARKITS_STATE = {
       },
     ],
   },
-  how_it_works: {
-    enabled: true,
-    badge_text: "SIMPLE 4-STEP PROCESS",
-    heading: "How to Order Your Solar Kit",
-    subtitle: "From selecting the right capacity to site delivery and assembly in four easy steps.",
-    steps: [
-      {
-        step: "01",
-        title: "Choose Your System Capacity",
-        desc: "Select the required kilowatt size (1kW to 10kW+) based on your monthly electricity consumption.",
-      },
-      {
-        step: "02",
-        title: "Customize Components & BOM",
-        desc: "Pick your preferred inverter brand, panel wattage, and battery backup storage capacity.",
-      },
-      {
-        step: "03",
-        title: "Express Hub Dispatch",
-        desc: "Your complete package is pre-assembled, tested, and dispatched from our regional hub within 48 hours.",
-      },
-      {
-        step: "04",
-        title: "Site Delivery & Quick Setup",
-        desc: "Receive everything in one shipment with color-coded wiring guides for hassle-free assembly.",
-      },
-    ],
-  },
+  // how_it_works: {
+  //   enabled: true,
+  //   badge_text: "SIMPLE 4-STEP PROCESS",
+  //   heading: "How to Order Your Solar Kit",
+  //   subtitle: "From selecting the right capacity to site delivery and assembly in four easy steps.",
+  //   steps: [
+  //     {
+  //       step: "01",
+  //       title: "Choose Your System Capacity",
+  //       desc: "Select the required kilowatt size (1kW to 10kW+) based on your monthly electricity consumption.",
+  //     },
+  //     {
+  //       step: "02",
+  //       title: "Customize Components & BOM",
+  //       desc: "Pick your preferred inverter brand, panel wattage, and battery backup storage capacity.",
+  //     },
+  //     {
+  //       step: "03",
+  //       title: "Express Hub Dispatch",
+  //       desc: "Your complete package is pre-assembled, tested, and dispatched from our regional hub within 48 hours.",
+  //     },
+  //     {
+  //       step: "04",
+  //       title: "Site Delivery & Quick Setup",
+  //       desc: "Receive everything in one shipment with color-coded wiring guides for hassle-free assembly.",
+  //     },
+  //   ],
+  // },
   testimonials: {
     enabled: true,
     badge_text: "VERIFIED BUYER STORIES",
@@ -739,11 +739,10 @@ export default function SolarKitsWebsite() {
       {/* Alert message */}
       {alert && (
         <div
-          className={`p-4 rounded-xl text-sm font-medium flex items-center gap-3 border ${
-            alert.type === "success"
+          className={`p-4 rounded-xl text-sm font-medium flex items-center gap-3 border ${alert.type === "success"
               ? "bg-emerald-50 text-emerald-800 border-emerald-200"
               : "bg-red-50 text-red-800 border-red-200"
-          }`}
+            }`}
         >
           {alert.type === "success" ? <FiCheckCircle size={18} /> : <FiAlertCircle size={18} />}
           <span>{alert.message}</span>
@@ -766,11 +765,10 @@ export default function SolarKitsWebsite() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 font-bold text-xs transition-all cursor-pointer ${
-                isActive
+              className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 font-bold text-xs transition-all cursor-pointer ${isActive
                   ? "bg-primary text-white border-primary shadow-md shadow-primary/20"
                   : "bg-surface border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover"
-              }`}
+                }`}
             >
               <span className="text-base">{tab.icon}</span>
               <span className="truncate">{tab.label}</span>
@@ -1467,11 +1465,10 @@ export default function SolarKitsWebsite() {
               <button
                 key={pTab.id}
                 onClick={() => setActivePolicyTab(pTab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  activePolicyTab === pTab.id
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activePolicyTab === pTab.id
                     ? "bg-primary text-white shadow-sm"
                     : "text-text-secondary hover:text-text-primary"
-                }`}
+                  }`}
               >
                 <span>{pTab.icon}</span>
                 <span>{pTab.label}</span>

@@ -58,9 +58,40 @@ const clean = (s) =>
     .replace(/bhoomi/g, 'bhumi')
     .replace(/[^a-z0-9]/g, '');
 
+// ── Vibrant High-Contrast Cluster Territory Color Palette ───────────────────
+// Used for Map 1: Created Clusters View (Colors each cluster across all its member districts)
+export const CLUSTER_PALETTE = [
+  { fill: '#2563eb', border: '#1d4ed8', text: '#1e3a8a', bg: '#dbeafe', name: 'Sapphire Blue' },
+  { fill: '#059669', border: '#047857', text: '#064e3b', bg: '#d1fae5', name: 'Emerald Green' },
+  { fill: '#7c3aed', border: '#6d28d9', text: '#4c1d95', bg: '#ede9fe', name: 'Royal Purple' },
+  { fill: '#ea580c', border: '#c2410c', text: '#7c2d12', bg: '#ffedd5', name: 'Sunburst Orange' },
+  { fill: '#0891b2', border: '#0e7490', text: '#164e63', bg: '#cffafe', name: 'Electric Cyan' },
+  { fill: '#db2777', border: '#be185d', text: '#831843', bg: '#fce7f3', name: 'Ruby Pink' },
+  { fill: '#0d9488', border: '#0f766e', text: '#134e4a', bg: '#ccfbf1', name: 'Deep Teal' },
+  { fill: '#d97706', border: '#b45309', text: '#78350f', bg: '#fef3c7', name: 'Amber Gold' },
+  { fill: '#4f46e5', border: '#4338ca', text: '#312e81', bg: '#e0e7ff', name: 'Classic Indigo' },
+  { fill: '#65a30d', border: '#4d7c0f', text: '#365314', bg: '#ecfccb', name: 'Lime Green' },
+  { fill: '#e11d48', border: '#be123c', text: '#881337', bg: '#ffe4e6', name: 'Crimson Rose' },
+  { fill: '#0284c7', border: '#0369a1', text: '#0c4a6e', bg: '#e0f2fe', name: 'Sky Cerulean' },
+];
+
+export const getClusterTheme = (identifier) => {
+  if (!identifier) return CLUSTER_PALETTE[0];
+  const str = String(identifier);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  const index = Math.abs(hash) % CLUSTER_PALETTE.length;
+  return CLUSTER_PALETTE[index];
+};
+
 export default function IndiaChoroplethMap({
   districtsData = [],
   activeFranchiseeLegends = [],
+  clustersList = [],
+  mapViewMode = 'clusters', // 'clusters' (Map 1) | 'franchisees' (Map 2)
   selectedState = '',
   selectedCluster = '',
   selectedStatus = 'all',
@@ -175,6 +206,51 @@ export default function IndiaChoroplethMap({
     return map;
   }, [districtsData]);
 
+  // Precompute legend entries for Map 1: Created Clusters View
+  const createdClustersLegends = useMemo(() => {
+    const map = new Map();
+    // 1. From clustersList if provided
+    if (clustersList && clustersList.length > 0) {
+      clustersList.forEach((c) => {
+        const theme = getClusterTheme(c._id);
+        const distCount = (c.district_ids || c.district_names || []).length;
+        map.set(String(c._id), {
+          cluster_id: c._id,
+          cluster_name: c.cluster_name,
+          cluster_code: c.cluster_code,
+          state_name: c.state_name || c.state_id?.name || '',
+          color: theme.fill,
+          stroke: theme.border,
+          bg: theme.bg,
+          text: theme.text,
+          districts_count: distCount,
+          franchisee_name: c.assigned_franchisee_id?.business_name || null,
+          status: c.status || 'available',
+        });
+      });
+    }
+    // 2. Also ensure districtsData clusters are captured if clustersList was empty
+    districtsData.forEach((d) => {
+      if (d.cluster_id && !map.has(String(d.cluster_id))) {
+        const theme = getClusterTheme(d.cluster_id);
+        map.set(String(d.cluster_id), {
+          cluster_id: d.cluster_id,
+          cluster_name: d.cluster_name || 'Cluster',
+          cluster_code: d.cluster_code || 'CLU',
+          state_name: d.state_name || '',
+          color: theme.fill,
+          stroke: theme.border,
+          bg: theme.bg,
+          text: theme.text,
+          districts_count: districtsData.filter((x) => String(x.cluster_id) === String(d.cluster_id)).length,
+          franchisee_name: d.franchisee_name || null,
+          status: d.status_key || 'available',
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [clustersList, districtsData]);
+
   // Find district data for a GeoJSON feature
   const getDistrictMatch = useCallback(
     (feature) => {
@@ -268,7 +344,8 @@ export default function IndiaChoroplethMap({
   };
 
   // Render District Path Fill Color:
-  // Rule: Black & White initially. ONLY clusters with an ONBOARDED FRANCHISEE get distinct color theme!
+  // Map 1 ('clusters'): Each created cluster gets its own distinct, vibrant color across ALL its member districts!
+  // Map 2 ('franchisees'): Only clusters with an ONBOARDED FRANCHISEE get distinct color theme!
   const getDistrictFill = useCallback(
     (feature) => {
       const match = getDistrictMatch(feature);
@@ -278,14 +355,34 @@ export default function IndiaChoroplethMap({
         return '#f97316'; // Vibrant orange for search highlight
       }
 
+      // Selected Cluster highlight
+      if (selectedCluster && match?.cluster_id && String(match.cluster_id) === String(selectedCluster)) {
+        if (mapViewMode === 'clusters') {
+          return getClusterTheme(match.cluster_id).fill;
+        }
+        return match.color || '#ea580c';
+      }
+
+      // ── MODE 1: Created Clusters Map ───────────────────────────
+      // Every district belonging to ANY created cluster gets filled with that cluster's distinct color!
+      if (mapViewMode === 'clusters') {
+        if (match?.cluster_id) {
+          const theme = getClusterTheme(match.cluster_id);
+          return theme.fill;
+        }
+        // Unassigned districts stay neutral white/slate
+        return '#f8fafc';
+      }
+
+      // ── MODE 2: Onboarded Franchisees Map ──────────────────────
       // 1. Franchisee is onboarded/allotted -> distinct vibrant franchisee color
       if (match?.is_allotted && match.color) {
         return match.color;
       }
 
-      // 2. Cluster created but available / unallotted -> clean neutral light slate
+      // 2. Cluster created but available / unallotted -> light red pending tint
       if (match?.status_key === 'available') {
-        return '#e2e8f0';
+        return '#fee2e2';
       }
 
       // 3. Cluster reserved or company store
@@ -299,7 +396,7 @@ export default function IndiaChoroplethMap({
       // 4. Default: Black & White / Grayscale unassigned district
       return '#f8fafc';
     },
-    [getDistrictMatch, searchDistrict]
+    [getDistrictMatch, searchDistrict, selectedCluster, mapViewMode]
   );
 
   // Render District Boundary Stroke Color:
@@ -307,15 +404,33 @@ export default function IndiaChoroplethMap({
     (feature, isHovered) => {
       if (isHovered) return '#0f172a';
       const match = getDistrictMatch(feature);
+      const isSelectedCluster = selectedCluster && match?.cluster_id && String(match.cluster_id) === String(selectedCluster);
+
+      if (isSelectedCluster) {
+        return '#0f172a'; // Bold dark border for active selection
+      }
+
+      if (mapViewMode === 'clusters') {
+        if (match?.cluster_id) {
+          const theme = getClusterTheme(match.cluster_id);
+          return theme.border;
+        }
+        return '#cbd5e1';
+      }
+
+      // Mode 2: Onboarded Franchisees
       if (match?.is_allotted && match.stroke) {
         return match.stroke;
       }
       if (match?.status_key === 'available') {
-        return '#94a3b8';
+        return '#f87171';
+      }
+      if (match?.status_key === 'reserved') {
+        return '#d97706';
       }
       return '#cbd5e1'; // Crisp monochrome boundary
     },
-    [getDistrictMatch]
+    [getDistrictMatch, selectedCluster, mapViewMode]
   );
 
   if (loadingGeo) {
@@ -386,19 +501,37 @@ export default function IndiaChoroplethMap({
           </button>
         </div>
 
-        {/* Active Franchisees Badge & Quick Summary */}
-        <div className="flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200/90 shadow-md text-[11px] font-bold">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-slate-800">
-            Active Franchisees: <span className="font-black text-emerald-600">{activeFranchiseeLegends.length}</span>
-          </span>
-        </div>
+        {/* Mode-Specific Status Pill & Summary */}
+        {mapViewMode === 'clusters' ? (
+          <div className="flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-orange-200/90 shadow-md text-[11px] font-bold">
+            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+            <span className="text-slate-800">
+              Created Clusters: <span className="font-black text-orange-600">{createdClustersLegends.length}</span>
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-emerald-200/90 shadow-md text-[11px] font-bold">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-slate-800">
+              Active Franchisees: <span className="font-black text-emerald-600">{activeFranchiseeLegends.length}</span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ── Status Indicator Pill (Top Right) ─────────────────────────────── */}
       <div className="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200/90 shadow-md flex items-center gap-2 text-xs font-bold text-slate-700">
-        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-        <span>India Vector Choropleth • 726 Districts</span>
+        {mapViewMode === 'clusters' ? (
+          <>
+            <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
+            <span>Map 1: Created Clusters • {createdClustersLegends.length} Clustered Territories</span>
+          </>
+        ) : (
+          <>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Map 2: Onboarded Franchisees • {activeFranchiseeLegends.length} Active Stores</span>
+          </>
+        )}
       </div>
 
       {/* ── Main SVG Map Canvas ────────────────────────────────────────────── */}
@@ -424,9 +557,21 @@ export default function IndiaChoroplethMap({
                 d={pathGenerator(feature)}
                 fill={fill}
                 stroke={strokeColor}
-                strokeWidth={isHovered ? 2.4 / zoom : match?.is_allotted ? 1.4 / zoom : 0.55 / zoom}
+                strokeWidth={
+                  isHovered
+                    ? 2.5 / zoom
+                    : selectedCluster && match?.cluster_id && String(match.cluster_id) === String(selectedCluster)
+                    ? 2.5 / zoom
+                    : mapViewMode === 'clusters' && match?.cluster_id
+                    ? 1.2 / zoom
+                    : match?.is_allotted
+                    ? 1.4 / zoom
+                    : 0.55 / zoom
+                }
                 strokeDasharray={
-                  match?.status_key === 'available' && !match?.is_allotted ? `${3 / zoom},${2 / zoom}` : undefined
+                  mapViewMode === 'franchisees' && match?.status_key === 'available' && !match?.is_allotted
+                    ? `${3 / zoom},${2 / zoom}`
+                    : undefined
                 }
                 strokeOpacity={1}
                 className="transition-colors duration-150 cursor-pointer outline-none"
@@ -508,62 +653,134 @@ export default function IndiaChoroplethMap({
         </g>
       </svg>
 
-      {/* ── Active Franchisee Territory Key Legend (Bottom Left) ──────────────── */}
-      <div className="absolute bottom-4 left-4 z-20 bg-white/95 backdrop-blur-md p-3.5 rounded-2xl border border-slate-200/90 shadow-lg max-w-[300px] text-xs">
-        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
-          <div className="flex items-center gap-1.5 font-black text-slate-800">
-            <FiLayers size={14} className="text-slate-700" />
-            <span>Franchisee Territory Key</span>
-          </div>
-          <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-            {activeFranchiseeLegends.length} Onboarded
-          </span>
-        </div>
-
-        {/* Monochrome Baseline Key */}
-        <div className="space-y-1 pb-2 border-b border-slate-100">
-          <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
-            <div className="w-3.5 h-3.5 rounded-sm bg-[#f8fafc] border border-[#cbd5e1] shrink-0" />
-            <span className="truncate">Black & White: Unassigned Districts</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
-            <div className="w-3.5 h-3.5 rounded-sm bg-[#e2e8f0] border border-dashed border-[#94a3b8] shrink-0" />
-            <span className="truncate">Slate Dashed: Open / Available Cluster</span>
-          </div>
-        </div>
-
-        {/* Dynamic Active Franchisees */}
-        {activeFranchiseeLegends.length > 0 ? (
-          <div className="pt-2 max-h-[160px] overflow-y-auto space-y-1.5 pr-1">
-            <div className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
-              Onboarded Franchisee Themes
+      {/* ── Mode 1 / Mode 2 Dynamic Legend (Bottom Left) ─────────────────── */}
+      {mapViewMode === 'clusters' ? (
+        <div className="absolute bottom-4 left-4 z-20 bg-white/95 backdrop-blur-md p-3.5 rounded-2xl border border-orange-200/90 shadow-lg max-w-[320px] text-xs">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+            <div className="flex items-center gap-1.5 font-black text-slate-800">
+              <FiLayers size={14} className="text-orange-500" />
+              <span>Created Clusters Territory Key</span>
             </div>
-            {activeFranchiseeLegends.map((item) => (
-              <div
-                key={item.cluster_id || item.cluster_code}
-                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                <span
-                  className="w-3.5 h-3.5 rounded-md shrink-0 shadow-xs"
-                  style={{ backgroundColor: item.color, border: `1px solid ${item.stroke || item.color}` }}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="font-extrabold text-[11px] text-slate-800 truncate" title={item.franchisee_name}>
-                    {item.franchisee_name}
-                  </div>
-                  <div className="text-[10px] text-slate-500 truncate">
-                    {item.cluster_name} ({item.cluster_code}) • {item.districts_count} Dist.
+            <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 font-mono">
+              {createdClustersLegends.length} Clusters
+            </span>
+          </div>
+
+          {/* Monochrome vs Colored Baseline Key */}
+          <div className="space-y-1 pb-2 border-b border-slate-100">
+            <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
+              <div className="w-3.5 h-3.5 rounded-sm bg-gradient-to-r from-blue-500 via-emerald-500 to-purple-500 border border-slate-300 shrink-0" />
+              <span className="truncate">Colored Zones: Configured Clusters</span>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
+              <div className="w-3.5 h-3.5 rounded-sm bg-[#f8fafc] border border-[#cbd5e1] shrink-0" />
+              <span className="truncate">White / Grey: Unassigned Districts</span>
+            </div>
+          </div>
+
+          {/* Dynamic Created Clusters */}
+          {createdClustersLegends.length > 0 ? (
+            <div className="pt-2 max-h-[160px] overflow-y-auto space-y-1.5 pr-1">
+              <div className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                Configured Clusters
+              </div>
+              {createdClustersLegends.map((item) => (
+                <div
+                  key={item.cluster_id || item.cluster_code}
+                  onClick={() => {
+                    if (onDistrictClick) {
+                      const firstDist = districtsData.find((d) => String(d.cluster_id) === String(item.cluster_id));
+                      if (firstDist) onDistrictClick(firstDist.id);
+                    }
+                  }}
+                  className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-orange-50/60 transition-colors cursor-pointer"
+                >
+                  <span
+                    className="w-3.5 h-3.5 rounded-md shrink-0 shadow-xs"
+                    style={{ backgroundColor: item.color, border: `1px solid ${item.stroke}` }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-extrabold text-[11px] text-slate-800 truncate" title={item.cluster_name}>
+                      {item.cluster_name}
+                    </div>
+                    <div className="text-[10px] text-slate-500 truncate">
+                      {item.cluster_code} • {item.districts_count} Dist. • {item.state_name}
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          ) : (
+            <div className="pt-2 text-[10px] italic text-slate-400">
+              No clusters created yet. Use Cluster Hub to create clusters.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="absolute bottom-4 left-4 z-20 bg-white/95 backdrop-blur-md p-3.5 rounded-2xl border border-emerald-200/90 shadow-lg max-w-[320px] text-xs">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+            <div className="flex items-center gap-1.5 font-black text-slate-800">
+              <FiShield size={14} className="text-emerald-600" />
+              <span>Franchisee Territory Key</span>
+            </div>
+            <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-mono">
+              {activeFranchiseeLegends.length} Onboarded
+            </span>
+          </div>
+
+          {/* Operational Baseline Key */}
+          <div className="space-y-1 pb-2 border-b border-slate-100">
+            <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
+              <div className="w-3.5 h-3.5 rounded-sm bg-[#10b981] border border-[#059669] shrink-0" />
+              <span className="truncate">Green: Franchisee Allotted & Active</span>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
+              <div className="w-3.5 h-3.5 rounded-sm bg-[#fef3c7] border border-[#d97706] shrink-0" />
+              <span className="truncate">Yellow: In Progress / Reserved</span>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
+              <div className="w-3.5 h-3.5 rounded-sm bg-[#fee2e2] border border-[#ef4444] shrink-0" />
+              <span className="truncate">Red: Available (Franchisee Pending)</span>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
+              <div className="w-3.5 h-3.5 rounded-sm bg-[#f8fafc] border border-[#cbd5e1] shrink-0" />
+              <span className="truncate">Black & White: Unassigned Districts</span>
+            </div>
+          </div>
+
+          {/* Dynamic Active Franchisees */}
+          {activeFranchiseeLegends.length > 0 ? (
+            <div className="pt-2 max-h-[160px] overflow-y-auto space-y-1.5 pr-1">
+              <div className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                Live Franchisee Stores
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="pt-2 text-[10px] italic text-slate-400">
-            No franchise onboarded yet. Map is displayed in Black & White until clusters are assigned.
-          </div>
-        )}
-      </div>
+              {activeFranchiseeLegends.map((item) => (
+                <div
+                  key={item.franchisee_id || item.cluster_code}
+                  className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-emerald-50/60 transition-colors"
+                >
+                  <span
+                    className="w-3.5 h-3.5 rounded-md shrink-0 shadow-xs"
+                    style={{ backgroundColor: item.color, border: `1px solid ${item.stroke || item.color}` }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-extrabold text-[11px] text-slate-800 truncate" title={item.franchisee_name}>
+                      {item.franchisee_name}
+                    </div>
+                    <div className="text-[10px] text-slate-500 truncate">
+                      {item.cluster_name} ({item.cluster_code}) • {item.districts_count} Dist.
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="pt-2 text-[10px] italic text-slate-400">
+              No franchise onboarded yet. Available clusters are marked red/yellow.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Hover Tooltip Micro-Card ───────────────────────────────────────── */}
       {hoveredDistrict && (
@@ -586,28 +803,62 @@ export default function IndiaChoroplethMap({
 
           {hoveredDistrict.match ? (
             <div className="mt-2 space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: hoveredDistrict.match.color || '#94a3b8' }}
-                />
-                <span className="font-bold text-white text-[11px]">
-                  {hoveredDistrict.match.status_label || 'Configured District'}
-                </span>
-              </div>
+              {mapViewMode === 'clusters' ? (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{
+                        backgroundColor: hoveredDistrict.match.cluster_id
+                          ? getClusterTheme(hoveredDistrict.match.cluster_id).fill
+                          : '#94a3b8',
+                      }}
+                    />
+                    <span className="font-bold text-white text-[11px]">
+                      {hoveredDistrict.match.cluster_name || 'Unassigned District'}
+                    </span>
+                  </div>
 
-              {hoveredDistrict.match.cluster_name && (
-                <div className="text-[11px] text-slate-300 font-medium">
-                  <span className="text-slate-400">Cluster: </span>
-                  <span className="text-orange-300 font-bold">{hoveredDistrict.match.cluster_name}</span>
-                </div>
-              )}
+                  {hoveredDistrict.match.cluster_code && (
+                    <div className="text-[11px] text-slate-300 font-medium flex items-center justify-between">
+                      <span className="text-slate-400">Cluster Code:</span>
+                      <span className="font-mono text-orange-400 font-bold">{hoveredDistrict.match.cluster_code}</span>
+                    </div>
+                  )}
 
-              {hoveredDistrict.match.franchisee_name && (
-                <div className="text-[11px] text-slate-300 font-medium flex items-center gap-1">
-                  <FiShield className="text-emerald-400" size={12} />
-                  <span>{hoveredDistrict.match.franchisee_name}</span>
-                </div>
+                  <div className="text-[11px] text-slate-300 font-medium flex items-center justify-between">
+                    <span className="text-slate-400">Franchisee:</span>
+                    <span className="font-bold text-slate-200 truncate max-w-[140px]">
+                      {hoveredDistrict.match.franchisee_name || 'Pending Allocation'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: hoveredDistrict.match.color || '#94a3b8' }}
+                    />
+                    <span className="font-bold text-white text-[11px]">
+                      {hoveredDistrict.match.status_label || 'Configured District'}
+                    </span>
+                  </div>
+
+                  {hoveredDistrict.match.franchisee_name && (
+                    <div className="text-[11px] text-slate-300 font-medium flex items-center gap-1">
+                      <FiShield className="text-emerald-400" size={12} />
+                      <span className="truncate">{hoveredDistrict.match.franchisee_name}</span>
+                    </div>
+                  )}
+
+                  {hoveredDistrict.match.cluster_name && (
+                    <div className="text-[11px] text-slate-300 font-medium">
+                      <span className="text-slate-400">Cluster: </span>
+                      <span className="text-orange-300 font-bold">{hoveredDistrict.match.cluster_name}</span>
+                    </div>
+                  )}
+                </>
               )}
 
               {hoveredDistrict.match.primary_bde_name && (

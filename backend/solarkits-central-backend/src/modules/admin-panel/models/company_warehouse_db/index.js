@@ -10,6 +10,8 @@ const WarehouseRole = require('./WarehouseRole.schema');
 const WarehouseUser = require('./WarehouseUser.schema');
 const CompanyWarehouseFieldData = require('./CompanyWarehouseFieldData.schema');
 const PurchaseOrder = require('./PurchaseOrder.schema');
+const ThirdPartyLogisticsVendor = require('./ThirdPartyLogisticsVendor.schema');
+const WarehouseStockReconciliation = require('./WarehouseStockReconciliation.schema');
 
 module.exports = {
   CompanyWarehouse,
@@ -22,6 +24,9 @@ module.exports = {
   WarehouseNotificationRule,
   WarehouseRole,
   WarehouseUser,
+  WarehouseStock: require('./WarehouseStock.schema'),
   CompanyWarehouseFieldData,
   PurchaseOrder,
+  ThirdPartyLogisticsVendor,
+  WarehouseStockReconciliation,
 };

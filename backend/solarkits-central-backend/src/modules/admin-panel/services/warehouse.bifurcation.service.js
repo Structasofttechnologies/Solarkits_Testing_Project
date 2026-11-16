@@ -12,6 +12,7 @@
 const mongoose = require('mongoose');
 const { CompanyWarehouse } = require('../models/company_warehouse_db');
 const { GeoLevel1, GeoLevel2 } = require('../models/geolocation_db');
+const WarehouseKitActivation = require('../models/core_db/warehouse_kit_activations.schema');
 
 const VALID_ORDER_TYPES = ['po_order', 'loose_order', 'trial_order'];
 
@@ -183,8 +184,206 @@ async function resolveFulfillmentWarehouse({ district_id, state_id, cluster_id, 
   };
 }
 
+/**
+ * Requirement 8: Serviceability & Order Allocation Engine - Mixed-Kit Order Split Fulfillment
+ *
+ * Allocates customer orders containing mixed kits across multiple active warehouses.
+ * Checks kit activation, stock permission, and delivery serviceability per warehouse.
+ * If Warehouse A supplies Kit 1 and Warehouse B supplies Kit 2, splits the order
+ * into distinct warehouse consignments under the same parent order number.
+ *
+ * @param {Object} params
+ * @param {string} params.order_id - Parent customer order ObjectId
+ * @param {string} params.order_number - Parent order display code (e.g. "SK-2026-ORD-8821")
+ * @param {string|ObjectId} [params.destination_district_id] - Delivery destination district
+ * @param {string|ObjectId} [params.destination_state_id] - Delivery destination state
+ * @param {Array} params.items - Order items [{ kit_id, combo_kit_id, kit_type, quantity, sku, item_name }]
+ * @returns {Promise<Object>} Consignment allocation breakdown
+ */
+async function allocateMixedKitOrderConsignments({
+  order_id,
+  order_number = 'ORD-001',
+  destination_district_id,
+  destination_state_id,
+  items = []
+}) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return {
+      order_id,
+      order_number,
+      is_split: false,
+      consignments_count: 0,
+      consignments: [],
+      unallocated_items: []
+    };
+  }
+
+  // 1. Fetch all active warehouses with dispatch permission
+  const activeWarehouses = await CompanyWarehouse.find({
+    is_active: true,
+    deleted_at: null,
+    'operational_permissions.dispatch': { $ne: false }
+  }).lean();
+
+  if (activeWarehouses.length === 0) {
+    return {
+      order_id,
+      order_number,
+      is_split: false,
+      consignments_count: 0,
+      consignments: [],
+      unallocated_items: items,
+      error: 'No active warehouses available with dispatch permission'
+    };
+  }
+
+  const warehouseIds = activeWarehouses.map(w => w._id);
+
+  // 2. Query kit activations across these warehouses with dispatch authorization
+  const activations = await WarehouseKitActivation.find({
+    warehouse_id: { $in: warehouseIds },
+    deleted_at: null,
+    dispatch_permission: { $ne: false },
+    $or: [
+      { is_active: true },
+      { is_combokit_active: true },
+      { is_customize_kit_active: true }
+    ]
+  }).lean();
+
+  // Create lookup maps: warehouse_id -> [active kit IDs or SKUs]
+  const whKitMap = new Map();
+  for (const act of activations) {
+    const whIdStr = String(act.warehouse_id);
+    if (!whKitMap.has(whIdStr)) {
+      whKitMap.set(whIdStr, []);
+    }
+    whKitMap.get(whIdStr).push({
+      combo_kit_id: act.combo_kit_id ? String(act.combo_kit_id) : null,
+      kit_id: act.kit_id ? String(act.kit_id) : null,
+      kit_sku: act.kit_sku || null,
+      delivery_districts: Array.isArray(act.delivery_districts) ? act.delivery_districts.map(String) : []
+    });
+  }
+
+  const warehouseItemBuckets = new Map(); // warehouse_id -> items array
+  const unallocatedItems = [];
+
+  const destDistrictStr = destination_district_id ? String(destination_district_id) : null;
+  const destStateStr = destination_state_id ? String(destination_state_id) : null;
+
+  // 3. Match each item to the best servicing warehouse
+  for (const item of items) {
+    const itemKitId = String(item.combo_kit_id || item.kit_id || item._id || '');
+    const itemSku = String(item.sku || item.kit_sku || '').toUpperCase();
+
+    let bestWarehouse = null;
+    let bestScore = -1;
+
+    for (const wh of activeWarehouses) {
+      const whIdStr = String(wh._id);
+      const actsForWh = whKitMap.get(whIdStr) || [];
+
+      // Check if kit is activated in this warehouse
+      const matchingAct = actsForWh.find(a =>
+        (a.combo_kit_id && a.combo_kit_id === itemKitId) ||
+        (a.kit_id && a.kit_id === itemKitId) ||
+        (a.kit_sku && itemSku && a.kit_sku === itemSku)
+      );
+
+      // If kit is not active in this warehouse, skip
+      if (!matchingAct && actsForWh.length > 0) {
+        continue;
+      }
+
+      // Calculate proximity / serviceability score:
+      let score = 1; // base score for kit activation match
+
+      // Score bonus for district level match
+      if (destDistrictStr) {
+        const whDistrictStr = wh.level_2 ? String(wh.level_2) : null;
+        const servesDistrict = matchingAct?.delivery_districts?.includes(destDistrictStr) ||
+          (Array.isArray(wh.serviceable_districts) && wh.serviceable_districts.some(d => String(d) === destDistrictStr));
+
+        if (whDistrictStr === destDistrictStr) {
+          score += 100; // Exact local facility
+        } else if (servesDistrict) {
+          score += 50; // Explicitly serviceable district
+        }
+      }
+
+      // Score bonus for state level match
+      if (destStateStr && wh.level_1 && String(wh.level_1) === destStateStr) {
+        score += 20;
+      }
+
+      // Score bonus for Company-owned facilities over 3PL for margin efficiency
+      if (wh.warehouse_type === 'company') {
+        score += 5;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestWarehouse = wh;
+      }
+    }
+
+    if (bestWarehouse) {
+      const whKey = String(bestWarehouse._id);
+      if (!warehouseItemBuckets.has(whKey)) {
+        warehouseItemBuckets.set(whKey, {
+          warehouse: bestWarehouse,
+          items: []
+        });
+      }
+      warehouseItemBuckets.get(whKey).items.push(item);
+    } else {
+      unallocatedItems.push(item);
+    }
+  }
+
+  // 4. Construct distinct Consignments under the same Parent Order Number
+  const consignments = [];
+  let consignmentIndex = 1;
+
+  for (const [whId, { warehouse, items: whItems }] of warehouseItemBuckets.entries()) {
+    const consignmentNumber = `${order_number}-C${consignmentIndex}`;
+    consignmentIndex++;
+
+    const totalQty = whItems.reduce((acc, it) => acc + (Number(it.quantity) || 1), 0);
+
+    consignments.push({
+      consignment_number: consignmentNumber,
+      order_id,
+      order_number,
+      warehouse_id: warehouse._id,
+      warehouse_code: warehouse.warehouse_code,
+      warehouse_name: warehouse.warehouse_name || warehouse.warehouse_code,
+      warehouse_type: warehouse.warehouse_type || 'company',
+      vendor_id: warehouse.vendor_id || null,
+      destination_district_id,
+      destination_state_id,
+      items: whItems,
+      total_items_count: whItems.length,
+      total_quantity: totalQty,
+      dispatch_status: 'pending_dispatch',
+      allocated_at: new Date()
+    });
+  }
+
+  return {
+    order_id,
+    order_number,
+    is_split: consignments.length > 1,
+    consignments_count: consignments.length,
+    consignments,
+    unallocated_items: unallocatedItems
+  };
+}
+
 module.exports = {
   VALID_ORDER_TYPES,
   normalizeOrderType,
-  resolveFulfillmentWarehouse
+  resolveFulfillmentWarehouse,
+  allocateMixedKitOrderConsignments
 };

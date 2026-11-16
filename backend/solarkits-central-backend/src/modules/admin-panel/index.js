@@ -24,6 +24,7 @@ app.use('/panels',require('./routes/panels.route'));
 app.use('/departments',require('./routes/departments.route'));
 app.use('/geolocation',require('./routes/geolocation.route'));
 app.use('/warehouses',require('./routes/warehouses.route'));
+app.use('/3pl-vendors', require('./routes/3pl_vendors.route'));
 app.use('/roles',require('./routes/roles.route'));
 app.use('/modules',require('./routes/modules.route'));
 app.use('/tasks',require('./routes/task.route'));

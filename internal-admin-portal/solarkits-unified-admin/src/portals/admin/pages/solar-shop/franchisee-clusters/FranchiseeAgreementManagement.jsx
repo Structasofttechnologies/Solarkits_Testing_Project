@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { useDispatch } from 'react-redux';
 import { setAlert } from '@/features/alert.slice';
@@ -20,6 +20,8 @@ import {
   FiShield,
   FiLayers,
   FiPhone,
+  FiUploadCloud,
+  FiTrash2,
 } from 'react-icons/fi';
 import Button from '@/components/Button';
 import Loader from '@/components/Loader';
@@ -62,7 +64,9 @@ export default function FranchiseeAgreementManagement() {
   const [durationYears, setDurationYears] = useState(2);
   const [setupFeeAmount, setSetupFeeAmount] = useState(100000);
   const [renewalFeeAmount, setRenewalFeeAmount] = useState(10000);
-  const [documentUrl, setDocumentUrl] = useState('');
+  const [agreementPdfFile, setAgreementPdfFile] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const createFileInputRef = useRef(null);
   const [selectedBdeId, setSelectedBdeId] = useState('');
   const [renewalConditions, setRenewalConditions] = useState(
     'Standard renewal subject to annual EPC onboarding goal and monthly kit sales quota achievement.'
@@ -76,6 +80,8 @@ export default function FranchiseeAgreementManagement() {
   const [renewFeePaid, setRenewFeePaid] = useState(10000);
   const [renewPaymentRef, setRenewPaymentRef] = useState('');
   const [renewRemarks, setRenewRemarks] = useState('');
+  const [renewPdfFile, setRenewPdfFile] = useState(null);
+  const renewFileInputRef = useRef(null);
 
   // Details / Version History Drawer
   const [selectedAgreementDetail, setSelectedAgreementDetail] = useState(null);
@@ -143,6 +149,40 @@ export default function FranchiseeAgreementManagement() {
     setEndDate(end.toISOString().split('T')[0]);
   };
 
+  // Helper for PDF file validation
+  const handlePdfSelect = (file) => {
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      dispatch(
+        setAlert({
+          title: 'Invalid File',
+          message: 'Please select a valid PDF agreement file (.pdf)',
+          type: 'error',
+        })
+      );
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      dispatch(
+        setAlert({
+          title: 'File Too Large',
+          message: 'Agreement PDF size must be less than 25 MB',
+          type: 'error',
+        })
+      );
+      return;
+    }
+    setAgreementPdfFile(file);
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   // Submit Create Agreement
   const handleCreateAgreement = async (e) => {
     e.preventDefault();
@@ -153,23 +193,31 @@ export default function FranchiseeAgreementManagement() {
 
     setCreateSubmitting(true);
     try {
-      const payload = {
-        cluster_id: selectedClusterId,
-        franchisee_id: selectedFranchiseeId,
-        start_date: startDate,
-        end_date: endDate,
-        agreement_duration_type: `${durationYears}_years`,
-        duration_months: Number(durationYears) * 12,
-        setup_fee: Number(setupFeeAmount),
-        renewal_fee: Number(renewalFeeAmount),
-        document_url: documentUrl.trim() || null,
-        assigned_bde_id: selectedBdeId || null,
-        renewal_conditions: renewalConditions,
-      };
+      const formData = new FormData();
+      formData.append('cluster_id', selectedClusterId);
+      formData.append('franchisee_id', selectedFranchiseeId);
+      formData.append('start_date', startDate);
+      formData.append('end_date', endDate);
+      formData.append('agreement_duration_type', `${durationYears}_years`);
+      formData.append('duration_months', Number(durationYears) * 12);
+      formData.append('setup_fee', Number(setupFeeAmount));
+      formData.append('renewal_fee', Number(renewalFeeAmount));
+      if (selectedBdeId) formData.append('assigned_bde_id', selectedBdeId);
+      formData.append('renewal_conditions', renewalConditions);
+      if (agreementPdfFile) {
+        formData.append('agreement_pdf', agreementPdfFile);
+      }
 
-      await axios.post(`${API_URL}/franchise-clusters/agreements/create`, payload, authHeaderObj());
+      await axios.post(`${API_URL}/franchise-clusters/agreements/create`, formData, {
+        headers: {
+          ...authHeaderObj(),
+          'Content-Type': 'multipart/form-data',
+        },
+      });
       dispatch(setAlert({ title: 'Success', message: 'Agreement created successfully', type: 'success' }));
       setIsCreateOpen(false);
+      setAgreementPdfFile(null);
+      if (createFileInputRef.current) createFileInputRef.current.value = '';
       fetchAgreements();
     } catch (err) {
       console.error('Error creating agreement:', err);
@@ -186,21 +234,30 @@ export default function FranchiseeAgreementManagement() {
 
     setRenewSubmitting(true);
     try {
-      const payload = {
-        new_start_date: renewStartDate || renewingAgreement.end_date,
-        new_end_date: renewEndDate,
-        renewal_fee_paid: Number(renewFeePaid),
-        payment_reference: renewPaymentRef,
-        remarks: renewRemarks,
-      };
+      const formData = new FormData();
+      formData.append('new_start_date', renewStartDate || renewingAgreement.end_date);
+      formData.append('new_end_date', renewEndDate);
+      formData.append('renewal_fee_paid', Number(renewFeePaid));
+      formData.append('payment_reference', renewPaymentRef || '');
+      formData.append('remarks', renewRemarks || '');
+      if (renewPdfFile) {
+        formData.append('agreement_pdf', renewPdfFile);
+      }
 
       await axios.post(
         `${API_URL}/franchise-clusters/agreements/${renewingAgreement._id}/renew`,
-        payload,
-        authHeaderObj()
+        formData,
+        {
+          headers: {
+            ...authHeaderObj(),
+            'Content-Type': 'multipart/form-data',
+          },
+        }
       );
       dispatch(setAlert({ title: 'Renewed', message: 'Agreement renewed successfully', type: 'success' }));
       setRenewingAgreement(null);
+      setRenewPdfFile(null);
+      if (renewFileInputRef.current) renewFileInputRef.current.value = '';
       fetchAgreements();
     } catch (err) {
       console.error('Error renewing agreement:', err);
@@ -281,17 +338,15 @@ export default function FranchiseeAgreementManagement() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === tab.key
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === tab.key
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
-            }`}
+              }`}
           >
             <span>{tab.label}</span>
             <span
-              className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
-              }`}
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                }`}
             >
               {tab.count}
             </span>
@@ -346,6 +401,22 @@ export default function FranchiseeAgreementManagement() {
                         <div className="inline-flex items-center gap-1 mt-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
                           v{ag.version || '1.0'} • {ag.agreement_duration_type?.replace(/_/g, ' ') || '2 Years'}
                         </div>
+                        {ag.document_url ? (
+                          <div className="mt-1">
+                            <a
+                              href={ag.document_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                              title={ag.document_name || 'Open Signed Agreement PDF'}
+                            >
+                              <FiFileText size={12} className="text-red-500" />
+                              <span className="truncate max-w-[130px]">{ag.document_name || 'View PDF'}</span>
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-[10px] text-slate-400 italic">No PDF attached</div>
+                        )}
                       </td>
 
                       {/* Franchisee Store */}
@@ -380,9 +451,8 @@ export default function FranchiseeAgreementManagement() {
                       {/* Status */}
                       <td className="px-5 py-4">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border uppercase tracking-wider ${
-                            statusBadges[computedStatus] || 'bg-slate-100 text-slate-600'
-                          }`}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border uppercase tracking-wider ${statusBadges[computedStatus] || 'bg-slate-100 text-slate-600'
+                            }`}
                         >
                           {computedStatus.replace(/_/g, ' ')}
                         </span>
@@ -401,6 +471,17 @@ export default function FranchiseeAgreementManagement() {
                       {/* Actions */}
                       <td className="px-5 py-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
+                          {ag.document_url && (
+                            <a
+                              href={ag.document_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Download / View Signed Agreement PDF"
+                              className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                            >
+                              <FiDownload size={15} />
+                            </a>
+                          )}
                           <button
                             onClick={() => setSelectedAgreementDetail(ag)}
                             title="View Agreement & Version History"
@@ -453,7 +534,14 @@ export default function FranchiseeAgreementManagement() {
                 </div>
                 <h3 className="font-black text-slate-900 text-base">Setup New Franchisee Agreement</h3>
               </div>
-              <button onClick={() => setIsCreateOpen(false)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => {
+                  setIsCreateOpen(false);
+                  setAgreementPdfFile(null);
+                  if (createFileInputRef.current) createFileInputRef.current.value = '';
+                }}
+                className="text-slate-400 hover:text-slate-700"
+              >
                 <FiX size={18} />
               </button>
             </div>
@@ -561,15 +649,103 @@ export default function FranchiseeAgreementManagement() {
                 </div>
               </div>
 
+              {/* Agreement PDF Upload Zone */}
               <div>
-                <label className="block text-slate-700 uppercase mb-1 font-bold">Agreement PDF Storage Key / URL</label>
-                <input
-                  type="text"
-                  placeholder="https://... or S3 / local key"
-                  value={documentUrl}
-                  onChange={(e) => setDocumentUrl(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800"
-                />
+                <label className="block text-slate-700 uppercase mb-1 font-bold">
+                  Agreement PDF Document <span className="text-slate-400 font-normal lowercase">(PDF only, max 25MB)</span>
+                </label>
+
+                {!agreementPdfFile ? (
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragging(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handlePdfSelect(file);
+                    }}
+                    onClick={() => createFileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-4 text-center transition-all cursor-pointer ${isDragging
+                        ? 'border-blue-500 bg-blue-50/70 scale-[1.01]'
+                        : 'border-slate-300 hover:border-blue-400 bg-slate-50/70 hover:bg-blue-50/20'
+                      }`}
+                  >
+                    <input
+                      type="file"
+                      ref={createFileInputRef}
+                      accept="application/pdf,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handlePdfSelect(file);
+                      }}
+                    />
+                    <div className="flex flex-col items-center justify-center gap-1.5 py-1">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                        <FiUploadCloud size={20} />
+                      </div>
+                      <div className="font-bold text-slate-800 text-xs">
+                        Click to upload Agreement PDF or drag & drop
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Upload stamped & signed franchisee partner agreement (.pdf)
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="w-9 h-9 rounded-lg bg-red-100 text-red-600 flex items-center justify-center shrink-0 font-bold">
+                        <FiFileText size={20} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 text-xs truncate max-w-xs" title={agreementPdfFile.name}>
+                          {agreementPdfFile.name}
+                        </div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                          <span>{formatFileSize(agreementPdfFile.size)}</span>
+                          <span className="inline-flex items-center gap-1 text-emerald-600 font-bold">
+                            <FiCheckCircle size={12} /> Ready to upload
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => createFileInputRef.current?.click()}
+                        className="px-2.5 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAgreementPdfFile(null);
+                          if (createFileInputRef.current) createFileInputRef.current.value = '';
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                        title="Remove file"
+                      >
+                        <FiTrash2 size={15} />
+                      </button>
+                      <input
+                        type="file"
+                        ref={createFileInputRef}
+                        accept="application/pdf,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handlePdfSelect(file);
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -585,7 +761,11 @@ export default function FranchiseeAgreementManagement() {
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
                 <Button
                   type="button"
-                  onClick={() => setIsCreateOpen(false)}
+                  onClick={() => {
+                    setIsCreateOpen(false);
+                    setAgreementPdfFile(null);
+                    if (createFileInputRef.current) createFileInputRef.current.value = '';
+                  }}
                   className="px-4 py-2 border border-slate-200 rounded-lg font-bold text-slate-600"
                 >
                   Cancel
@@ -611,7 +791,14 @@ export default function FranchiseeAgreementManagement() {
               <h3 className="font-extrabold text-slate-900 text-base">
                 Renew Agreement ({renewingAgreement.agreement_number})
               </h3>
-              <button onClick={() => setRenewingAgreement(null)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => {
+                  setRenewingAgreement(null);
+                  setRenewPdfFile(null);
+                  if (renewFileInputRef.current) renewFileInputRef.current.value = '';
+                }}
+                className="text-slate-400 hover:text-slate-700"
+              >
                 <FiX size={18} />
               </button>
             </div>
@@ -680,10 +867,81 @@ export default function FranchiseeAgreementManagement() {
                 />
               </div>
 
+              {/* Renew Agreement PDF Upload */}
+              <div>
+                <label className="block text-slate-700 uppercase mb-1 font-bold">
+                  Upload Renewed Agreement PDF <span className="text-slate-400 font-normal lowercase">(Optional, PDF only)</span>
+                </label>
+                {!renewPdfFile ? (
+                  <div
+                    onClick={() => renewFileInputRef.current?.click()}
+                    className="border border-dashed border-slate-300 rounded-lg p-2.5 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 transition-colors"
+                  >
+                    <input
+                      type="file"
+                      ref={renewFileInputRef}
+                      accept="application/pdf,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+                          dispatch(
+                            setAlert({
+                              title: 'Invalid File',
+                              message: 'Please select a valid PDF agreement file (.pdf)',
+                              type: 'error',
+                            })
+                          );
+                          return;
+                        }
+                        if (file.size > 25 * 1024 * 1024) {
+                          dispatch(
+                            setAlert({
+                              title: 'File Too Large',
+                              message: 'Agreement PDF size must be less than 25 MB',
+                              type: 'error',
+                            })
+                          );
+                          return;
+                        }
+                        setRenewPdfFile(file);
+                      }}
+                    />
+                    <div className="flex items-center justify-center gap-2 text-slate-600 text-xs font-semibold">
+                      <FiUploadCloud size={16} className="text-purple-600" />
+                      <span>Attach new renewed agreement PDF</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2.5 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 truncate">
+                      <FiFileText className="text-red-600 shrink-0" size={16} />
+                      <span className="font-bold text-slate-800 truncate">{renewPdfFile.name}</span>
+                      <span className="text-[10px] text-slate-400 shrink-0">({formatFileSize(renewPdfFile.size)})</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRenewPdfFile(null);
+                        if (renewFileInputRef.current) renewFileInputRef.current.value = '';
+                      }}
+                      className="text-slate-400 hover:text-red-600 ml-2 p-1"
+                    >
+                      <FiTrash2 size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
                 <Button
                   type="button"
-                  onClick={() => setRenewingAgreement(null)}
+                  onClick={() => {
+                    setRenewingAgreement(null);
+                    setRenewPdfFile(null);
+                    if (renewFileInputRef.current) renewFileInputRef.current.value = '';
+                  }}
                   className="px-4 py-2 border border-slate-200 rounded-lg font-bold text-slate-600"
                 >
                   Cancel
@@ -742,6 +1000,43 @@ export default function FranchiseeAgreementManagement() {
                 </div>
               </div>
 
+              {/* Agreement Document Card */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-2">
+                <div className="font-black uppercase tracking-wider text-slate-500 text-[11px]">
+                  Signed Agreement Document
+                </div>
+                {selectedAgreementDetail.document_url ? (
+                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                    <div className="flex items-center gap-2.5 overflow-hidden">
+                      <div className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                        <FiFileText size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <p
+                          className="font-bold text-slate-900 text-xs truncate max-w-[200px]"
+                          title={selectedAgreementDetail.document_name || 'Signed_Agreement.pdf'}
+                        >
+                          {selectedAgreementDetail.document_name || 'Signed_Agreement.pdf'}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-medium">Uploaded PDF Document</p>
+                      </div>
+                    </div>
+                    <a
+                      href={selectedAgreementDetail.document_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs inline-flex items-center gap-1.5 transition-colors shrink-0"
+                    >
+                      <FiDownload size={13} /> View PDF
+                    </a>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-white rounded-lg border border-slate-200 text-center text-slate-400 italic text-xs">
+                    No PDF document attached to this agreement.
+                  </div>
+                )}
+              </div>
+
               {/* Renewal History Timeline */}
               <div>
                 <h4 className="font-black uppercase tracking-wider text-slate-500 mb-2">Previous Versions & Renewals</h4>
@@ -761,6 +1056,18 @@ export default function FranchiseeAgreementManagement() {
                           Period: {new Date(h.previous_start_date).toLocaleDateString()} – {new Date(h.previous_end_date).toLocaleDateString()}
                         </div>
                         <div className="text-slate-500 text-[11px]">Fee Paid: ₹{h.renewal_fee_paid?.toLocaleString('en-IN')}</div>
+                        {h.document_url && (
+                          <div className="pt-1">
+                            <a
+                              href={h.document_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline inline-flex items-center gap-1 text-[11px] font-semibold"
+                            >
+                              <FiDownload size={11} /> Version PDF ({h.document_name || 'View document'})
+                            </a>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

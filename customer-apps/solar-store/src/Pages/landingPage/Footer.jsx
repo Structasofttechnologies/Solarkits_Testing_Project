@@ -301,7 +301,6 @@ export default function Footer({ footerConfig }) {
                       </div>
 
                       {/* Pincode or Quantity (Optional) */}
-                      
                     </div>
 
                     <div className="mt-3.5 flex items-center justify-between gap-3 pt-1 border-t border-white/10">

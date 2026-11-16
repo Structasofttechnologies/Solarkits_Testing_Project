@@ -117,7 +117,7 @@ export default function LandingPage() {
       <WhyChooseSection whyChooseConfig={dynamicContent?.why_choose} />
 
       {/* How It Works — 4-step process */}
-      <HowItWorks howItWorksConfig={dynamicContent?.how_it_works} />
+      {/* <HowItWorks howItWorksConfig={dynamicContent?.how_it_works} /> */}
 
       {/* Testimonials — Customer carousel */}
       <TestimonialsSection testimonialsConfig={dynamicContent?.testimonials} />
