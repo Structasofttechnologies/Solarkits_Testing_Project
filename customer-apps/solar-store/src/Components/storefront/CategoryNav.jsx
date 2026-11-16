@@ -53,13 +53,12 @@ export default function CategoryNav({ className = "" }) {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all duration-150 shrink-0 select-none ${
-                item.highlight
-                  ? "bg-secondary-soft text-amber-700 hover:bg-amber-100/80 font-bold border border-secondary/30"
-                  : isActive
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all duration-150 shrink-0 select-none ${item.highlight
+                ? "bg-secondary-soft text-amber-700 hover:bg-amber-100/80 font-bold border border-secondary/30"
+                : isActive
                   ? "bg-primary text-white font-bold shadow-xs"
                   : "text-text-secondary hover:text-primary hover:bg-primary-soft bg-surface-hover/60 sm:bg-transparent"
-              }`}
+                }`}
             >
               {Icon && <Icon size={13} className={isActive ? "text-white" : item.highlight ? "text-secondary" : "text-primary/70"} />}
               <span>{item.name}</span>

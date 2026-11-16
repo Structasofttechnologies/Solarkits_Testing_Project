@@ -117,7 +117,7 @@ export default function StoreHeader({
     <header className="sticky top-0 z-40 bg-surface/95 backdrop-blur-md border-b border-border shadow-xs transition-colors">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-2.5 space-y-2 md:space-y-0">
         <div className="flex items-center justify-between gap-2 sm:gap-4 md:gap-6">
-          
+
           {/* Mobile hamburger + Brand Logo */}
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {onOpenMobileMenu && (
@@ -228,7 +228,7 @@ export default function StoreHeader({
 
           {/* Right Actions: Compare, Store Locator, Cart, Theme, Account */}
           <div className="flex items-center gap-1 sm:gap-2">
-            
+
             {/* Find Nearby Store Trigger (Desktop) */}
             <Link
               to="/store-locator"
