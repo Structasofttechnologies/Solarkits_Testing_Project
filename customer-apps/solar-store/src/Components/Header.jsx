@@ -301,14 +301,14 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
         <div className="flex items-center space-x-2 sm:space-x-2.5">
 
           {/* Find Nearby Store */}
-          <button
+          {/* <button
             onClick={() => navigate("/store-locator")}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary-soft border border-secondary/30 text-secondary hover:bg-secondary/15 text-xs font-bold shadow-xs transition-colors cursor-pointer"
             title="Find Nearby Authorized SolarKits Stores"
           >
             <FiMapPin size={13} className="text-secondary" />
             <span className="hidden sm:inline">Find Store</span>
-          </button>
+          </button> */}
 
           {/* Theme Toggle */}
           <IconButton
@@ -476,12 +476,12 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
                 <div className="flex items-center gap-1.5">
                   <p className="text-sm font-semibold text-text-primary dark:text-info">{user?.name}</p>
                   <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${user?.is_owner !== false && !user?.parent_account_id
-                      ? "bg-purple-500/10 text-purple-600 border-purple-500/20"
-                      : user?.role === "admin"
-                        ? "bg-indigo-500/10 text-indigo-600 border-indigo-500/20"
-                        : user?.role === "account"
-                          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                          : "bg-blue-500/10 text-blue-600 border-blue-500/20"
+                    ? "bg-purple-500/10 text-purple-600 border-purple-500/20"
+                    : user?.role === "admin"
+                      ? "bg-indigo-500/10 text-indigo-600 border-indigo-500/20"
+                      : user?.role === "account"
+                        ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                        : "bg-blue-500/10 text-blue-600 border-blue-500/20"
                     }`}>
                     {user?.is_owner !== false && !user?.parent_account_id
                       ? "Owner"

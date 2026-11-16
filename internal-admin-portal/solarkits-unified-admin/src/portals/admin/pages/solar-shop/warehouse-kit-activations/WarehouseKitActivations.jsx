@@ -16,6 +16,7 @@ import {
   FaBoxes,
   FaCheck,
   FaBoxOpen,
+  FaLayerGroup,
 } from "react-icons/fa";
 import { setAlert } from "@/features/alert.slice";
 import Button from "@/components/Button";
@@ -54,22 +55,6 @@ export default function WarehouseKitActivations({ moduleUniqueId = "ADM_WH_KIT_A
   const [selectedWarehouseForOrderType, setSelectedWarehouseForOrderType] = useState(null);
   const [modalOrderTypes, setModalOrderTypes] = useState(["po_order", "loose_order", "trial_order"]);
   const [savingOrderTypes, setSavingOrderTypes] = useState(false);
-
-  const fetchClustersForState = async (stateId) => {
-    if (!stateId) {
-      setClusters([]);
-      return;
-    }
-    try {
-      const res = await axios.get(
-        `${API_URL}/geolocation/clusters/${stateId}?unique_id=${moduleUniqueId}&req_for=view`,
-        { headers: authHeaderObj() }
-      );
-      setClusters(res.data?.clusters || []);
-    } catch (err) {
-      console.error("Error fetching clusters:", err);
-    }
-  };
 
   // Fetch active countries & warehouses
   const fetchData = async (isRefresh = false) => {
@@ -142,10 +127,10 @@ export default function WarehouseKitActivations({ moduleUniqueId = "ADM_WH_KIT_A
         const allWarehouses = warehousesRes.data?.warehouses || [];
         const countryWarehouses = currentCountryObj
           ? allWarehouses.filter(
-              (w) =>
-                (w.country_id || w.level_0)?.toString() === currentCountryObj.id?.toString() ||
-                (w.country && w.country.toLowerCase() === currentCountryObj.name?.toLowerCase())
-            )
+            (w) =>
+              (w.country_id || w.level_0)?.toString() === currentCountryObj.id?.toString() ||
+              (w.country && w.country.toLowerCase() === currentCountryObj.name?.toLowerCase())
+          )
           : allWarehouses;
         setWarehouses(countryWarehouses);
 
@@ -159,6 +144,18 @@ export default function WarehouseKitActivations({ moduleUniqueId = "ADM_WH_KIT_A
         } catch (activationErr) {
           console.error("Error fetching warehouse kit activations:", activationErr);
           setActivations([]);
+        }
+
+        // 5. Fetch regional clusters (State-wise Cluster & Warehouse Routing)
+        try {
+          const clusterRes = await axios.get(
+            `${API_URL}/solarshop/cluster-routing/clusters`,
+            { headers: authHeaderObj() }
+          );
+          setClusters(clusterRes.data?.data || []);
+        } catch (clusterErr) {
+          console.warn("Error fetching regional clusters:", clusterErr);
+          setClusters([]);
         }
       }
     } catch (error) {
@@ -174,9 +171,6 @@ export default function WarehouseKitActivations({ moduleUniqueId = "ADM_WH_KIT_A
 
   const handleRefresh = async () => {
     await fetchData(true);
-    if (stateFilter && token) {
-      await fetchClustersForState(stateFilter);
-    }
   };
 
   useEffect(() => {
@@ -192,33 +186,39 @@ export default function WarehouseKitActivations({ moduleUniqueId = "ADM_WH_KIT_A
     (c) => c.name.toLowerCase() === countryName?.toLowerCase()
   );
 
-  // Fetch clusters for selected state filter
-  useEffect(() => {
-    if (!stateFilter) {
-      setClusters([]);
-      setClusterFilter("");
-      return;
-    }
-    if (token) {
-      setClusterFilter("");
-      fetchClustersForState(stateFilter);
-    }
-  }, [stateFilter, token]);
+  // States available based on selected regional cluster
+  const filteredStates = clusterFilter
+    ? states.filter((s) => {
+      const selectedCluster = clusters.find((c) => (c.id || c._id)?.toString() === clusterFilter?.toString());
+      return selectedCluster?.states?.some((st) => st.toLowerCase() === s.name.toLowerCase());
+    })
+    : states;
 
   // Filter warehouses based on page filter selections
   const displayWarehouses = warehouses.filter((w) => {
     if (stateFilter) {
-      const stateMatches =
+      const selectedStateObj = states.find((s) => s.id?.toString() === stateFilter?.toString());
+      const selectedStateName = selectedStateObj ? selectedStateObj.name : stateFilter;
+
+      const stateMatchesFulfillment =
+        Array.isArray(w.fulfillment_states) &&
+        w.fulfillment_states.some((st) => st.toLowerCase() === selectedStateName.toLowerCase());
+      const stateMatchesBase =
         (w.state_id || w.level_1)?.toString() === stateFilter?.toString() ||
-        states.some((s) => s.id?.toString() === stateFilter?.toString() && s.name?.toLowerCase() === w.state?.toLowerCase());
-      if (!stateMatches) return false;
+        (w.state && w.state.toLowerCase() === selectedStateName.toLowerCase());
+
+      if (!stateMatchesFulfillment && !stateMatchesBase) return false;
     }
+
     if (clusterFilter) {
-      const whClusterId = (w.cluster_id || w.cluster?.id || w.cluster?._id)?.toString();
-      const whClusterName = (typeof w.cluster === "string" ? w.cluster : w.cluster?.name)?.toLowerCase();
-      const selectedClusterObj = clusters.find((c) => c.id?.toString() === clusterFilter?.toString());
+      const selectedClusterObj = clusters.find((c) => (c.id || c._id)?.toString() === clusterFilter?.toString());
+      const selectedClusterName = selectedClusterObj ? selectedClusterObj.name.toLowerCase() : "";
+
+      const whClusterId = (w.cluster_id || w.routing_mapping?.cluster_id)?.toString();
+      const whClusterName = (w.cluster_name || w.cluster || "")?.toLowerCase();
+
       const idMatches = whClusterId && whClusterId === clusterFilter?.toString();
-      const nameMatches = whClusterName && selectedClusterName && whClusterName === selectedClusterName;
+      const nameMatches = selectedClusterName && whClusterName === selectedClusterName;
 
       if (!idMatches && !nameMatches) return false;
     }
@@ -464,21 +464,23 @@ export default function WarehouseKitActivations({ moduleUniqueId = "ADM_WH_KIT_A
           <div className="bg-surface rounded-2xl border-2 border-border p-6 shadow-sm flex flex-col md:flex-row items-center gap-4">
             <div className="flex-1 w-full">
               <Dropdown
-                label="Filter by State"
-                value={stateFilter}
-                onChange={setStateFilter}
-                placeholder="All States"
-                options={states.map((s) => ({ value: s.id, text: s.name }))}
+                label="Filter by Regional Cluster"
+                value={clusterFilter}
+                onChange={(val) => {
+                  setClusterFilter(val);
+                  setStateFilter("");
+                }}
+                placeholder="All Regional Clusters"
+                options={clusters.map((c) => ({ value: c.id || c._id, text: `${c.name} (${c.code || 'CL'})` }))}
               />
             </div>
             <div className="flex-1 w-full">
               <Dropdown
-                label="Filter by Cluster"
-                value={clusterFilter}
-                onChange={setClusterFilter}
-                placeholder={stateFilter ? "All Clusters" : "Select a state first..."}
-                disabled={!stateFilter}
-                options={clusters.map((c) => ({ value: c.id, text: c.name }))}
+                label="Filter by State"
+                value={stateFilter}
+                onChange={setStateFilter}
+                placeholder={clusterFilter ? "All States in Cluster" : "All States"}
+                options={filteredStates.map((s) => ({ value: s.id, text: s.name }))}
               />
             </div>
             <div className="flex-1 w-full">
@@ -550,14 +552,46 @@ export default function WarehouseKitActivations({ moduleUniqueId = "ADM_WH_KIT_A
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="font-bold text-text-secondary text-xs flex flex-col gap-0.5">
-                          <span className="flex items-center gap-1">
-                            <FaMapMarkerAlt className="text-primary/50 text-[10px]" />
-                            {warehouse.state || "N/A"}
-                          </span>
-                          <span className="text-text-muted pl-3.5">
-                            Cluster: <strong>{warehouse.cluster || "N/A"}</strong>
-                          </span>
+                        <div className="flex flex-col gap-1.5 max-w-[280px]">
+                          {warehouse.is_cluster_mapped || (Array.isArray(warehouse.fulfillment_states) && warehouse.fulfillment_states.length > 0) ? (
+                            <>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black bg-primary/10 text-primary border border-primary/20">
+                                  <FaLayerGroup className="text-primary text-[10px]" />
+                                  {warehouse.cluster_name || warehouse.cluster}
+                                </span>
+                              </div>
+                              {Array.isArray(warehouse.fulfillment_states) && warehouse.fulfillment_states.length > 0 && (
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="text-[10px] text-text-muted font-bold mr-0.5">Fulfillment States:</span>
+                                  {warehouse.fulfillment_states.map((st, sIdx) => (
+                                    <span
+                                      key={sIdx}
+                                      className="px-1.5 py-0.5 rounded text-[9px] font-black bg-surface-hover text-text-secondary border border-border/60"
+                                    >
+                                      {st}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <span className="text-[10px] text-text-muted flex items-center gap-1">
+                                <FaMapMarkerAlt className="text-text-muted/60 text-[9px]" />
+                                Base: {warehouse.district ? `${warehouse.district}, ` : ''}{warehouse.state || 'N/A'}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-1 text-xs font-bold text-text-secondary">
+                                <FaMapMarkerAlt className="text-primary/60 text-[11px]" />
+                                <span>{warehouse.state || "N/A"}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                  Unmapped (Cluster Routing)
+                                </span>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
@@ -742,16 +776,15 @@ export default function WarehouseKitActivations({ moduleUniqueId = "ADM_WH_KIT_A
                           setModalOrderTypes([...modalOrderTypes, ot.id]);
                         }
                       }}
-                      className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                        isChecked
+                      className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${isChecked
                           ? "border-primary bg-primary/5 shadow-xs"
                           : "border-border hover:border-border-hover bg-surface"
-                      }`}
+                        }`}
                     >
                       <input
                         type="checkbox"
                         checked={isChecked}
-                        onChange={() => {}}
+                        onChange={() => { }}
                         className="mt-1 h-4 w-4 rounded text-primary focus:ring-primary border-gray-300 pointer-events-none"
                       />
                       <div className="flex-1">

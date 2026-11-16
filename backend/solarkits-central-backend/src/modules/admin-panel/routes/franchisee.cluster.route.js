@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 
+const { upload_any_files } = require('../utils/upload.files');
+
 const clusterHandler = require('../controller/franchisee.cluster.handler');
 const mapHandler = require('../controller/franchisee.map.handler');
 const agreementHandler = require('../controller/franchisee.agreement.handler');
@@ -29,8 +31,8 @@ router.delete('/:id', clusterHandler.delete_cluster);
 // ── 3. Franchisee Agreement Management ───────────────────────────────────────
 router.get('/agreements/list', agreementHandler.list_agreements);
 router.get('/agreements/:id', agreementHandler.get_agreement_detail);
-router.post('/agreements/create', agreementHandler.create_agreement);
-router.post('/agreements/:id/renew', agreementHandler.renew_agreement);
+router.post('/agreements/create', upload_any_files('public/uploads/franchisee_agreements', 25), agreementHandler.create_agreement);
+router.post('/agreements/:id/renew', upload_any_files('public/uploads/franchisee_agreements', 25), agreementHandler.renew_agreement);
 router.post('/agreements/:id/terminate', agreementHandler.terminate_agreement);
 
 // ── 4. Franchisee Goal Settings ──────────────────────────────────────────────

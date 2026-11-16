@@ -18,6 +18,8 @@ const renewalHistoryItemSchema = new mongoose.Schema({
   renewal_fee_paid: { type: Number, default: 0 },
   payment_reference: { type: String, default: null, trim: true },
   remarks: { type: String, default: null, trim: true },
+  document_url: { type: String, default: null, trim: true },
+  document_name: { type: String, default: null, trim: true },
 }, { _id: true });
 
 const schema = new mongoose.Schema({

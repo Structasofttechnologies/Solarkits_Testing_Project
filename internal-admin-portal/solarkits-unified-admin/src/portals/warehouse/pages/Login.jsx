@@ -13,6 +13,28 @@ import { loginUser } from "../features/auth.slice";
 import Button from "../components/Button";
 import { HiEnvelope, HiPhone, HiGlobeAlt, HiArrowLeftOnRectangle, HiArrowRight, HiUserCircle } from "react-icons/hi2";
 
+// 🔒 Only show developer testing access on localhost — never on live production domains
+const isLocalhost = (() => {
+  if (typeof window === "undefined") return false;
+  const hostname = window.location.hostname.toLowerCase();
+
+  // Strict check: never show on production or any domain containing solarkits.in
+  if (
+    hostname.includes("solarkits.in") ||
+    import.meta.env.VITE_APP_ENV === "production"
+  ) {
+    return false;
+  }
+
+  // Must be localhost or local loopback IP
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "[::1]" ||
+    hostname.endsWith(".localhost")
+  );
+})();
+
 export default function Login() {
   const [form, setForm] = useState({
     auth_type: "email",
@@ -28,8 +50,9 @@ export default function Login() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Testing Credentials from .env
+  // Testing Credentials from .env - only available in localhost environment
   const testCredentials = (() => {
+    if (!isLocalhost) return [];
     try {
       const creds = import.meta.env.VITE_LOGIN_CREDENTIALS;
       return creds ? JSON.parse(creds.replace(/'/g, '"')) : [];
@@ -252,30 +275,46 @@ export default function Login() {
   };
 
   const DirectLoginCard = () => {
-    if (!testCredentials || testCredentials.length === 0) return null;
+    // 🔒 Never render on live production domains
+    if (!isLocalhost || !testCredentials || testCredentials.length === 0) return null;
 
     return (
       <div className="mt-6 pt-4 border-t border-border/50">
-        <p className="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-3 text-center">
-          Developer Testing Access
-        </p>
+        <div className="flex items-center justify-between mb-3 px-1">
+          <p className="text-[10px] uppercase tracking-wider text-amber-500 font-bold">
+            ⚡ Developer Testing Access (Localhost Only)
+          </p>
+          <span className="text-[10px] bg-amber-500/10 text-amber-500 font-mono font-semibold px-2 py-0.5 rounded-full border border-amber-500/20">
+            Dev Only
+          </span>
+        </div>
         <div className="grid grid-cols-1 gap-2">
           {testCredentials.map((cred, idx) => (
             <button
               key={idx}
               type="button"
               onClick={() => handleDirectLogin(cred)}
-              className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-hover/50 border border-border/50 hover:border-primary/30 hover:bg-primary/5 transition-all group text-left"
+              className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-hover/50 border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-all group text-left"
             >
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform shrink-0">
                 <HiUserCircle className="w-5 h-5" />
               </div>
-              <div className="flex-1 overflow-hidden">
-                <h6 className="font-medium text-text-primary truncate">{cred.role}</h6>
-                <p className="text-xs font-medium text-text-primary truncate">{cred.email}</p>
-                <p className="text-[10px] text-text-muted">Click for instant access</p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-1">
+                  <h6 className="font-semibold text-xs text-text-primary truncate">{cred.role}</h6>
+                  {cred.password && (
+                    <span className="text-[10px] font-mono font-semibold bg-surface px-1.5 py-0.5 rounded border border-border text-text-secondary shrink-0">
+                      PIN: {cred.password}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-medium text-text-secondary truncate mt-0.5">
+                  <span className="text-[10px] text-text-muted font-normal mr-1">ID:</span>
+                  {cred.email}
+                </p>
+                <p className="text-[10px] text-primary/80 group-hover:text-primary mt-0.5 font-medium">Click for instant access →</p>
               </div>
-              <HiArrowRight className="w-3 h-3 text-text-muted group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+              <HiArrowRight className="w-3.5 h-3.5 text-text-muted group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
             </button>
           ))}
         </div>

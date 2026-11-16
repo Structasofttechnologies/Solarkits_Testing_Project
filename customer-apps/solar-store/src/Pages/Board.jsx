@@ -62,7 +62,7 @@ export default function Board() {
       // { name: "Custom Combo Kit", icon: <MdSettings />, path: "/custom-combo-kit", requiresAuth: true },
       { name: "Know My Margin", icon: <FiTrendingUp />, path: "/know-my-margin" },
       // { name: "Bulk Buy", icon: <FaBoxes />, path: "/bulk-buy", requiresAuth: true },
-      { name: "Request Order", icon: <MdListAlt />, path: "/request-order", requiresAuth: true },
+      // { name: "Request Order", icon: <MdListAlt />, path: "/request-order", requiresAuth: true },
       { name: "Cart", icon: <MdShoppingCart />, path: "/cart", requiresAuth: true },
     ];
 
@@ -75,7 +75,7 @@ export default function Board() {
       defaultGroup,
       [
         { name: "Knowledge Center", icon: <FaGraduationCap />, path: "/knowledge-center", requiresAuth: true },
-        { name: "Find Nearby Store", icon: <FaMapMarkerAlt />, path: "/store-locator" },
+        // { name: "Find Nearby Store", icon: <FaMapMarkerAlt />, path: "/store-locator" },
         { name: "Track Order Status", icon: <MdListAlt />, path: "/track-status", requiresAuth: true },
       ],
       // [{ name: "Settings", icon: <MdSettings />, path: "/settings", requiresAuth: true }]

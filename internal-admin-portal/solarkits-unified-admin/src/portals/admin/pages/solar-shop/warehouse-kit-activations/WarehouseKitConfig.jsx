@@ -25,6 +25,7 @@ import {
   FaClock,
   FaBoxes,
   FaTruck,
+  FaLayerGroup,
 } from "react-icons/fa";
 import { setAlert } from "@/features/alert.slice";
 import Button from "@/components/Button";
@@ -36,7 +37,9 @@ import { authHeaderObj } from "@/app/authHeader";
 const API_URL = import.meta.env.VITE_API_URL;
 
 export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }) {
-  const { countryName, warehouseId } = useParams();
+  const { countryName: routeCountry, warehouseId } = useParams();
+  const storedCountry = localStorage.getItem('selected_country_admin') || 'india';
+  const countryName = (routeCountry || storedCountry).toLowerCase();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const token = useSelector((state) => state.auth.token);
@@ -78,21 +81,8 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
   const [storeDisplayConfig, setStoreDisplayConfig] = useState({});
   const [activeModal, setActiveModal] = useState({ type: null, kit: null });
   const [modalForm, setModalForm] = useState(null);
-  const [availableClusters, setAvailableClusters] = useState([
-    { id: "north_hub", name: "North Hub Cluster" },
-    { id: "west_zone", name: "West Zone Cluster" },
-    { id: "south_cluster", name: "South Coastal Cluster" },
-    { id: "central_grid", name: "Central Metro Cluster" },
-    { id: "east_gateway", name: "East Gateway Cluster" },
-  ]);
-  const [availableStates, setAvailableStates] = useState([
-    { id: "mh", name: "Maharashtra" },
-    { id: "gj", name: "Gujarat" },
-    { id: "ka", name: "Karnataka" },
-    { id: "tn", name: "Tamil Nadu" },
-    { id: "rj", name: "Rajasthan" },
-    { id: "dl", name: "Delhi NCR" },
-  ]);
+  const [availableClusters, setAvailableClusters] = useState([]);
+  const [availableStates, setAvailableStates] = useState([]);
 
   const defaultIndustryTypes = ["Residential", "Commercial", "Industrial", "Agricultural", "Government & Institutional"];
   const defaultProjectTypes = ["Rooftop PV", "Ground Mount", "Solar Carport", "Microgrid / Hybrid", "Floating Solar"];
@@ -120,6 +110,32 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
     }));
   };
 
+  // Granular Stock, Procurement & Operational Parameters per Kit (Rule 6.1)
+  const [kitCustomSettings, setKitCustomSettings] = useState({});
+  const [warehouseDistricts, setWarehouseDistricts] = useState([]);
+
+  const getKitConfig = (kitId) => {
+    return kitCustomSettings[kitId] || {
+      max_permitted_stock: 0,
+      minimum_stock_alert: 0,
+      maximum_stock_holding: 0,
+      procurement_source: "company_stock",
+      assembly_permission: true,
+      dispatch_permission: true,
+      delivery_districts: []
+    };
+  };
+
+  const handleUpdateKitConfig = (kitId, updates) => {
+    setKitCustomSettings((prev) => ({
+      ...prev,
+      [kitId]: {
+        ...(prev[kitId] || getKitConfig(kitId)),
+        ...updates
+      }
+    }));
+  };
+
   // Error info for save failures per kit
   const [saveErrors, setSaveErrors] = useState({});
 
@@ -127,8 +143,8 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
   const [comboSearch, setComboSearch] = useState("");
   const [customizeSearch, setCustomizeSearch] = useState("");
 
-  // Tabs state
-  const [activeTab, setActiveTab] = useState("combokit"); // combokit / customize
+  // Tabs state: combokit | customize | trial | loose | bos
+  const [activeTab, setActiveTab] = useState("combokit");
 
   // ─── Data Fetching ───────────────────────────────────────────────────────────
 
@@ -146,6 +162,7 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
       const gstMap = {};
       const gstRateMap = {};
       const storeMap = {};
+      const customMap = {};
 
       const processKit = (a) => {
         const kitId = a.combo_kit_id?._id || a.combo_kit_id;
@@ -174,6 +191,16 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
             industry_types: a.restricted_industry_types || ["all"],
             project_types: a.restricted_project_types || ["all"],
           };
+
+          customMap[kitId] = {
+            max_permitted_stock: a.max_permitted_stock ?? 0,
+            minimum_stock_alert: a.minimum_stock_alert ?? 0,
+            maximum_stock_holding: a.maximum_stock_holding ?? 0,
+            procurement_source: a.procurement_source || "company_stock",
+            assembly_permission: a.assembly_permission ?? true,
+            dispatch_permission: a.dispatch_permission ?? true,
+            delivery_districts: Array.isArray(a.delivery_districts) ? a.delivery_districts.map(d => d._id || d) : []
+          };
         }
       };
 
@@ -186,6 +213,7 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
       setGstConfigured(gstMap);
       setGstRates(gstRateMap);
       setStoreDisplayConfig(storeMap);
+      setKitCustomSettings(customMap);
       setPendingToggles({});
       setSaveErrors({});
     } catch {
@@ -194,6 +222,7 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
       setMarginConfigured({});
       setGstConfigured({});
       setGstRates({});
+      setKitCustomSettings({});
     }
   };
 
@@ -212,7 +241,7 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
       ]);
 
       const activeCountries = countriesRes.data?.countries || [];
-      const foundCountry = activeCountries.find((c) => c.name.toLowerCase() === countryName?.toLowerCase());
+      const foundCountry = activeCountries.find((c) => c.name.toLowerCase() === countryName?.toLowerCase()) || activeCountries[0] || null;
       setCountryObj(foundCountry);
 
       const allWarehouses = warehousesRes.data?.warehouses || [];
@@ -220,6 +249,60 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
       setWarehouse(wh);
       if (wh && Array.isArray(wh.order_fulfillment_types)) {
         setOrderFulfillmentTypes(wh.order_fulfillment_types);
+      }
+
+      // Fetch state districts for granular delivery district mapping (Rule 6.1)
+      if (wh && (wh.level_1 || wh.state_id)) {
+        try {
+          const distRes = await axios.post(
+            `${API_URL}/geolocation/active-districts?unique_id=${moduleUniqueId}&req_for=view`,
+            { state_id: wh.level_1 || wh.state_id },
+            { headers: authHeaderObj() }
+          );
+          const dList = distRes.data.districts || distRes.data.data || [];
+          setWarehouseDistricts(dList.map((d) => ({ value: String(d.id || d._id), text: d.name })));
+        } catch (e) {
+          console.warn("Could not load warehouse state districts:", e);
+        }
+      }
+
+      // Dynamically load Regional Clusters and Fulfillment States for this warehouse
+      try {
+        const clusterRes = await axios.get(
+          `${API_URL}/solarshop/cluster-routing/clusters`,
+          { headers: authHeaderObj() }
+        );
+        const allClusters = clusterRes.data?.data || [];
+
+        let targetCluster = null;
+        if (wh) {
+          targetCluster = allClusters.find(
+            (c) => (c.id || c._id)?.toString() === wh.cluster_id?.toString() || c.name === wh.cluster_name
+          );
+        }
+
+        if (wh && wh.is_cluster_mapped && targetCluster) {
+          setAvailableClusters([{ id: targetCluster.id || targetCluster._id, name: targetCluster.name }]);
+          const stList = Array.isArray(wh.fulfillment_states) && wh.fulfillment_states.length > 0
+            ? wh.fulfillment_states
+            : targetCluster.states;
+          setAvailableStates(stList.map((s) => ({ id: s, name: s })));
+        } else if (targetCluster) {
+          setAvailableClusters([{ id: targetCluster.id || targetCluster._id, name: targetCluster.name }]);
+          setAvailableStates(targetCluster.states.map((s) => ({ id: s, name: s })));
+        } else if (wh && (wh.cluster_name || wh.cluster)) {
+          setAvailableClusters([{ id: wh.cluster_id || "mapped_cluster", name: wh.cluster_name || wh.cluster }]);
+          const stList = Array.isArray(wh.fulfillment_states) && wh.fulfillment_states.length > 0
+            ? wh.fulfillment_states
+            : (wh.state ? [wh.state] : []);
+          setAvailableStates(stList.map((s) => ({ id: s, name: s })));
+        } else if (allClusters.length > 0) {
+          setAvailableClusters(allClusters.map((c) => ({ id: c.id || c._id, name: c.name })));
+          const uniqueStates = [...new Set(allClusters.flatMap((c) => c.states || []))];
+          setAvailableStates(uniqueStates.map((s) => ({ id: s, name: s })));
+        }
+      } catch (cErr) {
+        console.warn("Could not load regional clusters in config:", cErr);
       }
 
       const fetchedCombos = comboRes.data?.data || [];
@@ -261,6 +344,17 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
     }
   }, [moduleUniqueId, token, warehouseId, countryName]);
 
+  // Rule 6.3: Warehouse Activation != Kit Activation
+  // Warehouse must be ACTIVE before any kit can be activated.
+  const isWarehouseActive = warehouse
+    ? Boolean(
+      warehouse.is_active === true ||
+      warehouse.status_id === 4 ||
+      warehouse.operational_status === "active" ||
+      warehouse.status_code === "active"
+    )
+    : false;
+
   // ─── Toggle Logic ──────────────────────────────────────────────────────────────
   // Gets the effective current value (saved state + pending toggle)
   const getEffectiveStatus = (kitId, field) => {
@@ -273,6 +367,16 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
   };
 
   const handleToggle = (kitId, field) => {
+    if (!isWarehouseActive) {
+      dispatch(
+        setAlert({
+          type: "warning",
+          message: "Rule 6.3 Enforced: Warehouse must be activated before enabling kits for store dispatch.",
+          duration: 5000,
+        })
+      );
+      return;
+    }
     const currentValue = getEffectiveStatus(kitId, field);
     setPendingToggles((prev) => ({
       ...prev,
@@ -312,11 +416,30 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
 
         // Merge saved state with pending changes
         const savedState = kitActivations[kitId] || {};
+        const savedConfig = getKitConfig(kitId);
+        const storeConfig = getStoreConfig(kitId);
+
         activationsPayload.push({
-          warehouse_id: warehouse.id,
+          warehouse_id: warehouse.id || warehouse._id,
           combo_kit_id: kitId,
+          kit_type: kit.is_custom ? "customize_kit" : "combo_kit",
           is_combokit_active: pending.is_combokit_active !== undefined ? pending.is_combokit_active : (savedState.is_combokit_active ?? false),
           is_customize_kit_active: pending.is_customize_kit_active !== undefined ? pending.is_customize_kit_active : (savedState.is_customize_kit_active ?? false),
+          max_permitted_stock: savedConfig.max_permitted_stock,
+          minimum_stock_alert: savedConfig.minimum_stock_alert,
+          maximum_stock_holding: savedConfig.maximum_stock_holding,
+          procurement_source: savedConfig.procurement_source,
+          assembly_permission: savedConfig.assembly_permission,
+          dispatch_permission: savedConfig.dispatch_permission,
+          delivery_districts: savedConfig.delivery_districts,
+          is_store_display: storeConfig.is_store_display,
+          display_start_date: storeConfig.display_start_date,
+          display_end_date: storeConfig.display_end_date,
+          always_display: storeConfig.always_display,
+          restricted_clusters: storeConfig.clusters,
+          restricted_states: storeConfig.states,
+          restricted_industry_types: storeConfig.industry_types,
+          restricted_project_types: storeConfig.project_types,
         });
       }
 
@@ -561,6 +684,34 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
     });
   }, [customizeKits, customizeSearch, selectedIndustryType, selectedCategory, selectedSubcategory, selectedType, selectedProjectRange]);
 
+  // Derived Kit Categories (Rule 6.1: Trial / Loose / BOS / Combo / Customize)
+  const filteredTrialKits = useMemo(() => {
+    return filteredComboKits.filter(
+      (k) =>
+        k.is_trial_kit ||
+        /trial/i.test(k.name || "") ||
+        (k.solar_kit_id?.name && /trial/i.test(k.solar_kit_id.name))
+    );
+  }, [filteredComboKits]);
+
+  const filteredLooseKits = useMemo(() => {
+    return filteredComboKits.filter(
+      (k) =>
+        k.is_loose_order ||
+        /loose/i.test(k.name || "") ||
+        (k.solar_kit_id?.name && /loose/i.test(k.solar_kit_id.name))
+    );
+  }, [filteredComboKits]);
+
+  const filteredBosKits = useMemo(() => {
+    return filteredComboKits.filter(
+      (k) =>
+        k.is_bos_kit ||
+        /bos|balance of system/i.test(k.name || "") ||
+        (k.solar_kit_id?.name && /bos/i.test(k.solar_kit_id.name))
+    );
+  }, [filteredComboKits]);
+
   // ─── Loading / Not Found ──────────────────────────────────────────────────────
 
   if (loading) return <Loader text="Loading warehouse kit configuration..." />;
@@ -712,30 +863,31 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
               const kitError = saveErrors[kitId];
               const hasMissingGst = isGstConfigured === false;
 
-              // Determine if activation should be blocked
+              // Determine if activation should be blocked (incorporating Rule 6.3)
               const blockReason = !isActive
-                ? hasMissingGst
-                  ? "GST rate is not configured for this kit margin"
-                  : (hasMissingPrices && hasMissingMargin)
-                    ? "SKU benchmark prices & company margins not configured"
-                    : hasMissingPrices
-                      ? `${priceInfo.pricedCount}/${priceInfo.totalSkus} SKU benchmark price(s) not set`
-                      : hasMissingMargin
-                        ? "Company margin not configured for this warehouse"
-                        : null
+                ? !isWarehouseActive
+                  ? "Warehouse is inactive (Rule 6.3: Activate warehouse first)"
+                  : hasMissingGst
+                    ? "GST rate is not configured for this kit margin"
+                    : (hasMissingPrices && hasMissingMargin)
+                      ? "SKU benchmark prices & company margins not configured"
+                      : hasMissingPrices
+                        ? `${priceInfo.pricedCount}/${priceInfo.totalSkus} SKU benchmark price(s) not set`
+                        : hasMissingMargin
+                          ? "Company margin not configured for this warehouse"
+                          : null
                 : null;
               const isToggleBlocked = !!blockReason;
 
               return (
                 <div
                   key={kitId}
-                  className={`flex items-start justify-between p-4 transition-colors ${
-                    isToggleBlocked && !isActive
-                      ? 'bg-warning/5'
-                      : pending
-                        ? 'bg-primary/5 border-l-2 border-l-primary'
-                        : 'hover:bg-surface-hover/30'
-                  }`}
+                  className={`flex items-start justify-between p-4 transition-colors ${isToggleBlocked && !isActive
+                    ? 'bg-warning/5'
+                    : pending
+                      ? 'bg-primary/5 border-l-2 border-l-primary'
+                      : 'hover:bg-surface-hover/30'
+                    }`}
                 >
                   <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -971,6 +1123,40 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
                           {getStoreConfig(kitId).industry_types.includes("all") ? "Universal" : `${getStoreConfig(kitId).industry_types.length} Ind.`}
                         </span>
                       </button>
+
+                      {/* Granular Kit Rules & Stock Thresholds Button (Rule 6.1) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModalForm({ kitId, ...getKitConfig(kitId) });
+                          setActiveModal({ type: 'parameters', kit });
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-[10px] font-bold text-emerald-600 transition-all cursor-pointer"
+                      >
+                        <FaBoxes size={10} className="text-emerald-500" />
+                        <span>Kit Rules & Stock:</span>
+                        <span className="font-black text-emerald-700 bg-emerald-500/20 px-1.5 py-0.5 rounded text-[9px]">
+                          {getKitConfig(kitId).max_permitted_stock ? `${getKitConfig(kitId).max_permitted_stock} Max` : "Configure"}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Operational Summary Badges Strip */}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-surface-hover text-text-secondary border border-border">
+                        Source: {getKitConfig(kitId).procurement_source === 'supplier' ? 'Supplier Direct' : getKitConfig(kitId).procurement_source === 'oem' ? 'OEM Partner' : 'Company Stock'}
+                      </span>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded border ${getKitConfig(kitId).assembly_permission ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-red-500/10 text-red-600 border-red-500/20'}`}>
+                        Assembly: {getKitConfig(kitId).assembly_permission ? 'Allowed' : 'Disabled'}
+                      </span>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded border ${getKitConfig(kitId).dispatch_permission ? 'bg-blue-500/10 text-blue-600 border-blue-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'}`}>
+                        Dispatch: {getKitConfig(kitId).dispatch_permission ? 'Authorized' : 'Held'}
+                      </span>
+                      {getKitConfig(kitId).minimum_stock_alert > 0 && (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 border border-purple-500/20">
+                          Reorder Alert: &le; {getKitConfig(kitId).minimum_stock_alert} units
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -992,9 +1178,8 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
                       className={isToggleBlocked && !isActive ? 'opacity-40 cursor-not-allowed' : ''}
                     >
                       <label
-                        className={`relative inline-flex items-center select-none ${
-                          isToggleBlocked && !isActive ? 'pointer-events-none' : 'cursor-pointer'
-                        }`}
+                        className={`relative inline-flex items-center select-none ${isToggleBlocked && !isActive ? 'pointer-events-none' : 'cursor-pointer'
+                          }`}
                       >
                         <input
                           type="checkbox"
@@ -1083,6 +1268,28 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
         </div>
       </div>
 
+      {/* Rule 6.3 Warehouse Inactive Status Warning */}
+      {!isWarehouseActive && warehouse && (
+        <div className="p-4 bg-amber-500/10 rounded-2xl border-2 border-amber-500/30 flex items-start gap-3.5 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+            <FaExclamationTriangle className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-amber-700 text-sm">
+                Warehouse Inactive — Kit Activations Locked (SOLARKITS Rule 6.3)
+              </h3>
+              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 border border-amber-500/30">
+                {warehouse.operational_status || warehouse.status || 'Pending Verification'}
+              </span>
+            </div>
+            <p className="text-xs text-text-secondary mt-1 leading-relaxed">
+              Under SOLARKITS Master Architecture Rule 6.3, a warehouse must complete all mandatory setup checklists and be in <strong>Active</strong> status before any kit can be activated for store display and dispatch. You can pre-configure storage capacity, stock thresholds, procurement sources, and delivery districts below, but activations will remain locked until this facility is activated.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Warehouse Detail Card */}
       <div className="card p-6 border-l-4 border-l-primary shadow-sm grid grid-cols-1 md:grid-cols-4 gap-6">
         <div>
@@ -1104,16 +1311,27 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
         </div>
         <div>
           <span className="font-bold block uppercase tracking-wider text-[9px] text-text-muted">
-            State & Cluster
+            Routing Cluster & Fulfillment States
           </span>
-          <span className="font-bold text-text-secondary text-xs flex flex-col gap-0.5 mt-1">
-            <span className="flex items-center gap-1">
-              <FaMapMarkerAlt className="text-primary/50 text-[10px]" /> {warehouse.state}
+          <div className="flex flex-col gap-1.5 mt-1">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black bg-primary/10 text-primary border border-primary/20 w-fit">
+              <FaLayerGroup className="text-[10px]" />
+              {warehouse.cluster_name || warehouse.cluster || "Cluster Mapped"}
             </span>
-            <span className="text-text-muted pl-3.5">
-              Cluster: <strong>{warehouse.cluster || "N/A"}</strong>
+            {Array.isArray(warehouse.fulfillment_states) && warehouse.fulfillment_states.length > 0 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[10px] text-text-muted font-bold mr-0.5">Fulfillment States:</span>
+                {warehouse.fulfillment_states.map((st, i) => (
+                  <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-surface-hover text-text-secondary border border-border">
+                    {st}
+                  </span>
+                ))}
+              </div>
+            )}
+            <span className="text-[10px] text-text-muted flex items-center gap-1 mt-0.5">
+              <FaMapMarkerAlt className="text-text-muted text-[9px]" /> Base: {warehouse.district ? `${warehouse.district}, ` : ''}{warehouse.state || 'N/A'}
             </span>
-          </span>
+          </div>
         </div>
       </div>
 
@@ -1144,11 +1362,10 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
           {/* PO Orders */}
           <div
             onClick={() => !updatingWhOrderTypes && handleToggleFulfillmentType("po_order")}
-            className={`p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between ${
-              orderFulfillmentTypes.includes("po_order")
-                ? "bg-blue-500/5 border-blue-500/40 shadow-xs"
-                : "bg-surface-hover/30 border-border opacity-70 hover:opacity-100"
-            }`}
+            className={`p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between ${orderFulfillmentTypes.includes("po_order")
+              ? "bg-blue-500/5 border-blue-500/40 shadow-xs"
+              : "bg-surface-hover/30 border-border opacity-70 hover:opacity-100"
+              }`}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -1180,11 +1397,10 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
           {/* Loose Orders */}
           <div
             onClick={() => !updatingWhOrderTypes && handleToggleFulfillmentType("loose_order")}
-            className={`p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between ${
-              orderFulfillmentTypes.includes("loose_order")
-                ? "bg-purple-500/5 border-purple-500/40 shadow-xs"
-                : "bg-surface-hover/30 border-border opacity-70 hover:opacity-100"
-            }`}
+            className={`p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between ${orderFulfillmentTypes.includes("loose_order")
+              ? "bg-purple-500/5 border-purple-500/40 shadow-xs"
+              : "bg-surface-hover/30 border-border opacity-70 hover:opacity-100"
+              }`}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -1216,11 +1432,10 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
           {/* Trial Orders */}
           <div
             onClick={() => !updatingWhOrderTypes && handleToggleFulfillmentType("trial_order")}
-            className={`p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between ${
-              orderFulfillmentTypes.includes("trial_order")
-                ? "bg-amber-500/5 border-amber-500/40 shadow-xs"
-                : "bg-surface-hover/30 border-border opacity-70 hover:opacity-100"
-            }`}
+            className={`p-4 rounded-xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between ${orderFulfillmentTypes.includes("trial_order")
+              ? "bg-amber-500/5 border-amber-500/40 shadow-xs"
+              : "bg-surface-hover/30 border-border opacity-70 hover:opacity-100"
+              }`}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -1251,28 +1466,29 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-border gap-2">
-        <button
-          onClick={() => setActiveTab("combokit")}
-          className={`px-6 py-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 -mb-[2px] cursor-pointer ${
-            activeTab === "combokit"
+      {/* 5-Category Kit Type Tabs (Rule 6.1: Trial / Loose / Combo / BOS / Customize) */}
+      <div className="flex border-b border-border gap-2 overflow-x-auto">
+        {[
+          { id: "combokit", label: "Combo Kits", count: filteredComboKits.length },
+          { id: "customize", label: "Customize Kits", count: filteredCustomizeKits.length },
+          { id: "trial", label: "Trial Kits", count: filteredTrialKits.length },
+          { id: "loose", label: "Loose Component Kits", count: filteredLooseKits.length },
+          { id: "bos", label: "BOS Packages", count: filteredBosKits.length },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 -mb-[2px] cursor-pointer flex items-center gap-2 shrink-0 ${activeTab === tab.id
               ? "border-primary text-primary"
               : "border-transparent text-text-muted hover:text-text-primary"
-          }`}
-        >
-          Combo Kits
-        </button>
-        <button
-          onClick={() => setActiveTab("customize")}
-          className={`px-6 py-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 -mb-[2px] cursor-pointer ${
-            activeTab === "customize"
-              ? "border-primary text-primary"
-              : "border-transparent text-text-muted hover:text-text-primary"
-          }`}
-        >
-          Customize
-        </button>
+              }`}
+          >
+            <span>{tab.label}</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-hover font-bold border border-border">
+              {tab.count}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Tab Panels */}
@@ -1297,6 +1513,39 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
             "is_customize_kit_active",
             true,
             "No customize kits found for this country."
+          )
+        )}
+        {activeTab === "trial" && (
+          renderKitSection(
+            "Trial Kits",
+            filteredTrialKits,
+            comboSearch,
+            setComboSearch,
+            "is_combokit_active",
+            false,
+            "No trial kits configured for this country."
+          )
+        )}
+        {activeTab === "loose" && (
+          renderKitSection(
+            "Loose Component Kits",
+            filteredLooseKits,
+            comboSearch,
+            setComboSearch,
+            "is_combokit_active",
+            false,
+            "No loose component kits configured for this country."
+          )
+        )}
+        {activeTab === "bos" && (
+          renderKitSection(
+            "BOS (Balance of System) Packages",
+            filteredBosKits,
+            comboSearch,
+            setComboSearch,
+            "is_combokit_active",
+            false,
+            "No BOS packages configured for this country."
           )
         )}
       </div>
@@ -1614,6 +1863,235 @@ export default function WarehouseKitConfig({ moduleUniqueId = "ADM_WH_KIT_ACT" }
                 }}
               >
                 Save Industry Restrictions
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      {/* ── Modal 4: Granular Kit Parameters & Stock Rules Modal (Rule 6.1) ─────────── */}
+      <Dialog
+        isOpen={activeModal.type === 'parameters'}
+        onClose={() => setActiveModal({ type: null, kit: null })}
+        title={`Kit Rules & Operational Thresholds: ${activeModal.kit?.name || "Kit"}`}
+        size="lg"
+      >
+        {modalForm && (
+          <div className="space-y-4 p-1">
+            <div className="p-3 bg-surface-hover rounded-xl border border-border">
+              <span className="text-xs font-black text-text-primary block">
+                {activeModal.kit?.name}
+              </span>
+              <span className="text-[10px] text-text-secondary">
+                Warehouse: <strong>{warehouse?.warehouse_name || warehouse?.warehouse_code}</strong> | Blueprint: <strong>{activeModal.kit?.solar_kit_id?.name || "Standard Solar Kit"}</strong>
+              </span>
+            </div>
+
+            {/* Storage Capacity & Stock Limits */}
+            <div className="space-y-3">
+              <span className="text-xs font-black uppercase text-text-secondary tracking-wider block">
+                Inventory Thresholds & Capacity Limits
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-text-secondary">
+                    Max Permitted Stock (Units)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={modalForm.max_permitted_stock || 0}
+                    onChange={(e) => setModalForm(prev => ({ ...prev, max_permitted_stock: Number(e.target.value) }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-bold text-text-primary outline-none focus:border-primary"
+                    placeholder="e.g. 100"
+                  />
+                  <span className="text-[9px] text-text-muted">Maximum capacity at this hub</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-text-secondary">
+                    Minimum Stock Alert
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={modalForm.minimum_stock_alert || 0}
+                    onChange={(e) => setModalForm(prev => ({ ...prev, minimum_stock_alert: Number(e.target.value) }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-bold text-text-primary outline-none focus:border-primary"
+                    placeholder="e.g. 10"
+                  />
+                  <span className="text-[9px] text-text-muted">Reorder trigger threshold</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-text-secondary">
+                    Maximum Holding Limit
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={modalForm.maximum_stock_holding || 0}
+                    onChange={(e) => setModalForm(prev => ({ ...prev, maximum_stock_holding: Number(e.target.value) }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-bold text-text-primary outline-none focus:border-primary"
+                    placeholder="e.g. 150"
+                  />
+                  <span className="text-[9px] text-text-muted">Safety holding ceiling</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Procurement Sourcing & Operational Permissions */}
+            <div className="space-y-3 pt-2 border-t border-border">
+              <span className="text-xs font-black uppercase text-text-secondary tracking-wider block">
+                Procurement & Operational Permissions
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-text-secondary">
+                    Procurement Source
+                  </label>
+                  <select
+                    value={modalForm.procurement_source || "company_stock"}
+                    onChange={(e) => setModalForm(prev => ({ ...prev, procurement_source: e.target.value }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs font-bold text-text-primary outline-none focus:border-primary"
+                  >
+                    <option value="company_stock">Company Stock (Central WH)</option>
+                    <option value="supplier">Approved Supplier Direct</option>
+                    <option value="oem">OEM Partner Direct</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1 flex flex-col justify-end">
+                  <label className="flex items-center justify-between p-2 rounded-lg bg-surface border border-border cursor-pointer select-none">
+                    <span className="text-xs font-bold text-text-primary">Assembly Allowed</span>
+                    <input
+                      type="checkbox"
+                      checked={modalForm.assembly_permission ?? true}
+                      onChange={(e) => setModalForm(prev => ({ ...prev, assembly_permission: e.target.checked }))}
+                      className="w-4 h-4 rounded text-primary"
+                    />
+                  </label>
+                </div>
+
+                <div className="space-y-1 flex flex-col justify-end">
+                  <label className="flex items-center justify-between p-2 rounded-lg bg-surface border border-border cursor-pointer select-none">
+                    <span className="text-xs font-bold text-text-primary">Dispatch Allowed</span>
+                    <input
+                      type="checkbox"
+                      checked={modalForm.dispatch_permission ?? true}
+                      onChange={(e) => setModalForm(prev => ({ ...prev, dispatch_permission: e.target.checked }))}
+                      className="w-4 h-4 rounded text-primary"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Serviceable Delivery Districts */}
+            <div className="space-y-2 pt-2 border-t border-border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-black uppercase text-text-secondary tracking-wider block">
+                    Serviceable Delivery Districts
+                  </span>
+                  <span className="text-[10px] text-text-muted">
+                    Leave empty to service all districts in warehouse territory
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allDistIds = warehouseDistricts.map(d => d.value);
+                    const isAll = (modalForm.delivery_districts || []).length === allDistIds.length;
+                    setModalForm(prev => ({ ...prev, delivery_districts: isAll ? [] : allDistIds }));
+                  }}
+                  className="text-[10px] font-bold text-primary hover:underline cursor-pointer"
+                >
+                  {(modalForm.delivery_districts || []).length === warehouseDistricts.length ? "Deselect All" : "Select All State Districts"}
+                </button>
+              </div>
+
+              {warehouseDistricts.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1 border border-border/60 rounded-xl bg-surface">
+                  {warehouseDistricts.map(d => {
+                    const isChecked = (modalForm.delivery_districts || []).includes(d.value);
+                    return (
+                      <label key={d.value} className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer select-none transition-all ${isChecked ? 'bg-primary/10 border-primary/40 text-text-primary font-bold' : 'bg-surface border-border text-text-secondary'}`}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            setModalForm(prev => {
+                              const curr = prev.delivery_districts || [];
+                              const next = e.target.checked ? [...curr, d.value] : curr.filter(x => x !== d.value);
+                              return { ...prev, delivery_districts: next };
+                            });
+                          }}
+                          className="w-3.5 h-3.5 rounded text-primary"
+                        />
+                        <span className="truncate">{d.text}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-text-muted italic p-2 bg-surface rounded-lg border border-border">
+                  All districts within warehouse operating region are covered by default.
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-border">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setActiveModal({ type: null, kit: null })}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={async () => {
+                  if (activeModal.kit) {
+                    const kId = activeModal.kit.id || activeModal.kit._id;
+                    handleUpdateKitConfig(kId, {
+                      max_permitted_stock: modalForm.max_permitted_stock,
+                      minimum_stock_alert: modalForm.minimum_stock_alert,
+                      maximum_stock_holding: modalForm.maximum_stock_holding,
+                      procurement_source: modalForm.procurement_source,
+                      assembly_permission: modalForm.assembly_permission,
+                      dispatch_permission: modalForm.dispatch_permission,
+                      delivery_districts: modalForm.delivery_districts,
+                    });
+                    setPendingToggles(prev => ({ ...prev, [kId]: { ...prev[kId], kit_parameters_changed: true } }));
+
+                    try {
+                      await axios.post(
+                        `${API_URL}/solarshop/warehouse-kit-activations/save?unique_id=${moduleUniqueId}&req_for=edit`,
+                        {
+                          warehouse_id: warehouseId,
+                          combo_kit_id: kId,
+                          kit_type: activeModal.kit.is_custom ? 'customize_kit' : 'combo_kit',
+                          max_permitted_stock: modalForm.max_permitted_stock,
+                          minimum_stock_alert: modalForm.minimum_stock_alert,
+                          maximum_stock_holding: modalForm.maximum_stock_holding,
+                          procurement_source: modalForm.procurement_source,
+                          assembly_permission: modalForm.assembly_permission,
+                          dispatch_permission: modalForm.dispatch_permission,
+                          delivery_districts: modalForm.delivery_districts
+                        },
+                        { headers: authHeaderObj() }
+                      );
+                      dispatch(setAlert({ type: "success", message: `Stock rules & thresholds updated for ${activeModal.kit.name}` }));
+                    } catch (err) {
+                      console.warn("Direct save failed, queued for bulk save:", err);
+                    }
+                  }
+                  setActiveModal({ type: null, kit: null });
+                }}
+              >
+                Save Kit Parameters
               </Button>
             </div>
           </div>
