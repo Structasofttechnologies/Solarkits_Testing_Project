@@ -9,7 +9,7 @@ import Loader from "../components/Loader";
 import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
-import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaChartLine, FaGraduationCap } from "react-icons/fa";
+import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse } from "react-icons/fa";
 import {
   MdAccountTree,
   MdEngineering,
@@ -49,12 +49,37 @@ const StoreDashboard = lazy(() => import("../pages/dashboard/store-dashboard/Sto
 const EpcAnalyticsDashboard = lazy(() => import("../pages/dashboard/epc-analytics/EpcAnalyticsDashboard"));
 const NotFound = lazy(() => import("../pages/NotFound"));
 const KnowledgeCenterManagement = lazy(() => import("../pages/dashboard/knowledge-center/KnowledgeCenterManagement"));
+const AccountingOverview = lazy(() => import("../pages/accounting/AccountingOverview"));
+const AccountingModule = lazy(() => import("../../accounts/pages/accounting/AccountingModule"));
+const GstManagementModule = lazy(() => import("../../accounts/pages/gst/GstManagementModule"));
+const InvoiceValidationModule = lazy(() => import("../../accounts/pages/compliance/InvoiceValidationModule"));
+const ExpenseManagementModule = lazy(() => import("../../accounts/pages/expenses/ExpenseManagementModule"));
+const WarehouseFinanceModule = lazy(() => import("../../accounts/pages/warehouse-finance/WarehouseFinanceModule"));
+const ExecutiveFinanceDashboard = lazy(() => import("../../accounts/pages/executive/ExecutiveFinanceDashboard"));
 
 /* ===================== MENU CONFIG ===================== */
 
 const menus = [
   [
     { name: "Dashboard", icon: <FaHome />, path: "/admin-panel/home", unique_id: "00000000" },
+    {
+      name: "Accounting Overview",
+      icon: <FaCoins />,
+      path: "/admin-panel/accounting-overview",
+      unique_id: "00000000"
+    },
+    {
+      name: "Warehouse Loan & Expansion",
+      icon: <FaWarehouse />,
+      path: "/admin-panel/warehouse-finance",
+      unique_id: "00000000"
+    },
+    {
+      name: "Executive Finance Dashboard",
+      icon: <FaChartLine />,
+      path: "/admin-panel/executive-finance",
+      unique_id: "00000000"
+    },
     { name: "Vision Dashboard", icon: <MdVisibility />, path: "/admin-panel/vision-dashboard", unique_id: "00000000" },
     { name: "Configuration Dashboard", icon: <MdTune />, path: "/admin-panel/configuration-dashboard", unique_id: "00000000" },
     { name: "Operations Dashboard", icon: <MdEngineering />, path: "/admin-panel/operations-dashboard", unique_id: "00000000" },
@@ -465,6 +490,83 @@ export default function Dashboard() {
                 className="min-h-full"
               >
                 <Routes location={location}>
+
+                  <Route
+                    path="/accounting-overview/*"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Accounting Overview..." />}>
+                          <AccountingOverview />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+
+                  <Route
+                    path="/accounting/*"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Accounting Module..." />}>
+                          <AccountingModule />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+
+                  <Route
+                    path="/gst/*"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading GST Management..." />}>
+                          <GstManagementModule />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+
+                  <Route
+                    path="/invoice-validation/*"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Invoice Validation..." />}>
+                          <InvoiceValidationModule />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+
+                  <Route
+                    path="/expenses/*"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Expense Management..." />}>
+                          <ExpenseManagementModule />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+
+                  <Route
+                    path="/warehouse-finance/*"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Warehouse Finance & Loan Module..." />}>
+                          <WarehouseFinanceModule />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+
+                  <Route
+                    path="/executive-finance/*"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Executive Finance Dashboard..." />}>
+                          <ExecutiveFinanceDashboard />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
 
                   <Route
                     path="/vision-dashboard"

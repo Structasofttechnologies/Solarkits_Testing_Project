@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf, FaGraduationCap } from "react-icons/fa";
+import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine } from "react-icons/fa";
 import { HiCube } from "react-icons/hi";
 import { useSelector, useDispatch } from "react-redux";
 import { setAlert } from "../features/alert.slice";
@@ -82,11 +82,42 @@ const KitDisplayChecklist = lazy(() => import("../pages/solar-shop/order-managem
 const OrderOverdueSettings = lazy(() => import("../pages/solar-shop/order-management-settings/OrderOverdueSettings"));
 const OrderJourneyDashboard = lazy(() => import("../pages/solar-shop/order-management-settings/OrderJourneyDashboard"));
 const AdminOrderApprovalDashboard = lazy(() => import("../pages/solar-shop/order-approvals/AdminOrderApprovalDashboard"));
-
-
+const AccountingOverview = lazy(() => import("../pages/accounting/AccountingOverview"));
+const AccountingModule = lazy(() => import("../../accounts/pages/accounting/AccountingModule"));
+const GstManagementModule = lazy(() => import("../../accounts/pages/gst/GstManagementModule"));
+const InvoiceValidationModule = lazy(() => import("../../accounts/pages/compliance/InvoiceValidationModule"));
+const ExpenseManagementModule = lazy(() => import("../../accounts/pages/expenses/ExpenseManagementModule"));
+const WarehouseFinanceModule = lazy(() => import("../../accounts/pages/warehouse-finance/WarehouseFinanceModule"));
+const ExecutiveFinanceDashboard = lazy(() => import("../../accounts/pages/executive/ExecutiveFinanceDashboard"));
 
 const menus = [
-    [{ step: "01", badgeKey: "01", name: "Dashboard", icon: <FaHome />, path: "/admin-panel/solar-shop/home", unique_id: "00000000" }],
+    [
+        { step: "01", badgeKey: "01", name: "Dashboard", icon: <FaHome />, path: "/admin-panel/solar-shop/home", unique_id: "00000000" },
+        { 
+            step: "01B", 
+            badgeKey: "ACC_M", 
+            name: "Accounting Overview", 
+            icon: <FaFileInvoiceDollar />, 
+            path: "/admin-panel/solar-shop/accounting-overview", 
+            unique_id: "00000000"
+        },
+        {
+            step: "01C",
+            badgeKey: "WH_F",
+            name: "Warehouse Loan & Expansion",
+            icon: <FaWarehouse />,
+            path: "/admin-panel/solar-shop/warehouse-finance",
+            unique_id: "00000000"
+        },
+        {
+            step: "01D",
+            badgeKey: "EXEC_F",
+            name: "Executive Finance Dashboard",
+            icon: <FaChartLine />,
+            path: "/admin-panel/solar-shop/executive-finance",
+            unique_id: "00000000"
+        }
+    ],
     [
         { step: "02", badgeKey: "02", name: "Approve New EPC", icon: <FaUsers />, path: "/admin-panel/solar-shop/approve-new-epc", unique_id: "ADM_APPROVE_EPC" },
         {
@@ -762,6 +793,76 @@ export default function SolarShopDashboard() {
                                         }
                                     />
                                     <Route
+                                        path="/accounting-overview/*"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading Accounting Overview..." />}>
+                                                    <AccountingOverview />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/accounting/*"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading Accounting Module..." />}>
+                                                    <AccountingModule />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/gst/*"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading GST Management..." />}>
+                                                    <GstManagementModule />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/invoice-validation/*"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading Invoice Validation..." />}>
+                                                    <InvoiceValidationModule />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/expenses/*"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading Expense Management..." />}>
+                                                    <ExpenseManagementModule />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/warehouse-finance/*"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading Warehouse Finance & Loan Module..." />}>
+                                                    <WarehouseFinanceModule />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/executive-finance/*"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading Executive Finance Dashboard..." />}>
+                                                    <ExecutiveFinanceDashboard />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
                                         path="/approve-new-epc"
                                         element={
                                             <PermissionGuard requiredUniqueId="ADM_APPROVE_EPC">
@@ -847,6 +948,66 @@ export default function SolarShopDashboard() {
                                             <PermissionGuard requiredUniqueId="00000000">
                                                 <Suspense fallback={<Loader text="Loading home..." />}>
                                                     <Home />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/accounting-overview/*"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading Accounting Overview..." />}>
+                                                    <AccountingOverview />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/accounting-overview"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading Accounting Overview..." />}>
+                                                    <AccountingOverview />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/warehouse-finance/*"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading Warehouse Finance & Loan Module..." />}>
+                                                    <WarehouseFinanceModule />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/warehouse-finance"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading Warehouse Finance & Loan Module..." />}>
+                                                    <WarehouseFinanceModule />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/executive-finance/*"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading Executive Finance Dashboard..." />}>
+                                                    <ExecutiveFinanceDashboard />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/executive-finance"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="00000000">
+                                                <Suspense fallback={<Loader text="Loading Executive Finance Dashboard..." />}>
+                                                    <ExecutiveFinanceDashboard />
                                                 </Suspense>
                                             </PermissionGuard>
                                         }

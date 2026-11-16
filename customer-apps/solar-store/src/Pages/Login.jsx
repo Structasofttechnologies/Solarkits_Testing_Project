@@ -64,12 +64,28 @@ export default function Login() {
 
   // Reset PIN modal
   const [showResetPinModal, setShowResetPinModal] = useState(false);
+  const [resetPinStep, setResetPinStep] = useState("identifier"); // "identifier" | "otp_and_pin"
   const [resetPinData, setResetPinData] = useState({
     identifier: "",
     pin: "",
     confirmPin: "",
   });
+  const [resetPinOtp, setResetPinOtp] = useState("");
+  const [resetPinMaskedEmail, setResetPinMaskedEmail] = useState("");
+  const [resetOtpLoading, setResetOtpLoading] = useState(false);
+  const [resetOtpTimer, setResetOtpTimer] = useState(0);
   const [resetPinLoading, setResetPinLoading] = useState(false);
+
+  // Timer for Resend OTP in PIN reset modal
+  useEffect(() => {
+    let interval = null;
+    if (resetOtpTimer > 0) {
+      interval = setInterval(() => {
+        setResetOtpTimer((t) => t - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resetOtpTimer]);
 
   const abortControllerRef = useRef(null);
 
@@ -330,7 +346,54 @@ export default function Login() {
     }
   };
 
-  // Reset PIN Modal Handler (Enforces unique 4-digit PIN across EPCs)
+  // 📧 Send PIN Reset OTP via Brevo API to Registered Email
+  const handleSendResetPinOtp = async (e) => {
+    if (e) e.preventDefault();
+    const id = resetPinData.identifier.trim();
+    if (!id) {
+      dispatch(
+        setAlert({
+          type: "error",
+          message: "Please enter your registered Email or 10-digit Mobile number",
+        })
+      );
+      return;
+    }
+
+    setResetOtpLoading(true);
+    try {
+      const res = await axios.post(`${API_URL}/india/v1/auth/reset-pin/send-otp`, {
+        identifier: id,
+      });
+
+      if (res.data?.success) {
+        setResetPinMaskedEmail(res.data.masked_email || res.data.target_email || id);
+        setResetPinStep("otp_and_pin");
+        setResetOtpTimer(60);
+        dispatch(
+          setAlert({
+            type: "success",
+            message:
+              res.data.message ||
+              `OTP sent to registered email ${res.data.masked_email || ""}`,
+          })
+        );
+      }
+    } catch (err) {
+      dispatch(
+        setAlert({
+          type: "error",
+          message:
+            err.response?.data?.message ||
+            "Failed to send OTP. Please check your registered Email or Mobile.",
+        })
+      );
+    } finally {
+      setResetOtpLoading(false);
+    }
+  };
+
+  // 🔒 Reset PIN Modal Handler (Requires OTP verification via Brevo API)
   const handleResetPinSubmit = async (e) => {
     e.preventDefault();
     if (!resetPinData.identifier.trim()) {
@@ -338,6 +401,15 @@ export default function Login() {
         setAlert({
           type: "error",
           message: "Please enter your Email or 10-digit Mobile number",
+        })
+      );
+      return;
+    }
+    if (!resetPinOtp.trim()) {
+      dispatch(
+        setAlert({
+          type: "error",
+          message: "Please enter the OTP sent to your registered email",
         })
       );
       return;
@@ -362,6 +434,7 @@ export default function Login() {
     try {
       const res = await axios.post(`${API_URL}/india/v1/auth/reset-pin`, {
         identifier: resetPinData.identifier.trim(),
+        otp: resetPinOtp.trim(),
         pin: resetPinData.pin.trim(),
         confirm_pin: resetPinData.confirmPin.trim(),
       });
@@ -371,13 +444,15 @@ export default function Login() {
             type: "success",
             message:
               res.data.message ||
-              "Unique 4-Digit PIN set successfully! You can now log in directly using this PIN.",
+              "Unique 4-Digit PIN reset successfully! You can now log in directly using this PIN.",
           })
         );
         setIdentifier(resetPinData.identifier.trim());
         setPinDigits(resetPinData.pin.trim().split(""));
         setAuthMode("pin");
         setShowResetPinModal(false);
+        setResetPinStep("identifier");
+        setResetPinOtp("");
         setResetPinData({ identifier: "", pin: "", confirmPin: "" });
       }
     } catch (err) {
@@ -738,7 +813,7 @@ export default function Login() {
         </div>
       </motion.div>
 
-      {/* 🔒 Reset Security PIN Modal (with Unique PIN & Password Login option) */}
+      {/* 🔒 Reset Security PIN Modal (with Brevo Email OTP Verification) */}
       {showResetPinModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-md p-6">
@@ -748,110 +823,198 @@ export default function Login() {
                   Set / Reset Unique 4-Digit PIN
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Each EPC has a unique 4-digit PIN for 1-click passwordless sign in.
+                  {resetPinStep === "identifier"
+                    ? "Enter registered details to receive an Email OTP via Brevo"
+                    : "Enter OTP code sent to your email to authorize new PIN"}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setShowResetPinModal(false)}
+                onClick={() => {
+                  setShowResetPinModal(false);
+                  setResetPinStep("identifier");
+                  setResetPinOtp("");
+                }}
                 className="text-slate-400 hover:text-slate-700 p-1 rounded-lg cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleResetPinSubmit} className="mt-4 space-y-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Registered Email or 10-Digit Mobile Number
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. ravi.s@sunnovative.com or 7777939842"
-                  value={resetPinData.identifier}
-                  onChange={(e) =>
-                    setResetPinData((prev) => ({
-                      ...prev,
-                      identifier: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
-                  required
-                />
-              </div>
+            {/* STEP 1: Enter Identifier & Send OTP */}
+            {resetPinStep === "identifier" ? (
+              <form onSubmit={handleSendResetPinOtp} className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Registered Email or 10-Digit Mobile Number
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. ravi.s@sunnovative.com or 7777939842"
+                    value={resetPinData.identifier}
+                    onChange={(e) =>
+                      setResetPinData((prev) => ({
+                        ...prev,
+                        identifier: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                    required
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
+                    <span className="text-blue-600 font-bold">ℹ</span> An OTP code will be sent to your registered email address via Brevo.
+                  </p>
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Choose New Unique 4-Digit PIN
-                </label>
-                <input
-                  type="password"
-                  maxLength={4}
-                  inputMode="numeric"
-                  placeholder="e.g. 1234"
-                  value={resetPinData.pin}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                    setResetPinData((prev) => ({ ...prev, pin: val }));
-                  }}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
-                  required
-                />
-              </div>
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowResetPinModal(false);
+                      setAuthMode("password");
+                    }}
+                    className="text-blue-700 font-bold hover:underline cursor-pointer"
+                  >
+                    Or Sign In Using Password →
+                  </button>
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Confirm 4-Digit Security PIN
-                </label>
-                <input
-                  type="password"
-                  maxLength={4}
-                  inputMode="numeric"
-                  placeholder="e.g. 1234"
-                  value={resetPinData.confirmPin}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                    setResetPinData((prev) => ({ ...prev, confirmPin: val }));
-                  }}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
-                  required
-                />
-              </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPinModal(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetOtpLoading || !resetPinData.identifier.trim()}
+                    className="flex-1 py-2.5 rounded-xl bg-blue-700 text-white font-bold text-xs hover:bg-blue-800 disabled:opacity-60 cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    {resetOtpLoading ? (
+                      <>
+                        <FiLoader className="animate-spin" size={14} />
+                        <span>Sending OTP...</span>
+                      </>
+                    ) : (
+                      "Send OTP to Email →"
+                    )}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* STEP 2: Enter OTP & Set New 4-Digit PIN */
+              <form onSubmit={handleResetPinSubmit} className="mt-4 space-y-3.5">
+                {/* Email Confirmation Notice */}
+                <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start justify-between gap-2">
+                  <div>
+                    <span className="font-bold text-blue-800">OTP Sent via Brevo</span>
+                    <p className="text-[11px] text-blue-700 mt-0.5">
+                      Sent to: <strong>{resetPinMaskedEmail}</strong>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setResetPinStep("identifier")}
+                    className="text-[11px] text-blue-600 font-bold hover:underline cursor-pointer"
+                  >
+                    Change
+                  </button>
+                </div>
 
-              <div className="flex items-center justify-between text-xs pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowResetPinModal(false);
-                    setAuthMode("password");
-                  }}
-                  className="text-blue-700 font-bold hover:underline cursor-pointer"
-                >
-                  Or Sign In Using Password →
-                </button>
-              </div>
+                {/* OTP Input */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Enter Verification OTP Code *
+                    </label>
+                    <button
+                      type="button"
+                      disabled={resetOtpTimer > 0 || resetOtpLoading}
+                      onClick={() => handleSendResetPinOtp()}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-bold disabled:text-slate-400 cursor-pointer"
+                    >
+                      {resetOtpTimer > 0 ? `Resend in ${resetOtpTimer}s` : "Resend OTP"}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    inputMode="numeric"
+                    placeholder="Enter 6-digit OTP from email"
+                    value={resetPinOtp}
+                    onChange={(e) => setResetPinOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm font-mono tracking-widest text-center focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                    required
+                  />
+                </div>
 
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowResetPinModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={resetPinLoading}
-                  className="flex-1 py-2.5 rounded-xl bg-blue-700 text-white font-bold text-xs hover:bg-blue-800 disabled:opacity-60 cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  {resetPinLoading ? (
-                    <FiLoader className="animate-spin" size={14} />
-                  ) : (
-                    "Save & Lock PIN"
-                  )}
-                </button>
-              </div>
-            </form>
+                {/* New PIN */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Choose New Unique 4-Digit PIN
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    inputMode="numeric"
+                    placeholder="e.g. 1234"
+                    value={resetPinData.pin}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      setResetPinData((prev) => ({ ...prev, pin: val }));
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm font-mono text-center tracking-widest focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                    required
+                  />
+                </div>
+
+                {/* Confirm PIN */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Confirm 4-Digit Security PIN
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    inputMode="numeric"
+                    placeholder="e.g. 1234"
+                    value={resetPinData.confirmPin}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      setResetPinData((prev) => ({ ...prev, confirmPin: val }));
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 text-sm font-mono text-center tracking-widest focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setResetPinStep("identifier")}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-50 cursor-pointer"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetPinLoading || !resetPinOtp.trim() || resetPinData.pin.length !== 4}
+                    className="flex-1 py-2.5 rounded-xl bg-blue-700 text-white font-bold text-xs hover:bg-blue-800 disabled:opacity-60 cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    {resetPinLoading ? (
+                      <>
+                        <FiLoader className="animate-spin" size={14} />
+                        <span>Verifying...</span>
+                      </>
+                    ) : (
+                      "Verify OTP & Save PIN"
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

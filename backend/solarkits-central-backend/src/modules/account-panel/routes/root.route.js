@@ -99,4 +99,34 @@ router.post('/accounts/procurement/sync-warehouse-delivery-orders', check_auth, 
 router.get('/accounts/dashboard-overview', check_auth, accounts_handler.get_dashboard_overview);
 router.post('/accounts/dashboard-tasks/:id/status', check_auth, accounts_handler.update_dashboard_task_status);
 
+// Core Accounting Module: Dynamic Accounting Heads, Vouchers, Ledgers & Financial Statements
+const accountingModuleRoute = require('./accounting.module.route');
+router.use('/accounts/accounting', accountingModuleRoute);
+router.use('/accounting', accountingModuleRoute);
+
+// Module 2: GST Management & Tax Accounting
+const gstModuleRoute = require('./gst.module.route');
+router.use('/accounts/gst', gstModuleRoute);
+router.use('/gst', gstModuleRoute);
+
+// Module 3: Invoice Validation & Statutory Compliance Management
+const complianceModuleRoute = require('./compliance.module.route');
+router.use('/accounts/compliance', complianceModuleRoute);
+router.use('/compliance', complianceModuleRoute);
+
+// Module 4: Dynamic Expense Management & Approval Workflow
+const expenseModuleRoute = require('./expense.module.route');
+router.use('/accounts/expenses', expenseModuleRoute);
+router.use('/expenses', expenseModuleRoute);
+
+// Module 5: Loan Eligibility & Warehouse Development Recommendation
+const warehouseFinanceRoute = require('./warehouse_finance.module.route');
+router.use('/accounts/warehouse-finance', warehouseFinanceRoute);
+router.use('/warehouse-finance', warehouseFinanceRoute);
+
+// Module 6: Business Performance & Executive Finance Dashboard
+const executiveRoute = require('./executive.module.route');
+router.use('/accounts/executive-finance', executiveRoute);
+router.use('/executive-finance', executiveRoute);
+
 module.exports = router;
