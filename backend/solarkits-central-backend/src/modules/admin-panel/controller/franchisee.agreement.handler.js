@@ -150,6 +150,18 @@ exports.create_agreement = async (req, res) => {
       });
     }
 
+    // Resolve uploaded agreement PDF if multipart form data was submitted
+    let final_document_url = document_url || null;
+    let final_document_name = document_name || null;
+
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      const pdfFile = req.files.find(f => f.fieldname === 'agreement_pdf' || f.fieldname === 'document' || f.fieldname === 'file') || req.files[0];
+      if (pdfFile) {
+        final_document_url = pdfFile.path;
+        final_document_name = pdfFile.originalname;
+      }
+    }
+
     const count = await FranchiseeAgreement.countDocuments();
     const currentYear = new Date().getFullYear();
     const agreement_number = `AGR-SKT-${currentYear}-${String(count + 1).padStart(4, '0')}`;
@@ -162,8 +174,8 @@ exports.create_agreement = async (req, res) => {
       duration_months: duration_months || 24,
       start_date: new Date(start_date),
       end_date: new Date(end_date),
-      document_url: document_url || null,
-      document_name: document_name || null,
+      document_url: final_document_url,
+      document_name: final_document_name,
       setup_fee: setup_fee || 0,
       renewal_fee: renewal_fee || 0,
       security_deposit: security_deposit || 0,
@@ -208,11 +220,24 @@ exports.renew_agreement = async (req, res) => {
       payment_reference,
       remarks,
       document_url,
+      document_name,
     } = req.body;
 
     const agreement = await FranchiseeAgreement.findById(id);
     if (!agreement || agreement.deleted_at) {
       return res.status(404).json({ status: 'error', message: 'Agreement not found.' });
+    }
+
+    // Resolve uploaded renewed agreement PDF if multipart form data was submitted
+    let final_document_url = document_url || null;
+    let final_document_name = document_name || null;
+
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      const pdfFile = req.files.find(f => f.fieldname === 'agreement_pdf' || f.fieldname === 'document' || f.fieldname === 'file') || req.files[0];
+      if (pdfFile) {
+        final_document_url = pdfFile.path;
+        final_document_name = pdfFile.originalname;
+      }
     }
 
     // Record previous agreement state into renewal history
@@ -225,13 +250,18 @@ exports.renew_agreement = async (req, res) => {
       renewal_fee_paid: Number(renewal_fee_paid || 0),
       payment_reference: payment_reference || null,
       remarks: remarks || 'Agreement successfully renewed for new term.',
+      document_url: agreement.document_url || null,
+      document_name: agreement.document_name || null,
     });
 
     agreement.start_date = new Date(new_start_date || agreement.end_date);
     agreement.end_date = new Date(new_end_date);
     agreement.version = String((parseFloat(agreement.version || '1.0') + 1.0).toFixed(1));
     agreement.status = 'active';
-    if (document_url) agreement.document_url = document_url;
+    if (final_document_url) {
+      agreement.document_url = final_document_url;
+      agreement.document_name = final_document_name || agreement.document_name;
+    }
     agreement.updated_by = req.user?._id || null;
 
     await agreement.save();

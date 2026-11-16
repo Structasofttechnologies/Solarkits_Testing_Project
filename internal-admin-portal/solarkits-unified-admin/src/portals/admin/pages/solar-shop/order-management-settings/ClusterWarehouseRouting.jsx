@@ -752,95 +752,105 @@ export default function ClusterWarehouseRouting() {
           {/* TAB 3: KIT CAPABILITIES PER WAREHOUSE */}
           {/* ───────────────────────────────────────────────────────────── */}
           {activeTab === "capabilities" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {capabilities.map((wh) => (
-                <div
-                  key={wh.warehouse_id || wh.warehouse_code}
-                  className="bg-surface rounded-xl border border-border p-6 shadow-sm space-y-4 hover:border-primary/50 transition-all"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-bold text-text-primary text-lg flex items-center gap-2">
-                        <FaWarehouse className="text-primary" /> {wh.warehouse_name}
-                      </h3>
-                      <p className="text-xs text-text-secondary flex items-center gap-1 mt-1">
-                        <FaMapMarkerAlt /> {wh.location || "India"} | Code: {wh.warehouse_code}
-                      </p>
+            capabilities.length === 0 ? (
+              <div className="bg-surface rounded-xl border border-border p-12 text-center space-y-2">
+                <FaWarehouse className="mx-auto text-4xl text-text-secondary/40 mb-2" />
+                <h4 className="font-bold text-text-primary text-base">No Warehouse Capabilities Found</h4>
+                <p className="text-xs text-text-secondary max-w-md mx-auto">
+                  No active company warehouses found. Active warehouses from Warehouse Management will automatically appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {capabilities.map((wh) => (
+                  <div
+                    key={wh.warehouse_id || wh.warehouse_code}
+                    className="bg-surface rounded-xl border border-border p-6 shadow-sm space-y-4 hover:border-primary/50 transition-all"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-bold text-text-primary text-lg flex items-center gap-2">
+                          <FaWarehouse className="text-primary" /> {wh.warehouse_name}
+                        </h3>
+                        <p className="text-xs text-text-secondary flex items-center gap-1 mt-1">
+                          <FaMapMarkerAlt /> {wh.location || "India"} | Code: {wh.warehouse_code}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-bg border border-border text-text-primary flex items-center gap-1">
+                          <FaClock className="text-amber-500" /> Cutoff: {wh.cutoff_time}
+                        </span>
+                        <button
+                          onClick={() => handleOpenCapacityModal(wh)}
+                          className="p-1.5 hover:bg-bg rounded text-text-secondary hover:text-primary border border-border transition-colors text-xs"
+                          title="Edit Dispatch Limits"
+                        >
+                          <FaEdit />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-bg border border-border text-text-primary flex items-center gap-1">
-                        <FaClock className="text-amber-500" /> Cutoff: {wh.cutoff_time}
+
+                    <div className="bg-bg/60 p-4 rounded-lg border border-border space-y-3">
+                      <div className="text-xs font-semibold uppercase text-text-secondary tracking-wider">
+                        Supported Kit Fulfillment Types
+                      </div>
+
+                      <div className="flex items-center justify-between py-1 border-b border-border/50">
+                        <div>
+                          <div className="text-sm font-medium text-text-primary">Combo Kits</div>
+                          <div className="text-xs text-text-secondary">Standard pre-engineered turnkey packages</div>
+                        </div>
+                        <ToggleButton
+                          checked={Boolean(wh.capabilities?.combo_kit)}
+                          isChecked={Boolean(wh.capabilities?.combo_kit)}
+                          onChange={(val) =>
+                            handleToggleCapability(wh.warehouse_id || wh.warehouse_code || wh.id, "combo_kit", val)
+                          }
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between py-1 border-b border-border/50">
+                        <div>
+                          <div className="text-sm font-medium text-text-primary">Customize Kits</div>
+                          <div className="text-xs text-text-secondary">Customized BOM configurations</div>
+                        </div>
+                        <ToggleButton
+                          checked={Boolean(wh.capabilities?.customize_kit)}
+                          isChecked={Boolean(wh.capabilities?.customize_kit)}
+                          onChange={(val) =>
+                            handleToggleCapability(wh.warehouse_id || wh.warehouse_code || wh.id, "customize_kit", val)
+                          }
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between py-1">
+                        <div>
+                          <div className="text-sm font-medium text-text-primary">Bulk Kits</div>
+                          <div className="text-xs text-text-secondary">High-capacity commercial lots</div>
+                        </div>
+                        <ToggleButton
+                          checked={Boolean(wh.capabilities?.bulk_kit)}
+                          isChecked={Boolean(wh.capabilities?.bulk_kit)}
+                          onChange={(val) =>
+                            handleToggleCapability(wh.warehouse_id || wh.warehouse_code || wh.id, "bulk_kit", val)
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-text-secondary pt-2">
+                      <span className="flex items-center gap-1">
+                        <FaShippingFast className="text-primary" /> Max Daily Dispatch:{" "}
+                        <strong className="text-text-primary">{wh.daily_capacity} Kits/day</strong>
                       </span>
-                      <button
-                        onClick={() => handleOpenCapacityModal(wh)}
-                        className="p-1.5 hover:bg-bg rounded text-text-secondary hover:text-primary border border-border transition-colors text-xs"
-                        title="Edit Dispatch Limits"
-                      >
-                        <FaEdit />
-                      </button>
+                      <span className="text-emerald-500 font-medium flex items-center gap-1">
+                        <FaCheck /> Routing Active
+                      </span>
                     </div>
                   </div>
-
-                  <div className="bg-bg/60 p-4 rounded-lg border border-border space-y-3">
-                    <div className="text-xs font-semibold uppercase text-text-secondary tracking-wider">
-                      Supported Kit Fulfillment Types
-                    </div>
-
-                    <div className="flex items-center justify-between py-1 border-b border-border/50">
-                      <div>
-                        <div className="text-sm font-medium text-text-primary">Combo Kits</div>
-                        <div className="text-xs text-text-secondary">Standard pre-engineered turnkey packages</div>
-                      </div>
-                      <ToggleButton
-                        checked={Boolean(wh.capabilities?.combo_kit)}
-                        isChecked={Boolean(wh.capabilities?.combo_kit)}
-                        onChange={(val) =>
-                          handleToggleCapability(wh.warehouse_id || wh.warehouse_code || wh.id, "combo_kit", val)
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between py-1 border-b border-border/50">
-                      <div>
-                        <div className="text-sm font-medium text-text-primary">Customize Kits</div>
-                        <div className="text-xs text-text-secondary">Customized BOM configurations</div>
-                      </div>
-                      <ToggleButton
-                        checked={Boolean(wh.capabilities?.customize_kit)}
-                        isChecked={Boolean(wh.capabilities?.customize_kit)}
-                        onChange={(val) =>
-                          handleToggleCapability(wh.warehouse_id || wh.warehouse_code || wh.id, "customize_kit", val)
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between py-1">
-                      <div>
-                        <div className="text-sm font-medium text-text-primary">Bulk Kits</div>
-                        <div className="text-xs text-text-secondary">High-capacity commercial lots</div>
-                      </div>
-                      <ToggleButton
-                        checked={Boolean(wh.capabilities?.bulk_kit)}
-                        isChecked={Boolean(wh.capabilities?.bulk_kit)}
-                        onChange={(val) =>
-                          handleToggleCapability(wh.warehouse_id || wh.warehouse_code || wh.id, "bulk_kit", val)
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs text-text-secondary pt-2">
-                    <span className="flex items-center gap-1">
-                      <FaShippingFast className="text-primary" /> Max Daily Dispatch:{" "}
-                      <strong className="text-text-primary">{wh.daily_capacity} Kits/day</strong>
-                    </span>
-                    <span className="text-emerald-500 font-medium flex items-center gap-1">
-                      <FaCheck /> Routing Active
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )
           )}
         </>
       )}
