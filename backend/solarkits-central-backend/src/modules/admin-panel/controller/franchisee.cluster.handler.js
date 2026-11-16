@@ -106,6 +106,7 @@ exports.create_cluster = async (req, res) => {
       agreement_period_years,
       effective_date,
       is_shared_territory_allowed,
+      color_code,
     } = req.body;
 
     if (!cluster_name || !cluster_name.trim()) {
@@ -177,6 +178,7 @@ exports.create_cluster = async (req, res) => {
       district_names,
       franchisee_store_type: franchisee_store_type || 'district_wise_franchisee_store',
       status: status || (assigned_franchisee_id ? 'allotted' : 'available'),
+      color_code: color_code || '#2563eb',
       assigned_franchisee_id: assigned_franchisee_id || null,
       primary_bde_id: primary_bde_id || null,
       support_bde_ids: Array.isArray(support_bde_ids) ? support_bde_ids : [],
@@ -300,6 +302,7 @@ exports.update_cluster = async (req, res) => {
       support_bde_ids,
       is_shared_territory_allowed,
       agreement_period_years,
+      color_code,
       reason, // Required if active franchisee exists and territory changes
     } = req.body;
 
@@ -366,6 +369,7 @@ exports.update_cluster = async (req, res) => {
     }
 
     if (status) cluster.status = status;
+    if (color_code) cluster.color_code = color_code;
     if (assigned_franchisee_id !== undefined) cluster.assigned_franchisee_id = assigned_franchisee_id || null;
     if (primary_bde_id !== undefined) cluster.primary_bde_id = primary_bde_id || null;
     if (support_bde_ids !== undefined) cluster.support_bde_ids = support_bde_ids;

@@ -31,6 +31,21 @@ import ConfirmationPopup from '@/components/ConfirmationPopup';
 import Loader from '@/components/Loader';
 import PageHeader from '@/components/PageHeader';
 
+export const PRESET_CLUSTER_COLORS = [
+  { label: 'Sapphire Blue', color: '#2563eb' },
+  { label: 'Emerald Green', color: '#059669' },
+  { label: 'Royal Purple', color: '#7c3aed' },
+  { label: 'Sunburst Orange', color: '#ea580c' },
+  { label: 'Electric Cyan', color: '#0891b2' },
+  { label: 'Ruby Pink', color: '#db2777' },
+  { label: 'Deep Teal', color: '#0d9488' },
+  { label: 'Amber Gold', color: '#d97706' },
+  { label: 'Classic Indigo', color: '#4f46e5' },
+  { label: 'Lime Green', color: '#65a30d' },
+  { label: 'Crimson Rose', color: '#e11d48' },
+  { label: 'Sky Cerulean', color: '#0284c7' },
+];
+
 export default function ClusterManagement({ onOpenMapWithDistrict }) {
   const dispatch = useDispatch();
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -60,6 +75,7 @@ export default function ClusterManagement({ onOpenMapWithDistrict }) {
   const [clusterName, setClusterName] = useState('');
   const [selectedState, setSelectedState] = useState('');
   const [selectedDistricts, setSelectedDistricts] = useState([]);
+  const [colorCode, setColorCode] = useState('#2563eb');
   const [clusterStatus, setClusterStatus] = useState('available');
   const [assignedFranchisee, setAssignedFranchisee] = useState('');
   const [primaryBde, setPrimaryBde] = useState('');
@@ -237,6 +253,7 @@ export default function ClusterManagement({ onOpenMapWithDistrict }) {
     setClusterName('');
     setSelectedState('');
     setSelectedDistricts([]);
+    setColorCode('#2563eb');
     setClusterStatus('available');
     setAssignedFranchisee('');
     setPrimaryBde('');
@@ -259,6 +276,7 @@ export default function ClusterManagement({ onOpenMapWithDistrict }) {
     setClusterName(cluster.cluster_name);
     setSelectedState(cluster.state_id?._id || cluster.state_id);
     setSelectedDistricts(cluster.district_ids?.map((d) => d._id || d) || []);
+    setColorCode(cluster.color_code || '#2563eb');
     setClusterStatus(cluster.status);
     setAssignedFranchisee(cluster.assigned_franchisee_id?._id || '');
     setPrimaryBde(cluster.primary_bde_id?._id || '');
@@ -311,6 +329,7 @@ export default function ClusterManagement({ onOpenMapWithDistrict }) {
         district_ids: selectedDistricts,
         franchisee_store_type: 'district_wise_franchisee_store',
         status: clusterStatus,
+        color_code: colorCode,
         assigned_franchisee_id: assignedFranchisee || null,
         primary_bde_id: primaryBde || null,
         support_bde_ids: supportBdes,
@@ -516,8 +535,15 @@ export default function ClusterManagement({ onOpenMapWithDistrict }) {
                     <tr key={cluster._id} className="hover:bg-slate-50/70 transition-colors">
                       {/* Cluster Name & Code */}
                       <td className="px-5 py-4">
-                        <div className="font-extrabold text-slate-900">{cluster.cluster_name}</div>
-                        <div className="inline-flex items-center gap-1 mt-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs border border-black/10"
+                            style={{ backgroundColor: cluster.color_code || '#2563eb' }}
+                            title={`Cluster Theme: ${cluster.color_code || '#2563eb'}`}
+                          />
+                          <span className="font-extrabold text-slate-900">{cluster.cluster_name}</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1 mt-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 ml-5.5">
                           {cluster.cluster_code}
                         </div>
                       </td>
@@ -578,9 +604,8 @@ export default function ClusterManagement({ onOpenMapWithDistrict }) {
                       {/* Status */}
                       <td className="px-5 py-4 text-center">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border capitalize ${
-                            statusColors[cluster.status] || 'bg-slate-100 text-slate-600'
-                          }`}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border capitalize ${statusColors[cluster.status] || 'bg-slate-100 text-slate-600'
+                            }`}
                         >
                           {cluster.status}
                         </span>
@@ -688,6 +713,89 @@ export default function ClusterManagement({ onOpenMapWithDistrict }) {
                 </div>
               </div>
 
+              {/* Section 1.5: Cluster Territory Color Theme Picker */}
+              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 uppercase">
+                      Cluster Territory Color Theme <span className="text-red-500">*</span>
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      Choose the distinct color used across the map and territory explorer for this cluster
+                    </p>
+                  </div>
+
+                  {/* Live Preview Pill */}
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white shadow-2xs">
+                    <span
+                      className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs border border-black/10"
+                      style={{ backgroundColor: colorCode }}
+                    />
+                    <span className="text-xs font-black text-slate-800 max-w-[120px] truncate">
+                      {clusterName ? clusterName.trim() : 'Preview'}
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">
+                      {colorCode}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 12 Preset Themes */}
+                <div>
+                  <div className="text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider">
+                    Quick Preset Color Themes
+                  </div>
+                  <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
+                    {PRESET_CLUSTER_COLORS.map((item) => {
+                      const isSelected = colorCode.toLowerCase() === item.color.toLowerCase();
+                      return (
+                        <button
+                          key={item.color}
+                          type="button"
+                          onClick={() => setColorCode(item.color)}
+                          title={`${item.label} (${item.color})`}
+                          className={`group relative h-8 rounded-lg flex items-center justify-center transition-all ${isSelected
+                              ? 'ring-2 ring-offset-2 ring-slate-900 scale-105 shadow-md'
+                              : 'hover:scale-105 opacity-90 hover:opacity-100'
+                            }`}
+                          style={{ backgroundColor: item.color }}
+                        >
+                          {isSelected && <FiCheck className="text-white drop-shadow-md" size={14} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Custom Native Color Input & Hex Code */}
+                <div className="flex items-center gap-3 pt-2 border-t border-slate-200/60">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] font-bold text-slate-600">Custom Color:</label>
+                    <input
+                      type="color"
+                      value={colorCode}
+                      onChange={(e) => setColorCode(e.target.value)}
+                      className="w-8 h-7 rounded border border-slate-200 cursor-pointer p-0.5 bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400 font-mono font-bold">HEX:</span>
+                    <input
+                      type="text"
+                      value={colorCode}
+                      onChange={(e) => {
+                        let val = e.target.value;
+                        if (!val.startsWith('#') && val.length > 0) val = '#' + val;
+                        setColorCode(val);
+                      }}
+                      placeholder="#2563EB"
+                      maxLength={7}
+                      className="w-24 px-2 py-1 text-xs font-mono font-bold uppercase bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Section 2: District Selection */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -715,13 +823,12 @@ export default function ClusterManagement({ onOpenMapWithDistrict }) {
                       return (
                         <label
                           key={dId}
-                          className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer select-none transition-all ${
-                            isSelected
+                          className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer select-none transition-all ${isSelected
                               ? 'bg-orange-50 border-orange-300 font-extrabold text-orange-950'
                               : isConflict
-                              ? 'opacity-50 bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400'
-                              : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
-                          }`}
+                                ? 'opacity-50 bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400'
+                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                            }`}
                         >
                           <input
                             type="checkbox"

@@ -149,7 +149,7 @@ export default function FranchiseePerformanceTracker() {
         </div>
         <div className="flex gap-2">
           <Link
-            to="/admin-panel/solar-shop/franchise-clusters?tab=performance"
+            to="/admin-panel/franchisee-performance-dashboard"
             className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
           >
             <FiBarChart2 size={14} /> Open Cluster Performance Dashboard

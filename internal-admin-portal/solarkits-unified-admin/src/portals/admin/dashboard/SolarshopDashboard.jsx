@@ -373,7 +373,7 @@ const menus = [
                     unique_id: "FPO_SETTINGS"
                 },
                 {
-                    name: "Agreement Settings",
+                    name: "Franchisee Agreements",
                     icon: <FiFileText />,
                     path: "/admin-panel/solar-shop/reseller-management/settings",
                     unique_id: "RSL_SETTINGS"
@@ -480,12 +480,6 @@ const menus = [
                     name: "Goal Settings",
                     icon: <FiSliders />,
                     path: "/admin-panel/solar-shop/franchise-clusters?tab=goals",
-                    unique_id: "RSL_MGMT"
-                },
-                {
-                    name: "Performance Dashboard",
-                    icon: <FiBarChart2 />,
-                    path: "/admin-panel/solar-shop/franchise-clusters?tab=performance",
                     unique_id: "RSL_MGMT"
                 },
                 {

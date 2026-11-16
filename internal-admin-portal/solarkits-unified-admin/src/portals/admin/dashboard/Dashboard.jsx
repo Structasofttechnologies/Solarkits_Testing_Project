@@ -25,12 +25,13 @@ import { FaMagnifyingGlassLocation, FaMapLocationDot } from "react-icons/fa6";
 import { BiSolidLayerPlus } from "react-icons/bi";
 import { GoProject } from "react-icons/go";
 import { HiCube, HiOutlineTemplate } from "react-icons/hi";
-import { FiSmartphone, FiUsers } from "react-icons/fi";
+import { FiSmartphone, FiUsers, FiBarChart2 } from "react-icons/fi";
 import VisionDashboard from "../pages/dashboard/vision-dashboard/VisionDashboard";
 
 /* ===================== Lazy Pages ===================== */
 
 const Home = lazy(() => import("../pages/dashboard/Home"));
+const FranchiseePerformanceDashboard = lazy(() => import("../pages/solar-shop/franchisee-clusters/FranchiseePerformanceDashboard"));
 const Operations = lazy(() => import("../pages/dashboard/operations/Operations"));
 const Settings = lazy(() => import("../pages/dashboard/settings/Settings"));
 const ManageUsers = lazy(() => import("../pages/dashboard/manage-users/ManageUsers"));
@@ -55,6 +56,7 @@ const KnowledgeCenterManagement = lazy(() => import("../pages/dashboard/knowledg
 const menus = [
   [
     { name: "Dashboard", icon: <FaHome />, path: "/admin-panel/home", unique_id: "00000000" },
+    { name: "Franchisee Performance Dashboard", icon: <FiBarChart2 />, path: "/admin-panel/franchisee-performance-dashboard", unique_id: "00000000" },
     { name: "Vision Dashboard", icon: <MdVisibility />, path: "/admin-panel/vision-dashboard", unique_id: "00000000" },
     { name: "Configuration Dashboard", icon: <MdTune />, path: "/admin-panel/configuration-dashboard", unique_id: "00000000" },
     { name: "Operations Dashboard", icon: <MdEngineering />, path: "/admin-panel/operations-dashboard", unique_id: "00000000" },
@@ -413,6 +415,7 @@ export default function Dashboard() {
   // Dynamic Title detection
   const getPageTitle = () => {
     const path = location.pathname;
+    if (path.includes('/franchisee-performance-dashboard')) return 'Franchisee Performance Dashboard';
     if (path.includes('/home')) return 'Home Dashboard';
     if (path.includes('/vision-dashboard')) return 'Vision Dashboard';
     if (path.includes('/configuration-dashboard')) return 'Configuration Dashboard';
@@ -465,6 +468,17 @@ export default function Dashboard() {
                 className="min-h-full"
               >
                 <Routes location={location}>
+
+                  <Route
+                    path="/franchisee-performance-dashboard"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Franchisee Performance Dashboard..." />}>
+                          <FranchiseePerformanceDashboard />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
 
                   <Route
                     path="/vision-dashboard"

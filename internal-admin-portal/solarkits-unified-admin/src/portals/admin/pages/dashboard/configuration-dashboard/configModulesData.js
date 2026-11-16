@@ -567,16 +567,16 @@ export const CONFIG_MODULES = [
   },
   {
     id: 'fm-agreements',
-    title: 'Agreement Settings',
+    title: 'Franchisee Agreements',
     category: 'franchisee',
     categoryLabel: 'Franchisee Mgmt',
-    description: 'Configure legal agreement templates, tenure rules, and digital signature terms for franchisees.',
+    description: 'Track franchisee agreements, validity lifecycles, renewal chains, contract templates, and flagship exclusions.',
     route: '/admin-panel/solar-shop/reseller-management/settings',
-    primaryAction: 'Agreement Settings',
+    primaryAction: 'Franchisee Agreements',
     icon: 'FiFileText',
     isRegional: false,
     badge: 'Legal & Terms',
-    keywords: ['agreement settings', 'contract', 'franchisee settings', 'legal', 'tenure', 'franchisee management'],
+    keywords: ['agreements', 'agreement settings', 'contract', 'franchisee agreements', 'franchisee settings', 'legal', 'tenure', 'franchisee management'],
   },
 
   // ──────────────────────────────────────────────────────────────────────────
