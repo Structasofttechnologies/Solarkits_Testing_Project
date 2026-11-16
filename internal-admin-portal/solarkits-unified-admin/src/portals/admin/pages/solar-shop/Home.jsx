@@ -19,10 +19,10 @@ const COUNTRY_CONFIGS = {
     stats: [
       { label: "Daily Sales", value: "₹45K", description: "Across 28 states" },
       { label: "Active Retailers", value: "480", description: "Verified GSTIN shops" },
-      { label: "Pending Approvals", value: "18 EPCs", description: "MNRE registered" },
-      { label: "ALMM Listings", value: "1,200+", description: "Approved Solar Modules" }
+      { label: "Online Orders", value: "38 Active", description: "Gateway paid & verified" },
+      { label: "Shop Condition", value: "100% Operational", description: "Warehouses & Inward Sync" }
     ],
-    infoMessage: "Monitor state-wise subsidy payouts, ALMM module listings, and GST compliance reports."
+    infoMessage: "Monitor real-time e-commerce orders, shop working condition, warehouse inventory, and GST compliance."
   },
   australia: {
     code: "AU",
@@ -138,8 +138,11 @@ export default function Home() {
             >
               <FaLayerGroup /> Add & Manage BOS Kits & Custom Components &rarr;
             </button>
-            <button className="px-5 py-2.5 text-sm font-bold bg-surface-hover hover:bg-surface-hover/80 text-text-primary rounded-xl border border-border transition-all">
-              View Inventory
+            <button 
+              onClick={() => navigate(`/admin-panel/solar-shop/${activeKey}/combokit-configurations`)}
+              className="px-5 py-2.5 text-sm font-bold bg-surface-hover hover:bg-surface-hover/80 text-text-primary rounded-xl border border-border transition-all cursor-pointer flex items-center gap-2"
+            >
+              <FaBoxOpen /> View Inventory
             </button>
           </div>
         </div>
@@ -148,21 +151,27 @@ export default function Home() {
         <div className="grid grid-cols-2 gap-4">
           {activeKey === 'india' ? (
             <>
-              <div className="card p-5 border border-orange-500/10 bg-gradient-to-br from-orange-500/[0.02] to-transparent hover:scale-105 transition-transform duration-300">
+              <div 
+                onClick={() => navigate('/admin-panel/solar-shop/accounting-overview')}
+                className="card p-5 border border-orange-500/10 bg-gradient-to-br from-orange-500/[0.02] to-transparent hover:scale-105 transition-transform duration-300 cursor-pointer"
+              >
                 <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center mb-3.5">
                   <FaFileInvoiceDollar size={18} />
                 </div>
-                <h4 className="font-bold text-sm text-text-primary">GST Returns</h4>
-                <p className="text-text-muted text-xs mt-1">E-invoicing status</p>
-                <div className="mt-4 text-xs font-bold text-orange-600">File GSTR-1 &rarr;</div>
+                <h4 className="font-bold text-sm text-text-primary">GST Returns & Compliance</h4>
+                <p className="text-text-muted text-xs mt-1">E-invoicing & GSTR-1/3B Reconciliation</p>
+                <div className="mt-4 text-xs font-bold text-orange-600">Open Accounting & GST Module &rarr;</div>
               </div>
-              <div className="card p-5 border border-green-500/10 bg-gradient-to-br from-green-500/[0.02] to-transparent hover:scale-105 transition-transform duration-300">
+              <div 
+                onClick={() => navigate('/admin-panel/solar-shop/order-management-settings/journey-dashboard')}
+                className="card p-5 border border-green-500/10 bg-gradient-to-br from-green-500/[0.02] to-transparent hover:scale-105 transition-transform duration-300 cursor-pointer"
+              >
                 <div className="w-10 h-10 rounded-xl bg-green-500/10 text-green-600 flex items-center justify-center mb-3.5">
-                  <FaRegHandshake size={18} />
+                  <FaShoppingCart size={18} />
                 </div>
-                <h4 className="font-bold text-sm text-text-primary">State Subsidies</h4>
-                <p className="text-text-muted text-xs mt-1">PM Surya Ghar portal</p>
-                <div className="mt-4 text-xs font-bold text-green-600">Track Claims &rarr;</div>
+                <h4 className="font-bold text-sm text-text-primary">Online & Offline Orders</h4>
+                <p className="text-text-muted text-xs mt-1">38 Online • 14 Offline PO Orders</p>
+                <div className="mt-4 text-xs font-bold text-green-600">Track Order Pipeline &rarr;</div>
               </div>
             </>
           ) : activeKey === 'australia' ? (
@@ -208,10 +217,12 @@ export default function Home() {
           <div className="card p-5 hover:scale-105 transition-transform duration-300 col-span-2">
             <div className="flex justify-between items-center">
               <div>
-                <h4 className="font-bold text-sm text-text-primary">Real-Time Transactions</h4>
-                <p className="text-text-muted text-xs mt-0.5">Payment gateways operating normally</p>
+                <h4 className="font-bold text-sm text-text-primary">Shop Working Condition & Real-Time Sync</h4>
+                <p className="text-text-muted text-xs mt-0.5">Central Inventory, Payment Gateways & Offline POs Operating Normally</p>
               </div>
-              <span className="px-2 py-0.5 text-[10px] font-bold text-success bg-success-soft rounded-full uppercase">Online</span>
+              <span className="px-3 py-1 text-xs font-bold text-success bg-success-soft rounded-full uppercase border border-success/20">
+                ● 100% Operational
+              </span>
             </div>
           </div>
         </div>
@@ -226,7 +237,7 @@ export default function Home() {
                 <FaHourglassHalf className="text-primary" /> Active Inventory Reservations vs Available Stock
               </h3>
               <p className="text-xs text-text-secondary">
-                Real-time snapshot of reserved quantities in checkout pipelines vs available warehouse constructs.
+                Real-time inventory and direct factory production kits tracking in checkout pipelines vs available warehouse stock.
               </p>
             </div>
             <span className="text-xs font-semibold px-2.5 py-1 bg-primary-soft text-primary border border-primary/20 rounded-full shrink-0">

@@ -1,3 +1,4 @@
+// Nodemon reload timestamp: 2026-11-14T19:30:00
 require('dotenv').config();
 require('./keys/config/databases'); // Initialize database connections
 // Register SolarKits Service Tickets model
@@ -165,6 +166,20 @@ adminRouter.use('/delivery-management', require('./modules/admin-panel/routes/de
 
 // ─── Warehouse Panel routes accessible via Admin API ─────────────────────────
 adminRouter.use('/warehouse', require('./modules/warehouse-panel/routes/warehouse.route'));
+
+// ─── Core Accounting Module (Dynamic Heads, Vouchers, Ledgers & Statements) ───
+adminRouter.use('/accounts/accounting', require('./modules/account-panel/routes/accounting.module.route'));
+adminRouter.use('/accounting', require('./modules/account-panel/routes/accounting.module.route'));
+adminRouter.use('/accounts/gst', require('./modules/account-panel/routes/gst.module.route'));
+adminRouter.use('/gst', require('./modules/account-panel/routes/gst.module.route'));
+adminRouter.use('/accounts/compliance', require('./modules/account-panel/routes/compliance.module.route'));
+adminRouter.use('/compliance', require('./modules/account-panel/routes/compliance.module.route'));
+adminRouter.use('/accounts/expenses', require('./modules/account-panel/routes/expense.module.route'));
+adminRouter.use('/expenses', require('./modules/account-panel/routes/expense.module.route'));
+adminRouter.use('/accounts/warehouse-finance', require('./modules/account-panel/routes/warehouse_finance.module.route'));
+adminRouter.use('/warehouse-finance', require('./modules/account-panel/routes/warehouse_finance.module.route'));
+adminRouter.use('/accounts/executive-finance', require('./modules/account-panel/routes/executive.module.route'));
+adminRouter.use('/executive-finance', require('./modules/account-panel/routes/executive.module.route'));
 
 // ─── Admin Notification System & Real-Time Stream ────────────────────────────
 adminRouter.use('/notifications', require('./modules/admin-panel/routes/admin.notifications.route'));

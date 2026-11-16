@@ -27,17 +27,112 @@ const reasonOptions = [
   { value: 'Warranty replacement', text: 'Warranty replacement' }
 ];
 
+const stateOptions = [
+  { value: 'Uttar Pradesh', text: 'Uttar Pradesh' },
+  { value: 'Maharashtra', text: 'Maharashtra' },
+  { value: 'Rajasthan', text: 'Rajasthan' },
+  { value: 'Madhya Pradesh', text: 'Madhya Pradesh' },
+  { value: 'Gujarat', text: 'Gujarat' },
+  { value: 'Delhi NCR', text: 'Delhi NCR' }
+];
+
+const TERRITORY_CLUSTER_MAP = {
+  'Uttar Pradesh': [
+    { value: 'Lucknow-Awadh', text: 'Lucknow-Awadh Cluster' },
+    { value: 'Varanasi-Purvanchal', text: 'Varanasi-Purvanchal Cluster' },
+    { value: 'Kanpur-Bundelkhand', text: 'Kanpur-Bundelkhand Cluster' }
+  ],
+  'Maharashtra': [
+    { value: 'Bhiwandi-Thane', text: 'Bhiwandi-Thane Logistics Hub' },
+    { value: 'Pune-PCMC', text: 'Pune-PCMC Industrial Cluster' },
+    { value: 'Nagpur-Vidarbha', text: 'Nagpur-Vidarbha Cluster' }
+  ],
+  'Rajasthan': [
+    { value: 'Jaipur-Marwar', text: 'Jaipur-Marwar Cluster' },
+    { value: 'Jodhpur-Solar', text: 'Jodhpur Solar Belt Cluster' }
+  ],
+  'Madhya Pradesh': [
+    { value: 'Indore-Malwa', text: 'Indore-Malwa Cluster' },
+    { value: 'Bhopal-Central', text: 'Bhopal Cluster' }
+  ],
+  'Gujarat': [
+    { value: 'Ahmedabad-Sanand', text: 'Ahmedabad-Sanand Logistics Cluster' },
+    { value: 'Surat-South', text: 'Surat-South Gujarat Cluster' },
+    { value: 'Vadodara-Central', text: 'Vadodara Cluster' }
+  ],
+  'Delhi NCR': [
+    { value: 'Central-Delhi', text: 'Central Delhi Hub' },
+    { value: 'Gurgaon-Manesar', text: 'Gurgaon-Manesar Tech Hub' },
+    { value: 'Noida-GreaterNoida', text: 'Noida-Greater Noida Cluster' }
+  ]
+};
+
+const CLUSTER_ORDERS_MAP = {
+  'Lucknow-Awadh': [
+    { value: 'ORD-2026-1044', text: 'ORD-2026-1044 (5kW Tata Solar On-Grid Kit)' },
+    { value: 'ORD-2026-1082', text: 'ORD-2026-1082 (3.3kW Waaree DCR Kit)' },
+    { value: 'ORD-2026-1109', text: 'ORD-2026-1109 (10kW Commercial Hybrid Kit)' }
+  ],
+  'Varanasi-Purvanchal': [
+    { value: 'ORD-2026-2011', text: 'ORD-2026-2011 (3kW Residential Rooftop Kit)' },
+    { value: 'ORD-2026-2035', text: 'ORD-2026-2035 (5kW Luminous Smart Kit)' }
+  ],
+  'Bhiwandi-Thane': [
+    { value: 'ORD-2026-3041', text: 'ORD-2026-3041 (6kW Growatt Dual MPPT Kit)' },
+    { value: 'ORD-2026-3078', text: 'ORD-2026-3078 (12kW Microtek Industrial Kit)' }
+  ]
+};
+
+const ORDER_COMPONENTS_MAP = {
+  'ORD-2026-1044': [
+    { value: 'Solar PV Panels - Waaree 540W Mono PERC', text: 'Solar PV Panels - Waaree 540W Mono PERC', brand: 'Waaree' },
+    { value: 'Solar Inverter - Growatt 5kW Dual MPPT', text: 'Solar Inverter - Growatt 5kW Dual MPPT', brand: 'Growatt' },
+    { value: 'Galvanized MMS Structure - 3-Leg Heavy Duty', text: 'Galvanized MMS Structure - 3-Leg Heavy Duty', brand: 'Tata Solar' },
+    { value: 'ACDB / DCDB Protection Box with Type II SPD', text: 'ACDB / DCDB Protection Box with Type II SPD', brand: 'Havells' }
+  ],
+  'ORD-2026-1082': [
+    { value: 'Solar PV Modules - Tata Solar 400W DCR', text: 'Solar PV Modules - Tata Solar 400W DCR', brand: 'Tata Solar' },
+    { value: 'Grid-Tie Inverter - Luminous 3.3kW', text: 'Grid-Tie Inverter - Luminous 3.3kW', brand: 'Luminous' },
+    { value: 'DC Solar Cable 4 sq mm', text: 'DC Solar Cable 4 sq mm', brand: 'Polycab' }
+  ]
+};
+
+const DEFAULT_KIT_COMPONENTS = [
+  { value: 'Solar PV Panels (DCR / Non-DCR)', text: 'Solar PV Panels (DCR / Non-DCR)' },
+  { value: 'Solar Grid Inverter', text: 'Solar Grid Inverter' },
+  { value: 'Module Mounting Structure (MMS)', text: 'Module Mounting Structure (MMS)' },
+  { value: 'ACDB / DCDB Protection Box', text: 'ACDB / DCDB Protection Box' },
+  { value: 'DC Solar Cable / Connectors', text: 'DC Solar Cable / Connectors' }
+];
+
 export default function ProductReplacement() {
   const [replacements, setReplacements] = useState(initialReplacements);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Form states
-  const [orderId, setOrderId] = useState('');
-  const [serial, setSerial] = useState('');
+  // Form states with State -> Cluster -> Order -> Component selection
+  const [selectedState, setSelectedState] = useState('Uttar Pradesh');
+  const [selectedCluster, setSelectedCluster] = useState('Lucknow-Awadh');
+  const [orderId, setOrderId] = useState('ORD-2026-1044');
+  const [selectedComponent, setSelectedComponent] = useState('Solar PV Panels - Waaree 540W Mono PERC');
+  const [serial, setSerial] = useState('SN-TATA-540-0012');
   const [brand, setBrand] = useState('Tata Solar');
   const [reason, setReason] = useState('Damaged');
   const [warrantyChecked, setWarrantyChecked] = useState(false);
   const [warrantyValid, setWarrantyValid] = useState(null);
+
+  // Available clusters for selected state
+  const clusterOptions = TERRITORY_CLUSTER_MAP[selectedState] || [
+    { value: 'General-Cluster', text: `${selectedState} Central Cluster` }
+  ];
+
+  // Available orders for selected cluster
+  const orderOptions = CLUSTER_ORDERS_MAP[selectedCluster] || [
+    { value: 'ORD-GEN-1001', text: 'ORD-GEN-1001 (5kW Standard Solar Kit)' },
+    { value: 'ORD-GEN-1002', text: 'ORD-GEN-1002 (3kW Standard Solar Kit)' }
+  ];
+
+  // Available components for selected order
+  const componentOptions = ORDER_COMPONENTS_MAP[orderId] || DEFAULT_KIT_COMPONENTS;
 
   const checkWarranty = () => {
     if (!serial.trim()) return;
@@ -217,16 +312,73 @@ export default function ProductReplacement() {
               </div>
 
               <div className="space-y-4">
-                <CustomInput
-                  label="Customer Order No"
-                  placeholder="e.g. ORD-9843"
-                  value={orderId}
-                  onChange={(e) => setOrderId(e.target.value)}
-                />
-
+                {/* 1. Territory State & Cluster Selection */}
                 <div className="grid grid-cols-2 gap-4">
                   <Dropdown
-                    label="Brand"
+                    label="Territory / State *"
+                    value={selectedState}
+                    onChange={(val) => {
+                      setSelectedState(val);
+                      const newClusters = TERRITORY_CLUSTER_MAP[val] || [];
+                      if (newClusters.length > 0) {
+                        setSelectedCluster(newClusters[0].value);
+                        const orders = CLUSTER_ORDERS_MAP[newClusters[0].value] || [];
+                        if (orders.length > 0) {
+                          setOrderId(orders[0].value);
+                        }
+                      }
+                    }}
+                    options={stateOptions}
+                    className="w-full"
+                  />
+                  <Dropdown
+                    label="Cluster Name *"
+                    value={selectedCluster}
+                    onChange={(val) => {
+                      setSelectedCluster(val);
+                      const orders = CLUSTER_ORDERS_MAP[val] || [];
+                      if (orders.length > 0) {
+                        setOrderId(orders[0].value);
+                      }
+                    }}
+                    options={clusterOptions}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* 2. Customer Order Selection */}
+                <Dropdown
+                  label="Customer Order No (Existing Orders) *"
+                  value={orderId}
+                  onChange={(val) => {
+                    setOrderId(val);
+                    const comps = ORDER_COMPONENTS_MAP[val] || DEFAULT_KIT_COMPONENTS;
+                    if (comps.length > 0) {
+                      setSelectedComponent(comps[0].value);
+                      if (comps[0].brand) setBrand(comps[0].brand);
+                    }
+                  }}
+                  options={orderOptions}
+                  className="w-full"
+                />
+
+                {/* 3. Kit / Component Selection */}
+                <Dropdown
+                  label="Solar Kit Component to Replace *"
+                  value={selectedComponent}
+                  onChange={(val) => {
+                    setSelectedComponent(val);
+                    const found = componentOptions.find(c => c.value === val);
+                    if (found?.brand) setBrand(found.brand);
+                  }}
+                  options={componentOptions}
+                  className="w-full"
+                />
+
+                {/* 4. Brand & Reason */}
+                <div className="grid grid-cols-2 gap-4">
+                  <Dropdown
+                    label="Manufacturer / Brand"
                     value={brand}
                     onChange={(val) => setBrand(val)}
                     options={brandOptions}
@@ -241,8 +393,9 @@ export default function ProductReplacement() {
                   />
                 </div>
 
+                {/* 5. Product Serial & Warranty Verification */}
                 <div>
-                  <label className="text-[10px] font-bold text-text-secondary uppercase tracking-widest block mb-2">Product Serial No</label>
+                  <label className="text-[10px] font-bold text-text-secondary uppercase tracking-widest block mb-2">Product Serial No *</label>
                   <div className="flex items-end gap-2">
                     <CustomInput
                       placeholder="e.g. SN-TATA-540-0012"
@@ -266,7 +419,7 @@ export default function ProductReplacement() {
                   </div>
                   {warrantyChecked && (
                     <div className={`mt-2 text-xs font-semibold ${warrantyValid ? 'text-success' : 'text-danger'}`}>
-                      {warrantyValid ? '✅ Warranty Verified: Serial Number is valid and covered.' : '❌ Invalid Serial Code: Serial must start with "SN-".'}
+                      {warrantyValid ? '✅ Warranty Verified: Serial Number is valid and covered under SolarKits warranty policy.' : '❌ Invalid Serial Code: Serial must start with "SN-".'}
                     </div>
                   )}
                 </div>

@@ -214,10 +214,8 @@ export default function HeroSection() {
           whileTap={{ scale: 0.96 }}
           style={{
             padding: "14px 30px",
-            background: SOLAR_IMAGES[currentIndex].isFranchise
-              ? "linear-gradient(135deg, #10B981 0%, #059669 100%)"
-              : "linear-gradient(135deg, #F49222 0%, #E07D10 100%)",
-            color: SOLAR_IMAGES[currentIndex].isFranchise ? "#ffffff" : "#0a1428",
+            background: "linear-gradient(135deg, #F49222 0%, #E07D10 100%)",
+            color: "#0a1428",
             borderRadius: "10px",
             fontSize: "1rem",
             fontWeight: 800,
@@ -226,9 +224,7 @@ export default function HeroSection() {
             display: "inline-flex",
             alignItems: "center",
             gap: "10px",
-            boxShadow: SOLAR_IMAGES[currentIndex].isFranchise
-              ? "0 6px 20px rgba(16, 185, 129, 0.35)"
-              : "0 6px 20px rgba(244, 146, 34, 0.35)",
+            boxShadow: "0 6px 20px rgba(244, 146, 34, 0.35)",
             fontFamily: "inherit",
             letterSpacing: "0.4px",
           }}
