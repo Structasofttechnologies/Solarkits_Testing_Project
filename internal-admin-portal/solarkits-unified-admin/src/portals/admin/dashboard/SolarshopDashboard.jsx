@@ -116,6 +116,14 @@ const menus = [
             icon: <FaChartLine />,
             path: "/admin-panel/solar-shop/executive-finance",
             unique_id: "00000000"
+        },
+        {
+            step: "01E",
+            badgeKey: "DELIV_DASH",
+            name: "Delivery & Logistics Dashboard",
+            icon: <FaTruck />,
+            path: "/admin-panel/solar-shop/delivery-management/dashboard",
+            unique_id: "00000000"
         }
     ],
     [

@@ -13,6 +13,8 @@ import Button from "../../components/Button";
 import CustomInput from "../../components/CustomInput";
 import PageHeader from "../../components/PageHeader";
 import DropdownWithSearchInput from "../../components/DropdownWithSearchInput";
+import axios from "axios";
+import { authHeaderObj } from "../../app/authHeader";
 import { getSalesOrders, deliverSalesOrder, updateSalesOrderTracking, createPoRequest } from "../../api/inward";
 import { compareVehicles } from "../../api/vehicles";
 import { loadGoogleMaps } from "../../components/LoadGoogleMaps";
@@ -56,6 +58,42 @@ export default function DeliveryManagement() {
   const [selectedOrderType, setSelectedOrderType] = useState('All');
 
   const [selectedPincode, setSelectedPincode] = useState("All Pincodes");
+  const [selectedState, setSelectedState] = useState("All");
+  const [selectedCluster, setSelectedCluster] = useState("All");
+  const [liveClusters, setLiveClusters] = useState([]);
+
+  // Fetch live clusters from Admin Panel
+  useEffect(() => {
+    const fetchClusters = async () => {
+      try {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/franchise-clusters/list`, {
+          headers: authHeaderObj()
+        });
+        if (res.data?.status === 'success' || Array.isArray(res.data?.data)) {
+          setLiveClusters(res.data.data || []);
+        }
+      } catch (e) {
+        console.warn('Could not load clusters in DeliveryManagement:', e);
+      }
+    };
+    fetchClusters();
+  }, []);
+
+  // Unique States from orders
+  const uniqueStates = useMemo(() => {
+    const sts = orders.map(o => o.state || o.destination?.state).filter(Boolean);
+    return ['All', ...new Set(sts)];
+  }, [orders]);
+
+  // Cluster Options based on selectedState
+  const clusterOptions = useMemo(() => {
+    let list = liveClusters;
+    if (selectedState !== 'All') {
+      list = list.filter(c => (c.state_name || '').toLowerCase() === selectedState.toLowerCase());
+    }
+    const names = list.map(c => c.cluster_name).filter(Boolean);
+    return ['All', ...new Set(names)];
+  }, [liveClusters, selectedState]);
 
   // PO Request Modal States
   const [poRequestModalOpen, setPoRequestModalOpen] = useState(false);
@@ -681,6 +719,22 @@ export default function DeliveryManagement() {
     if (selectedPincode !== "All Pincodes") {
       list = list.filter(o => o.pincode === selectedPincode);
     }
+
+    // State filter
+    if (selectedState !== "All") {
+      list = list.filter(o => (o.state || o.destination?.state || '').toLowerCase() === selectedState.toLowerCase());
+    }
+
+    // Franchisee Cluster filter
+    if (selectedCluster !== "All") {
+      const foundClu = liveClusters.find(c => c.cluster_name === selectedCluster);
+      list = list.filter(o => {
+        if (o.cluster_name === selectedCluster) return true;
+        const oDist = (o.region || o.destination?.district || '').toLowerCase();
+        if (foundClu && (foundClu.district_names || []).some(d => d.toLowerCase() === oDist)) return true;
+        return false;
+      });
+    }
     
     // Zone filter (only when master warehouse)
     if (warehouseType === 'master') {
@@ -694,7 +748,7 @@ export default function DeliveryManagement() {
     }
     
     return list;
-  }, [orders, selectedZone, selectedPincode, selectedEpc, selectedOrderType, warehouseType]);
+  }, [orders, selectedZone, selectedPincode, selectedState, selectedCluster, selectedEpc, selectedOrderType, warehouseType, liveClusters]);
 
   const groupedOrdersByBuyer = useMemo(() => {
     const groups = {};
@@ -1074,18 +1128,49 @@ export default function DeliveryManagement() {
               ))}
             </div>
 
-        {/* Pincode Select Filter */}
+        {/* State, Cluster & Pincode Select Filter */}
         {activeStep === 1 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-text-secondary whitespace-nowrap">Pincode:</span>
-            <DropdownWithSearchInput
-              value={selectedPincode}
-              onChange={setSelectedPincode}
-              options={pincodeDropdownOptions}
-              placeholder="Select Pincode"
-              searchPlaceholder="Search Pincode..."
-              className="w-48"
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-text-secondary whitespace-nowrap">State:</span>
+              <select
+                value={selectedState}
+                onChange={(e) => {
+                  setSelectedState(e.target.value);
+                  setSelectedCluster("All");
+                }}
+                className="py-1.5 px-2.5 text-xs bg-surface border border-border rounded-lg text-text-primary font-medium focus:border-primary"
+              >
+                {uniqueStates.map(st => (
+                  <option key={st} value={st}>{st === 'All' ? 'All States' : st}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-text-secondary whitespace-nowrap">Cluster:</span>
+              <select
+                value={selectedCluster}
+                onChange={(e) => setSelectedCluster(e.target.value)}
+                className="py-1.5 px-2.5 text-xs bg-surface border border-border rounded-lg text-text-primary font-medium max-w-[200px] focus:border-primary"
+              >
+                {clusterOptions.map(cl => (
+                  <option key={cl} value={cl}>{cl === 'All' ? 'All Clusters' : cl}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-text-secondary whitespace-nowrap">Pincode:</span>
+              <DropdownWithSearchInput
+                value={selectedPincode}
+                onChange={setSelectedPincode}
+                options={pincodeDropdownOptions}
+                placeholder="Select Pincode"
+                searchPlaceholder="Search Pincode..."
+                className="w-40"
+              />
+            </div>
           </div>
         )}
       </div>

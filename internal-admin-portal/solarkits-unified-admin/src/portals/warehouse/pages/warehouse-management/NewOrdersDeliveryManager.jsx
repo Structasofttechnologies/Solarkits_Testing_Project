@@ -36,6 +36,10 @@ import Button from '../../components/Button';
 import Dialog from '../../components/Dialog';
 import CustomInput from '../../components/CustomInput';
 import DropdownWithSearchInput from '../../components/DropdownWithSearchInput';
+import axios from 'axios';
+import { authHeaderObj } from '../../app/authHeader';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNavigateToBosKit, defaultTab = 'orders', standaloneBoskit = false }) {
   const dispatch = useDispatch();
@@ -62,10 +66,15 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedQueueTab, setSelectedQueueTab] = useState('all'); // Boss Spec 14 Queue Filters
   const [selectedState, setSelectedState] = useState('all');
+  const [selectedCluster, setSelectedCluster] = useState('all');
   const [selectedDistrict, setSelectedDistrict] = useState('all');
   const [pincodeFilter, setPincodeFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [expandedCards, setExpandedCards] = useState({});
+
+  // Live Franchise Clusters
+  const [liveClusters, setLiveClusters] = useState([]);
+  const [loadingClusters, setLoadingClusters] = useState(false);
 
   // View Tab: 'orders' (Delivery Orders Queue) vs 'boskit_station' (BOS Kit Preparation Workstation)
   const [mainSectionTab, setMainSectionTab] = useState(defaultTab);
@@ -1226,6 +1235,41 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
     fetchCatalog();
   }, []);
 
+  // Fetch dynamic Franchise Clusters from Admin Panel
+  useEffect(() => {
+    const fetchClusters = async () => {
+      try {
+        setLoadingClusters(true);
+        const res = await axios.get(`${API_BASE}/franchise-clusters/list`, {
+          headers: authHeaderObj()
+        });
+        if (res.data?.status === 'success' || Array.isArray(res.data?.data)) {
+          setLiveClusters(res.data.data || []);
+        }
+      } catch (err) {
+        console.warn('Could not load franchise clusters:', err);
+      } finally {
+        setLoadingClusters(false);
+      }
+    };
+    fetchClusters();
+  }, []);
+
+  // Helper to determine mapped Franchise Cluster for any order
+  const getOrderClusterName = (ord) => {
+    if (!ord) return null;
+    if (ord.cluster_name) return ord.cluster_name;
+    const destDistrict = (ord.destination?.district || '').trim().toLowerCase();
+    const destState = (ord.destination?.state || '').trim().toLowerCase();
+    if (!destDistrict && !destState) return null;
+    const found = liveClusters.find(c => {
+      const matchState = (c.state_name || '').toLowerCase() === destState;
+      const matchDist = (c.district_names || []).some(d => d.toLowerCase() === destDistrict);
+      return matchDist || (matchState && c.cluster_name?.toLowerCase().includes(destDistrict));
+    });
+    return found ? found.cluster_name : null;
+  };
+
   // Handle Search on Enter or debounce
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -1237,6 +1281,18 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
     const states = new Set(orders.map(o => o.destination?.state).filter(Boolean));
     return ['all', ...Array.from(states)];
   }, [orders]);
+
+  const clusterOptions = useMemo(() => {
+    let list = liveClusters;
+    if (selectedState !== 'all') {
+      list = list.filter(c => 
+        (c.state_name || '').toLowerCase() === selectedState.toLowerCase() ||
+        (c.state_id?.name || '').toLowerCase() === selectedState.toLowerCase()
+      );
+    }
+    const names = list.map(c => c.cluster_name).filter(Boolean);
+    return ['all', ...Array.from(new Set(names))];
+  }, [liveClusters, selectedState]);
 
   const districtOptions = useMemo(() => {
     const filteredByState = selectedState === 'all'
@@ -1300,9 +1356,17 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
     };
   }, [orders]);
 
-  // Displayed Orders filtered by the 4 boss-defined tabs (Sent orders disappear and move to Out for Delivery)
+  // Displayed Orders filtered by cluster and the 4 boss-defined tabs (Sent orders disappear and move to Out for Delivery)
   const displayedOrders = useMemo(() => {
-    const activeOrders = orders.filter(ord => !isOrderSentForDelivery(ord));
+    let activeOrders = orders.filter(ord => !isOrderSentForDelivery(ord));
+
+    if (selectedCluster !== 'all') {
+      activeOrders = activeOrders.filter(ord => {
+        const clu = getOrderClusterName(ord);
+        return clu === selectedCluster;
+      });
+    }
+
     if (selectedQueueTab === 'all') return activeOrders;
     return activeOrders.filter(ord => {
       const items = getOrderItemsWithKit(ord);
@@ -1317,7 +1381,7 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
       if (selectedQueueTab === 'inward_done') return totalPending === 0 && isKitReady;
       return true;
     });
-  }, [orders, selectedQueueTab]);
+  }, [orders, selectedQueueTab, selectedCluster, liveClusters]);
 
   // Computes the comprehensive list of items for the Inward Verification modal
   const modalInwardItems = useMemo(() => {
@@ -1903,6 +1967,7 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
               value={selectedState}
               onChange={(e) => {
                 setSelectedState(e.target.value);
+                setSelectedCluster('all');
                 setSelectedDistrict('all');
               }}
               className="w-full py-1.5 px-2.5 text-xs bg-surface-hover border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-medium"
@@ -1910,6 +1975,32 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
               <option value="all">All States</option>
               {stateOptions.filter(s => s !== 'all').map(s => (
                 <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Franchisee Cluster Filter (Dynamic live clusters) */}
+          <div>
+            <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
+              Franchisee Cluster {loadingClusters && <span className="text-primary font-normal text-[9px]">(Loading...)</span>}
+            </label>
+            <select
+              value={selectedCluster}
+              onChange={(e) => {
+                const clusterName = e.target.value;
+                setSelectedCluster(clusterName);
+                if (clusterName !== 'all') {
+                  const foundClu = liveClusters.find(c => c.cluster_name === clusterName);
+                  if (foundClu && foundClu.state_name && selectedState === 'all') {
+                    setSelectedState(foundClu.state_name);
+                  }
+                }
+              }}
+              className="w-full py-1.5 px-2.5 text-xs bg-surface-hover border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-medium"
+            >
+              <option value="all">All Clusters {selectedState !== 'all' ? `(${selectedState})` : ''}</option>
+              {clusterOptions.filter(c => c !== 'all').map(c => (
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
@@ -2192,6 +2283,11 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                         <span className="flex items-center gap-1 text-text-muted font-medium">
                           <HiOutlineLocationMarker className="text-xs text-primary" />
                           {ord.destination?.city || ord.destination?.district || ''}{ord.destination?.state ? `, ${ord.destination.state}` : ''}
+                        </span>
+                      )}
+                      {getOrderClusterName(ord) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200" title="Franchisee Territory Cluster">
+                          <FaMapMarkerAlt className="text-[9px]" /> Cluster: {getOrderClusterName(ord)}
                         </span>
                       )}
                     </div>
