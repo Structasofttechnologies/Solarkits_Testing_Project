@@ -264,8 +264,18 @@ exports.create_mapping = async (req, res) => {
     const code = warehouse_code || `WH-${Date.now().toString().slice(-4)}`;
     const effectiveDate = effective_from ? new Date(effective_from) : new Date();
 
+    let resolvedWarehouseId = warehouse_id && mongoose.Types.ObjectId.isValid(warehouse_id) ? warehouse_id : null;
+    if (!resolvedWarehouseId && code) {
+      try {
+        const whDoc = await CompanyWarehouse.findOne({ warehouse_code: code, deleted_at: null }).lean();
+        if (whDoc) resolvedWarehouseId = whDoc._id;
+      } catch (e) {
+        // ignore
+      }
+    }
+
     const mapping = await WarehouseClusterMapping.create({
-      warehouse_id: warehouse_id && mongoose.Types.ObjectId.isValid(warehouse_id) ? warehouse_id : null,
+      warehouse_id: resolvedWarehouseId,
       warehouse_code: code,
       warehouse_name: warehouse_name.trim(),
       cluster_id: cluster._id,

@@ -2,13 +2,19 @@ const {
   CompanyWarehouse, CompanyWarehouseValidationSection,
   CompanyWarehouseValidationField, CompanyWarehouseFieldValidation,
   CompanyWarehouseFieldDependency, CompanyWarehouseFieldStatus,
-  WarehouseRole, WarehouseUser, CompanyWarehouseFieldData
+  WarehouseRole, WarehouseUser, CompanyWarehouseFieldData,
+  ThirdPartyLogisticsVendor, WarehouseStock, WarehouseStockReconciliation
 } = require("../models/company_warehouse_db");
 const { WAREHOUSE_VALIDATION_STATUSES } = require("../models/company_warehouse_db/constants");
 const { GeoLevel0, GeoLevel1, GeoLevel2 } = require("../models/geolocation_db");
-const { CompanyCustomersType } = require("../models/core_db");
+const { CompanyCustomersType, WarehouseKitActivation, WarehouseClusterMapping, RegionalCluster } = require("../models/core_db");
 const { company_warehouse_db } = require("../config/databases");
 const mongoose = require('mongoose');
+const {
+  evaluateCompanyWarehouseChecklist,
+  calculateWarehouseDashboardKPIs,
+  buildWarehouseMapMarkers
+} = require('../services/warehouse.activation.service');
 
 // Valid warehouse types
 const VALID_WAREHOUSE_TYPES = ['company', '3pl', 'master', 'sub'];
@@ -21,7 +27,15 @@ const add_warehouse = async (req, res) => {
   const session = await company_warehouse_db.startSession();
   session.startTransaction();
   try {
-    const { country, state, district, address, pincode, lat, lng, customers_types, warehouse_type, manager_name, manager_email, manager_phone, manager_phone_code } = req.body;
+    const {
+      country, state, district, address, pincode, lat, lng,
+      customers_types, warehouse_type, warehouse_name, vendor_id,
+      categorized_images, warehouse_area_sqft, max_weight_capacity_kg,
+      max_volume_cbf, max_pallet_capacity, storage_type, facilities,
+      operating_hours, operational_permissions, serviceable_districts,
+      commercial_settings, manager_name, manager_email, manager_phone, manager_phone_code
+    } = req.body;
+
     if (!country || !state || !district || !address || !lat || !lng) {
       const missing = [
         !country && 'country',
@@ -39,41 +53,62 @@ const add_warehouse = async (req, res) => {
       return res.status(400).json({ status: "error", message: `Warehouse type is required. Must be 'company' or '3pl'. Received: '${warehouse_type}'` });
     }
 
+    // ---------- 3PL Vendor Validation ----------
+    if (warehouse_type === '3pl') {
+      if (!vendor_id) {
+        return res.status(400).json({ status: "error", message: "3PL Warehouse requires an approved 3PL Vendor selection (vendor_id is required)." });
+      }
+      const vendor = await ThirdPartyLogisticsVendor.findOne({ _id: vendor_id, deleted_at: null }).session(session);
+      if (!vendor) {
+        return res.status(400).json({ status: "error", message: "Selected 3PL Vendor does not exist." });
+      }
+      if (vendor.status !== 'approved') {
+        return res.status(400).json({ status: "error", message: `Cannot register warehouse under vendor '${vendor.company_name}'. Vendor status is '${vendor.status}', but must be 'approved'.` });
+      }
+    }
+
     // ---------- Validate geolocation ----------
-    const country_row = await GeoLevel0.findOne({ 
-      name: { $regex: new RegExp(`^${country.trim()}$`, 'i') }, 
-      is_active: true, 
-      deleted_at: null 
+    const country_row = await GeoLevel0.findOne({
+      name: { $regex: new RegExp(`^${country.trim()}$`, 'i') },
+      is_active: true,
+      deleted_at: null
     });
     if (!country_row) throw new Error(`Invalid country: '${country}'.`);
 
-    const state_row = await GeoLevel1.findOne({ 
-      name: { $regex: new RegExp(`^${state.trim()}$`, 'i') }, 
-      level_0: country_row._id, 
-      is_active: true, 
-      deleted_at: null 
+    const state_row = await GeoLevel1.findOne({
+      name: { $regex: new RegExp(`^${state.trim()}$`, 'i') },
+      level_0: country_row._id,
+      is_active: true,
+      deleted_at: null
     });
     if (!state_row) throw new Error(`Invalid state: '${state}'.`);
 
-    const district_row = await GeoLevel2.findOne({ 
-      name: { $regex: new RegExp(`^${district.trim()}$`, 'i') }, 
-      level_1: state_row._id, 
-      is_active: true, 
-      deleted_at: null 
+    const district_row = await GeoLevel2.findOne({
+      name: { $regex: new RegExp(`^${district.trim()}$`, 'i') },
+      level_1: state_row._id,
+      is_active: true,
+      deleted_at: null
     });
     if (!district_row) throw new Error(`Invalid district: '${district}'.`);
 
-    // ---------- District uniqueness check (max 1 warehouse per district) ----------
-    const district_warehouse = await CompanyWarehouse.findOne({
+    // ---------- Duplicate check in district ----------
+    const dupOr = [{ address: address.trim() }];
+    if (warehouse_name && warehouse_name.trim()) {
+      dupOr.push({ warehouse_name: new RegExp(`^${warehouse_name.trim()}$`, 'i') });
+    }
+    const duplicateWarehouse = await CompanyWarehouse.findOne({
       level_2: district_row._id,
-      deleted_at: null
+      deleted_at: null,
+      $or: dupOr
     }).session(session);
-    if (district_warehouse) {
-      throw new Error("This district already has a warehouse. A district can have at most one warehouse.");
+
+    if (duplicateWarehouse) {
+      throw new Error("A warehouse with this name or exact physical address is already registered in this district.");
     }
 
     // ---------- Generate Code ----------
-    const prefix = `${country.slice(0, 3).toUpperCase()}_${state.slice(0, 3).toUpperCase()}_`;
+    const typeTag = warehouse_type === '3pl' ? '3PL_' : '';
+    const prefix = `${country.slice(0, 3).toUpperCase()}_${state.slice(0, 3).toUpperCase()}_${typeTag}`;
     const last = await CompanyWarehouse.findOne({ warehouse_code: new RegExp(`^${prefix}`) })
       .sort({ warehouse_code: -1 })
       .session(session);
@@ -81,17 +116,39 @@ const add_warehouse = async (req, res) => {
     let next_num = "001";
     if (last) {
       const parts = last.warehouse_code.split("_");
-      next_num = String(parseInt(parts[2]) + 1).padStart(3, "0");
+      const lastNumStr = parts[parts.length - 1];
+      const parsedNum = parseInt(lastNumStr, 10);
+      if (!isNaN(parsedNum)) {
+        next_num = String(parsedNum + 1).padStart(3, "0");
+      }
     }
     const warehouse_code = prefix + next_num;
 
     const initialStatus = (manager_name && manager_email && manager_phone) ? 2 : 1;
+    const initialStatusCode = warehouse_type === '3pl' ? 'pending_inspection' : (initialStatus === 2 ? 'pending_setup' : 'draft');
+
+    // Parse images array if provided
+    let imagesString = null;
+    if (categorized_images) {
+      const allImgs = [
+        categorized_images.front_exterior || categorized_images.exterior,
+        categorized_images.main_storage || categorized_images.storage,
+        categorized_images.product_racks || categorized_images.racks,
+        categorized_images.loading_unloading || categorized_images.loading_area,
+        categorized_images.office_security || categorized_images.security,
+        ...(categorized_images.additional_images || [])
+      ].flat().filter(Boolean);
+      if (allImgs.length > 0) imagesString = JSON.stringify(allImgs);
+    }
 
     // ---------- Insert Warehouse ----------
     const [newWarehouse] = await CompanyWarehouse.create([{
+      warehouse_name: warehouse_name ? warehouse_name.trim() : `${warehouse_type === '3pl' ? '3PL ' : ''}Warehouse ${warehouse_code}`,
       warehouse_code,
       warehouse_type,
+      vendor_id: warehouse_type === '3pl' ? vendor_id : null,
       status: initialStatus, // 1: Pending Validation Setup, 2: Awaiting Information
+      status_code: initialStatusCode,
       level_0: country_row._id,
       level_1: state_row._id,
       level_2: district_row._id,
@@ -99,6 +156,22 @@ const add_warehouse = async (req, res) => {
       pincode: pincode || null,
       lat,
       lng,
+      images: imagesString,
+      categorized_images: categorized_images || {},
+      warehouse_area_sqft: Number(warehouse_area_sqft) || 0,
+      max_weight_capacity_kg: Number(max_weight_capacity_kg) || 0,
+      max_volume_cbf: Number(max_volume_cbf) || 0,
+      max_pallet_capacity: Number(max_pallet_capacity) || 0,
+      storage_type: storage_type || 'indoor',
+      facilities: facilities || {},
+      operating_hours: operating_hours || { working_days: 'Monday - Saturday', open_time: '09:00', close_time: '19:00' },
+      operational_permissions: operational_permissions || { inward: false, outward: false, storage: false, dispatch: false, kit_assembly: false },
+      serviceable_districts: serviceable_districts || [district_row._id],
+      commercial_settings: commercial_settings || {},
+      company_setup_checklist: {
+        basic_details: { status: true, completed_at: new Date() },
+        address_and_pin: { status: true, completed_at: new Date() }
+      },
       is_active: false,
       customer_types: customers_types || []
     }], { session });
@@ -150,6 +223,55 @@ const add_warehouse = async (req, res) => {
   }
 };
 
+const extractWarehouseImages = (row) => {
+  let images = [];
+  if (Array.isArray(row.images)) {
+    images = row.images.flat().filter(Boolean);
+  } else if (typeof row.images === 'string') {
+    const trimmed = row.images.trim();
+    if (trimmed.startsWith('[')) {
+      try { images = JSON.parse(trimmed).flat().filter(Boolean); } catch { images = []; }
+    } else if (trimmed.includes(',')) {
+      images = trimmed.split(',').map(i => i.trim()).filter(Boolean);
+    } else if (trimmed) {
+      images = [trimmed];
+    }
+  }
+
+  // If images empty, try categorized_images
+  if (images.length === 0 && row.categorized_images) {
+    const cat = row.categorized_images;
+    const catImgs = [
+      cat.front_exterior || cat.exterior,
+      cat.main_storage || cat.storage,
+      cat.product_racks || cat.racks,
+      cat.loading_unloading || cat.loading_area,
+      cat.office_security || cat.security,
+      ...(Array.isArray(cat.additional_images) ? cat.additional_images : [])
+    ].flat().filter(Boolean);
+    if (catImgs.length > 0) images = catImgs;
+  }
+
+  // If still empty, provide high-quality fallback warehouse images based on facility type
+  if (images.length === 0) {
+    if (row.warehouse_type === '3pl') {
+      images = [
+        "https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1592833159057-651427788523?w=800&auto=format&fit=crop&q=80"
+      ];
+    } else {
+      images = [
+        "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1553413077-190dd305871c?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1592833159057-651427788523?w=800&auto=format&fit=crop&q=80"
+      ];
+    }
+  }
+
+  return images;
+};
+
 /**
  * Fetches all warehouses.
  * Optimized with bulk fetching to handle scalability (N+1 avoidance).
@@ -191,11 +313,30 @@ const get_warehouses = async (req, res) => {
 
     // Bulk WarehouseUser, FieldStatus, and FieldData Lookup with lean queries
     const warehouse_ids = rows.map(r => r._id);
-    const [warehouseUsers, allStatuses, allSavedData] = await Promise.all([
+    const vendor_ids = [...new Set(rows.map(r => r.vendor_id).filter(Boolean))];
+
+    const [warehouseUsers, allStatuses, allSavedData, vendorsList, kitAgg, clusterMappings] = await Promise.all([
       WarehouseUser.find({ warehouse_id: { $in: warehouse_ids } }).lean(),
       CompanyWarehouseFieldStatus.find({ warehouse_id: { $in: warehouse_ids }, is_enabled: true }).lean(),
-      CompanyWarehouseFieldData.find({ warehouse_id: { $in: warehouse_ids } }).lean()
+      CompanyWarehouseFieldData.find({ warehouse_id: { $in: warehouse_ids } }).lean(),
+      vendor_ids.length > 0 ? ThirdPartyLogisticsVendor.find({ _id: { $in: vendor_ids } }).lean() : [],
+      WarehouseKitActivation.aggregate([
+        { $match: { warehouse_id: { $in: warehouse_ids }, is_active: true, deleted_at: null } },
+        { $group: { _id: '$warehouse_id', count: { $sum: 1 } } }
+      ]),
+      WarehouseClusterMapping.find({ deleted_at: null, status: 'Active' }).lean()
     ]);
+
+    const vendorMap = Object.fromEntries(vendorsList.map(v => [v._id.toString(), v]));
+    const kitCountMap = Object.fromEntries(kitAgg.map(k => [k._id.toString(), k.count]));
+
+    // Build warehouse routing map by warehouse_id and warehouse_code
+    const routingMapById = {};
+    const routingMapByCode = {};
+    (clusterMappings || []).forEach(m => {
+      if (m.warehouse_id) routingMapById[m.warehouse_id.toString()] = m;
+      if (m.warehouse_code) routingMapByCode[m.warehouse_code.trim().toUpperCase()] = m;
+    });
 
     const userMap = Object.fromEntries(warehouseUsers.map(u => [u.warehouse_id.toString(), u]));
 
@@ -216,15 +357,8 @@ const get_warehouses = async (req, res) => {
     });
 
     const warehouses = rows.map(row => {
-      // Parse images
-      let images = [];
-      if (row.images && row.images.startsWith("[")) {
-        try { images = JSON.parse(row.images); } catch { images = []; }
-      } else if (row.images && row.images.includes(",")) {
-        images = row.images.split(",").map(i => i.trim());
-      } else if (row.images) {
-        images = [row.images];
-      }
+      // Parse images using unified extractor
+      const images = extractWarehouseImages(row);
 
       const status_info = WAREHOUSE_VALIDATION_STATUSES[row.status] || {};
 
@@ -271,12 +405,40 @@ const get_warehouses = async (req, res) => {
         percentage = Math.round((filledFieldsCount / totalFields) * 100);
       }
 
+      const matchedVendor = vendorMap[row.vendor_id?.toString()] || null;
+
       return {
         id: (row._id || row.id)?.toString(),
         _id: (row._id || row.id)?.toString(),
+        warehouse_name: row.warehouse_name || row.warehouse_code,
         warehouse_code: row.warehouse_code,
         warehouse_type: row.warehouse_type || null,
+        vendor_id: row.vendor_id || null,
+        vendor_name: matchedVendor?.company_name || null,
+        vendor: matchedVendor ? {
+          id: matchedVendor._id.toString(),
+          vendor_code: matchedVendor.vendor_code,
+          company_name: matchedVendor.company_name,
+          contact_person: matchedVendor.contact_person
+        } : null,
+        active_kits_count: kitCountMap[row._id.toString()] || 0,
         images,
+        categorized_images: row.categorized_images || null,
+        warehouse_area_sqft: row.warehouse_area_sqft || 0,
+        max_weight_capacity_kg: row.max_weight_capacity_kg || 0,
+        max_pallet_capacity: row.max_pallet_capacity || 0,
+        max_volume_cbf: row.max_volume_cbf || 0,
+        max_kit_capacity: row.max_kit_capacity || 0,
+        storage_type: row.storage_type || 'indoor',
+        facilities: row.facilities || {},
+        operating_hours: row.operating_hours || {},
+        operational_permissions: row.operational_permissions || {},
+        serviceable_districts: row.serviceable_districts || [],
+        inspection_details: row.inspection_details || {},
+        commercial_settings: row.commercial_settings || {},
+        company_setup_checklist: row.company_setup_checklist || {},
+        status_code: row.status_code || (row.is_active ? 'active' : 'draft'),
+        effective_date: row.effective_date || null,
         address: row.address,
         pincode: row.pincode,
         lat: row.lat,
@@ -290,9 +452,12 @@ const get_warehouses = async (req, res) => {
         state_name: geoMap.l1[row.level_1?.toString()] || null,
         district: geoMap.l2[row.level_2?.toString()] || null,
         district_name: geoMap.l2[row.level_2?.toString()] || null,
-        cluster: (geoMap.l2Cluster[row.level_2?.toString()] || null)?.name || null,
-        cluster_name: (geoMap.l2Cluster[row.level_2?.toString()] || null)?.name || null,
-        cluster_id: (geoMap.l2Cluster[row.level_2?.toString()] || null)?.id || null,
+        cluster: (routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()])?.cluster_name || (geoMap.l2Cluster[row.level_2?.toString()] || null)?.name || null,
+        cluster_name: (routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()])?.cluster_name || (geoMap.l2Cluster[row.level_2?.toString()] || null)?.name || null,
+        cluster_id: (routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()])?.cluster_id?.toString() || (geoMap.l2Cluster[row.level_2?.toString()] || null)?.id || null,
+        fulfillment_states: (routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()])?.states || [],
+        is_cluster_mapped: Boolean(routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()]),
+        routing_mapping: (routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()]) || null,
         country_id: row.level_0,
         state_id: row.level_1,
         district_id: row.level_2,
@@ -327,12 +492,22 @@ const get_warehouse = async (req, res) => {
     const warehouse = await CompanyWarehouse.findOne({ _id: id, deleted_at: null });
     if (!warehouse) return res.status(404).json({ status: "error", message: "Warehouse not found" });
 
-    // Fetch geolocation names
-    const [country_row, state_row, district_row, manager_user] = await Promise.all([
+    // Fetch geolocation names, manager, vendor, active kits count, and cluster routing mapping
+    const [country_row, state_row, district_row, manager_user, vendor_row, activeKitsCount, clusterMapping] = await Promise.all([
       GeoLevel0.findById(warehouse.level_0),
       GeoLevel1.findById(warehouse.level_1),
       GeoLevel2.findById(warehouse.level_2).populate('cluster'),
-      WarehouseUser.findOne({ warehouse_id: id })
+      WarehouseUser.findOne({ warehouse_id: id }),
+      warehouse.vendor_id ? ThirdPartyLogisticsVendor.findById(warehouse.vendor_id).lean() : null,
+      WarehouseKitActivation.countDocuments({ warehouse_id: id, is_active: true, deleted_at: null }),
+      WarehouseClusterMapping.findOne({
+        $or: [
+          { warehouse_id: id },
+          { warehouse_code: warehouse.warehouse_code }
+        ],
+        deleted_at: null,
+        status: 'Active'
+      }).lean()
     ]);
 
     const manager = manager_user ? {
@@ -373,15 +548,8 @@ const get_warehouse = async (req, res) => {
       percentage = Math.round((filledFieldsCount / totalFields) * 100);
     }
 
-    // Parse images
-    let images = [];
-    if (warehouse.images && warehouse.images.startsWith("[")) {
-      try { images = JSON.parse(warehouse.images); } catch { images = []; }
-    } else if (warehouse.images && warehouse.images.includes(",")) {
-      images = warehouse.images.split(",").map(i => i.trim());
-    } else if (warehouse.images) {
-      images = [warehouse.images];
-    }
+    // Parse images using unified extractor
+    const images = extractWarehouseImages(warehouse);
 
     return res.status(200).json({
       status: "success",
@@ -389,9 +557,35 @@ const get_warehouse = async (req, res) => {
       warehouse: {
         id: (warehouse._id || warehouse.id)?.toString(),
         _id: (warehouse._id || warehouse.id)?.toString(),
+        warehouse_name: warehouse.warehouse_name || warehouse.warehouse_code,
         warehouse_code: warehouse.warehouse_code,
         warehouse_type: warehouse.warehouse_type || null,
+        vendor_id: warehouse.vendor_id || null,
+        vendor_name: vendor_row?.company_name || null,
+        vendor: vendor_row ? {
+          id: vendor_row._id.toString(),
+          vendor_code: vendor_row.vendor_code,
+          company_name: vendor_row.company_name,
+          contact_person: vendor_row.contact_person
+        } : null,
+        active_kits_count: activeKitsCount,
         images,
+        categorized_images: warehouse.categorized_images || null,
+        warehouse_area_sqft: warehouse.warehouse_area_sqft || 0,
+        max_weight_capacity_kg: warehouse.max_weight_capacity_kg || 0,
+        max_pallet_capacity: warehouse.max_pallet_capacity || 0,
+        max_volume_cbf: warehouse.max_volume_cbf || 0,
+        max_kit_capacity: warehouse.max_kit_capacity || 0,
+        storage_type: warehouse.storage_type || 'indoor',
+        facilities: warehouse.facilities || {},
+        operating_hours: warehouse.operating_hours || {},
+        operational_permissions: warehouse.operational_permissions || {},
+        serviceable_districts: warehouse.serviceable_districts || [],
+        inspection_details: warehouse.inspection_details || {},
+        commercial_settings: warehouse.commercial_settings || {},
+        company_setup_checklist: warehouse.company_setup_checklist || {},
+        status_code: warehouse.status_code || (warehouse.is_active ? 'active' : 'draft'),
+        effective_date: warehouse.effective_date || null,
         address: warehouse.address,
         pincode: warehouse.pincode,
         lat: warehouse.lat,
@@ -401,8 +595,12 @@ const get_warehouse = async (req, res) => {
         country: country_row ? country_row.name : "",
         state: state_row ? state_row.name : "",
         district: district_row ? district_row.name : "",
-        cluster: district_row && district_row.cluster ? district_row.cluster.name : "",
-        cluster_id: district_row && district_row.cluster ? district_row.cluster._id : null,
+        cluster: clusterMapping ? clusterMapping.cluster_name : (district_row && district_row.cluster ? district_row.cluster.name : ""),
+        cluster_name: clusterMapping ? clusterMapping.cluster_name : (district_row && district_row.cluster ? district_row.cluster.name : ""),
+        cluster_id: clusterMapping ? clusterMapping.cluster_id?.toString() : (district_row && district_row.cluster ? district_row.cluster._id : null),
+        fulfillment_states: clusterMapping ? (clusterMapping.states || []) : [],
+        is_cluster_mapped: Boolean(clusterMapping),
+        routing_mapping: clusterMapping || null,
         customer_types: warehouse.customer_types || [],
         manager,
         due_date: warehouse.due_date,
@@ -777,15 +975,8 @@ const get_warehouses_by_district = async (req, res) => {
     });
 
     const warehouses = rows.map(row => {
-      // Parse images
-      let images = [];
-      if (row.images && row.images.startsWith("[")) {
-        try { images = JSON.parse(row.images); } catch { images = []; }
-      } else if (row.images && row.images.includes(",")) {
-        images = row.images.split(",").map(i => i.trim());
-      } else if (row.images) {
-        images = [row.images];
-      }
+      // Parse images using unified extractor
+      const images = extractWarehouseImages(row);
 
       const status_info = WAREHOUSE_VALIDATION_STATUSES[row.status] || {};
 
@@ -876,7 +1067,14 @@ const update_warehouse = async (req, res) => {
   session.startTransaction();
   try {
     const { id } = req.params;
-    const { country, state, district, address, pincode, lat, lng, customers_types, warehouse_type, manager_name, manager_email, manager_phone, manager_phone_code } = req.body;
+    const {
+      country, state, district, address, pincode, lat, lng,
+      customers_types, warehouse_type, warehouse_name, vendor_id,
+      categorized_images, warehouse_area_sqft, max_weight_capacity_kg,
+      max_volume_cbf, max_pallet_capacity, storage_type, facilities,
+      operating_hours, operational_permissions, serviceable_districts,
+      commercial_settings, manager_name, manager_email, manager_phone, manager_phone_code
+    } = req.body;
 
     if (!country || !state || !district || !address || !lat || !lng) {
       const missing = [
@@ -895,54 +1093,75 @@ const update_warehouse = async (req, res) => {
       return res.status(400).json({ status: "error", message: `Warehouse type is required. Must be 'company' or '3pl'. Received: '${warehouse_type}'` });
     }
 
+    // ---------- 3PL Vendor Validation ----------
+    if (warehouse_type === '3pl') {
+      if (!vendor_id) {
+        return res.status(400).json({ status: "error", message: "3PL Warehouse requires an approved 3PL Vendor selection (vendor_id is required)." });
+      }
+      const vendor = await ThirdPartyLogisticsVendor.findOne({ _id: vendor_id, deleted_at: null }).session(session);
+      if (!vendor) {
+        return res.status(400).json({ status: "error", message: "Selected 3PL Vendor does not exist." });
+      }
+      if (vendor.status !== 'approved') {
+        return res.status(400).json({ status: "error", message: `Cannot link warehouse to vendor '${vendor.company_name}'. Vendor status is '${vendor.status}', but must be 'approved'.` });
+      }
+    }
+
     const warehouse = await CompanyWarehouse.findOne({ _id: id, deleted_at: null }).session(session);
     if (!warehouse) {
       return res.status(404).json({ status: "error", message: "Warehouse not found." });
     }
 
-    // ---------- Check status (Only allow update if Pending Validation Setup) ----------
-    if (warehouse.status !== 1) {
-      return res.status(400).json({ status: "error", message: "Warehouse details can only be updated when status is Pending Validation Setup." });
+    // ---------- Check status (Allow update if Pending Validation Setup or Draft) ----------
+    if (warehouse.status !== 1 && warehouse.status_code !== 'draft' && warehouse.status_code !== 'pending_setup' && warehouse.status_code !== 'pending_inspection') {
+      return res.status(400).json({ status: "error", message: "Warehouse details can only be updated when status is Pending Setup or Draft." });
     }
 
     // ---------- Validate geolocation ----------
-    const country_row = await GeoLevel0.findOne({ 
-      name: { $regex: new RegExp(`^${country.trim()}$`, 'i') }, 
-      is_active: true, 
-      deleted_at: null 
+    const country_row = await GeoLevel0.findOne({
+      name: { $regex: new RegExp(`^${country.trim()}$`, 'i') },
+      is_active: true,
+      deleted_at: null
     });
     if (!country_row) throw new Error(`Invalid country: '${country}'.`);
 
-    const state_row = await GeoLevel1.findOne({ 
-      name: { $regex: new RegExp(`^${state.trim()}$`, 'i') }, 
-      level_0: country_row._id, 
-      is_active: true, 
-      deleted_at: null 
+    const state_row = await GeoLevel1.findOne({
+      name: { $regex: new RegExp(`^${state.trim()}$`, 'i') },
+      level_0: country_row._id,
+      is_active: true,
+      deleted_at: null
     });
     if (!state_row) throw new Error(`Invalid state: '${state}'.`);
 
-    const district_row = await GeoLevel2.findOne({ 
-      name: { $regex: new RegExp(`^${district.trim()}$`, 'i') }, 
-      level_1: state_row._id, 
-      is_active: true, 
-      deleted_at: null 
+    const district_row = await GeoLevel2.findOne({
+      name: { $regex: new RegExp(`^${district.trim()}$`, 'i') },
+      level_1: state_row._id,
+      is_active: true,
+      deleted_at: null
     });
     if (!district_row) throw new Error(`Invalid district: '${district}'.`);
 
-    // ---------- District uniqueness check (max 1 warehouse per district) ----------
-    const district_warehouse = await CompanyWarehouse.findOne({
+    // ---------- Duplicate check in district ----------
+    const dupOr = [{ address: address.trim() }];
+    if (warehouse_name && warehouse_name.trim()) {
+      dupOr.push({ warehouse_name: new RegExp(`^${warehouse_name.trim()}$`, 'i') });
+    }
+    const duplicateWarehouse = await CompanyWarehouse.findOne({
       level_2: district_row._id,
       _id: { $ne: id },
-      deleted_at: null
+      deleted_at: null,
+      $or: dupOr
     }).session(session);
-    if (district_warehouse) {
-      throw new Error("This district already has a warehouse. A district can have at most one warehouse.");
+
+    if (duplicateWarehouse) {
+      throw new Error("A warehouse with this name or exact physical address is already registered in this district.");
     }
 
     // ---------- Regenerate warehouse code if country or state changes ----------
     let warehouse_code = warehouse.warehouse_code;
     if (warehouse.level_0.toString() !== country_row._id.toString() || warehouse.level_1.toString() !== state_row._id.toString()) {
-      const prefix = `${country.slice(0, 3).toUpperCase()}_${state.slice(0, 3).toUpperCase()}_`;
+      const typeTag = warehouse_type === '3pl' ? '3PL_' : '';
+      const prefix = `${country.slice(0, 3).toUpperCase()}_${state.slice(0, 3).toUpperCase()}_${typeTag}`;
       const last = await CompanyWarehouse.findOne({ warehouse_code: new RegExp(`^${prefix}`), _id: { $ne: id } })
         .sort({ warehouse_code: -1 })
         .session(session);
@@ -950,14 +1169,34 @@ const update_warehouse = async (req, res) => {
       let next_num = "001";
       if (last) {
         const parts = last.warehouse_code.split("_");
-        next_num = String(parseInt(parts[2]) + 1).padStart(3, "0");
+        const lastNumStr = parts[parts.length - 1];
+        const parsedNum = parseInt(lastNumStr, 10);
+        if (!isNaN(parsedNum)) {
+          next_num = String(parsedNum + 1).padStart(3, "0");
+        }
       }
       warehouse_code = prefix + next_num;
     }
 
-    // ---------- Update Warehouse ----------
+    // Parse images array if provided
+    if (categorized_images) {
+      const allImgs = [
+        categorized_images.front_exterior || categorized_images.exterior,
+        categorized_images.main_storage || categorized_images.storage,
+        categorized_images.product_racks || categorized_images.racks,
+        categorized_images.loading_unloading || categorized_images.loading_area,
+        categorized_images.office_security || categorized_images.security,
+        ...(categorized_images.additional_images || [])
+      ].flat().filter(Boolean);
+      if (allImgs.length > 0) warehouse.images = JSON.stringify(allImgs);
+      warehouse.categorized_images = categorized_images;
+    }
+
+    // ---------- Update Warehouse Master Fields ----------
+    if (warehouse_name) warehouse.warehouse_name = warehouse_name.trim();
     warehouse.warehouse_code = warehouse_code;
     warehouse.warehouse_type = warehouse_type;
+    warehouse.vendor_id = warehouse_type === '3pl' ? vendor_id : null;
     warehouse.level_0 = country_row._id;
     warehouse.level_1 = state_row._id;
     warehouse.level_2 = district_row._id;
@@ -966,6 +1205,16 @@ const update_warehouse = async (req, res) => {
     warehouse.lat = lat;
     warehouse.lng = lng;
     warehouse.customer_types = customers_types || [];
+    if (warehouse_area_sqft !== undefined) warehouse.warehouse_area_sqft = Number(warehouse_area_sqft) || 0;
+    if (max_weight_capacity_kg !== undefined) warehouse.max_weight_capacity_kg = Number(max_weight_capacity_kg) || 0;
+    if (max_volume_cbf !== undefined) warehouse.max_volume_cbf = Number(max_volume_cbf) || 0;
+    if (max_pallet_capacity !== undefined) warehouse.max_pallet_capacity = Number(max_pallet_capacity) || 0;
+    if (storage_type) warehouse.storage_type = storage_type;
+    if (facilities) warehouse.facilities = facilities;
+    if (operating_hours) warehouse.operating_hours = operating_hours;
+    if (operational_permissions) warehouse.operational_permissions = operational_permissions;
+    if (serviceable_districts) warehouse.serviceable_districts = serviceable_districts;
+    if (commercial_settings) warehouse.commercial_settings = commercial_settings;
 
     // ---------- Create/Update Warehouse Manager if provided ----------
     if (manager_name && manager_email && manager_phone) {
@@ -1161,6 +1410,403 @@ const update_warehouse_order_fulfillment_types = async (req, res) => {
   }
 };
 
+/**
+ * GET /warehouses/dashboard/metrics
+ * 10 KPI Summary Cards
+ */
+const get_warehouse_dashboard_metrics = async (req, res) => {
+  try {
+    const metrics = await calculateWarehouseDashboardKPIs();
+    return res.status(200).json({ status: "success", metrics });
+  } catch (error) {
+    console.error("Error in get_warehouse_dashboard_metrics:", error);
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * GET /warehouses/map-markers
+ * Color-coded marker data for interactive map view
+ */
+const get_warehouse_map_markers = async (req, res) => {
+  try {
+    const markers = await buildWarehouseMapMarkers();
+    return res.status(200).json({ status: "success", markers });
+  } catch (error) {
+    console.error("Error in get_warehouse_map_markers:", error);
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * GET /warehouses/:id/checklist
+ * Detailed 10-gate audit progress for Company Warehouse
+ */
+const get_company_warehouse_checklist = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const audit = await evaluateCompanyWarehouseChecklist(id);
+    return res.status(200).json({ status: "success", audit });
+  } catch (error) {
+    console.error("Error in get_company_warehouse_checklist:", error);
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * POST /warehouses/:id/submit-activation
+ * Validates 10-gate readiness
+ */
+const submit_company_warehouse_activation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const audit = await evaluateCompanyWarehouseChecklist(id);
+
+    if (!audit.can_activate) {
+      return res.status(400).json({
+        status: "error",
+        message: `Warehouse activation cannot proceed. ${audit.missing_gates.length} mandatory configuration gate(s) are incomplete.`,
+        missing_gates: audit.missing_gates,
+        completed_count: audit.completed_count
+      });
+    }
+
+    const warehouse = await CompanyWarehouse.findById(id);
+    if (!warehouse) return res.status(404).json({ status: "error", message: "Warehouse not found." });
+
+    warehouse.status_code = 'pending_activation';
+    warehouse.status = 3; // In Review
+    await warehouse.save();
+
+    return res.status(200).json({
+      status: "success",
+      message: "All 10 configuration gates passed successfully! Warehouse submitted for activation approval.",
+      audit
+    });
+  } catch (error) {
+    console.error("Error in submit_company_warehouse_activation:", error);
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * POST /warehouses/:id/approve-activation
+ * Final Admin approval activating warehouse and operational permissions
+ */
+const approve_company_warehouse_activation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const audit = await evaluateCompanyWarehouseChecklist(id);
+
+    if (!audit.can_activate) {
+      return res.status(400).json({
+        status: "error",
+        message: "Cannot approve warehouse activation. Mandatory configuration gates are incomplete.",
+        missing_gates: audit.missing_gates
+      });
+    }
+
+    const warehouse = await CompanyWarehouse.findById(id);
+    if (!warehouse) return res.status(404).json({ status: "error", message: "Warehouse not found." });
+
+    warehouse.is_active = true;
+    warehouse.status_code = 'active';
+    warehouse.status = 4; // Verified
+    warehouse.effective_date = new Date();
+    warehouse.operational_permissions = {
+      inward: true,
+      outward: true,
+      storage: true,
+      dispatch: true,
+      kit_assembly: true
+    };
+    await warehouse.save();
+
+    return res.status(200).json({
+      status: "success",
+      message: `Warehouse '${warehouse.warehouse_name || warehouse.warehouse_code}' activated successfully.`,
+      warehouse
+    });
+  } catch (error) {
+    console.error("Error in approve_company_warehouse_activation:", error);
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * POST /warehouses/:id/toggle-gate
+ * Manually toggle or verify a specific gate in the 10-gate checklist
+ */
+const toggle_company_warehouse_gate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { gate_key, status } = req.body;
+
+    if (!gate_key) {
+      return res.status(400).json({ status: "error", message: "Gate key is required." });
+    }
+
+    const warehouse = await CompanyWarehouse.findById(id).lean();
+    if (!warehouse) return res.status(404).json({ status: "error", message: "Warehouse not found." });
+
+    const currentStatus = Boolean(warehouse.company_setup_checklist?.[gate_key]?.status);
+    const newStatus = status !== undefined ? Boolean(status) : !currentStatus;
+
+    await CompanyWarehouse.updateOne(
+      { _id: id },
+      {
+        $set: {
+          [`company_setup_checklist.${gate_key}`]: {
+            status: newStatus,
+            completed_at: newStatus ? new Date() : null
+          }
+        }
+      }
+    );
+
+    const audit = await evaluateCompanyWarehouseChecklist(id);
+
+    return res.status(200).json({
+      status: "success",
+      message: `Gate '${gate_key}' ${newStatus ? 'marked as verified' : 'unverified'} successfully.`,
+      audit
+    });
+  } catch (error) {
+    console.error("Error in toggle_company_warehouse_gate:", error);
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * POST /warehouses/:id/inspection
+ * Records physical or virtual 3PL warehouse inspection and updates facility specs & photographs
+ */
+const record_3pl_inspection = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      inspector_name,
+      inspection_date,
+      inspection_type,
+      inspection_remarks,
+      inspection_report_url,
+      result,
+      // Admin editable facility specs
+      warehouse_area_sqft,
+      max_weight_capacity_kg,
+      max_volume_cbf,
+      max_pallet_capacity,
+      storage_type,
+      facilities,
+      categorized_images,
+      warehouse_name
+    } = req.body;
+
+    const warehouse = await CompanyWarehouse.findById(id);
+    if (!warehouse) return res.status(404).json({ status: "error", message: "Warehouse not found." });
+
+    // Update facility details if provided by Admin
+    if (warehouse_name && warehouse_name.trim()) warehouse.warehouse_name = warehouse_name.trim();
+    if (warehouse_area_sqft !== undefined) warehouse.warehouse_area_sqft = Number(warehouse_area_sqft) || 0;
+    if (max_weight_capacity_kg !== undefined) warehouse.max_weight_capacity_kg = Number(max_weight_capacity_kg) || 0;
+    if (max_volume_cbf !== undefined) warehouse.max_volume_cbf = Number(max_volume_cbf) || 0;
+    if (max_pallet_capacity !== undefined) warehouse.max_pallet_capacity = Number(max_pallet_capacity) || 0;
+    if (storage_type) warehouse.storage_type = storage_type;
+    if (facilities) {
+      warehouse.facilities = {
+        ...(warehouse.facilities?.toObject ? warehouse.facilities.toObject() : warehouse.facilities),
+        ...facilities
+      };
+    }
+
+    // Update categorized images
+    if (categorized_images) {
+      const allImgs = [
+        categorized_images.front_exterior || categorized_images.exterior,
+        categorized_images.main_storage || categorized_images.storage,
+        categorized_images.product_racks || categorized_images.racks,
+        categorized_images.loading_unloading || categorized_images.loading_area,
+        categorized_images.office_security || categorized_images.security,
+        ...(categorized_images.additional_images || [])
+      ].flat().filter(Boolean);
+      if (allImgs.length > 0) warehouse.images = JSON.stringify(allImgs);
+      warehouse.categorized_images = categorized_images;
+    }
+
+    // Update inspection details
+    const existingInspection = warehouse.inspection_details || {};
+    let inspectionStatus = existingInspection.status || 'pending';
+
+    if (result === 'passed') {
+      inspectionStatus = 'passed';
+      warehouse.status_code = 'active';
+      warehouse.status = 4; // Verified
+      warehouse.is_active = true;
+      warehouse.effective_date = new Date();
+      warehouse.operational_permissions = {
+        inward: true,
+        outward: true,
+        storage: true,
+        dispatch: true,
+        kit_assembly: true
+      };
+      if (!warehouse.company_setup_checklist) warehouse.company_setup_checklist = {};
+      warehouse.company_setup_checklist.images_and_docs = { status: true, completed_at: new Date() };
+      warehouse.company_setup_checklist.storage_capacity = { status: true, completed_at: new Date() };
+      warehouse.company_setup_checklist.inward_outward_workflow = { status: true, completed_at: new Date() };
+      warehouse.markModified('company_setup_checklist');
+    } else if (result === 'failed') {
+      inspectionStatus = 'failed';
+      warehouse.status_code = 'pending_inspection';
+      warehouse.status = 5; // Rejected
+      warehouse.rejection_reason = inspection_remarks;
+      warehouse.is_active = false;
+    } else if (result === 're_inspection_required') {
+      inspectionStatus = 're_inspection_required';
+      warehouse.status_code = 'pending_inspection';
+      warehouse.is_active = false;
+    }
+    // If result === 'update_only', keep inspectionStatus as is (admin saving facility specs/photos draft)
+
+    warehouse.inspection_details = {
+      status: inspectionStatus,
+      inspector_name: inspector_name || existingInspection.inspector_name || 'Admin Operations Lead',
+      inspection_date: inspection_date ? new Date(inspection_date) : (existingInspection.inspection_date || new Date()),
+      inspection_type: inspection_type || existingInspection.inspection_type || 'physical',
+      inspection_remarks: inspection_remarks !== undefined ? inspection_remarks : (existingInspection.inspection_remarks || ''),
+      inspection_report_url: inspection_report_url !== undefined ? inspection_report_url : (existingInspection.inspection_report_url || null)
+    };
+
+    await warehouse.save();
+
+    const responseMsg = result === 'passed'
+      ? "3PL warehouse inspected, verified, and activated successfully!"
+      : result === 'update_only'
+        ? "3PL facility details and photographs updated successfully."
+        : `Inspection recorded successfully. Result: ${result}.`;
+
+    return res.status(200).json({
+      status: "success",
+      message: responseMsg,
+      inspection: warehouse.inspection_details,
+      warehouse
+    });
+  } catch (error) {
+    console.error("Error in record_3pl_inspection:", error);
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * POST /warehouses/:id/approve-3pl
+ * Approves 3PL warehouse after passed inspection
+ */
+const approve_3pl_warehouse = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const warehouse = await CompanyWarehouse.findById(id);
+    if (!warehouse) return res.status(404).json({ status: "error", message: "Warehouse not found." });
+
+    if (warehouse.inspection_details?.status !== 'passed') {
+      return res.status(400).json({
+        status: "error",
+        message: "Cannot approve 3PL warehouse. Warehouse inspection must be recorded as 'passed' first."
+      });
+    }
+
+    warehouse.status_code = 'approved';
+    await warehouse.save();
+
+    return res.status(200).json({
+      status: "success",
+      message: "3PL warehouse approved successfully. Ready for commercial & kit activation.",
+      warehouse
+    });
+  } catch (error) {
+    console.error("Error in approve_3pl_warehouse:", error);
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * PUT /warehouses/:id/commercials
+ * Sets 3PL commercial rates and SLA
+ */
+const update_3pl_commercials = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { commercial_settings } = req.body;
+
+    const warehouse = await CompanyWarehouse.findById(id);
+    if (!warehouse) return res.status(404).json({ status: "error", message: "Warehouse not found." });
+
+    warehouse.commercial_settings = {
+      ...warehouse.commercial_settings?.toObject(),
+      ...commercial_settings
+    };
+
+    await warehouse.save();
+
+    return res.status(200).json({
+      status: "success",
+      message: "3PL commercial settings updated successfully.",
+      commercial_settings: warehouse.commercial_settings
+    });
+  } catch (error) {
+    console.error("Error in update_3pl_commercials:", error);
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * PATCH /warehouses/:id/toggle-status
+ * Soft suspend / reactivate warehouse
+ */
+const toggle_warehouse_status = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, reason } = req.body; // 'suspend' | 'activate'
+
+    const warehouse = await CompanyWarehouse.findById(id);
+    if (!warehouse) return res.status(404).json({ status: "error", message: "Warehouse not found." });
+
+    if (action === 'suspend') {
+      warehouse.is_active = false;
+      warehouse.status_code = 'suspended';
+      warehouse.rejection_reason = reason || 'Suspended by Administrator';
+      warehouse.operational_permissions = {
+        inward: false,
+        outward: false,
+        storage: false,
+        dispatch: false,
+        kit_assembly: false
+      };
+    } else if (action === 'activate') {
+      warehouse.is_active = true;
+      warehouse.status_code = 'active';
+      warehouse.rejection_reason = null;
+      warehouse.operational_permissions = {
+        inward: true,
+        outward: true,
+        storage: true,
+        dispatch: true,
+        kit_assembly: true
+      };
+    }
+
+    await warehouse.save();
+
+    return res.status(200).json({
+      status: "success",
+      message: `Warehouse status changed to '${warehouse.status_code}'.`,
+      warehouse
+    });
+  } catch (error) {
+    console.error("Error in toggle_warehouse_status:", error);
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
 module.exports = {
   add_warehouse,
   get_warehouses,
@@ -1173,5 +1819,15 @@ module.exports = {
   set_warehouse_validation_field_statuses,
   get_warehouses_by_district,
   change_warehouse_validation_status,
-  update_warehouse_order_fulfillment_types
+  update_warehouse_order_fulfillment_types,
+  get_warehouse_dashboard_metrics,
+  get_warehouse_map_markers,
+  get_company_warehouse_checklist,
+  submit_company_warehouse_activation,
+  approve_company_warehouse_activation,
+  toggle_company_warehouse_gate,
+  record_3pl_inspection,
+  approve_3pl_warehouse,
+  update_3pl_commercials,
+  toggle_warehouse_status
 };

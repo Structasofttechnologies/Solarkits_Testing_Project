@@ -270,6 +270,7 @@ export default function ClusterWarehouseRouting() {
     if (selectedWh) {
       setMappingFormData((prev) => ({
         ...prev,
+        warehouse_id: selectedWh.id || selectedWh._id,
         warehouse_code: selectedWh.warehouse_code,
         warehouse_name: selectedWh.warehouse_name,
       }));

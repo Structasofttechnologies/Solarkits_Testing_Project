@@ -1026,6 +1026,16 @@ export default function SolarShopDashboard() {
                                         }
                                     />
                                     <Route
+                                        path="/warehouse-kit-activations/:warehouseId"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="ADM_WH_KIT_ACT">
+                                                <Suspense fallback={<Loader text="Loading Warehouse Kit Configuration..." />}>
+                                                    <WarehouseKitConfig moduleUniqueId="ADM_WH_KIT_ACT" />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
                                         path="/:countryName/warehouse-kit-activations"
                                         element={
                                             <PermissionGuard requiredUniqueId="ADM_WH_KIT_ACT">

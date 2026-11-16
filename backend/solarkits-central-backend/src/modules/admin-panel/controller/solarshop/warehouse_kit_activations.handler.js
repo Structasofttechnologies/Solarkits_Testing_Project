@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { WarehouseKitActivation, WarehouseComboKit, ProductSku, ProductSkuPrice, BulkKitSetting, SolarKit, CompanyMargin: CompanyMarginCore } = require('../../models/core_db');
+const { WarehouseKitActivation, WarehouseComboKit, ProductSku, ProductSkuPrice, BulkKitSetting, SolarKit, CompanyMargin: CompanyMarginCore, WarehouseClusterMapping, RegionalCluster } = require('../../models/core_db');
 const { CompanyWarehouse } = require('../../models/company_warehouse_db');
 const { GeoLevel0, GeoLevel2 } = require('../../models/geolocation_db');
 const { BulkKitSetting: IndiaBulkKitSetting, CompanyMargin: CompanyMarginIndia } = require('../../models/india_solarshop_db');
@@ -203,13 +203,13 @@ const get_warehouse_kit_activations = async (req, res) => {
             .select('warehouse_code address level_1 order_fulfillment_types order_fulfillment_config')
             .lean();
         const warehouseMap = {};
-        warehouseDocs.forEach(w => { 
+        warehouseDocs.forEach(w => {
             warehouseMap[w._id.toString()] = {
                 ...w,
-                order_fulfillment_types: w.order_fulfillment_types && w.order_fulfillment_types.length > 0 
-                    ? w.order_fulfillment_types 
+                order_fulfillment_types: w.order_fulfillment_types && w.order_fulfillment_types.length > 0
+                    ? w.order_fulfillment_types
                     : ['po_order', 'loose_order', 'trial_order']
-            }; 
+            };
         });
         activations = activations.map(a => ({
             ...a,
@@ -368,7 +368,12 @@ const get_warehouse_activations = async (req, res) => {
                     ]
                 }).lean() : [],
             MarginModel.find({ warehouse_id: warehouseObjectId, is_active: true, deleted_at: null }).lean(),
-            WarehouseKitActivation.find({ warehouse_id: warehouseObjectId, deleted_at: null }).lean()
+            WarehouseKitActivation.find({ warehouse_id: warehouseObjectId, deleted_at: null }).lean(),
+            WarehouseClusterMapping.findOne({
+                $or: [{ warehouse_id: warehouseObjectId }, { warehouse_code: warehouse.warehouse_code }],
+                deleted_at: null,
+                status: 'Active'
+            }).lean()
         ]);
 
         // Build lookup maps
@@ -466,6 +471,13 @@ const get_warehouse_activations = async (req, res) => {
                 warehouse: {
                     id: (warehouse._id || warehouse.id)?.toString(),
                     warehouse_code: warehouse.warehouse_code,
+                    address: warehouse.address,
+                    state: warehouse.state,
+                    cluster: clusterMapping ? clusterMapping.cluster_name : null,
+                    cluster_name: clusterMapping ? clusterMapping.cluster_name : null,
+                    cluster_id: clusterMapping ? clusterMapping.cluster_id?.toString() : null,
+                    fulfillment_states: clusterMapping ? (clusterMapping.states || []) : [],
+                    is_cluster_mapped: Boolean(clusterMapping),
                     order_fulfillment_types: warehouse.order_fulfillment_types && warehouse.order_fulfillment_types.length > 0
                         ? warehouse.order_fulfillment_types
                         : ['po_order', 'loose_order', 'trial_order'],
@@ -495,8 +507,16 @@ const save_warehouse_kit_activation = async (req, res) => {
         const {
             warehouse_id,
             combo_kit_id,
+            kit_type,
             is_combokit_active = false,
             is_customize_kit_active = false,
+            max_permitted_stock,
+            minimum_stock_alert,
+            maximum_stock_holding,
+            procurement_source,
+            assembly_permission,
+            dispatch_permission,
+            delivery_districts
         } = req.body;
 
         if (!warehouse_id || !combo_kit_id) {
@@ -516,6 +536,17 @@ const save_warehouse_kit_activation = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Selected warehouse does not exist.' });
         }
 
+        let effective_combokit_active = !!is_combokit_active;
+        let effective_customize_kit_active = !!is_customize_kit_active;
+
+        // Rule 6.3: Warehouse must be Active before kits can be activated
+        if ((effective_combokit_active || effective_customize_kit_active) && !warehouse.is_active) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'Cannot activate kit. The selected warehouse must be Active before kits can be enabled for storage or dispatch.'
+            });
+        }
+
         // Verify combo kit exists (check both core and India DBs)
         const { kit, isIndia, exists } = await findComboKitAnywhere(combo_kit_id);
         if (!exists) {
@@ -525,7 +556,6 @@ const save_warehouse_kit_activation = async (req, res) => {
         const is_custom = kit.is_custom || false;
 
         // --- Business Rule: Combo Kit Activation ---
-        let effective_combokit_active = !!is_combokit_active;
         if ((effective_combokit_active && !is_custom) || (effective_customize_kit_active && is_custom)) {
             const marginSet = await checkCompanyMarginIsSet(combo_kit_id, warehouse_id);
             if (!marginSet) {
@@ -566,7 +596,6 @@ const save_warehouse_kit_activation = async (req, res) => {
         }
 
         // --- Business Rule: Customize Kit Activation ---
-        let effective_customize_kit_active = !!is_customize_kit_active;
         if (effective_customize_kit_active && is_custom) {
             // Check company margin is configured
             const marginSet = await checkCompanyMarginIsSet(combo_kit_id, warehouse_id);
@@ -593,9 +622,27 @@ const save_warehouse_kit_activation = async (req, res) => {
         const update = {
             warehouse_id,
             combo_kit_id,
+            kit_id: combo_kit_id,
+            kit_type: kit_type || (is_custom ? 'customize_kit' : 'combo_kit'),
+            kit_name: kit.name || 'Solar Kit',
             is_combokit_active: effective_combokit_active,
             is_customize_kit_active: !!is_customize_kit_active,
-            is_active: true,
+            is_active: effective_combokit_active || effective_customize_kit_active,
+            max_permitted_stock: max_permitted_stock !== undefined ? Number(max_permitted_stock) : (existingActivation?.max_permitted_stock || 0),
+            minimum_stock_alert: minimum_stock_alert !== undefined ? Number(minimum_stock_alert) : (existingActivation?.minimum_stock_alert || 0),
+            maximum_stock_holding: maximum_stock_holding !== undefined ? Number(maximum_stock_holding) : (existingActivation?.maximum_stock_holding || 0),
+            procurement_source: procurement_source || existingActivation?.procurement_source || 'company_stock',
+            assembly_permission: assembly_permission !== undefined ? Boolean(assembly_permission) : (existingActivation?.assembly_permission ?? true),
+            dispatch_permission: dispatch_permission !== undefined ? Boolean(dispatch_permission) : (existingActivation?.dispatch_permission ?? true),
+            delivery_districts: delivery_districts || existingActivation?.delivery_districts || (warehouse.serviceable_districts || []),
+            is_store_display: req.body.is_store_display !== undefined ? Boolean(req.body.is_store_display) : (existingActivation?.is_store_display ?? true),
+            display_start_date: req.body.display_start_date || existingActivation?.display_start_date || null,
+            display_end_date: req.body.display_end_date !== undefined ? req.body.display_end_date : (existingActivation?.display_end_date || null),
+            always_display: req.body.always_display !== undefined ? Boolean(req.body.always_display) : (existingActivation?.always_display ?? true),
+            restricted_clusters: Array.isArray(req.body.restricted_clusters) ? req.body.restricted_clusters : (existingActivation?.restricted_clusters || ['all']),
+            restricted_states: Array.isArray(req.body.restricted_states) ? req.body.restricted_states : (existingActivation?.restricted_states || ['all']),
+            restricted_industry_types: Array.isArray(req.body.restricted_industry_types) ? req.body.restricted_industry_types : (existingActivation?.restricted_industry_types || ['all']),
+            restricted_project_types: Array.isArray(req.body.restricted_project_types) ? req.body.restricted_project_types : (existingActivation?.restricted_project_types || ['all']),
             updated_at: new Date(),
         };
 
@@ -725,15 +772,35 @@ const bulk_save_warehouse_kit_activations = async (req, res) => {
                 const update = {
                     warehouse_id,
                     combo_kit_id,
+                    kit_id: combo_kit_id,
+                    kit_type: item.kit_type || (is_custom ? 'customize_kit' : 'combo_kit'),
+                    kit_name: kit.name || 'Solar Kit',
                     is_combokit_active: effective_combokit_active,
                     is_customize_kit_active: efficient_customize_kit_active,
-                    is_active: true,
+                    is_active: effective_combokit_active || efficient_customize_kit_active,
                     updated_at: new Date(),
                 };
+
+                if (item.max_permitted_stock !== undefined) update.max_permitted_stock = Number(item.max_permitted_stock);
+                if (item.minimum_stock_alert !== undefined) update.minimum_stock_alert = Number(item.minimum_stock_alert);
+                if (item.maximum_stock_holding !== undefined) update.maximum_stock_holding = Number(item.maximum_stock_holding);
+                if (item.procurement_source) update.procurement_source = item.procurement_source;
+                if (item.assembly_permission !== undefined) update.assembly_permission = Boolean(item.assembly_permission);
+                if (item.dispatch_permission !== undefined) update.dispatch_permission = Boolean(item.dispatch_permission);
+                if (Array.isArray(item.delivery_districts)) update.delivery_districts = item.delivery_districts;
 
                 if (Array.isArray(item.allowed_order_types)) {
                     update.allowed_order_types = item.allowed_order_types;
                 }
+
+                if (item.is_store_display !== undefined) update.is_store_display = Boolean(item.is_store_display);
+                if (item.display_start_date) update.display_start_date = item.display_start_date;
+                if (item.display_end_date !== undefined) update.display_end_date = item.display_end_date;
+                if (item.always_display !== undefined) update.always_display = Boolean(item.always_display);
+                if (Array.isArray(item.restricted_clusters)) update.restricted_clusters = item.restricted_clusters;
+                if (Array.isArray(item.restricted_states)) update.restricted_states = item.restricted_states;
+                if (Array.isArray(item.restricted_industry_types)) update.restricted_industry_types = item.restricted_industry_types;
+                if (Array.isArray(item.restricted_project_types)) update.restricted_project_types = item.restricted_project_types;
 
                 const result = await WarehouseKitActivation.findOneAndUpdate(filter, update, {
                     upsert: true,
@@ -785,6 +852,17 @@ const toggle_kit_activation = async (req, res) => {
         const newValue = !activation[field];
         const warehouseId = activation.warehouse_id;
         const comboKitId = activation.combo_kit_id;
+
+        // Rule 6.3: Warehouse must be Active before kits can be enabled
+        if (newValue) {
+            const wh = await CompanyWarehouse.findById(warehouseId).lean();
+            if (!wh || !wh.is_active) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'Cannot activate kit. The warehouse must be Active before kits can be enabled for storage or dispatch.'
+                });
+            }
+        }
 
         // Business Rule: Activating combo kit → check SKU prices and margins
         if (field === 'is_combokit_active' && newValue) {
@@ -864,6 +942,7 @@ const toggle_kit_activation = async (req, res) => {
         }
 
         activation[field] = newValue;
+        activation.is_active = Boolean(activation.is_combokit_active || activation.is_customize_kit_active);
         activation.updated_at = new Date();
         await activation.save();
 

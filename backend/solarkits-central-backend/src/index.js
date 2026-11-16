@@ -73,6 +73,7 @@ adminRouter.use('/panels', require('./modules/admin-panel/routes/panels.route'))
 adminRouter.use('/departments', require('./modules/admin-panel/routes/departments.route'));
 adminRouter.use('/geolocation', require('./modules/admin-panel/routes/geolocation.route'));
 adminRouter.use('/warehouses', require('./modules/admin-panel/routes/warehouses.route'));
+adminRouter.use('/3pl-vendors', require('./modules/admin-panel/routes/3pl_vendors.route'));
 adminRouter.use('/roles', require('./modules/admin-panel/routes/roles.route'));
 adminRouter.use('/modules', require('./modules/admin-panel/routes/modules.route'));
 adminRouter.use('/tasks', require('./modules/admin-panel/routes/task.route'));
