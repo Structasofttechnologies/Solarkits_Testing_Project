@@ -136,7 +136,7 @@ const seedCMS = async () => {
   // 4. Seed cms_users (Developer Quick Access Admin Accounts)
   const defaultAdminUsers = [
     {
-      name: 'Super Admin',
+      name: process.env.SUPER_ADMIN_NAME || 'Super Admin',
       email: (process.env.SUPER_ADMIN_EMAIL || 'ravi.s@sunnovative.com').toLowerCase().trim(),
       phone: process.env.SUPER_ADMIN_PHONE || '9913421453',
       passcode: '4404',
@@ -153,11 +153,21 @@ const seedCMS = async () => {
       phone: '9876543212',
       passcode: '1234',
     },
+    {
+      name: 'Rahil Sunnovative',
+      email: 'rahil.sunnovative@gmail.com',
+      phone: '9913421450',
+      passcode: '4404',
+    },
   ];
 
   for (const admin of defaultAdminUsers) {
     const adminPasscodeHash = await bcrypt.hash(admin.passcode || '1234', 10);
-    const exists = await CmsUser.findOne({ email: admin.email });
+    let exists = await CmsUser.findOne({ email: admin.email });
+    if (!exists && admin.phone) {
+      exists = await CmsUser.findOne({ phone: admin.phone });
+    }
+
     if (!exists) {
       await CmsUser.create({
         name: admin.name,
@@ -175,15 +185,17 @@ const seedCMS = async () => {
       console.log(`  ✓ Admin user seeded for email: ${admin.email}`);
     } else {
       const updateData = {
+        name: admin.name,
+        email: admin.email,
+        phone: admin.phone,
+        phone_code: '+91',
         is_verified: true,
         is_active: true,
         role_id: superAdminRole._id,
         is_system: true,
-        is_protected: true
+        is_protected: true,
+        passcode: adminPasscodeHash
       };
-      if (!exists.passcode) {
-        updateData.passcode = adminPasscodeHash;
-      }
       await CmsUser.findByIdAndUpdate(exists._id, { $set: updateData });
       console.log(`  ✓ Verified & updated admin account: ${admin.email}`);
     }

@@ -274,6 +274,7 @@ require('./modules/solarshop-india/utils/scheduler');
 require('./modules/warehouse-panel/utils/scheduler');
 require('./utils/autoSeedAccounts');
 require('./utils/autoSeedEpcTypes');
+require('./utils/autoSeedCMS');
 
 // Global Error Handler (catches JSON parse errors, CORS, and unhandled exceptions)
 app.use((err, req, res, next) => {
