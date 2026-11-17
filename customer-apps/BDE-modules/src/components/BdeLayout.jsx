@@ -126,15 +126,28 @@ export default function BdeLayout() {
           <div className="flex items-center gap-3">
             {/* Territory Pill */}
             {profile?.territory && (
-              <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-700 rounded-full text-xs font-semibold">
-                <MapPin className="w-3.5 h-3.5" />
-                <span>
-                  {profile.territory.state_name}
+              <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-700 rounded-full text-xs font-semibold max-w-xs xl:max-w-md truncate" title={profile.territory.state_name}>
+                <MapPin className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">
                   {(() => {
+                    const states = profile.territories && profile.territories.length > 0
+                      ? [...new Set(profile.territories.map(t => t.state_name).filter(Boolean))]
+                      : (profile.territory.assigned_states || (profile.territory.state_name ? profile.territory.state_name.split(',').map(s => s.trim()) : []));
                     const dList = profile.territory.district_names || profile.territory.districts || [];
-                    if (dList.length === 0) return '';
-                    if (dList.length <= 2) return ` (${dList.join(', ')})`;
-                    return ` (${dList.length} Districts)`;
+
+                    if (states.length >= 25) {
+                      return `Pan India (${states.length} States • ${dList.length} Districts)`;
+                    }
+                    if (states.length > 2) {
+                      return `${states[0]} +${states.length - 1} States (${dList.length} Districts)`;
+                    }
+                    if (states.length === 2) {
+                      return `${states.join(', ')} (${dList.length} Districts)`;
+                    }
+                    const stateLabel = states[0] || profile.territory.state_name || 'Assigned Territory';
+                    if (dList.length === 0) return stateLabel;
+                    if (dList.length <= 2) return `${stateLabel} (${dList.join(', ')})`;
+                    return `${stateLabel} (${dList.length} Districts)`;
                   })()}
                 </span>
               </div>

@@ -31,9 +31,9 @@ export default function TerritoryModal({
   // Single State Form State
   const [selectedStateId, setSelectedStateId] = useState('');
   const [selectedStateName, setSelectedStateName] = useState('');
-  const [districts, setDistricts] = useState([]);
-  const [selectedDistrictIds, setSelectedDistrictIds] = useState([]);
-  const [districtSearch, setDistrictSearch] = useState('');
+  const [clusters, setClusters] = useState([]);
+  const [selectedClusterIds, setSelectedClusterIds] = useState([]);
+  const [clusterSearch, setClusterSearch] = useState('');
   const [priority, setPriority] = useState('medium');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState('');
@@ -49,7 +49,7 @@ export default function TerritoryModal({
 
   // Status & Feedback
   const [loading, setLoading] = useState(false);
-  const [fetchingDistricts, setFetchingDistricts] = useState(false);
+  const [fetchingClusters, setFetchingClusters] = useState(false);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
 
@@ -106,9 +106,9 @@ export default function TerritoryModal({
   const resetSingleForm = () => {
     setSelectedStateId('');
     setSelectedStateName('');
-    setDistricts([]);
-    setSelectedDistrictIds([]);
-    setDistrictSearch('');
+    setClusters([]);
+    setSelectedClusterIds([]);
+    setClusterSearch('');
     setPriority('medium');
     setStartDate(new Date().toISOString().split('T')[0]);
     setEndDate('');
@@ -129,36 +129,41 @@ export default function TerritoryModal({
     setError(null);
     setSuccessMsg(null);
 
+    const preselectedClusterIds = (t.cluster_ids || []).map(c => (c._id || c.id || c).toString());
+    setSelectedClusterIds(preselectedClusterIds);
+
     if (sId) {
-      fetchDistrictsForState(sId, t.district_ids, t.district_names);
+      fetchClustersForState(sId, preselectedClusterIds);
     }
   };
 
-  const fetchDistrictsForState = async (stateId, preselectedIds = [], preselectedNames = []) => {
-    setFetchingDistricts(true);
+  const fetchClustersForState = async (stateId, preCluIds = []) => {
+    setFetchingClusters(true);
     try {
-      const res = await bdeApi.getDistricts(stateId);
-      const districtList = res.districts || res.data || [];
-      setDistricts(districtList);
+      const cluRes = await bdeApi.getClustersByState(stateId);
+      const clusterList = cluRes.data || cluRes.clusters || [];
+      setClusters(clusterList);
 
-      const strIds = (preselectedIds || []).map(id => (id._id || id).toString());
-      const strNames = preselectedNames || [];
-
-      if (strIds.length > 0 || strNames.length > 0) {
-        const matchingIds = districtList
-          .filter(d => {
-            const dId = (d._id || d.id || '').toString();
-            return strIds.includes(dId) || strNames.includes(d.name);
-          })
-          .map(d => d._id || d.id);
-        setSelectedDistrictIds(matchingIds);
+      if (preCluIds && preCluIds.length > 0) {
+        const matchingClusterIds = clusterList
+          .filter(c => preCluIds.includes((c._id || c.id).toString()))
+          .map(c => (c._id || c.id).toString());
+        setSelectedClusterIds(matchingClusterIds);
       } else {
-        setSelectedDistrictIds([]);
+        const alreadyAssignedClusters = clusterList
+          .filter(c => {
+            const bId = c.primary_bde_id?._id || c.primary_bde_id;
+            return bId && String(bId) === String(bdeId);
+          })
+          .map(c => (c._id || c.id).toString());
+        if (alreadyAssignedClusters.length > 0) {
+          setSelectedClusterIds(alreadyAssignedClusters);
+        }
       }
     } catch (err) {
-      console.error('Failed to fetch districts', err);
+      console.error('Failed to fetch state clusters', err);
     } finally {
-      setFetchingDistricts(false);
+      setFetchingClusters(false);
     }
   };
 
@@ -166,6 +171,7 @@ export default function TerritoryModal({
     const sId = e.target.value;
     setSelectedStateId(sId);
     setEditingAssignmentId(null);
+    setClusterSearch('');
     const selectedStateObj = states.find(s => (s._id || s.id) === sId);
     setSelectedStateName(selectedStateObj ? selectedStateObj.name : '');
 
@@ -179,29 +185,31 @@ export default function TerritoryModal({
         // Pre-populate with existing state data
         applyTerritoryToEdit(already);
       } else {
-        fetchDistrictsForState(sId);
+        setSelectedClusterIds([]);
+        fetchClustersForState(sId);
       }
     } else {
-      setDistricts([]);
-      setSelectedDistrictIds([]);
+      setClusters([]);
+      setSelectedClusterIds([]);
     }
   };
 
-  const toggleDistrict = (dId) => {
-    setSelectedDistrictIds(prev =>
-      prev.includes(dId) ? prev.filter(id => id !== dId) : [...prev, dId]
+  const toggleCluster = (cluster) => {
+    const cId = (cluster._id || cluster.id).toString();
+    setSelectedClusterIds(prev =>
+      prev.includes(cId) ? prev.filter(id => id !== cId) : [...prev, cId]
     );
   };
 
-  const selectAllDistricts = () => {
-    if (selectedDistrictIds.length === districts.length) {
-      setSelectedDistrictIds([]);
+  const selectAllClusters = () => {
+    if (selectedClusterIds.length === clusters.length) {
+      setSelectedClusterIds([]);
     } else {
-      setSelectedDistrictIds(districts.map(d => d._id || d.id));
+      setSelectedClusterIds(clusters.map(c => (c._id || c.id).toString()));
     }
   };
 
-  // Submit Single State Assignment
+  // Submit Single State Assignment (Cluster-centric)
   const handleSingleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -215,16 +223,25 @@ export default function TerritoryModal({
         return;
       }
 
-      const districtNames = districts
-        .filter(d => selectedDistrictIds.includes(d._id || d.id))
-        .map(d => d.name);
+      if (selectedClusterIds.length === 0) {
+        setError('Please select at least one cluster to assign.');
+        setLoading(false);
+        return;
+      }
+
+      const selectedClustersList = clusters.filter(c => selectedClusterIds.includes((c._id || c.id).toString()));
+      const clusterNames = selectedClustersList.map(c => c.cluster_name);
+      const districtIds = [...new Set(selectedClustersList.flatMap(c => (c.district_ids || []).map(d => d._id || d.id || d)))];
+      const districtNames = [...new Set(selectedClustersList.flatMap(c => c.district_names || []))];
 
       await bdeApi.assignTerritory({
         bde_id: bdeId,
         country_name: 'India',
         state_id: selectedStateId,
         state_name: selectedStateName,
-        district_ids: selectedDistrictIds,
+        cluster_ids: selectedClusterIds,
+        cluster_names: clusterNames,
+        district_ids: districtIds,
         district_names: districtNames,
         assignment_start_date: startDate,
         assignment_end_date: endDate || null,
@@ -232,7 +249,7 @@ export default function TerritoryModal({
         notes,
       });
 
-      setSuccessMsg(`State "${selectedStateName}" assigned successfully with ${selectedDistrictIds.length} district(s)!`);
+      setSuccessMsg(`State "${selectedStateName}" assigned successfully with ${clusterNames.length} cluster(s)!`);
       await refreshActiveTerritories();
       resetSingleForm();
     } catch (err) {
@@ -327,12 +344,17 @@ export default function TerritoryModal({
     t => (t.state_id?._id || t.state_id || '').toString()
   );
 
-  const filteredDistricts = districts.filter(d =>
-    d.name?.toLowerCase().includes(districtSearch.toLowerCase())
-  );
+  const filteredClusters = clusters.filter(clu => {
+    if (!clusterSearch) return true;
+    const q = clusterSearch.toLowerCase();
+    const matchName = clu.cluster_name?.toLowerCase().includes(q);
+    const matchCode = clu.cluster_code?.toLowerCase().includes(q);
+    const matchDist = (clu.district_names || []).some(d => d.toLowerCase().includes(q));
+    return matchName || matchCode || matchDist;
+  });
 
-  const totalAssignedDistricts = activeTerritories.reduce(
-    (sum, t) => sum + (t.district_names?.length || 0),
+  const totalAssignedClusters = activeTerritories.reduce(
+    (sum, t) => sum + (t.cluster_names?.length || t.cluster_ids?.length || 0),
     0
   );
 
@@ -348,14 +370,14 @@ export default function TerritoryModal({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                  Manage Territory & State Jurisdictions
+                  Manage Territory & State Clusters
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#0575B8]/10 text-[#0575B8] border border-blue-200 uppercase">
                   Multi-State Enabled
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
-                Assign and manage multiple authorized states and district quotas for{' '}
+                Assign and manage authorized state franchisee clusters for{' '}
                 <span className="font-bold text-slate-900">{bde.full_name}</span> ({bde.bde_id})
               </p>
             </div>
@@ -405,12 +427,12 @@ export default function TerritoryModal({
                   Active Assigned States ({activeTerritories.length})
                 </h3>
                 <p className="text-[11px] text-slate-500 font-medium">
-                  States and districts where {bde.full_name} is currently authorized to operate.
+                  States and franchisee clusters where {bde.full_name} is currently authorized to operate.
                 </p>
               </div>
               <div className="flex items-center gap-2 self-start sm:self-auto">
                 <span className="px-2.5 py-1 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 shadow-2xs">
-                  Total Districts: <strong className="text-indigo-700">{totalAssignedDistricts}</strong>
+                  Total Clusters: <strong className="text-indigo-700">{totalAssignedClusters}</strong>
                 </span>
                 {editingAssignmentId && (
                   <button
@@ -430,21 +452,21 @@ export default function TerritoryModal({
               </div>
             ) : activeTerritories.length === 0 ? (
               <div className="py-6 text-center bg-white rounded-xl border border-dashed border-slate-300 text-slate-500 font-medium">
-                No state territory currently assigned to this BDE. Use the form below to assign the first state!
+                No state territory currently assigned to this BDE. Use the form below to assign the first state clusters!
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                 {activeTerritories.map((t) => {
                   const tId = t._id || t.id;
                   const isBeingEdited = editingAssignmentId === tId;
-                  const districtCount = t.district_names?.length || 0;
+                  const clusterList = t.cluster_names || [];
 
                   return (
                     <div
                       key={tId}
                       className={`p-3.5 rounded-xl border transition-all ${isBeingEdited
-                          ? 'bg-blue-50/80 border-[#0575B8] shadow-sm'
-                          : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+                        ? 'bg-blue-50/80 border-[#0575B8] shadow-sm'
+                        : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
                         }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -452,17 +474,17 @@ export default function TerritoryModal({
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-bold text-slate-900 text-sm">{t.state_name}</span>
                             <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold ${t.priority === 'primary' || t.priority === 'high'
-                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                              : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
                               }`}>
                               {t.priority || 'medium'}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#0575B8] border border-blue-200">
-                              {districtCount} Districts
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              {clusterList.length} Clusters
                             </span>
                           </div>
                           {t.notes && (
-                            <p className="text-[10px] text-slate-400 italic mt-0.5 truncate max-w-xs">{t.notes}</p>
+                            <p className="text-[10px] text-slate-400 italic mt-1 truncate max-w-xs">{t.notes}</p>
                           )}
                         </div>
 
@@ -470,7 +492,7 @@ export default function TerritoryModal({
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             type="button"
-                            title="Edit districts for this state"
+                            title="Edit clusters for this state"
                             onClick={() => applyTerritoryToEdit(t)}
                             className="p-1.5 text-slate-500 hover:text-[#0575B8] hover:bg-blue-50 rounded-lg transition cursor-pointer"
                           >
@@ -487,21 +509,21 @@ export default function TerritoryModal({
                         </div>
                       </div>
 
-                      {/* Districts Pill List */}
+                      {/* Clusters Pill List */}
                       <div className="mt-2.5 pt-2 border-t border-slate-100">
-                        {districtCount > 0 ? (
-                          <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto pr-1">
-                            {t.district_names.map((d, i) => (
+                        {clusterList.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto pr-1">
+                            {clusterList.map((cName, i) => (
                               <span
                                 key={i}
-                                className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[9px] font-semibold"
+                                className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-[10px] font-bold flex items-center gap-1"
                               >
-                                {d}
+                                <span>🏢</span> {cName}
                               </span>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-[10px] text-slate-400 italic">All districts authorized</span>
+                          <span className="text-[10px] text-slate-400 italic">No clusters assigned</span>
                         )}
                       </div>
                     </div>
@@ -523,8 +545,8 @@ export default function TerritoryModal({
                 </h3>
                 <p className="text-[11px] text-slate-500 font-medium">
                   {editingAssignmentId
-                    ? 'Modify assigned districts, priority, or dates for this state.'
-                    : 'Select a state and assign specific district quotas or batch assign multiple states.'}
+                    ? 'Modify assigned franchisee clusters, priority, or dates for this state.'
+                    : 'Select a state and assign franchisee clusters.'}
                 </p>
               </div>
 
@@ -534,27 +556,27 @@ export default function TerritoryModal({
                     type="button"
                     onClick={() => setAssignMode('single')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${assignMode === 'single'
-                        ? 'bg-white text-[#0575B8] shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white text-[#0575B8] shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                       }`}
                   >
-                    Single State & Districts
+                    State Clusters Assignment
                   </button>
                   <button
                     type="button"
                     onClick={() => setAssignMode('batch')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${assignMode === 'batch'
-                        ? 'bg-white text-[#0575B8] shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white text-[#0575B8] shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                       }`}
                   >
-                    Quick Multi-State (All Districts)
+                    Quick Multi-State
                   </button>
                 </div>
               )}
             </div>
 
-            {/* TAB 1: Single State & Districts Custom Assign */}
+            {/* TAB 1: Single State Clusters Custom Assign */}
             {assignMode === 'single' && (
               <form onSubmit={handleSingleSubmit} className="space-y-4">
                 {/* State Dropdown */}
@@ -589,76 +611,126 @@ export default function TerritoryModal({
                   </select>
                 </div>
 
-                {/* Districts Multi-Select with Search & Select All */}
+                {/* Clusters Multi-Select */}
                 {selectedStateId && (
-                  <div className="space-y-2.5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                  <div className="space-y-3 p-4 bg-gradient-to-br from-indigo-50/50 via-blue-50/30 to-slate-50 rounded-2xl border border-indigo-100 shadow-2xs">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <label className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
-                          Districts for {selectedStateName}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <FaLayerGroup className="text-indigo-600 text-sm" />
+                        <label className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+                          Clusters in {selectedStateName}
                         </label>
-                        <span className="px-2 py-0.5 rounded-full bg-blue-100 text-[#0575B8] font-bold text-[10px]">
-                          {selectedDistrictIds.length} of {districts.length} selected
+                        <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold text-[10px]">
+                          {selectedClusterIds.length} of {clusters.length} selected
                         </span>
                       </div>
 
-                      {districts.length > 0 && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={selectAllDistricts}
-                            className="text-xs text-[#0575B8] font-bold hover:underline cursor-pointer"
-                          >
-                            {selectedDistrictIds.length === districts.length ? 'Deselect All' : 'Select All Districts'}
-                          </button>
-                        </div>
+                      {clusters.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={selectAllClusters}
+                          className="text-xs text-indigo-600 font-bold hover:underline cursor-pointer"
+                        >
+                          {selectedClusterIds.length === clusters.length ? 'Deselect All Clusters' : 'Select All Clusters'}
+                        </button>
                       )}
                     </div>
 
-                    {/* District Search filter */}
-                    {districts.length > 6 && (
+                    {/* Cluster Search Filter */}
+                    {clusters.length > 4 && (
                       <div className="relative">
-                        <FaSearch className="absolute left-3 top-3 text-slate-400 text-xs" />
+                        <FaSearch className="absolute left-3 top-2.5 text-slate-400 text-xs" />
                         <input
                           type="text"
-                          value={districtSearch}
-                          onChange={(e) => setDistrictSearch(e.target.value)}
-                          placeholder={`Filter ${districts.length} districts in ${selectedStateName}...`}
-                          className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-[#0575B8]"
+                          value={clusterSearch}
+                          onChange={(e) => setClusterSearch(e.target.value)}
+                          placeholder={`Filter ${clusters.length} clusters in ${selectedStateName}...`}
+                          className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-500 shadow-2xs"
                         />
                       </div>
                     )}
 
-                    {fetchingDistricts ? (
+                    {fetchingClusters ? (
                       <div className="text-xs text-slate-500 py-6 text-center bg-white rounded-xl border border-slate-200 flex items-center justify-center gap-2 font-medium">
-                        <FaSpinner className="animate-spin text-[#0575B8]" /> Loading districts for {selectedStateName}...
+                        <FaSpinner className="animate-spin text-indigo-600" /> Loading clusters for {selectedStateName}...
                       </div>
-                    ) : districts.length === 0 ? (
-                      <div className="text-xs text-amber-800 py-4 text-center bg-amber-50 rounded-xl border border-amber-200 font-medium">
-                        No active districts found for this state in Location Settings.
+                    ) : clusters.length === 0 ? (
+                      <div className="text-xs text-amber-800 py-4 px-4 text-center bg-amber-50 rounded-xl border border-amber-200 font-medium">
+                        No franchisee clusters configured for {selectedStateName} yet. Please create clusters for this state in Franchisee Clusters first.
                       </div>
-                    ) : filteredDistricts.length === 0 ? (
+                    ) : filteredClusters.length === 0 ? (
                       <div className="text-xs text-slate-400 py-4 text-center bg-white rounded-xl border border-slate-200">
-                        No districts match "{districtSearch}".
+                        No clusters match "{clusterSearch}".
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-52 overflow-y-auto p-2 bg-white rounded-xl border border-slate-200">
-                        {filteredDistricts.map(d => {
-                          const dId = d._id || d.id;
-                          const isSelected = selectedDistrictIds.includes(dId);
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {filteredClusters.map((clu) => {
+                          const cId = (clu._id || clu.id).toString();
+                          const isSelected = selectedClusterIds.includes(cId);
+                          const distCount = (clu.district_ids || []).length || (clu.district_names || []).length;
+                          const isAssignedToThisBde = clu.primary_bde_id && (String(clu.primary_bde_id._id || clu.primary_bde_id) === String(bdeId));
+                          const isAssignedToOther = clu.primary_bde_id && !isAssignedToThisBde;
+
                           return (
-                            <button
-                              type="button"
-                              key={dId}
-                              onClick={() => toggleDistrict(dId)}
-                              className={`flex items-center justify-between p-2 rounded-xl text-xs font-semibold transition text-left cursor-pointer ${isSelected
-                                  ? 'bg-blue-50 text-[#0575B8] border-2 border-[#0575B8] shadow-2xs'
-                                  : 'bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100'
+                            <div
+                              key={cId}
+                              onClick={() => toggleCluster(clu)}
+                              className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-2.5 ${isSelected
+                                  ? 'bg-white border-indigo-600 shadow-sm ring-2 ring-indigo-500/20'
+                                  : 'bg-white/80 border-slate-200 hover:border-indigo-300'
                                 }`}
                             >
-                              <span className="truncate">{d.name}</span>
-                              {isSelected && <FaCheck className="text-[10px] shrink-0 ml-1 text-[#0575B8]" />}
-                            </button>
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="space-y-0.5 min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span
+                                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                                      style={{ backgroundColor: clu.color_code || '#2563eb' }}
+                                    />
+                                    <span className="font-black text-slate-900 text-xs truncate">
+                                      {clu.cluster_name}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded inline-block">
+                                    {clu.cluster_code}
+                                  </span>
+                                </div>
+
+                                <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'
+                                  }`}>
+                                  {isSelected && <FaCheck className="text-[10px]" />}
+                                </div>
+                              </div>
+
+                              {/* Districts Preview */}
+                              <div className="text-[11px] text-slate-600">
+                                <span className="font-bold text-slate-800">{distCount} Districts:</span>{' '}
+                                <span className="text-slate-500 font-medium line-clamp-1" title={(clu.district_names || []).join(', ')}>
+                                  {(clu.district_names || []).slice(0, 3).join(', ')}
+                                  {(clu.district_names || []).length > 3 && ` +${clu.district_names.length - 3} more`}
+                                </span>
+                              </div>
+
+                              {/* Status & Attribution */}
+                              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                                <span className="text-slate-400 capitalize font-medium">
+                                  {clu.status || 'available'}
+                                </span>
+                                {isAssignedToThisBde ? (
+                                  <span className="px-1.5 py-0.5 rounded font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    Assigned to this BDE
+                                  </span>
+                                ) : isAssignedToOther ? (
+                                  <span className="px-1.5 py-0.5 rounded font-bold bg-amber-50 text-amber-700 border border-amber-200 truncate max-w-[110px]" title={clu.primary_bde_id?.full_name}>
+                                    {clu.primary_bde_id?.full_name || 'Other BDE'}
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded font-semibold bg-slate-100 text-slate-600">
+                                    Open for BDE
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
@@ -793,10 +865,10 @@ export default function TerritoryModal({
                           key={sId}
                           onClick={() => toggleBatchState(sId)}
                           className={`flex items-center justify-between p-2.5 rounded-xl text-xs font-semibold transition text-left cursor-pointer ${isChecked
-                              ? 'bg-blue-50 text-[#0575B8] border-2 border-[#0575B8] shadow-xs'
-                              : isAlreadyAssigned
-                                ? 'bg-emerald-50/50 text-emerald-900 border border-emerald-200'
-                                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                            ? 'bg-blue-50 text-[#0575B8] border-2 border-[#0575B8] shadow-xs'
+                            : isAlreadyAssigned
+                              ? 'bg-emerald-50/50 text-emerald-900 border border-emerald-200'
+                              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                             }`}
                         >
                           <span className="truncate">{s.name}</span>
@@ -896,7 +968,7 @@ export default function TerritoryModal({
         {/* Footer */}
         <div className="p-4 md:p-5 border-t border-slate-100 flex items-center justify-between bg-slate-50">
           <div className="text-[11px] text-slate-500">
-            Total Authorized States: <strong className="text-slate-900">{activeTerritories.length}</strong> | Total Districts: <strong className="text-indigo-700">{totalAssignedDistricts}</strong>
+            Total Authorized States: <strong className="text-slate-900">{activeTerritories.length}</strong> | Total Clusters: <strong className="text-indigo-700">{totalAssignedClusters}</strong>
           </div>
           <button
             type="button"

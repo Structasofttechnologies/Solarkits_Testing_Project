@@ -31,11 +31,11 @@ import api from '../services/api';
 
 function StatCard({ label, value, icon: Icon, color, sub }) {
   const colorMap = {
-    blue:   { bg: 'bg-blue-50',   icon: 'text-blue-600',   val: 'text-blue-700',   border: 'border-blue-100' },
-    emerald:{ bg: 'bg-emerald-50',icon: 'text-emerald-600',val: 'text-emerald-700', border: 'border-emerald-100' },
-    amber:  { bg: 'bg-amber-50',  icon: 'text-amber-600',  val: 'text-amber-700',  border: 'border-amber-100' },
+    blue: { bg: 'bg-blue-50', icon: 'text-blue-600', val: 'text-blue-700', border: 'border-blue-100' },
+    emerald: { bg: 'bg-emerald-50', icon: 'text-emerald-600', val: 'text-emerald-700', border: 'border-emerald-100' },
+    amber: { bg: 'bg-amber-50', icon: 'text-amber-600', val: 'text-amber-700', border: 'border-amber-100' },
     purple: { bg: 'bg-purple-50', icon: 'text-purple-600', val: 'text-purple-700', border: 'border-purple-100' },
-    slate:  { bg: 'bg-slate-50',  icon: 'text-slate-500',  val: 'text-slate-800',  border: 'border-slate-200' },
+    slate: { bg: 'bg-slate-50', icon: 'text-slate-500', val: 'text-slate-800', border: 'border-slate-200' },
   };
   const c = colorMap[color] || colorMap.slate;
   return (
@@ -58,11 +58,10 @@ function TabButton({ active, onClick, icon: Icon, label, count }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-        active
+      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${active
           ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-      }`}
+        }`}
     >
       <Icon className="w-3.5 h-3.5" />
       <span>{label}</span>
@@ -76,6 +75,14 @@ function TabButton({ active, onClick, icon: Icon, label, count }) {
 }
 
 // ─── Assign Partner Modal ─────────────────────────────────────────────────────
+
+function formatTerritoryState(name) {
+  if (!name) return '';
+  const list = name.includes(',') ? name.split(',').map((s) => s.trim()) : [name];
+  if (list.length >= 25) return `Pan India (${list.length} States)`;
+  if (list.length > 2) return `${list.slice(0, 2).join(', ')} +${list.length - 2} More`;
+  return name;
+}
 
 function AssignPartnerModal({ epc, onClose, onSuccess, territory }) {
   const [partners, setPartners] = useState([]);
@@ -139,7 +146,7 @@ function AssignPartnerModal({ epc, onClose, onSuccess, territory }) {
             </div>
             <p className="text-xs text-slate-500">
               Assigning to: <span className="font-bold text-slate-800">{epc?.name}</span>
-              {territory?.state_name && <span className="ml-1 text-blue-600">• {territory.state_name}</span>}
+              {territory?.state_name && <span className="ml-1 text-blue-600">• {formatTerritoryState(territory.state_name)}</span>}
             </p>
             {!epc?.account_id && (
               <div className="mt-2 flex items-center gap-1.5 p-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-[11px]">
@@ -185,13 +192,11 @@ function AssignPartnerModal({ epc, onClose, onSuccess, territory }) {
                 <button
                   key={p.id}
                   onClick={() => setSelected(selected?.id === p.id ? null : p)}
-                  className={`w-full text-left px-6 py-4 hover:bg-slate-50 transition-colors flex items-center gap-4 ${
-                    selected?.id === p.id ? 'bg-blue-50/70 border-l-4 border-blue-500' : ''
-                  }`}
+                  className={`w-full text-left px-6 py-4 hover:bg-slate-50 transition-colors flex items-center gap-4 ${selected?.id === p.id ? 'bg-blue-50/70 border-l-4 border-blue-500' : ''
+                    }`}
                 >
-                  <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 ${
-                    selected?.id === p.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
-                  }`}>
+                  <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 ${selected?.id === p.id ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}>
                     {p.business_name?.charAt(0) || 'F'}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -298,9 +303,8 @@ function EpcListTab({ territory, onRefreshStats }) {
     <div className="space-y-4">
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-20 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-xs font-semibold shadow-xl animate-slideIn ${
-          toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
-        }`}>
+        <div className={`fixed top-20 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-xs font-semibold shadow-xl animate-slideIn ${toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+          }`}>
           <CheckCircle2 className="w-4 h-4" />
           {toast.msg}
         </div>
@@ -329,7 +333,7 @@ function EpcListTab({ territory, onRefreshStats }) {
           <div>
             <h3 className="text-sm font-black text-slate-900">EPC Companies</h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Territory: <span className="font-semibold text-blue-600">{territory?.state_name || 'Loading...'}</span>
+              Territory: <span className="font-semibold text-blue-600">{formatTerritoryState(territory?.state_name) || 'Loading...'}</span>
               {territory?.district_names?.length > 0 && (
                 <span className="ml-1 text-slate-500">({territory.district_names.length} districts)</span>
               )}
@@ -367,21 +371,19 @@ function EpcListTab({ territory, onRefreshStats }) {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <h4 className="text-sm font-black text-slate-900 truncate">{epc.name}</h4>
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-                          epc.source === 'government'
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${epc.source === 'government'
                             ? 'bg-blue-50 text-blue-700 border-blue-200'
                             : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        }`}>
+                          }`}>
                           {epc.source === 'government' ? 'GOV' : 'VERIFIED'}
                         </span>
                         {epc.account_status && (
-                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-                            epc.account_status === 'approved'
+                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${epc.account_status === 'approved'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : epc.account_status === 'pending'
                                 ? 'bg-amber-50 text-amber-700 border-amber-200'
                                 : 'bg-red-50 text-red-700 border-red-200'
-                          }`}>
+                            }`}>
                             {epc.account_status.toUpperCase()}
                           </span>
                         )}
@@ -419,11 +421,10 @@ function EpcListTab({ territory, onRefreshStats }) {
 
                     <button
                       onClick={() => setAssignModal(epc)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
-                        epc.has_partner
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${epc.has_partner
                           ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                           : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-600/30'
-                      }`}
+                        }`}
                     >
                       <Link2 className="w-3.5 h-3.5" />
                       {epc.has_partner ? 'Reassign' : 'Assign Partner'}
@@ -744,11 +745,10 @@ function FranchisePartnersTab({ territory }) {
                         <span className="px-2 py-0.5 bg-purple-50 border border-purple-200 text-purple-700 text-[10px] font-mono font-bold rounded-lg">
                           {p.reseller_code}
                         </span>
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-                          p.is_operational
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${p.is_operational
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : 'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}>
+                          }`}>
                           {p.is_operational ? 'LIVE' : p.activation_status?.toUpperCase() || 'SETUP'}
                         </span>
                       </div>
@@ -851,7 +851,7 @@ export default function EpcManagement() {
           <p className="text-xs text-slate-500 ml-0.5">
             Onboard EPC companies and assign franchise partners within your territory.
             {territory?.state_name && (
-              <span className="ml-1.5 font-semibold text-blue-600">Territory: {territory.state_name}</span>
+              <span className="ml-1.5 font-semibold text-blue-600">Territory: {formatTerritoryState(territory.state_name)}</span>
             )}
           </p>
         </div>

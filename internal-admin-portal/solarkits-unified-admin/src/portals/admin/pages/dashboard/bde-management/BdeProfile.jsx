@@ -354,6 +354,11 @@ export default function BdeProfile({ moduleUniqueId = 'ADM_BDE_MGMT' }) {
                         <span className="px-2 py-0.5 rounded-full text-[10px] uppercase font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                           {t.priority || 'medium'}
                         </span>
+                        {t.cluster_names && t.cluster_names.length > 0 && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                            {t.cluster_names.length} Clusters
+                          </span>
+                        )}
                       </h3>
                     </div>
                     <div className="flex items-center gap-2">
@@ -374,6 +379,24 @@ export default function BdeProfile({ moduleUniqueId = 'ADM_BDE_MGMT' }) {
                       </button>
                     </div>
                   </div>
+
+                  {t.cluster_names && t.cluster_names.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-[11px] font-bold text-indigo-600 uppercase">
+                        Clusters ({t.cluster_names.length})
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {t.cluster_names.map((cName, ci) => (
+                          <span
+                            key={ci}
+                            className="px-2 py-0.5 bg-indigo-50 text-indigo-700 font-bold rounded-lg text-[10px] border border-indigo-200"
+                          >
+                            🏢 {cName}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-1.5">
                     <span className="text-[11px] font-bold text-slate-500 uppercase">

@@ -20,6 +20,7 @@ const {
   EPCLead,
   FpoOrder,
   FranchiseeKitTarget,
+  FranchiseeCluster,
 } = require('../models/india_solarshop_db');
 const { GeoLevel1, GeoLevel2 } = require('../models/geolocation_db');
 const { logAudit } = require('../utils/audit.service');
@@ -836,6 +837,8 @@ exports.assign_territory = async (req, res) => {
       states, // Optional array of state objects
       state_id,
       state_name,
+      cluster_ids = [],
+      cluster_names = [],
       district_ids = [],
       district_names = [],
       assignment_start_date,
@@ -865,6 +868,8 @@ exports.assign_territory = async (req, res) => {
       statesToProcess = [{
         state_id,
         state_name,
+        cluster_ids,
+        cluster_names,
         district_ids,
         district_names,
         assignment_start_date,
@@ -900,9 +905,39 @@ exports.assign_territory = async (req, res) => {
         if (stateDoc) resolvedStateName = stateDoc.name;
       }
 
+      // Resolve cluster IDs & names
+      let itemClusterIds = Array.isArray(item.cluster_ids) ? item.cluster_ids : (cluster_ids || []);
+      let resolvedClusterNames = Array.isArray(item.cluster_names) ? item.cluster_names : (cluster_names || []);
+
       // Resolve district IDs & names
       let itemDistrictIds = Array.isArray(item.district_ids) ? item.district_ids : [];
       let resolvedDistrictNames = Array.isArray(item.district_names) ? item.district_names : [];
+
+      if (itemClusterIds.length > 0) {
+        const clusterDocs = await FranchiseeCluster.find({
+          _id: { $in: itemClusterIds },
+          deleted_at: null,
+        }).lean();
+
+        if (resolvedClusterNames.length === 0) {
+          resolvedClusterNames = clusterDocs.map(c => c.cluster_name);
+        }
+
+        // Auto-merge cluster districts into district lists
+        const clusterDistrictIds = clusterDocs.flatMap(c => (c.district_ids || []).map(id => id.toString()));
+        const clusterDistrictNames = clusterDocs.flatMap(c => c.district_names || []);
+
+        const existingStrIds = itemDistrictIds.map(id => id.toString());
+        for (let i = 0; i < clusterDistrictIds.length; i++) {
+          if (!existingStrIds.includes(clusterDistrictIds[i])) {
+            itemDistrictIds.push(clusterDistrictIds[i]);
+            existingStrIds.push(clusterDistrictIds[i]);
+            if (clusterDistrictNames[i] && !resolvedDistrictNames.includes(clusterDistrictNames[i])) {
+              resolvedDistrictNames.push(clusterDistrictNames[i]);
+            }
+          }
+        }
+      }
 
       // If all_districts requested or no specific districts provided, load all active districts for this state
       if (item.all_districts && itemDistrictIds.length === 0) {
@@ -928,6 +963,8 @@ exports.assign_territory = async (req, res) => {
         country_name: item.country_name || country_name,
         state_id: sId,
         state_name: resolvedStateName || 'Assigned State',
+        cluster_ids: itemClusterIds,
+        cluster_names: resolvedClusterNames,
         district_ids: itemDistrictIds,
         district_names: resolvedDistrictNames,
         assignment_start_date: item.assignment_start_date ? new Date(item.assignment_start_date) : (assignment_start_date ? new Date(assignment_start_date) : new Date()),
@@ -939,6 +976,52 @@ exports.assign_territory = async (req, res) => {
       });
 
       createdAssignments.push(assignment);
+
+      // ── Sync with Franchisee Clusters for this State ──────────────────────
+      const stateClusters = await FranchiseeCluster.find({ state_id: sId, deleted_at: null });
+      const itemClusterIdStrs = itemClusterIds.map(id => id.toString());
+
+      for (const clu of stateClusters) {
+        const cluIdStr = clu._id.toString();
+        const shouldBeAssigned = itemClusterIdStrs.includes(cluIdStr);
+
+        if (shouldBeAssigned && String(clu.primary_bde_id || '') !== String(bde_id)) {
+          const oldPrimary = clu.primary_bde_id;
+          clu.primary_bde_id = bde_id;
+          clu.audit_history.push({
+            user_id: req.user?.id || null,
+            user_name: req.user?.name || req.user?.full_name || 'Admin',
+            action: 'BDE_MAPPED',
+            timestamp: new Date(),
+            old_state: { primary_bde_id: oldPrimary },
+            new_state: { primary_bde_id: bde_id },
+            reason: `BDE ${bde.full_name} (${bde.bde_id}) assigned to cluster via Territory Management`,
+          });
+          clu.updated_by = req.user?.id || null;
+          await clu.save();
+
+          // If cluster has an assigned franchisee, also update their primary BDE reference
+          if (clu.assigned_franchisee_id) {
+            await Reseller.findByIdAndUpdate(clu.assigned_franchisee_id, {
+              bde_id: bde_id,
+            });
+          }
+        } else if (!shouldBeAssigned && String(clu.primary_bde_id || '') === String(bde_id)) {
+          // Deselected cluster for this BDE
+          clu.primary_bde_id = null;
+          clu.audit_history.push({
+            user_id: req.user?.id || null,
+            user_name: req.user?.name || req.user?.full_name || 'Admin',
+            action: 'BDE_MAPPED',
+            timestamp: new Date(),
+            old_state: { primary_bde_id: bde_id },
+            new_state: { primary_bde_id: null },
+            reason: `BDE ${bde.full_name} (${bde.bde_id}) unassigned from cluster via Territory Management`,
+          });
+          clu.updated_by = req.user?.id || null;
+          await clu.save();
+        }
+      }
     }
 
     // Refresh all active assignments to update BDE profile summary
@@ -1005,7 +1088,9 @@ exports.assign_territory = async (req, res) => {
 exports.get_territory = async (req, res) => {
   try {
     const { bde_id } = req.params;
-    const assignments = await BDETerritoryAssignment.find({ bde_id }).sort({ createdAt: -1 });
+    const assignments = await BDETerritoryAssignment.find({ bde_id })
+      .populate('cluster_ids', 'cluster_name cluster_code color_code district_names district_ids status')
+      .sort({ createdAt: -1 });
     const activeAssignments = assignments.filter(a => a.status === 'active');
     const current = activeAssignments[0] || null;
 
@@ -1035,6 +1120,30 @@ exports.remove_territory_assignment = async (req, res) => {
 
     if (!assignment) {
       return res.status(404).json({ status: 'error', message: 'Active territory assignment not found' });
+    }
+
+    // Unlink any clusters in this state assigned to this BDE
+    if (assignment.state_id) {
+      const clustersToUnlink = await FranchiseeCluster.find({
+        state_id: assignment.state_id,
+        primary_bde_id: bde_id,
+        deleted_at: null,
+      });
+
+      for (const clu of clustersToUnlink) {
+        clu.primary_bde_id = null;
+        clu.audit_history.push({
+          user_id: req.user?.id || null,
+          user_name: req.user?.name || req.user?.full_name || 'Admin',
+          action: 'BDE_MAPPED',
+          timestamp: new Date(),
+          old_state: { primary_bde_id: bde_id },
+          new_state: { primary_bde_id: null },
+          reason: `State territory removed for BDE: ${assignment.state_name}`,
+        });
+        clu.updated_by = req.user?.id || null;
+        await clu.save();
+      }
     }
 
     // Refresh remaining active assignments to update BDE profile summary
