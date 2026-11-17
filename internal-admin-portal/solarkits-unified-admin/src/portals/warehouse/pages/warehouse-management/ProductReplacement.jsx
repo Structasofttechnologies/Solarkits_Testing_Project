@@ -143,6 +143,13 @@ export default function ProductReplacement() {
     fetchClusters();
   }, []);
 
+  // Available states dynamically computed combining live clusters and standard states
+  const allStateOptions = useMemo(() => {
+    const fromClusters = liveClusters.map(c => c.state_name || c.state_id?.name).filter(Boolean);
+    const combined = Array.from(new Set([...fromClusters, ...stateOptions.map(s => s.value)])).sort();
+    return combined.map(st => ({ value: st, text: st }));
+  }, [liveClusters]);
+
   // Available clusters dynamically computed for selected state
   const clusterOptions = useMemo(() => {
     const liveForState = liveClusters.filter(c => 
@@ -351,16 +358,23 @@ export default function ProductReplacement() {
                     value={selectedState}
                     onChange={(val) => {
                       setSelectedState(val);
-                      const newClusters = TERRITORY_CLUSTER_MAP[val] || [];
-                      if (newClusters.length > 0) {
-                        setSelectedCluster(newClusters[0].value);
-                        const orders = CLUSTER_ORDERS_MAP[newClusters[0].value] || [];
-                        if (orders.length > 0) {
-                          setOrderId(orders[0].value);
+                      const liveForState = liveClusters.filter(c => 
+                        (c.state_name || '').toLowerCase() === val.toLowerCase()
+                      );
+                      if (liveForState.length > 0) {
+                        setSelectedCluster(liveForState[0].cluster_name);
+                      } else {
+                        const newClusters = TERRITORY_CLUSTER_MAP[val] || [];
+                        if (newClusters.length > 0) {
+                          setSelectedCluster(newClusters[0].value);
+                          const orders = CLUSTER_ORDERS_MAP[newClusters[0].value] || [];
+                          if (orders.length > 0) {
+                            setOrderId(orders[0].value);
+                          }
                         }
                       }
                     }}
-                    options={stateOptions}
+                    options={allStateOptions}
                     className="w-full"
                   />
                   <Dropdown
