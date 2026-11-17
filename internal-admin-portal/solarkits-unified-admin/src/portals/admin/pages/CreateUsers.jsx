@@ -771,7 +771,9 @@ export default function CreateUsers() {
             fetchAllSubordinates();
             fetchWarehouseClusterData();
         } catch (err) {
-            dispatch(setAlert({ type: "error", message: err.response?.data?.message || "Operation failed" }));
+            console.error("User Provisioning Error:", err);
+            const msg = err.response?.data?.message || err.response?.data?.error || err.message || "Operation failed";
+            dispatch(setAlert({ type: "error", message: msg }));
         } finally {
             setProvisioningAdding(false);
         }
