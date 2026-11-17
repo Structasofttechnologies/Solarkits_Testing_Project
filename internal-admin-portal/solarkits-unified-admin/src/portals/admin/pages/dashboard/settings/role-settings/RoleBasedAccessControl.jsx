@@ -21,6 +21,7 @@ import {
   FiSearch,
   FiEye,
   FiEdit,
+  FiTrash2,
   FiChevronDown,
   FiChevronRight,
   FiFolder,
@@ -103,6 +104,12 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
     title: "",
     message: "",
     confirmText: ""
+  });
+
+  const [deleteConfirmation, setDeleteConfirmation] = useState({
+    isOpen: false,
+    role: null,
+    isLoading: false,
   });
 
   const getDepartments = async (countryId) => {
@@ -674,6 +681,43 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
     });
   };
 
+  const handleDeleteRoleClick = (role) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      role,
+      isLoading: false,
+    });
+  };
+
+  const confirmDeleteRole = async () => {
+    if (!deleteConfirmation.role) return;
+    setDeleteConfirmation(prev => ({ ...prev, isLoading: true }));
+    try {
+      const res = await axios.delete(
+        `${API}/roles/${deleteConfirmation.role.id}?unique_id=${moduleUniqueId}&req_for=edit`,
+        { headers: authHeaderObj() }
+      );
+      dispatch(
+        setAlert({
+          type: "success",
+          message: res.data?.message || "Role deleted successfully!",
+          duration: 3000
+        })
+      );
+      setDeleteConfirmation({ isOpen: false, role: null, isLoading: false });
+      await getRoles();
+    } catch (err) {
+      dispatch(
+        setAlert({
+          type: "error",
+          message: err.response?.data?.message || "Failed to delete role.",
+          duration: 4000
+        })
+      );
+      setDeleteConfirmation(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
   const togglePanelSelection = (pid) => {
     setSelectedPanels(prev => {
       const exists = prev.find(x => x.panel_id === pid);
@@ -815,30 +859,39 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
                 {node.assigned_modules_count ?? 0}
               </span>
             </div>
-            <div className="w-48 flex items-center justify-end gap-2 pl-4">
+            <div className="w-56 flex items-center justify-end gap-2 pl-4">
               <button
                 type="button"
                 onClick={() => navigate(`/admin-panel/settings/role-settings/role-based-access-control/role/${node.id}`)}
-                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-info/10 hover:bg-info/20 text-info transition-colors flex items-center gap-1.5 cursor-pointer border border-info/30"
+                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-info/10 hover:bg-info/20 text-info transition-colors flex items-center gap-1 cursor-pointer border border-info/30"
                 title="Configure permissions & authorization rules"
               >
-                <FiEye size={14} />
-                <span>Rules & Access</span>
+                <FiEye size={13} />
+                <span>Rules</span>
               </button>
               {!node.is_protected ? (
-                <RenderIfPermission requiredUniqueId={moduleUniqueId} permission="edit" fallback={null}>
+                <>
                   <IconButton
                     variant="ghost"
                     onClick={() => handleEditRole(node)}
                     size="sm"
                     className="text-primary hover:bg-primary/10"
-                    title="Edit role scope"
+                    title="Edit role name & scope"
                   >
-                    <FiEdit size={16} />
+                    <FiEdit size={15} />
                   </IconButton>
-                </RenderIfPermission>
+                  <IconButton
+                    variant="ghost"
+                    onClick={() => handleDeleteRoleClick(node)}
+                    size="sm"
+                    className="text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
+                    title="Delete role"
+                  >
+                    <FiTrash2 size={15} />
+                  </IconButton>
+                </>
               ) : (
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 cursor-not-allowed" title="Protected role parameters are immutable.">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 cursor-not-allowed" title="Protected root system role.">
                   <FiLock size={14} />
                 </div>
               )}
@@ -1130,7 +1183,7 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
                     <div className="w-32 px-2">Level Node</div>
                     <div className="w-32 px-2">Panel Scopes</div>
                     <div className="w-24 px-2 text-center">Modules</div>
-                    <div className="w-48 text-right pr-4">Rules & Operations</div>
+                    <div className="w-56 text-right pr-4">Rules & Operations</div>
                   </div>
                   <div className="divide-y divide-border/40">
                     {getFilteredTree(roles, searchQuery, filterDepartment, filterLevel).map(node => (
@@ -1175,6 +1228,20 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
         cancelText={updateConfirmation.otpMode ? "Cancel" : "No, Keep"}
         otp={updateConfirmation.otp}
         onOtpChange={(otp) => setUpdateConfirmation(prev => ({ ...prev, otp }))}
+      />
+
+      {/* Delete Role confirmation */}
+      <ConfirmationPopup
+        isOpen={deleteConfirmation.isOpen}
+        title={`Delete Role "${deleteConfirmation.role?.name}"?`}
+        message={`Are you sure you want to delete this role? Active users assigned to this role must be reassigned first.`}
+        mode="text"
+        onConfirm={confirmDeleteRole}
+        onCancel={() => setDeleteConfirmation({ isOpen: false, role: null, isLoading: false })}
+        variant="danger"
+        isLoading={deleteConfirmation.isLoading}
+        confirmText="Yes, Delete Role"
+        cancelText="Cancel"
       />
 
       {/* Edit Role popup with Multi-panel updates */}

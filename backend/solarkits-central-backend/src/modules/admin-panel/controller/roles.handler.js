@@ -934,4 +934,42 @@ const get_country_saas_products = async (req, res) => {
     }
 }
 
-module.exports = { get_levels, get_roles, get_role, add_role, get_parent_roles, update_role, send_otp_for_update_role, send_otp_for_unassign_module, assign_module_to_role, update_module_permissions, unassign_module_from_role, get_country_saas_products }
+const delete_role = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const role = await CmsRole.findOne({ _id: id, deleted_at: null });
+        if (!role) {
+            return res.status(404).json({ status: 'error', message: 'Role not found' });
+        }
+        if (role.name === 'Super Admin') {
+            return res.status(403).json({ status: 'error', message: 'Root Super Admin role cannot be deleted.' });
+        }
+
+        // Check if active users are assigned to this role
+        const assignedUsersCount = await CmsUser.countDocuments({ role_id: id, is_active: true, deleted_at: null });
+        if (assignedUsersCount > 0) {
+            return res.status(400).json({
+                status: 'error',
+                message: `Cannot delete "${role.name}" because it is currently assigned to ${assignedUsersCount} active user(s). Please reassign or update those users first.`
+            });
+        }
+
+        // Check if child roles exist and unlink them
+        await CmsRole.updateMany({ parent_role_id: id }, { $set: { parent_role_id: null } });
+
+        // Soft delete the role
+        role.deleted_at = new Date();
+        role.is_active = false;
+        await role.save();
+
+        // Clean up role panels and role module links
+        await RolePanel.deleteMany({ role_id: id }).catch(() => {});
+        await CmsRoleWiseModule.deleteMany({ role_id: id }).catch(() => {});
+
+        return res.status(200).json({ status: 'success', message: `Role "${role.name}" deleted successfully.` });
+    } catch (error) {
+        return res.status(500).json({ status: 'error', message: error.message || 'Internal Server Error' });
+    }
+};
+
+module.exports = { get_levels, get_roles, get_role, add_role, get_parent_roles, update_role, delete_role, send_otp_for_update_role, send_otp_for_unassign_module, assign_module_to_role, update_module_permissions, unassign_module_from_role, get_country_saas_products }
