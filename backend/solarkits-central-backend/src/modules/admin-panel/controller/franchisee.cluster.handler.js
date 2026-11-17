@@ -88,6 +88,82 @@ const checkDistrictExclusivity = async (districtIds, excludeClusterId = null, al
 };
 
 /**
+ * Synchronizes Cluster Performance Goal Settings.
+ * Auto-populates 12 months (April - March) based on baseline monthly target if not provided.
+ */
+const syncClusterGoalConfig = async (cluster, goalConfig, userId) => {
+  if (!goalConfig) return;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const defaultFY = currentMonth >= 4
+    ? `${currentYear}-${String(currentYear + 1).slice(2)}`
+    : `${currentYear - 1}-${String(currentYear).slice(2)}`;
+  const fy = goalConfig.financial_year || defaultFY;
+
+  const monthlyKitTarget = Number(goalConfig.monthly_kit_target || 0);
+  const monthlyRevenueTarget = Number(goalConfig.monthly_revenue_target || 0);
+  const targetPoKits = Number(goalConfig.target_po_kits || Math.round(monthlyKitTarget * 0.8));
+  const targetLooseOrders = Number(goalConfig.target_loose_orders || Math.round(monthlyKitTarget * 0.2));
+
+  let monthlyGoals = goalConfig.monthly_kit_goals;
+  if (!Array.isArray(monthlyGoals) || monthlyGoals.length === 0) {
+    const [startYr] = fy.split('-').map(Number);
+    monthlyGoals = [];
+    for (let i = 0; i < 12; i++) {
+      const m = ((3 + i) % 12) + 1; // 4 to 12, then 1 to 3
+      const y = m >= 4 ? startYr : startYr + 1;
+      monthlyGoals.push({
+        month: m,
+        year: y,
+        target_kits_quantity: monthlyKitTarget,
+        target_revenue: monthlyRevenueTarget,
+        target_po_kits: targetPoKits,
+        target_loose_orders: targetLooseOrders,
+      });
+    }
+  }
+
+  const existingGoal = await FranchiseeClusterGoal.findOne({
+    cluster_id: cluster._id,
+    financial_year: fy,
+    deleted_at: null,
+  });
+
+  if (existingGoal) {
+    existingGoal.revisions.push({
+      revised_at: new Date(),
+      revised_by: userId || null,
+      effective_date: new Date(),
+      reason: goalConfig.reason || 'Updated during cluster update',
+      previous_annual_epc_goal: existingGoal.annual_epc_goal,
+      previous_annual_live_epc_goal: existingGoal.annual_live_epc_goal,
+      previous_monthly_goals: existingGoal.monthly_kit_goals,
+    });
+
+    if (goalConfig.annual_epc_goal !== undefined) existingGoal.annual_epc_goal = Number(goalConfig.annual_epc_goal);
+    if (goalConfig.annual_live_epc_goal !== undefined) existingGoal.annual_live_epc_goal = Number(goalConfig.annual_live_epc_goal);
+    if (goalConfig.live_epc_criteria_days !== undefined) existingGoal.live_epc_criteria_days = Number(goalConfig.live_epc_criteria_days);
+    existingGoal.monthly_kit_goals = monthlyGoals;
+    existingGoal.franchisee_id = cluster.assigned_franchisee_id || null;
+    existingGoal.updated_by = userId || null;
+    await existingGoal.save();
+  } else {
+    const newGoal = new FranchiseeClusterGoal({
+      cluster_id: cluster._id,
+      franchisee_id: cluster.assigned_franchisee_id || null,
+      financial_year: fy,
+      annual_epc_goal: Number(goalConfig.annual_epc_goal || 100),
+      annual_live_epc_goal: Number(goalConfig.annual_live_epc_goal || 60),
+      live_epc_criteria_days: Number(goalConfig.live_epc_criteria_days || 90),
+      monthly_kit_goals: monthlyGoals,
+      created_by: userId || null,
+    });
+    await newGoal.save();
+  }
+};
+
+/**
  * 1. Create a new Franchisee Cluster
  */
 exports.create_cluster = async (req, res) => {
@@ -107,6 +183,7 @@ exports.create_cluster = async (req, res) => {
       effective_date,
       is_shared_territory_allowed,
       color_code,
+      goal_config,
     } = req.body;
 
     if (!cluster_name || !cluster_name.trim()) {
@@ -198,6 +275,14 @@ exports.create_cluster = async (req, res) => {
 
     await cluster.save();
 
+    if (goal_config) {
+      try {
+        await syncClusterGoalConfig(cluster, goal_config, req.user?._id);
+      } catch (gErr) {
+        console.error('Error syncing goal config on create:', gErr);
+      }
+    }
+
     return res.status(201).json({
       status: 'success',
       message: `Cluster "${cluster.cluster_name}" created successfully with code ${cluster.cluster_code}.`,
@@ -276,6 +361,23 @@ exports.get_cluster_by_id = async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Cluster not found.' });
     }
 
+    // Attach current FY goal configuration if available
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const defaultFY = currentMonth >= 4
+      ? `${currentYear}-${String(currentYear + 1).slice(2)}`
+      : `${currentYear - 1}-${String(currentYear).slice(2)}`;
+    const fy = req.query.financial_year || defaultFY;
+
+    const goal = await FranchiseeClusterGoal.findOne({
+      cluster_id: id,
+      financial_year: fy,
+      deleted_at: null,
+    }).lean();
+
+    cluster.goal_config = goal || null;
+
     return res.status(200).json({
       status: 'success',
       data: cluster,
@@ -304,6 +406,7 @@ exports.update_cluster = async (req, res) => {
       agreement_period_years,
       color_code,
       reason, // Required if active franchisee exists and territory changes
+      goal_config,
     } = req.body;
 
     const cluster = await FranchiseeCluster.findById(id);
@@ -396,6 +499,14 @@ exports.update_cluster = async (req, res) => {
     });
 
     await cluster.save();
+
+    if (goal_config) {
+      try {
+        await syncClusterGoalConfig(cluster, goal_config, req.user?._id);
+      } catch (gErr) {
+        console.error('Error syncing goal config on update:', gErr);
+      }
+    }
 
     return res.status(200).json({
       status: 'success',
@@ -637,11 +748,23 @@ exports.get_my_cluster_info = async (req, res) => {
       const nextYear = currentYear + 1;
       const defaultFY = `${currentYear}-${String(nextYear).slice(-2)}`;
 
+      const requestedFY = req.query.financial_year || defaultFY;
       goal = await FranchiseeClusterGoal.findOne({
         cluster_id: cluster._id,
-        financial_year: req.query.financial_year || defaultFY,
+        $or: [
+          { financial_year: requestedFY },
+          { financial_year: `FY ${requestedFY}` },
+          { financial_year: requestedFY.replace(/^FY\s*/, '') },
+        ],
         deleted_at: null,
       }).lean();
+
+      if (!goal) {
+        goal = await FranchiseeClusterGoal.findOne({
+          cluster_id: cluster._id,
+          deleted_at: null,
+        }).sort({ createdAt: -1 }).lean();
+      }
     }
 
     return res.status(200).json({

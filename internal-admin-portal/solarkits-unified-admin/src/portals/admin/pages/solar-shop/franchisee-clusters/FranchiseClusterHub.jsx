@@ -3,7 +3,6 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   FiLayers,
   FiMap,
-  FiFileText,
   FiTarget,
   FiAward,
   FiTool,
@@ -11,7 +10,6 @@ import {
 
 import ClusterManagement from './ClusterManagement';
 import FranchiseeTerritoryMap from './FranchiseeTerritoryMap';
-import FranchiseeAgreementManagement from './FranchiseeAgreementManagement';
 import FranchiseeGoalSettings from './FranchiseeGoalSettings';
 import BdeClusterManagement from './BdeClusterManagement';
 import FranchiseeTicketsAdmin from './FranchiseeTicketsAdmin';
@@ -19,19 +17,21 @@ import FranchiseeTicketsAdmin from './FranchiseeTicketsAdmin';
 export default function FranchiseClusterHub({ defaultTab }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const currentTab = searchParams.get('tab') || defaultTab || 'clusters';
+  const rawTab = searchParams.get('tab');
+  const currentTab = (rawTab && rawTab !== 'agreements') ? rawTab : (defaultTab || 'clusters');
 
   useEffect(() => {
     if (searchParams.get('tab') === 'performance') {
       navigate('/admin-panel/franchisee-performance-dashboard', { replace: true });
+    } else if (searchParams.get('tab') === 'agreements') {
+      setSearchParams({ tab: 'clusters' }, { replace: true });
     }
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, setSearchParams]);
 
   const tabs = [
     { key: 'clusters', label: 'Cluster Management', icon: FiLayers, desc: 'Create Cluster, Districts, Fees' },
     { key: 'map', label: 'India Territory Map', icon: FiMap, desc: 'Interactive Allocation Map' },
-    { key: 'agreements', label: 'Agreement Management', icon: FiFileText, desc: 'Yearly Tracking & Renewals' },
-    { key: 'goals', label: 'Goal Settings', icon: FiTarget, desc: 'Annual EPC & Monthly Kits' },
+    { key: 'goals', label: 'Goal Tracking', icon: FiTarget, desc: 'Annual EPC & Monthly Kits Tracking' },
     { key: 'bde', label: 'BDE Management', icon: FiAward, desc: 'Cluster Assignment & Support' },
     { key: 'tickets', label: 'Support & Tickets', icon: FiTool, desc: 'Centralized SLA & Replacement' },
   ];
@@ -52,8 +52,8 @@ export default function FranchiseClusterHub({ defaultTab }) {
               key={tab.key}
               onClick={() => handleTabChange(tab.key)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs whitespace-nowrap transition-all ${isActive
-                  ? 'bg-orange-500 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                ? 'bg-orange-500 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
             >
               <Icon size={15} />
@@ -70,6 +70,9 @@ export default function FranchiseClusterHub({ defaultTab }) {
             onOpenMapWithDistrict={(district) => {
               handleTabChange('map');
             }}
+            onOpenGoalTracking={(clusterId) => {
+              setSearchParams({ tab: 'goals', cluster_id: clusterId });
+            }}
           />
         )}
         {currentTab === 'map' && (
@@ -79,7 +82,6 @@ export default function FranchiseClusterHub({ defaultTab }) {
             }}
           />
         )}
-        {currentTab === 'agreements' && <FranchiseeAgreementManagement />}
         {currentTab === 'goals' && <FranchiseeGoalSettings />}
         {currentTab === 'bde' && <BdeClusterManagement />}
         {currentTab === 'tickets' && <FranchiseeTicketsAdmin />}

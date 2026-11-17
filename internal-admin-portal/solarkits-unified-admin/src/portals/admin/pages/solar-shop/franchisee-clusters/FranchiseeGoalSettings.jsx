@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import { useSearchParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setAlert } from '@/features/alert.slice';
 import { authHeaderObj } from '@/app/authHeader';
@@ -17,12 +18,14 @@ import {
   FiSave,
   FiX,
   FiPlus,
+  FiZap,
 } from 'react-icons/fi';
 import Button from '@/components/Button';
 import Loader from '@/components/Loader';
 
 export default function FranchiseeGoalSettings() {
   const dispatch = useDispatch();
+  const [searchParams, setSearchParams] = useSearchParams();
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   // Current Financial Year determination (Apr-Mar)
@@ -48,6 +51,10 @@ export default function FranchiseeGoalSettings() {
   const [liveEpcCriteriaDays, setLiveEpcCriteriaDays] = useState(90);
   const [monthlyGoals, setMonthlyGoals] = useState([]);
   const [revisionReason, setRevisionReason] = useState('');
+
+  // Bulk / Uniform monthly setting state
+  const [bulkMonthlyKits, setBulkMonthlyKits] = useState(100);
+  const [bulkMonthlyRev, setBulkMonthlyRev] = useState(5000000);
 
   // Revisions Modal
   const [isRevisionsOpen, setIsRevisionsOpen] = useState(false);
@@ -77,12 +84,14 @@ export default function FranchiseeGoalSettings() {
         if (res.data?.data) {
           setClusters(res.data.data);
           if (res.data.data.length > 0) {
-            setSelectedClusterId(res.data.data[0]._id);
+            const urlClusterId = searchParams.get('cluster_id');
+            const found = res.data.data.find((c) => c._id === urlClusterId);
+            setSelectedClusterId(found ? found._id : res.data.data[0]._id);
           }
         }
       })
       .catch((err) => console.error('Error fetching clusters:', err));
-  }, []);
+  }, [searchParams]);
 
   // Fetch Goal whenever cluster or FY changes
   useEffect(() => {
@@ -104,6 +113,11 @@ export default function FranchiseeGoalSettings() {
         setAnnualLiveEpcGoal(d.annual_live_epc_goal || 60);
         setLiveEpcCriteriaDays(d.live_epc_criteria_days || 90);
         setMonthlyGoals(d.monthly_kit_goals || []);
+
+        if (d.monthly_kit_goals && d.monthly_kit_goals.length > 0) {
+          setBulkMonthlyKits(d.monthly_kit_goals[0].target_kits_quantity || 100);
+          setBulkMonthlyRev(d.monthly_kit_goals[0].target_revenue || 5000000);
+        }
       }
     } catch (err) {
       console.error('Error fetching cluster goal:', err);
@@ -124,18 +138,57 @@ export default function FranchiseeGoalSettings() {
   };
 
   // Quick Distribute Quantity to all 12 months equally
-  const handleQuickDistribute = (totalKits, totalRev) => {
-    const perMonthKits = Math.round(Number(totalKits || 0) / 12);
-    const perMonthRev = Math.round(Number(totalRev || 0) / 12);
+  const handleApplyUniformMonthly = (kits, rev) => {
+    const k = Number(kits !== undefined ? kits : bulkMonthlyKits || 0);
+    const r = Number(rev !== undefined ? rev : bulkMonthlyRev || 0);
+    setBulkMonthlyKits(k);
+    setBulkMonthlyRev(r);
+
     const updated = monthlyGoals.map((m) => ({
       ...m,
-      target_kits_quantity: perMonthKits,
-      target_revenue: perMonthRev,
-      target_po_kits: Math.round(perMonthKits * 0.8),
-      target_loose_orders: Math.round(perMonthKits * 0.2),
+      target_kits_quantity: k,
+      target_revenue: r,
+      target_po_kits: Math.round(k * 0.8),
+      target_loose_orders: Math.round(k * 0.2),
     }));
     setMonthlyGoals(updated);
+    dispatch(
+      setAlert({
+        title: 'Uniform Quota Applied',
+        message: `${k} Kits & ₹${r.toLocaleString('en-IN')} applied across all 12 months. Remember to click Save.`,
+        type: 'info',
+      })
+    );
   };
+
+  // Calculate overall totals across 12 months
+  const totals = useMemo(() => {
+    let targetKits = 0;
+    let actualKits = 0;
+    let targetRevenue = 0;
+    let actualRevenue = 0;
+
+    for (const m of monthlyGoals) {
+      targetKits += Number(m.target_kits_quantity || 0);
+      actualKits += Number(m.actual_kit_sales || 0);
+      targetRevenue += Number(m.target_revenue || 0);
+      actualRevenue += Number(m.actual_revenue || 0);
+    }
+
+    const kitsAchPct = targetKits > 0 ? Math.round((actualKits / targetKits) * 100) : 0;
+    const revAchPct = targetRevenue > 0 ? Math.round((actualRevenue / targetRevenue) * 100) : 0;
+
+    return {
+      targetKits,
+      actualKits,
+      pendingKits: Math.max(0, targetKits - actualKits),
+      kitsAchPct,
+      targetRevenue,
+      actualRevenue,
+      pendingRevenue: Math.max(0, targetRevenue - actualRevenue),
+      revAchPct,
+    };
+  }, [monthlyGoals]);
 
   // Save / Revise Goals
   const handleSaveGoals = async (e) => {
@@ -149,7 +202,7 @@ export default function FranchiseeGoalSettings() {
         annual_live_epc_goal: Number(annualLiveEpcGoal),
         live_epc_criteria_days: Number(liveEpcCriteriaDays),
         monthly_kit_goals: monthlyGoals,
-        reason: revisionReason.trim() || 'Admin updated target goals',
+        reason: revisionReason.trim() || 'Admin updated target goals from Goal Tracking',
       };
 
       await axios.post(`${API_URL}/franchise-clusters/goals/set`, payload, authHeaderObj());
@@ -171,61 +224,82 @@ export default function FranchiseeGoalSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* ── Page Header: Franchise Goal Tracking ─────────────────────────── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-        <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-            <FiTarget size={22} />
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shadow-2xs">
+            <FiTrendingUp size={24} />
           </div>
           <div>
-            <h1 className="text-xl font-black text-slate-900">Franchisee Goal Settings</h1>
-            <p className="text-xs font-semibold text-slate-500">
-              Configure annual EPC onboarding targets, active live EPCs, and monthly kit sales & revenue goals
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-black text-slate-900">Franchise Goal Tracking</h1>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800">
+                Live Actuals vs Targets
+              </span>
+            </div>
+            <p className="text-xs font-semibold text-slate-500 mt-0.5">
+              Real-time performance tracking for EPC onboarding, active live EPCs, and monthly kit sales & revenue against targets
             </p>
           </div>
         </div>
 
         {/* Cluster & FY Selectors */}
         <div className="flex items-center gap-3 w-full sm:w-auto">
-          <select
-            value={financialYear}
-            onChange={(e) => setFinancialYear(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
-          >
-            <option value="2026-27">FY 2026–27</option>
-            <option value="2025-26">FY 2025–26</option>
-            <option value="2027-28">FY 2027–28</option>
-          </select>
+          <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            <span className="text-[11px] font-bold text-slate-400 uppercase">FY:</span>
+            <select
+              value={financialYear}
+              onChange={(e) => setFinancialYear(e.target.value)}
+              className="bg-transparent text-xs font-black text-slate-800 focus:outline-none cursor-pointer"
+            >
+              <option value="2026-27">FY 2026–27</option>
+              <option value="2025-26">FY 2025–26</option>
+              <option value="2027-28">FY 2027–28</option>
+            </select>
+          </div>
 
-          <select
-            value={selectedClusterId}
-            onChange={(e) => setSelectedClusterId(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 min-w-[200px]"
-          >
-            {clusters.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.cluster_name} ({c.cluster_code})
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            <span className="text-[11px] font-bold text-slate-400 uppercase">Cluster:</span>
+            <select
+              value={selectedClusterId}
+              onChange={(e) => {
+                setSelectedClusterId(e.target.value);
+                setSearchParams({ tab: 'goals', cluster_id: e.target.value });
+              }}
+              className="bg-transparent text-xs font-black text-slate-800 min-w-[180px] focus:outline-none cursor-pointer"
+            >
+              {clusters.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.cluster_name} ({c.cluster_code})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
       {loading ? (
         <div className="py-24 flex justify-center bg-white rounded-2xl border border-slate-200">
-          <Loader text="Loading Goal Configuration & Real-Time Actuals..." />
+          <Loader text="Loading Goal Tracking & Real-Time Performance Actuals..." />
         </div>
       ) : (
         <form onSubmit={handleSaveGoals} className="space-y-6">
           {/* Cluster Status Summary Bar */}
           <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div>
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Targeted Territory</div>
-              <div className="text-lg font-black">{currentCluster?.cluster_name || 'Selected Cluster'}</div>
-              <div className="text-xs text-slate-300 font-medium">
-                {currentCluster?.state_name} • Franchisee:{' '}
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Targeted Territory & Assigned Franchisee
+              </div>
+              <div className="text-xl font-black flex items-center gap-2 mt-0.5">
+                <span>{currentCluster?.cluster_name || 'Selected Cluster'}</span>
+                <span className="text-xs font-mono font-bold text-slate-400 bg-white/10 px-2 py-0.5 rounded">
+                  {currentCluster?.cluster_code}
+                </span>
+              </div>
+              <div className="text-xs text-slate-300 font-medium mt-1">
+                {currentCluster?.state_name} • Franchisee Store:{' '}
                 <span className="font-bold text-orange-400">
-                  {currentCluster?.assigned_franchisee_id?.business_name || 'Open Territory'}
+                  {currentCluster?.assigned_franchisee_id?.business_name || 'Open Territory / Unallocated'}
                 </span>
               </div>
             </div>
@@ -235,121 +309,300 @@ export default function FranchiseeGoalSettings() {
                 <button
                   type="button"
                   onClick={() => setIsRevisionsOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors"
                 >
-                  <FiClock size={14} /> Revisions ({goalData.revisions.length})
+                  <FiClock size={14} /> Revisions History ({goalData.revisions.length})
                 </button>
               )}
               <Button
                 type="submit"
                 disabled={saving}
-                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black shadow-sm"
+                className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black shadow-sm"
               >
                 <FiSave size={15} /> {saving ? 'Saving...' : 'Save & Publish Goals'}
               </Button>
             </div>
           </div>
 
-          {/* ── Section 4.1: Annual EPC Onboarding Goal Cards ─────────────────── */}
+          {/* ── Section 1: Real-Time Performance & Goal Tracking Cards ───────── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Total EPC Onboarding Goal */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2">
-              <span className="text-[11px] font-black uppercase text-slate-500">Annual EPC Onboarding Goal</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  value={annualEpcGoal}
-                  onChange={(e) => setAnnualEpcGoal(e.target.value)}
-                  className="w-28 px-3 py-1.5 text-xl font-black bg-slate-50 border border-slate-200 rounded-xl text-slate-900"
-                />
-                <span className="text-xs font-bold text-slate-500">Approved EPCs</span>
+            {/* 1. Total EPC Onboarding Goal Tracking */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase text-slate-500">1. Annual EPC Onboarding</span>
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full ${(goalData?.epc_achievement_pct || 0) >= 100
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : (goalData?.epc_achievement_pct || 0) >= 70
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}
+                  >
+                    {goalData?.epc_achievement_pct || 0}% Achieved
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={annualEpcGoal}
+                    onChange={(e) => setAnnualEpcGoal(e.target.value)}
+                    className="w-24 px-2.5 py-1 text-lg font-black bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white"
+                  />
+                  <span className="text-xs font-bold text-slate-500">Target EPCs</span>
+                </div>
               </div>
-              <div className="text-xs font-semibold text-slate-600 pt-1">
-                Actual Onboarded:{' '}
-                <span className="font-extrabold text-blue-600">{goalData?.actual_epc_onboarded || 0}</span>
-                <span className="ml-1 text-[11px] text-slate-400">
-                  ({goalData?.epc_achievement_pct || 0}% Achieved)
-                </span>
+
+              <div>
+                <div className="text-xs font-semibold text-slate-600 flex justify-between items-center">
+                  <span>Actual Onboarded:</span>
+                  <span className="font-black text-blue-600 text-sm">{goalData?.actual_epc_onboarded || 0} EPCs</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2 mt-2 overflow-hidden">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, goalData?.epc_achievement_pct || 0)}%` }}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Annual Live EPC Goal */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2">
-              <span className="text-[11px] font-black uppercase text-slate-500">Annual Live EPC Goal</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  value={annualLiveEpcGoal}
-                  onChange={(e) => setAnnualLiveEpcGoal(e.target.value)}
-                  className="w-28 px-3 py-1.5 text-xl font-black bg-slate-50 border border-slate-200 rounded-xl text-slate-900"
-                />
-                <span className="text-xs font-bold text-slate-500">Active EPCs</span>
+            {/* 2. Annual Live EPC Goal Tracking */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase text-slate-500">2. Annual Live EPC Goal</span>
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full ${(goalData?.live_epc_achievement_pct || 0) >= 100
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : (goalData?.live_epc_achievement_pct || 0) >= 70
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-slate-100 text-slate-700'
+                      }`}
+                  >
+                    {goalData?.live_epc_achievement_pct || 0}% Achieved
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={annualLiveEpcGoal}
+                    onChange={(e) => setAnnualLiveEpcGoal(e.target.value)}
+                    className="w-24 px-2.5 py-1 text-lg font-black bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white"
+                  />
+                  <span className="text-xs font-bold text-slate-500">Active EPCs</span>
+                </div>
+                <div className="text-[10px] text-slate-400 font-semibold mt-1">
+                  Threshold: {liveEpcCriteriaDays} Days Window
+                </div>
               </div>
-              <div className="text-xs font-semibold text-slate-600 pt-1">
-                Actual Live EPCs:{' '}
-                <span className="font-extrabold text-emerald-600">{goalData?.actual_live_epcs || 0}</span>
-                <span className="ml-1 text-[11px] text-slate-400">
-                  ({goalData?.live_epc_achievement_pct || 0}% Achieved)
-                </span>
+
+              <div>
+                <div className="text-xs font-semibold text-slate-600 flex justify-between items-center">
+                  <span>Actual Live EPCs:</span>
+                  <span className="font-black text-emerald-600 text-sm">{goalData?.actual_live_epcs || 0} EPCs</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2 mt-2 overflow-hidden">
+                  <div
+                    className="bg-emerald-600 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, goalData?.live_epc_achievement_pct || 0)}%` }}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Live EPC Criteria Settings */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2">
-              <span className="text-[11px] font-black uppercase text-slate-500">Live Activity Threshold</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="30"
-                  max="365"
-                  value={liveEpcCriteriaDays}
-                  onChange={(e) => setLiveEpcCriteriaDays(e.target.value)}
-                  className="w-24 px-3 py-1.5 text-lg font-black bg-slate-50 border border-slate-200 rounded-xl text-slate-900"
-                />
-                <span className="text-xs font-bold text-slate-500">Days</span>
+            {/* 3. Annual Kit Sales Progress */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase text-slate-500">3. Annual Kit Sales</span>
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full ${totals.kitsAchPct >= 100
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : totals.kitsAchPct >= 70
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-orange-100 text-orange-800'
+                      }`}
+                  >
+                    {totals.kitsAchPct}% Achieved
+                  </span>
+                </div>
+
+                <div className="mt-2">
+                  <div className="text-xl font-black text-slate-900">
+                    {totals.targetKits.toLocaleString('en-IN')} <span className="text-xs font-bold text-slate-500">Target Kits</span>
+                  </div>
+                  <div className="text-[11px] font-semibold text-slate-500">
+                    Pending: <span className="font-bold text-slate-700">{totals.pendingKits.toLocaleString('en-IN')} Kits</span>
+                  </div>
+                </div>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium pt-1">
-                EPC active if qualifying login or purchase occurred within window
-              </p>
+
+              <div>
+                <div className="text-xs font-semibold text-slate-600 flex justify-between items-center">
+                  <span>Actual Kits Sold:</span>
+                  <span className="font-black text-orange-600 text-sm">{totals.actualKits.toLocaleString('en-IN')} Kits</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2 mt-2 overflow-hidden">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-500 ${totals.kitsAchPct >= 100 ? 'bg-emerald-500' : totals.kitsAchPct >= 70 ? 'bg-amber-500' : 'bg-orange-500'
+                      }`}
+                    style={{ width: `${Math.min(100, totals.kitsAchPct)}%` }}
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* Quick Goal Helper */}
-            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
-              <span className="text-[11px] font-black uppercase text-slate-500">Quick Month Allocation</span>
-              <div className="flex items-center gap-2 mt-2">
+            {/* 4. Annual Revenue Progress */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase text-slate-500">4. Annual Revenue Target</span>
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full ${totals.revAchPct >= 100
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : totals.revAchPct >= 70
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-purple-100 text-purple-800'
+                      }`}
+                  >
+                    {totals.revAchPct}% Achieved
+                  </span>
+                </div>
+
+                <div className="mt-2">
+                  <div className="text-xl font-black text-slate-900">
+                    ₹{totals.targetRevenue.toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[11px] font-semibold text-slate-500">
+                    Pending: <span className="font-bold text-slate-700">₹{totals.pendingRevenue.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs font-semibold text-slate-600 flex justify-between items-center">
+                  <span>Actual Revenue:</span>
+                  <span className="font-black text-emerald-700 text-sm">
+                    ₹{totals.actualRevenue.toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2 mt-2 overflow-hidden">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-500 ${totals.revAchPct >= 100 ? 'bg-emerald-500' : totals.revAchPct >= 70 ? 'bg-amber-500' : 'bg-purple-500'
+                      }`}
+                    style={{ width: `${Math.min(100, totals.revAchPct)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Section 2: Quick Uniform Monthly Quota Allocation ───────────── */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center font-bold">
+                  <FiZap size={14} />
+                </div>
+                <div>
+                  <span className="text-xs font-black text-slate-800 uppercase">
+                    Uniform Monthly Quota Allocation (Applies to all 12 Months)
+                  </span>
+                  <p className="text-[11px] text-slate-500">
+                    Ek month ka quota set karke "Apply" karein — yeh automatic 12 months me replicate ho jayega.
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Quick Presets:</span>
                 <button
                   type="button"
-                  onClick={() => handleQuickDistribute(1200, 60000000)}
-                  className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-700"
+                  onClick={() => handleApplyUniformMonthly(100, 5000000)}
+                  className="px-2.5 py-1 bg-white hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 shadow-2xs transition-colors"
                 >
                   100 Kits / ₹50L/mo
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickDistribute(1800, 90000000)}
-                  className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-700"
+                  onClick={() => handleApplyUniformMonthly(150, 7500000)}
+                  className="px-2.5 py-1 bg-white hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 shadow-2xs transition-colors"
                 >
                   150 Kits / ₹75L/mo
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyUniformMonthly(200, 10000000)}
+                  className="px-2.5 py-1 bg-white hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 shadow-2xs transition-colors"
+                >
+                  200 Kits / ₹1 Cr/mo
+                </button>
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">Applies equal quota across 12 months</p>
+            </div>
+
+            {/* Custom Uniform Inputs */}
+            <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-slate-200/60">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-600">Monthly Kits:</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={bulkMonthlyKits}
+                  onChange={(e) => setBulkMonthlyKits(Number(e.target.value))}
+                  className="w-24 px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-black text-xs text-slate-900"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-600">Monthly Revenue (₹):</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="10000"
+                  value={bulkMonthlyRev}
+                  onChange={(e) => setBulkMonthlyRev(Number(e.target.value))}
+                  className="w-32 px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-black text-xs text-slate-900"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleApplyUniformMonthly(bulkMonthlyKits, bulkMonthlyRev)}
+                className="px-3.5 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-all"
+              >
+                Apply to All 12 Months
+              </button>
+
+              <div className="ml-auto text-[11px] font-semibold text-slate-500 bg-white px-3 py-1 rounded-lg border border-slate-200">
+                Annual Target Impact: <span className="font-black text-slate-800">{(bulkMonthlyKits * 12).toLocaleString('en-IN')} Kits</span> • <span className="font-black text-emerald-700">₹{(bulkMonthlyRev * 12).toLocaleString('en-IN')}</span>
+              </div>
             </div>
           </div>
 
-          {/* ── Section 4.2: Monthly Kit Sales Goal (12 Months Table) ─────────── */}
+          {/* ── Section 3: Monthly Kit Sales & Revenue Targets (12 Months Table) */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+            <div className="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h3 className="font-black text-slate-900 text-sm">Monthly Kit Sales & Revenue Targets (12 Months)</h3>
+                <h3 className="font-black text-slate-900 text-sm">
+                  Monthly Kit Sales & Revenue Performance Tracking (12 Months)
+                </h3>
                 <p className="text-xs text-slate-500">
-                  Configure seasonal kit quotas and revenue goals. Actual figures auto-calculated from net confirmed orders.
+                  Track month-by-month targets vs actual kits sold and revenue realized from net confirmed orders.
                 </p>
               </div>
-              <div className="text-xs font-black text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
-                Annual Kit Target:{' '}
-                {monthlyGoals.reduce((sum, m) => sum + Number(m.target_kits_quantity || 0), 0)} Kits
+              <div className="flex items-center gap-2 text-xs">
+                <div className="font-black text-orange-700 bg-orange-50 px-3 py-1.5 rounded-xl border border-orange-200">
+                  Annual Target: {totals.targetKits.toLocaleString('en-IN')} Kits
+                </div>
+                <div className="font-black text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                  Annual Revenue: ₹{totals.targetRevenue.toLocaleString('en-IN')}
+                </div>
               </div>
             </div>
 
@@ -361,10 +614,12 @@ export default function FranchiseeGoalSettings() {
                     <th className="px-4 py-3.5">Target Kits</th>
                     <th className="px-4 py-3.5">Actual Kits Sold</th>
                     <th className="px-4 py-3.5">Pending Target</th>
-                    <th className="px-4 py-3.5 text-center">Achievement %</th>
+                    <th className="px-4 py-3.5 text-center">Kit Ach. %</th>
                     <th className="px-4 py-3.5">Target Revenue (₹)</th>
                     <th className="px-4 py-3.5">Actual Revenue (₹)</th>
+                    <th className="px-4 py-3.5 text-center">Rev Ach. %</th>
                     <th className="px-4 py-3.5">PO / Loose Split</th>
+                    <th className="px-4 py-3.5 text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
@@ -373,6 +628,13 @@ export default function FranchiseeGoalSettings() {
                     const targetKits = Number(m.target_kits_quantity || 0);
                     const pendingKits = Math.max(0, targetKits - actualKits);
                     const achPct = targetKits > 0 ? Math.round((actualKits / targetKits) * 100) : 0;
+
+                    const actualRev = Number(m.actual_revenue || 0);
+                    const targetRev = Number(m.target_revenue || 0);
+                    const revAchPct = targetRev > 0 ? Math.round((actualRev / targetRev) * 100) : 0;
+
+                    const isAchieved = targetKits > 0 && actualKits >= targetKits;
+                    const isInProgress = actualKits > 0 || actualRev > 0;
 
                     return (
                       <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
@@ -402,16 +664,15 @@ export default function FranchiseeGoalSettings() {
                           {pendingKits} Kits
                         </td>
 
-                        {/* Achievement % */}
+                        {/* Kit Achievement % */}
                         <td className="px-4 py-3.5 text-center">
                           <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full font-black text-[11px] ${
-                              achPct >= 100
+                            className={`inline-block px-2.5 py-0.5 rounded-full font-black text-[11px] ${achPct >= 100
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : achPct >= 70
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
                           >
                             {achPct}%
                           </span>
@@ -431,7 +692,21 @@ export default function FranchiseeGoalSettings() {
 
                         {/* Actual Revenue */}
                         <td className="px-4 py-3.5 font-extrabold text-emerald-700">
-                          ₹{Number(m.actual_revenue || 0).toLocaleString('en-IN')}
+                          ₹{actualRev.toLocaleString('en-IN')}
+                        </td>
+
+                        {/* Revenue Achievement % */}
+                        <td className="px-4 py-3.5 text-center">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full font-black text-[11px] ${revAchPct >= 100
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : revAchPct >= 70
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-purple-50 text-purple-700'
+                              }`}
+                          >
+                            {revAchPct}%
+                          </span>
                         </td>
 
                         {/* PO / Loose Quota Split (Editable) */}
@@ -454,6 +729,20 @@ export default function FranchiseeGoalSettings() {
                               className="w-14 px-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded text-slate-800"
                             />
                           </div>
+                        </td>
+
+                        {/* Performance Status */}
+                        <td className="px-4 py-3.5 text-center">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full font-black text-[10px] uppercase tracking-wider ${isAchieved
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : isInProgress
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-slate-100 text-slate-500'
+                              }`}
+                          >
+                            {isAchieved ? 'Achieved' : isInProgress ? 'In Progress' : 'Pending'}
+                          </span>
                         </td>
                       </tr>
                     );

@@ -533,14 +533,14 @@ const menus = [
                     path: "/admin-panel/solar-shop/franchise-clusters?tab=map",
                     unique_id: "RSL_MGMT"
                 },
+                // {
+                //     name: "Agreement Management",
+                //     icon: <FiFileText />,
+                //     path: "/admin-panel/solar-shop/franchise-clusters?tab=agreements",
+                //     unique_id: "RSL_MGMT"
+                // },
                 {
-                    name: "Agreement Management",
-                    icon: <FiFileText />,
-                    path: "/admin-panel/solar-shop/franchise-clusters?tab=agreements",
-                    unique_id: "RSL_MGMT"
-                },
-                {
-                    name: "Goal Settings",
+                    name: "Goal Tracking",
                     icon: <FiSliders />,
                     path: "/admin-panel/solar-shop/franchise-clusters?tab=goals",
                     unique_id: "RSL_MGMT"
