@@ -83,6 +83,7 @@ const menus = [
     },
     { name: "Vision Dashboard", icon: <MdVisibility />, path: "/admin-panel/vision-dashboard", unique_id: "00000000" },
     { name: "Configuration Dashboard", icon: <MdTune />, path: "/admin-panel/configuration-dashboard", unique_id: "00000000" },
+    { name: "Franchisee Performance Dashboard", icon: <FiBarChart2 />, path: "/admin-panel/franchisee-performance-dashboard", unique_id: "00000000" },
     { name: "Operations Dashboard", icon: <MdEngineering />, path: "/admin-panel/operations-dashboard", unique_id: "00000000" },
     { name: "Store Dashboard", icon: <FaStore />, path: "/admin-panel/store-dashboard", unique_id: "00000000" },
     { name: "EPC Analytics", icon: <FaChartLine />, path: "/admin-panel/epc-analytics", unique_id: "00000000" },
@@ -492,6 +493,17 @@ export default function Dashboard() {
                 className="min-h-full"
               >
                 <Routes location={location}>
+
+                  <Route
+                    path="/franchisee-performance-dashboard"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Franchisee Performance Dashboard..." />}>
+                          <FranchiseePerformanceDashboard />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
 
                   <Route
                     path="/accounting-overview/*"
