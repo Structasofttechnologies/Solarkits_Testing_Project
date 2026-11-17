@@ -109,9 +109,16 @@ async function autoSeedCustomerAccounts() {
   }
 }
 
-// Run auto-seed asynchronously after DB connects
-setTimeout(() => {
-  autoSeedCustomerAccounts();
-}, 5000);
+const mongoose = require('mongoose');
+
+const runAccountSeeder = () => {
+  autoSeedCustomerAccounts().catch(() => {});
+};
+
+if (mongoose.connection.readyState === 1) {
+  runAccountSeeder();
+} else {
+  mongoose.connection.once('open', runAccountSeeder);
+}
 
 module.exports = autoSeedCustomerAccounts;

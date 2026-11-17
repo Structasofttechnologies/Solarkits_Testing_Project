@@ -1,7 +1,7 @@
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import Header from "../components/Header"
 import Drawer from "../components/Drawer";
-import { FaHome, FaFileInvoice, FaCreditCard, FaCheckCircle, FaHandshake, FaBoxes, FaLayerGroup } from "react-icons/fa"
+import { FaHome, FaFileInvoice, FaCreditCard, FaCheckCircle, FaHandshake, FaBoxes, FaLayerGroup, FaBalanceScale, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine } from "react-icons/fa"
 import { lazy, Suspense, useEffect, useState, useMemo, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import { PermissionGuard } from "../components/PermissionGuard";
@@ -24,6 +24,12 @@ const BoskitInventory = lazy(() => import("../pages/accounts-management/BoskitIn
 const Payments = lazy(() => import("../pages/accounts-management/Payments"));
 const NewOrdersProcurement = lazy(() => import("../pages/accounts-management/NewOrdersProcurement"));
 const Procurement = lazy(() => import("../pages/accounts-management/Procurement"));
+const AccountingModule = lazy(() => import("../pages/accounting/AccountingModule"));
+const GstManagementModule = lazy(() => import("../pages/gst/GstManagementModule"));
+const InvoiceValidationModule = lazy(() => import("../pages/compliance/InvoiceValidationModule"));
+const ExpenseManagementModule = lazy(() => import("../pages/expenses/ExpenseManagementModule"));
+const WarehouseFinanceModule = lazy(() => import("../pages/warehouse-finance/WarehouseFinanceModule"));
+const ExecutiveFinanceDashboard = lazy(() => import("../pages/executive/ExecutiveFinanceDashboard"));
 
 const getMenusWithBadges = (badgeCounts = {}) => [
   [
@@ -97,11 +103,67 @@ const getMenusWithBadges = (badgeCounts = {}) => [
       path: "/account-panel/invoices",
       unique_id: "ACC_INVOICES"
     },
+    {
+      name: "Accounting & Ledgers",
+      icon: <FaBalanceScale />,
+      path: "/account-panel/accounting",
+      unique_id: "ACC_ACCOUNTING",
+      subMenu: [
+        {
+          name: "1. Chart of Accounts",
+          icon: <FaBook />,
+          path: "/account-panel/accounting/chart-of-accounts",
+          unique_id: "ACC_ACCOUNTING"
+        },
+        {
+          name: "2. Vouchers & Journal",
+          icon: <FaExchangeAlt />,
+          path: "/account-panel/accounting/vouchers",
+          unique_id: "ACC_ACCOUNTING"
+        },
+        {
+          name: "3. General Ledgers",
+          icon: <FaReceipt />,
+          path: "/account-panel/accounting/ledgers",
+          unique_id: "ACC_ACCOUNTING"
+        },
+        {
+          name: "4. Financial Statements",
+          icon: <FaFileInvoiceDollar />,
+          path: "/account-panel/accounting/financial-statements",
+          unique_id: "ACC_ACCOUNTING"
+        }
+      ]
+    },
+    {
+      name: "GST & Tax Compliance",
+      icon: <FaFileInvoiceDollar />,
+      path: "/account-panel/gst",
+      unique_id: "ACC_GST"
+    },
+    {
+      name: "Invoice Validation & Alerts",
+      icon: <FaClipboardCheck />,
+      path: "/account-panel/invoice-validation",
+      unique_id: "ACC_INVOICE_VALIDATION"
+    },
+    {
+      name: "Expense Management",
+      icon: <FaMoneyBillWave />,
+      path: "/account-panel/expenses",
+      unique_id: "ACC_EXPENSES"
+    },
   ],
 ];
 
 const isModuleAllowed = (menu, allowedUniqueIds) => {
   if (!menu.unique_id) return false;
+  if (
+    menu.unique_id === "ACC_ACCOUNTING" ||
+    menu.unique_id === "ACC_GST" ||
+    menu.unique_id === "ACC_INVOICE_VALIDATION" ||
+    menu.unique_id === "ACC_EXPENSES"
+  ) return true;
   if ((menu.unique_id === "ACC_NEW_ORDERS" || menu.unique_id === "ACC_PROCUREMENT") && (allowedUniqueIds.includes("ACC_NEW_ORDERS") || allowedUniqueIds.includes("ACC_HOME") || allowedUniqueIds.includes("ACC_PO") || allowedUniqueIds.includes("ACC_PROCUREMENT"))) return true;
   if (menu.unique_id === "ACC_OEM_PO" && allowedUniqueIds.includes("ACC_PO")) return true;
   if (menu.unique_id === "ACC_BOSKIT_INV" && (allowedUniqueIds.includes("ACC_PO") || allowedUniqueIds.includes("ACC_INWARD_INV") || allowedUniqueIds.includes("ACC_HOME"))) return true;
@@ -372,6 +434,54 @@ export default function Dashboard() {
                     element={
                       <Suspense fallback={<Loader text="Loading settings..." />}>
                         <AccountSettings />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/accounting/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Accounting Module..." />}>
+                        <AccountingModule />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/gst/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading GST Management..." />}>
+                        <GstManagementModule />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/invoice-validation/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Invoice Validation..." />}>
+                        <InvoiceValidationModule />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/expenses/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Expense Management..." />}>
+                        <ExpenseManagementModule />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/warehouse-finance/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Warehouse Finance & Loan Module..." />}>
+                        <WarehouseFinanceModule />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/executive-finance/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Executive Finance Dashboard..." />}>
+                        <ExecutiveFinanceDashboard />
                       </Suspense>
                     }
                   />

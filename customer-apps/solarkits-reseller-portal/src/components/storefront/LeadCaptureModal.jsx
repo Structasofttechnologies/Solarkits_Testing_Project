@@ -189,8 +189,9 @@ export default function LeadCaptureModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.gstin || !formData.gstin.trim() || formData.gstin.trim().length < 15) {
-      setGstErrorMsg("GSTIN is compulsory for franchisee enquiry. Please enter a valid 15-character GST number.");
+    const cleanGst = (formData.gstin || '').trim().toUpperCase();
+    if (cleanGst && cleanGst.length !== 15) {
+      setGstErrorMsg('GSTIN must be exactly 15 characters (e.g. 27ABCDE1234F1Z5), or leave blank if not available.');
       return;
     }
     setSubmitting(true);
@@ -463,7 +464,7 @@ export default function LeadCaptureModal({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-slate-700">
-                      GSTIN <span className="text-red-500">*</span> <span className="text-[10px] text-slate-400 font-normal">(QuickeKYC Verified)</span>
+                      GSTIN / Tax ID <span className="ml-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 font-normal">Recommended</span>
                     </label>
                     {gstVerified ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
@@ -484,14 +485,13 @@ export default function LeadCaptureModal({
                   </div>
                   <input
                     type="text"
-                    required
                     maxLength={15}
                     value={formData.gstin}
                     onChange={(e) => {
                       setFormData({ ...formData, gstin: e.target.value.toUpperCase() });
                       if (gstVerified) setGstVerified(false);
                     }}
-                    placeholder="27AAAAA0000A1Z5"
+                    placeholder="27AAAAA0000A1Z5 (Recommended for B2B Verification)"
                     className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-xs sm:text-sm text-slate-900 uppercase font-mono focus:bg-white focus:outline-none shadow-xs ${
                       gstVerified ? "border-emerald-500 bg-emerald-50/30" : "border-slate-200 focus:border-[#253880]"
                     }`}

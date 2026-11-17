@@ -21,15 +21,24 @@ mongoose.Connection.prototype.model = function (name, schema, collection) {
   return originalConnectionModel.apply(this, arguments);
 };
 
-// Set DNS servers to avoid querySrv ECONNREFUSED issues on local systems or VPNs
+// Configure DNS resolution to prevent querySrv ECONNREFUSED on Windows
 try {
-  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+  dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4', '1.0.0.1']);
 } catch (dnsErr) {
   // Retain system DNS if custom servers cannot be set
 }
 
+try {
+  if (typeof dns.setDefaultResultOrder === 'function') {
+    dns.setDefaultResultOrder('ipv4first');
+  }
+} catch (dnsErr) {
+  // Retain default resolution if not supported
+}
+
 // Configure Mongoose global options to eliminate deprecation warning logs
 mongoose.set('returnDocument', 'after');
+mongoose.set('bufferTimeoutMS', 30000);
 
 // Intercept queries to automatically convert deprecated { new: true } to { returnDocument: 'after' }
 const patchDeprecatedOptions = (options) => {
@@ -63,7 +72,8 @@ if (!MONGODB_URI) {
   console.error('❌ MONGODB_URI environment variable is missing in .env');
 } else {
   mongoose.connect(MONGODB_URI, {
-    serverSelectionTimeoutMS: 15000,
+    serverSelectionTimeoutMS: 30000,
+    connectTimeoutMS: 30000,
     socketTimeoutMS: 45000,
   })
     .then(() => {
@@ -83,8 +93,27 @@ if (!MONGODB_URI) {
             .catch(e => console.warn('Could not drop legacy index:', e.message));
         }
       }).catch(() => { });
+
+      // Automatically ensure Super Admin and Core modules exist
+      try {
+        const ensureAdminUser = require('../../utils/ensureAdminUser');
+        ensureAdminUser('rahil.sunnovative@gmail.com')
+          .then(() => {
+            const { seedCMS } = require('../../modules/admin-panel/config/seeder/cms.seeder');
+            seedCMS().catch(err => console.warn('⚠️ [CMS Seeder] Background sync notice:', err.message));
+          })
+          .catch(err => console.warn('⚠️ [ensureAdminUser] Notice:', err.message));
+      } catch (seedErr) {
+        // Seeder module resolution fallback
+      }
     })
-    .catch((error) => console.error('❌ MongoDB Connection Error:', error));
+    .catch((error) => {
+      console.error('❌ MongoDB Connection Error:', error.message || error);
+      console.error('💡 Troubleshooting Tips:');
+      console.error('   1. Check your Internet connection.');
+      console.error('   2. Verify your current Public IP is whitelisted in MongoDB Atlas -> Network Access (or add 0.0.0.0/0).');
+      console.error('   3. If using VPN or restricted WiFi/firewall, DNS SRV resolution may be blocked.');
+    });
 }
 
 const db = mongoose;

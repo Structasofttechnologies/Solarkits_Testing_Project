@@ -1270,9 +1270,15 @@ const syncBrandTemplateMaps = async () => {
     }
 };
 
-setTimeout(() => {
-    syncBrandTemplateMaps().catch(err => console.error(err));
-}, 2000);
+const triggerBrandSync = () => {
+    syncBrandTemplateMaps().catch(err => console.warn("Notice: brand template sync deferred:", err.message));
+};
+
+if (mongoose.connection.readyState === 1) {
+    triggerBrandSync();
+} else {
+    mongoose.connection.once('open', triggerBrandSync);
+}
 
 module.exports = {
     createProductTemplate, updateProductTemplate, listProductTemplates,

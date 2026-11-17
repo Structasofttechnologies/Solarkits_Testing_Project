@@ -101,12 +101,8 @@ export default function Footer({ footerConfig }) {
     }
 
     const cleanGst = (formData.gstin || "").trim().toUpperCase();
-    if (!cleanGst) {
-      setErrorMsg("Please enter your 15-digit GSTIN (GST Number).");
-      return;
-    }
-    if (cleanGst.length !== 15) {
-      setErrorMsg("GSTIN must be exactly 15 characters (e.g. 24AAAAA0000A1Z5).");
+    if (cleanGst && cleanGst.length > 0 && cleanGst.length !== 15) {
+      setErrorMsg("GSTIN agar bhar rahe hain toh 15-digit ka hona chahiye (e.g. 24AAAAA0000A1Z5), ya fir aap isse khali chhod sakte hain.");
       return;
     }
 
@@ -117,8 +113,8 @@ export default function Footer({ footerConfig }) {
         company_name: formData.name.trim(),
         phone: cleanPhone.slice(-10),
         state_name: formData.state_name,
-        gst_number: cleanGst,
-        gstin: cleanGst,
+        gst_number: cleanGst || undefined,
+        gstin: cleanGst || undefined,
         pincode: formData.pincode.trim() || undefined,
         estimated_quantity: formData.pincode.trim() || "Bulk Order (5+ Kits)",
         project_type: "Bulk Solar Combo Kits",
@@ -280,23 +276,33 @@ export default function Footer({ footerConfig }) {
                         </select>
                       </div>
 
-                      {/* GSTIN Field */}
+                      {/* GSTIN Field (Encouraged for Tax Invoices & Verification, not strictly mandatory) */}
                       <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-1">
-                          GSTIN (15-Digit GST Number) *
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/90">
+                            GSTIN (15-Digit GST Number)
+                          </label>
+                          <span className="text-[10px] font-bold text-amber-300 normal-case bg-amber-400/20 px-1.5 py-0.5 rounded border border-amber-300/30">
+                            Highly Recommended
+                          </span>
+                        </div>
                         <input
                           type="text"
                           name="gstin"
                           maxLength={15}
                           value={formData.gstin}
                           onChange={handleInputChange}
-                          placeholder="e.g. 24AAAAA0000A1Z5"
+                          placeholder="e.g. 24AAAAA0000A1Z5 (Enter GSTIN for Instant Verification)"
                           className="w-full rounded-xl border border-white/25 bg-white px-3.5 py-2.5 text-xs text-navy outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-accent font-mono uppercase"
                         />
+                        <p className="mt-1 text-[10px] text-white/75">
+                          💡 GSTIN bharne par aapka account turant verified ho jata hai aur direct 12% GST tax invoice credit milta hai (yadi GSTIN nahi hai toh blank chhod sakte hain).
+                        </p>
                       </div>
 
                       {/* Pincode or Quantity (Optional) */}
+ 
+=======
                       {/* <div className="sm:col-span-2">
                         <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-1">
                           Pincode / Bulk Quantity (Optional)
@@ -309,8 +315,7 @@ export default function Footer({ footerConfig }) {
                           placeholder="e.g. 360001 or 5x 3kW Kits"
                           className="w-full rounded-xl border border-white/25 bg-white px-3.5 py-2.5 text-xs text-navy outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-accent"
                         />
-                      </div> */}
-                    </div>
+ </div>
 
                     <div className="mt-3.5 flex items-center justify-between gap-3 pt-1 border-t border-white/10">
                       <span className="text-[11px] text-white/60 hidden sm:inline">

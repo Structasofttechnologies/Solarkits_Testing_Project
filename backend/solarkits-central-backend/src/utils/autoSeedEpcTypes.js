@@ -59,8 +59,18 @@ async function seedEpcTypesIfNeeded() {
   }
 }
 
-// Auto-run on load
-seedEpcTypesIfNeeded();
+const mongoose = require('mongoose');
+
+// Auto-run only once MongoDB is connected to avoid 10000ms buffering timeouts
+const runSeeder = () => {
+  seedEpcTypesIfNeeded().catch(() => {});
+};
+
+if (mongoose.connection.readyState === 1) {
+  runSeeder();
+} else {
+  mongoose.connection.once('open', runSeeder);
+}
 
 module.exports = {
   seedEpcTypesIfNeeded,
