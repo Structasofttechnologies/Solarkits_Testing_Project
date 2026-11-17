@@ -143,9 +143,15 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
       const res = await axios.get(`${API}/geolocation/active-countries?unique_id=${moduleUniqueId}&req_for=view`, {
         headers: authHeaderObj()
       });
-      setCountries(res.data.countries || []);
+      const cList = res.data.countries || [];
+      setCountries(cList);
+      if (!selectedCountryFilter) {
+        const defaultScope = cList.length > 0 ? (cList[0].id || cList[0]._id) : "global";
+        setSelectedCountryFilter(defaultScope);
+      }
     } catch (error) {
       console.error("Error loading countries:", error);
+      if (!selectedCountryFilter) setSelectedCountryFilter("global");
     }
   };
 
@@ -809,16 +815,16 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
                 {node.assigned_modules_count ?? 0}
               </span>
             </div>
-            <div className="w-32 flex items-center justify-end gap-2 pl-4">
-              <IconButton
-                variant="ghost"
+            <div className="w-48 flex items-center justify-end gap-2 pl-4">
+              <button
+                type="button"
                 onClick={() => navigate(`/admin-panel/settings/role-settings/role-based-access-control/role/${node.id}`)}
-                size="sm"
-                className="text-info hover:bg-info/10"
-                title="View role details & permissions"
+                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-info/10 hover:bg-info/20 text-info transition-colors flex items-center gap-1.5 cursor-pointer border border-info/30"
+                title="Configure permissions & authorization rules"
               >
-                <FiEye size={16} />
-              </IconButton>
+                <FiEye size={14} />
+                <span>Rules & Access</span>
+              </button>
               {!node.is_protected ? (
                 <RenderIfPermission requiredUniqueId={moduleUniqueId} permission="edit" fallback={null}>
                   <IconButton
@@ -832,7 +838,7 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
                   </IconButton>
                 </RenderIfPermission>
               ) : (
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 cursor-not-allowed mx-auto" title="Protected role parameters are immutable.">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 cursor-not-allowed" title="Protected role parameters are immutable.">
                   <FiLock size={14} />
                 </div>
               )}
@@ -1124,7 +1130,7 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
                     <div className="w-32 px-2">Level Node</div>
                     <div className="w-32 px-2">Panel Scopes</div>
                     <div className="w-24 px-2 text-center">Modules</div>
-                    <div className="w-32 text-right pr-4">Operations</div>
+                    <div className="w-48 text-right pr-4">Rules & Operations</div>
                   </div>
                   <div className="divide-y divide-border/40">
                     {getFilteredTree(roles, searchQuery, filterDepartment, filterLevel).map(node => (

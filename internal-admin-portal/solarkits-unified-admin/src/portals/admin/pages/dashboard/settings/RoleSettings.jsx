@@ -13,14 +13,14 @@ export default function RoleSettings() {
                     <Departments moduleUniqueId="ADM_DEPTS" />
                 </RenderIfPermission>
             } />
-            <Route path="/role-based-access-control/*" element={
-                <RenderIfPermission requiredUniqueId="ADM_RBAC" permission="view" fallback={<Navigate to="/admin-panel/home" replace />}>
-                    <RoleBasedAccessControl moduleUniqueId="ADM_RBAC" />
-                </RenderIfPermission>
-            } />
             <Route path="/role-based-access-control/role/:id" element={
                 <RenderIfPermission requiredUniqueId="ADM_RBAC" permission="view" fallback={<Navigate to="/admin-panel/home" replace />}>
                     <RoleDetails moduleUniqueId="ADM_RBAC" />
+                </RenderIfPermission>
+            } />
+            <Route path="/role-based-access-control/*" element={
+                <RenderIfPermission requiredUniqueId="ADM_RBAC" permission="view" fallback={<Navigate to="/admin-panel/home" replace />}>
+                    <RoleBasedAccessControl moduleUniqueId="ADM_RBAC" />
                 </RenderIfPermission>
             } />
             <Route path="/" element={<Navigate to="role-based-access-control" replace />} />

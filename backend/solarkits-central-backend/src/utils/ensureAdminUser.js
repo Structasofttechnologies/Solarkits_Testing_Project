@@ -13,6 +13,8 @@ async function ensureAdminUser(targetEmail = 'rahil.sunnovative@gmail.com') {
     const CmsLevel = mongoose.models.cms_levels || require('../modules/cms-auth/models/user_db/cms_levels.schema');
     const CmsPanel = mongoose.models.cms_panels || require('../modules/cms-auth/models/user_db/cms_panels.schema');
     const RolePanel = mongoose.models.role_panels || require('../modules/cms-auth/models/user_db/role_panels.schema');
+    const DepartmentPanel = mongoose.models.department_panels || require('../modules/admin-panel/models/user_db/department_panels.schema');
+    const GeoLevel0 = mongoose.models.geolocation_level_0 || require('../modules/admin-panel/models/geolocation_db/geolocation_level_0.schema');
 
     const normalizedEmail = (targetEmail || 'rahil.sunnovative@gmail.com').trim().toLowerCase();
 
@@ -68,6 +70,10 @@ async function ensureAdminUser(targetEmail = 'rahil.sunnovative@gmail.com') {
       if (panel) panelDocs.push(panel);
     }
 
+    // 2.5. Find default country (India)
+    const indiaCountry = await GeoLevel0.findOne({ deleted_at: null }).lean();
+    const indiaCountryId = indiaCountry ? indiaCountry._id : null;
+
     // 3. Ensure Core Departments
     const coreDepts = [
       { name: 'Super Admin', slug: 'admin-panel', level: 'global' },
@@ -87,6 +93,8 @@ async function ensureAdminUser(targetEmail = 'rahil.sunnovative@gmail.com') {
             name: d.name,
             panel_id: panel?._id || null,
             level: d.level,
+            country_ids: d.level === 'country' && indiaCountryId ? [indiaCountryId] : [],
+            country_id: d.level === 'country' ? indiaCountryId : null,
             is_system: true,
             is_protected: true,
             is_active: true
@@ -95,7 +103,17 @@ async function ensureAdminUser(targetEmail = 'rahil.sunnovative@gmail.com') {
           deptDoc = await CmsDept.findOne({ name: { $regex: new RegExp(`^${d.name}$`, 'i') } });
         }
       }
-      if (deptDoc) deptMap[d.name] = deptDoc;
+      if (deptDoc) {
+        deptMap[d.name] = deptDoc;
+        if (panel && DepartmentPanel) {
+          try {
+            const dpExists = await DepartmentPanel.findOne({ department_id: deptDoc._id, panel_id: panel._id });
+            if (!dpExists) {
+              await DepartmentPanel.create({ department_id: deptDoc._id, panel_id: panel._id });
+            }
+          } catch (e) {}
+        }
+      }
     }
     const superAdminDept = deptMap['Super Admin'] || (await CmsDept.findOne({}));
 
@@ -131,19 +149,31 @@ async function ensureAdminUser(targetEmail = 'rahil.sunnovative@gmail.com') {
     for (const r of coreRoles) {
       const deptDoc = deptMap[r.dept] || superAdminDept;
       if (!deptDoc) continue;
-      let roleDoc = await CmsRole.findOne({ name: r.name, department_id: deptDoc._id, deleted_at: null });
+      let roleDoc = await CmsRole.findOne({ name: r.name, deleted_at: null });
       if (!roleDoc) {
         try {
           roleDoc = await CmsRole.create({
             name: r.name,
             department_id: deptDoc._id,
             level_id: r.level || countryLevel?._id || globalLevel?._id,
+            country_id: r.level === countryLevel?._id ? indiaCountryId : null,
+            country_ids: r.level === countryLevel?._id && indiaCountryId ? [indiaCountryId] : [],
             is_system: true,
             is_protected: true,
             is_active: true
           });
         } catch (e) {
-          roleDoc = await CmsRole.findOne({ name: r.name, department_id: deptDoc._id });
+          roleDoc = await CmsRole.findOne({ name: r.name });
+        }
+      } else {
+        // Ensure proper department and country link
+        if (roleDoc.department_id?.toString() !== deptDoc._id.toString()) {
+          roleDoc.department_id = deptDoc._id;
+          roleDoc.level_id = r.level || countryLevel?._id || globalLevel?._id;
+          if (r.level === countryLevel?._id && indiaCountryId) {
+            roleDoc.country_id = indiaCountryId;
+          }
+          await roleDoc.save().catch(() => {});
         }
       }
       if (r.name === 'Super Admin') superAdminRole = roleDoc;
