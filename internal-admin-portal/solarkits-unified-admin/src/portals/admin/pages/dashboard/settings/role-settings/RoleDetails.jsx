@@ -1,36 +1,30 @@
 import axios from "axios";
 import { authHeaderObj } from "@/app/authHeader";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useDispatch } from "react-redux";
 import { useParams, useNavigate } from "react-router-dom";
 import Loader from "@/components/Loader";
 import Button from "@/components/Button";
-import ToggleButton from "@/components/ToggleButton";
-import ConfirmationPopup from "@/components/ConfirmationPopup";
 import { setAlert } from "@/features/alert.slice";
 import {
   FiShield,
   FiGrid,
   FiSearch,
-  FiClock,
   FiBriefcase,
   FiLayers,
-  FiUserCheck,
-  FiCornerDownRight,
-  FiAlertCircle,
   FiSave,
   FiArrowLeft,
-  FiFile,
-  FiMapPin,
-  FiChevronDown,
-  FiChevronRight,
-  FiPlus as FiPlusIcon,
-  FiSettings,
-  FiGlobe
+  FiCheckCircle,
+  FiCheck,
+  FiX,
+  FiEye,
+  FiEdit3,
+  FiPlus,
+  FiTrash2,
+  FiSliders,
+  FiFolder
 } from "react-icons/fi";
 import PageHeader from "@/components/PageHeader";
-import DropdownWithSearchInput from "@/components/DropdownWithSearchInput";
-
 
 export default function RoleDetails({ moduleUniqueId }) {
   const dispatch = useDispatch();
@@ -42,56 +36,18 @@ export default function RoleDetails({ moduleUniqueId }) {
   const [viewRoleLoading, setViewRoleLoading] = useState(true);
   const [allPanels, setAllPanels] = useState([]);
   const [allLevels, setAllLevels] = useState([]);
-  const [countries, setCountries] = useState([]);
-  const [selectedCountryId, setSelectedCountryId] = useState(null);
-  const [activeCountrySaaSProducts, setActiveCountrySaaSProducts] = useState(null);
-  const [selectedModuleLevelId, setSelectedModuleLevelId] = useState("");
+  const [allModules, setAllModules] = useState([]);
+  const [modulesLoading, setModulesLoading] = useState(false);
+  const [savingModules, setSavingModules] = useState(false);
 
-  const getPanelsWithProducts = async () => {
-    try {
-      const res = await axios.get(`${API}/panels?unique_id=${moduleUniqueId}&req_for=view`, {
-        headers: authHeaderObj()
-      });
-      setAllPanels(res.data.data || []);
-    } catch (error) {
-      console.error("Error loading panels with products:", error);
-    }
-  };
+  // Active panel tab for filtering modules
+  const [activePanelId, setActivePanelId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const getLevels = async () => {
-    try {
-      const res = await axios.get(`${API}/roles/levels?unique_id=${moduleUniqueId}&req_for=view`, {
-        headers: authHeaderObj()
-      });
-      setAllLevels(res.data.data || []);
-    } catch (error) {
-      console.error("Error loading levels:", error);
-    }
-  };
+  // Working state: map of moduleId -> { can_view, can_add, can_edit, can_delete }
+  const [permissionMap, setPermissionMap] = useState({});
 
-  const getActiveCountries = async () => {
-    try {
-      const res = await axios.get(`${API}/geolocation/active-countries?unique_id=${moduleUniqueId}&req_for=view`, {
-        headers: authHeaderObj()
-      });
-      setCountries(res.data.countries || []);
-    } catch (error) {
-      console.error("Error loading countries:", error);
-    }
-  };
-
-  const getActiveCountrySaaSProducts = async (countryId) => {
-    try {
-      const res = await axios.get(`${API}/roles/country-saas-products/${countryId}?unique_id=${moduleUniqueId}&req_for=view`, {
-        headers: authHeaderObj()
-      });
-      setActiveCountrySaaSProducts(res.data.data || []);
-    } catch (error) {
-      console.error("Error loading country active SaaS products:", error);
-      setActiveCountrySaaSProducts([]);
-    }
-  };
-
+  // Fetch initial role details
   const getRoleDetails = async (id) => {
     setViewRoleLoading(true);
     try {
@@ -116,1031 +72,670 @@ export default function RoleDetails({ moduleUniqueId }) {
     }
   };
 
+  const getPanels = async () => {
+    try {
+      const res = await axios.get(`${API}/panels?unique_id=${moduleUniqueId}&req_for=view`, {
+        headers: authHeaderObj()
+      });
+      setAllPanels(res.data.data || []);
+    } catch (error) {
+      console.error("Error loading panels:", error);
+    }
+  };
+
+  const getLevels = async () => {
+    try {
+      const res = await axios.get(`${API}/roles/levels?unique_id=${moduleUniqueId}&req_for=view`, {
+        headers: authHeaderObj()
+      });
+      setAllLevels(res.data.data || []);
+    } catch (error) {
+      console.error("Error loading levels:", error);
+    }
+  };
+
   useEffect(() => {
-    getPanelsWithProducts();
-    getActiveCountries();
+    getPanels();
     getLevels();
     if (role_id) getRoleDetails(role_id);
   }, [role_id]);
 
-  useEffect(() => {
-    if (viewRole) {
-      if (viewRole.level_id) {
-        setSelectedModuleLevelId(viewRole.level_id.toString());
-      }
-      if (viewRole.department_level === 'country') {
-        if (viewRole.country_id) {
-          setSelectedCountryId(viewRole.country_id);
-        } else if (viewRole.department_country_ids && viewRole.department_country_ids.length > 0) {
-          const isValidSelected = viewRole.department_country_ids.some(
-            cId => cId?.toString() === selectedCountryId?.toString()
-          );
-          if (!isValidSelected) {
-            setSelectedCountryId(viewRole.department_country_ids[0]);
-          }
-        }
-      } else {
-        setSelectedCountryId(null);
-        setActiveCountrySaaSProducts(null);
-      }
+  // Panels associated with this role
+  const rolePanels = useMemo(() => {
+    if (!viewRole) return [];
+    if (viewRole.name === 'Super Admin') {
+      return allPanels.map(p => ({
+        id: (p.id || p._id).toString(),
+        name: p.name
+      }));
     }
-  }, [viewRole]);
-
-  useEffect(() => {
-    if (selectedCountryId) {
-      getActiveCountrySaaSProducts(selectedCountryId);
-    } else {
-      setActiveCountrySaaSProducts(null);
+    const panelsList = [];
+    if (viewRole.panels && viewRole.panels.length > 0) {
+      viewRole.panels.forEach(p => {
+        panelsList.push({
+          id: (p.id || p._id).toString(),
+          name: p.name
+        });
+      });
+    } else if (viewRole.panel_id) {
+      const pId = (viewRole.panel_id._id || viewRole.panel_id).toString();
+      const pObj = allPanels.find(p => (p.id || p._id).toString() === pId);
+      panelsList.push({
+        id: pId,
+        name: pObj ? pObj.name : (viewRole.panel_name || 'Assigned Panel')
+      });
     }
-  }, [selectedCountryId]);
+    return panelsList;
+  }, [viewRole, allPanels]);
 
-  const [allModules, setAllModules] = useState([]);
-  const [assignedModules, setAssignedModules] = useState([]);
-  const [unassignedModules, setUnassignedModules] = useState([]);
-  const [modulesLoading, setModulesLoading] = useState(false);
-  const [savingModules, setSavingModules] = useState(false);
-  const [unassignConfirmation, setUnassignConfirmation] = useState({
-    isOpen: false,
-    module: null,
-    otp: "",
-    isLoading: false,
-    otpMode: false,
-    message: ""
-  });
+  // Set default active panel tab once panels are loaded
+  useEffect(() => {
+    if (rolePanels.length > 0 && !activePanelId) {
+      setActivePanelId(rolePanels[0].id);
+    }
+  }, [rolePanels, activePanelId]);
 
+  // Load modules for this role
   const loadModules = async () => {
     if (!viewRole) return;
-    const level_id = selectedModuleLevelId || viewRole.level_id;
-    
-    let panel_id = viewRole.panels && viewRole.panels.length > 0
-      ? viewRole.panels.map(p => p.id).join(',')
-      : viewRole.panel_id;
+    const level_id = viewRole.level_id || (allLevels[0]?.id || allLevels[0]?._id);
+    const panel_ids = rolePanels.length > 0 
+      ? rolePanels.map(p => p.id).join(',') 
+      : (allPanels.map(p => p.id || p._id).join(','));
 
-    if (viewRole.name === 'Super Admin') {
-      if (allPanels.length === 0 || allLevels.length === 0) return; // Wait for panels and levels to load
-      panel_id = allPanels.map(p => p.id || p._id).join(',');
-    }
+    if (!panel_ids) return;
 
-    if (!level_id || !panel_id) return;
     setModulesLoading(true);
     try {
       let modules = [];
-      if (viewRole.name === 'Super Admin') {
-        const requests = allLevels.map(l => 
-          axios.get(`${API}/modules/${l.id || l._id}/${panel_id}?unique_id=${moduleUniqueId}&req_for=view`, {
-            headers: authHeaderObj(),
-          })
-        );
-        const responses = await Promise.all(requests);
-        responses.forEach(res => {
-          modules.push(...(res.data.data || []));
-        });
-      } else {
-        const res = await axios.get(`${API}/modules/${level_id}/${panel_id}?unique_id=${moduleUniqueId}&req_for=view`, {
-          headers: authHeaderObj(),
-        });
-        modules = res.data.data || [];
-      }
+      const res = await axios.get(`${API}/modules/${level_id || 'country'}/${panel_ids}?unique_id=${moduleUniqueId}&req_for=view`, {
+        headers: authHeaderObj(),
+      });
+      modules = res.data.data || [];
 
-      // Filter modules by role panels and saas products bounds
-      const filteredModules = viewRole.name === 'Super Admin'
-        ? modules 
-        : (!viewRole.panels || viewRole.panels.length === 0)
-          ? modules
-          : modules.filter(m => {
-              const mPanelId = (m.panel_id?._id || m.panel_id)?.toString();
-              const rolePanel = viewRole.panels?.find(p => p.id?.toString() === mPanelId);
-              if (!rolePanel) return false;
+      setAllModules(modules);
 
-              if (m.dashboard_context === 'product') {
-                const mProdId = (m.saas_product_id?._id || m.saas_product_id || m.dashboard_type_id?._id || m.dashboard_type_id)?.toString();
-                
-                // If there is an active country SaaS products filter, check if product is active
-                if (selectedCountryId && activeCountrySaaSProducts) {
-                  if (!activeCountrySaaSProducts.includes(mProdId)) {
-                    return false;
-                  }
-                }
-                
-                return rolePanel.saas_product_ids?.some(spId => spId?.toString() === mProdId);
-              }
+      // Populate working permissionMap from role's assigned_modules
+      const permMap = {};
+      const assignedList = viewRole.assigned_modules || [];
+      const assignedById = {};
+      assignedList.forEach(a => {
+        const mId = (a.module_id || a.id || a._id).toString();
+        assignedById[mId] = a;
+      });
 
-              return true; // default dashboard context modules are always allowed if the panel is assigned
-            });
-
-      // map assigned modules by module_id
-      const assignedMap = {};
-      if (viewRole.is_system) {
-        // System role has full permissions on all filtered modules
-        filteredModules.forEach(m => {
-          assignedMap[m.id] = { can_view: true, can_add: true, can_edit: true, can_delete: true };
-        });
-      } else {
-        (viewRole.assigned_modules || []).forEach(a => {
-          assignedMap[a.module_id || a.id] = a;
-        });
-      }
-
-      // Separate assigned and unassigned modules
-      const assigned = [];
-      const unassigned = [];
-      const mappedAll = [];
-
-      filteredModules.forEach(m => {
-        const assigned_module = assignedMap[m.id];
-        const mappedNode = {
-          id: m.id,
-          name: m.name || m.module_name || m.module_label || m.title || m.display_name || m.name,
-          can_view: assigned_module ? !!assigned_module.can_view : false,
-          can_add: assigned_module ? !!assigned_module.can_add : false,
-          can_edit: assigned_module ? !!assigned_module.can_edit : false,
-          can_delete: assigned_module ? !!assigned_module.can_delete : false,
-          isAssigned: !!assigned_module,
-          raw: m,
-          parent_id: m.parent_id || m.parent_module_id,
-          parent_module_name: m.parent_module_name
-        };
-
-        mappedAll.push(mappedNode);
-
-        if (assigned_module) {
-          assigned.push(mappedNode);
+      modules.forEach(m => {
+        const mId = (m.id || m._id).toString();
+        const existing = assignedById[mId];
+        if (existing) {
+          permMap[mId] = {
+            can_view: !!existing.can_view,
+            can_add: !!existing.can_add,
+            can_edit: !!existing.can_edit,
+            can_delete: !!existing.can_delete,
+          };
+        } else if (viewRole.name === 'Super Admin') {
+          // Super admin gets full access by default
+          permMap[mId] = {
+            can_view: true,
+            can_add: true,
+            can_edit: true,
+            can_delete: true,
+          };
         } else {
-          unassigned.push(mappedNode);
+          permMap[mId] = {
+            can_view: false,
+            can_add: false,
+            can_edit: false,
+            can_delete: false,
+          };
         }
       });
 
-      setAllModules(mappedAll);
-      setAssignedModules(assigned);
-      setUnassignedModules(unassigned);
+      setPermissionMap(permMap);
     } catch (err) {
       console.error('Error fetching modules:', err);
-      dispatch(setAlert({ type: 'error', message: 'Failed to load modules.', duration: 4000 }));
+      dispatch(setAlert({ type: 'error', message: 'Failed to load modules for this role.', duration: 4000 }));
     } finally {
       setModulesLoading(false);
     }
   };
 
-  // Search State
-  const [assignedSearchQuery, setAssignedSearchQuery] = useState("");
-  const [unassignedSearchQuery, setUnassignedSearchQuery] = useState("");
-
   useEffect(() => {
-    loadModules();
-  }, [viewRole, activeCountrySaaSProducts, allPanels, allLevels, selectedCountryId, selectedModuleLevelId]);
-
-  const togglePermission = (moduleId, permissionKey) => {
-    const moduleToUpdate = assignedModules.find(m => m.id === moduleId);
-    if (!moduleToUpdate) return;
-
-    const newValue = !moduleToUpdate[permissionKey];
-
-    // If enabling a permission, check if parent has it enabled
-    if (newValue) {
-      if (moduleToUpdate.parent_id) {
-        const parentModule = assignedModules.find(m => m.id === moduleToUpdate.parent_id);
-        if (parentModule && !parentModule[permissionKey]) {
-          dispatch(setAlert({
-            type: 'warning',
-            message: `Cannot enable '${permissionKey.replace('can_', '')}' permission. Parent module '${parentModule.name}' does not have this permission.`,
-            duration: 5000
-          }));
-          return;
-        }
-      }
+    if (viewRole && rolePanels.length > 0) {
+      loadModules();
     }
+  }, [viewRole, rolePanels.length]);
 
-    setAssignedModules(prev => {
-      const newAssignedModules = [...prev];
-      const moduleIndex = newAssignedModules.findIndex(m => m.id === moduleId);
-      if (moduleIndex > -1) {
-        newAssignedModules[moduleIndex] = { ...newAssignedModules[moduleIndex], [permissionKey]: newValue };
+  // Modules belonging to current active panel
+  const currentPanelModules = useMemo(() => {
+    if (!activePanelId) return [];
+    return allModules.filter(m => {
+      const pId = (m.panel_id?._id || m.panel_id || m.raw?.panel_id)?.toString();
+      return pId === activePanelId.toString();
+    });
+  }, [allModules, activePanelId]);
+
+  // Filtered by search query
+  const filteredModules = useMemo(() => {
+    if (!searchQuery.trim()) return currentPanelModules;
+    const q = searchQuery.toLowerCase();
+    return currentPanelModules.filter(m => 
+      (m.name || '').toLowerCase().includes(q) || 
+      (m.unique_code || '').toLowerCase().includes(q)
+    );
+  }, [currentPanelModules, searchQuery]);
+
+  // Helper to determine module preset
+  const getModulePreset = (mId) => {
+    const perm = permissionMap[mId];
+    if (!perm || !perm.can_view) return 'disabled';
+    if (perm.can_view && perm.can_add && perm.can_edit && perm.can_delete) return 'full';
+    if (perm.can_view && perm.can_add && perm.can_edit && !perm.can_delete) return 'manage';
+    if (perm.can_view && !perm.can_add && !perm.can_edit && !perm.can_delete) return 'view_only';
+    return 'custom';
+  };
+
+  // Set preset for a single module
+  const handleSetPreset = (mId, preset) => {
+    setPermissionMap(prev => {
+      const next = { ...prev };
+      if (preset === 'full') {
+        next[mId] = { can_view: true, can_add: true, can_edit: true, can_delete: true };
+      } else if (preset === 'manage') {
+        next[mId] = { can_view: true, can_add: true, can_edit: true, can_delete: false };
+      } else if (preset === 'view_only') {
+        next[mId] = { can_view: true, can_add: false, can_edit: false, can_delete: false };
+      } else if (preset === 'disabled') {
+        next[mId] = { can_view: false, can_add: false, can_edit: false, can_delete: false };
       }
-
-      // If disabling a permission, cascade to children
-      if (!newValue) {
-        const childrenMap = {};
-        newAssignedModules.forEach(m => {
-          if (m.parent_id) {
-            if (!childrenMap[m.parent_id]) childrenMap[m.parent_id] = [];
-            childrenMap[m.parent_id].push(m.id);
-          }
-        });
-
-        const queue = [moduleId];
-        while (queue.length > 0) {
-          const currentId = queue.shift();
-          (childrenMap[currentId] || []).forEach(childId => {
-            const childIndex = newAssignedModules.findIndex(m => m.id === childId);
-            if (childIndex > -1 && newAssignedModules[childIndex][permissionKey]) {
-              newAssignedModules[childIndex] = { ...newAssignedModules[childIndex], [permissionKey]: false };
-              queue.push(childId);
-            }
-          });
-        }
-      }
-      return newAssignedModules;
+      return next;
     });
   };
 
-  const handleAssignModule = async (moduleId) => {
-    if (!role_id || !moduleId) return;
+  // Toggle specific permission pill
+  const handleTogglePill = (mId, actionKey) => {
+    setPermissionMap(prev => {
+      const curr = prev[mId] || { can_view: false, can_add: false, can_edit: false, can_delete: false };
+      const nextVal = !curr[actionKey];
 
-    const module = allModules.find(m => m.id === moduleId);
-    if (module) {
-      const parentId = module.parent_id || module.parent_module_id;
-      if (parentId) {
-        const isParentAssigned = assignedModules.some(m => m.id === parentId);
-        if (!isParentAssigned) {
-          dispatch(setAlert({ type: 'warning', message: 'Parent module must be assigned first.', duration: 4000 }));
-          return;
-        }
+      const updated = { ...curr, [actionKey]: nextVal };
+
+      // If view is turned off, all other permissions must also be turned off
+      if (actionKey === 'can_view' && !nextVal) {
+        updated.can_add = false;
+        updated.can_edit = false;
+        updated.can_delete = false;
       }
-    }
+      // If add/edit/delete is turned on, view must also be turned on
+      if (actionKey !== 'can_view' && nextVal) {
+        updated.can_view = true;
+      }
 
-    setSavingModules(true);
-    try {
-      await axios.post(`${API}/roles/assign-module/${role_id}/${moduleId}?unique_id=${moduleUniqueId}&req_for=add`, {}, { headers: authHeaderObj() });
-      dispatch(setAlert({ type: 'success', message: 'Module assigned successfully', duration: 3000 }));
-      // refresh role details
-      await getRoleDetails(role_id);
-    } catch (err) {
-      console.error('Error assigning module:', err);
-      dispatch(setAlert({ type: 'error', message: err.response?.data?.message || 'Failed to assign module.', duration: 4000 }));
-    } finally {
-      setSavingModules(false);
-    }
+      return { ...prev, [mId]: updated };
+    });
   };
 
+  // Bulk presets for the currently viewed panel
+  const handleBulkPreset = (preset) => {
+    setPermissionMap(prev => {
+      const next = { ...prev };
+      currentPanelModules.forEach(m => {
+        const mId = (m.id || m._id).toString();
+        if (preset === 'full') {
+          next[mId] = { can_view: true, can_add: true, can_edit: true, can_delete: true };
+        } else if (preset === 'view_only') {
+          next[mId] = { can_view: true, can_add: false, can_edit: false, can_delete: false };
+        } else if (preset === 'disabled') {
+          next[mId] = { can_view: false, can_add: false, can_edit: false, can_delete: false };
+        }
+      });
+      return next;
+    });
+    dispatch(setAlert({
+      type: "info",
+      message: `Applied ${preset.replace('_', ' ').toUpperCase()} preset to all modules in this panel. Click 'Save' to apply.`,
+      duration: 3000
+    }));
+  };
+
+  // Save all permissions back to server
   const handleSavePermissions = async () => {
     if (!role_id) return;
     setSavingModules(true);
     try {
-      await axios.put(`${API}/roles/module-permission/${role_id}?unique_id=${moduleUniqueId}&req_for=edit`, { modules: assignedModules }, { headers: authHeaderObj() });
-      dispatch(setAlert({ type: 'success', message: 'Module permissions updated successfully', duration: 3000 }));
-      // refresh role details
+      // Build payload for all active modules
+      const payloadModules = [];
+      Object.entries(permissionMap).forEach(([mId, perm]) => {
+        payloadModules.push({
+          id: mId,
+          module_id: mId,
+          can_view: !!perm.can_view,
+          can_add: !!perm.can_add,
+          can_edit: !!perm.can_edit,
+          can_delete: !!perm.can_delete,
+          isAssigned: !!perm.can_view
+        });
+      });
+
+      await axios.put(
+        `${API}/roles/module-permission/${role_id}?unique_id=${moduleUniqueId}&req_for=edit`,
+        { modules: payloadModules },
+        { headers: authHeaderObj() }
+      );
+
+      dispatch(
+        setAlert({
+          type: "success",
+          message: `Permissions for ${viewRole.name} updated successfully!`,
+          duration: 3500
+        })
+      );
       await getRoleDetails(role_id);
     } catch (err) {
-      console.error('Error saving permissions:', err);
-      dispatch(setAlert({ type: 'error', message: err.response?.data?.message || 'Failed to update permissions.', duration: 4000 }));
+      console.error("Error saving permissions:", err);
+      dispatch(
+        setAlert({
+          type: "error",
+          message: err.response?.data?.message || "Failed to update role permissions.",
+          duration: 4000
+        })
+      );
     } finally {
       setSavingModules(false);
     }
   };
 
-  const handleUnassignClick = (moduleId) => {
-    const module = assignedModules.find(m => m.id === moduleId);
+  // Count active modules
+  const totalActiveModules = useMemo(() => {
+    return Object.values(permissionMap).filter(p => p.can_view).length;
+  }, [permissionMap]);
 
-    // Find descendants
-    const childrenMap = {};
-    allModules.forEach(m => {
-      const pid = m.raw?.parent_id || m.parent_id;
-      if (pid) {
-        if (!childrenMap[pid]) childrenMap[pid] = [];
-        childrenMap[pid].push(m.id);
-      }
-    });
+  const activeInCurrentPanel = useMemo(() => {
+    return currentPanelModules.filter(m => {
+      const p = permissionMap[(m.id || m._id).toString()];
+      return p && p.can_view;
+    }).length;
+  }, [currentPanelModules, permissionMap]);
 
-    const descendants = [];
-    const queue = [moduleId];
-    while (queue.length > 0) {
-      const current = queue.shift();
-      if (childrenMap[current]) {
-        childrenMap[current].forEach(cid => {
-          descendants.push(cid);
-          queue.push(cid);
-        });
-      }
-    }
+  if (viewRoleLoading) {
+    return <Loader text="Loading role permissions & modules..." />;
+  }
 
-    const assignedIds = new Set(assignedModules.map(m => m.id));
-    const assignedDescendants = descendants.filter(d => assignedIds.has(d));
-
-    let message = "Are you sure you want to unassign this module? This action requires OTP verification.";
-    if (assignedDescendants.length > 0) {
-      message = `Warning: This module has ${assignedDescendants.length} assigned child module(s). Unassigning it will automatically unassign all child modules. This action requires OTP verification.`;
-    }
-
-    setUnassignConfirmation({
-      isOpen: true,
-      module: module,
-      otp: "",
-      isLoading: false,
-      otpMode: false,
-      message: message
-    });
-  };
-
-  const handleConfirmUnassignStep1 = async () => {
-    if (!unassignConfirmation.module) return;
-
-    setUnassignConfirmation(prev => ({ ...prev, isLoading: true }));
-    try {
-      await axios.post(`${API}/roles/send-otp-unassign-module?unique_id=${moduleUniqueId}&req_for=edit`, {
-        role_id: role_id,
-        module_id: unassignConfirmation.module.id
-      }, { headers: authHeaderObj() });
-
-      dispatch(setAlert({ type: 'success', message: 'OTP sent to your email', duration: 3000 }));
-
-      // Switch to OTP mode
-      setUnassignConfirmation(prev => ({
-        ...prev,
-        otpMode: true,
-        isLoading: false,
-        otp: ""
-      }));
-    } catch (err) {
-      console.error('Error sending OTP:', err);
-      dispatch(setAlert({ type: 'error', message: err.response?.data?.message || 'Failed to send OTP.', duration: 4000 }));
-      setUnassignConfirmation(prev => ({ ...prev, isLoading: false }));
-    }
-  };
-
-  const handleConfirmUnassignStep2 = async (otp) => {
-    if (!role_id || !unassignConfirmation.module?.id || !otp) {
-      dispatch(setAlert({ type: 'error', message: 'OTP is required', duration: 3000 }));
-      return;
-    }
-
-    setUnassignConfirmation(prev => ({ ...prev, isLoading: true }));
-    try {
-      await axios.post(`${API}/roles/unassign-module/${role_id}?unique_id=${moduleUniqueId}&req_for=edit`, {
-        module_id: unassignConfirmation.module.id,
-        otp: otp
-      }, { headers: authHeaderObj() });
-
-      dispatch(setAlert({ type: 'success', message: 'Module unassigned successfully', duration: 3000 }));
-      setUnassignConfirmation({
-        isOpen: false,
-        module: null,
-        otp: "",
-        isLoading: false,
-        otpMode: false,
-        message: ""
-      });
-      // refresh role details
-      await getRoleDetails(role_id);
-    } catch (err) {
-      console.error('Error unassigning module:', err);
-      dispatch(setAlert({ type: 'error', message: err.response?.data?.message || 'Failed to unassign module.', duration: 4000 }));
-    } finally {
-      setUnassignConfirmation(prev => ({ ...prev, isLoading: false }));
-    }
-  };
-
-  const handleCancelUnassign = () => {
-    setUnassignConfirmation({
-      isOpen: false,
-      module: null,
-      otp: "",
-      isLoading: false,
-      otpMode: false,
-      message: ""
-    });
-  };
-
-  // Search and Filter Logic
-  const filteredUnassignedModules = unassignedModules.filter(module =>
-    module.name.toLowerCase().includes(unassignedSearchQuery.toLowerCase())
-  );
-
-  const filteredAssignedModules = assignedModules.filter(module =>
-    module.name.toLowerCase().includes(assignedSearchQuery.toLowerCase())
-  );
-
-  // --- Tree Rendering Logic ---
-
-  const buildGroupedTree = (flatModules) => {
-    if (!viewRole) return [];
-
-    const roots = [];
-    const rolePanels = viewRole.name === 'Super Admin' 
-      ? allPanels.map(p => ({
-          id: p.id || p._id,
-          name: p.name,
-          saas_product_ids: p.products?.map(prod => prod.id || prod._id) || []
-        }))
-      : (viewRole.panels || []);
-    
-    rolePanels.forEach(panel => {
-      const panelNode = {
-        id: `panel-${panel.id}`,
-        name: panel.name,
-        isPanelNode: true,
-        panel_id: panel.id,
-        children: []
-      };
-
-      const panelModules = flatModules.filter(m => {
-        const mPanelId = (m.raw?.panel_id?._id || m.raw?.panel_id || m.panel_id)?.toString();
-        return mPanelId === panel.id?.toString();
-      });
-
-      // Group panelModules by level_id dynamically
-      const modulesByLevel = {};
-      panelModules.forEach(m => {
-        const lvlId = (m.raw?.level_id?._id || m.raw?.level_id || m.level_id)?.toString() || 'unknown';
-        if (!modulesByLevel[lvlId]) {
-          modulesByLevel[lvlId] = [];
-        }
-        modulesByLevel[lvlId].push(m);
-      });
-
-      Object.entries(modulesByLevel).forEach(([lvlId, levelModules]) => {
-        const levelObj = allLevels.find(l => (l.id || l._id)?.toString() === lvlId);
-        const levelName = levelObj ? levelObj.name : (lvlId === viewRole.level_id?.toString() ? viewRole.level_name : 'Level');
-
-        const levelNode = {
-          id: `level-${panel.id}-${lvlId}`,
-          name: levelName,
-          isLevelNode: true,
-          panel_id: panel.id,
-          children: []
-        };
-
-        // 1. Build module map and nest parent/children within levelModules
-        const moduleMap = {};
-        levelModules.forEach(m => {
-          moduleMap[m.id] = { ...m, children: [] };
-        });
-
-        const rootModules = [];
-        levelModules.forEach(m => {
-          const parentId = m.parent_id || m.raw?.parent_module_id?._id || m.raw?.parent_module_id || m.raw?.parent_id;
-          if (parentId && moduleMap[parentId]) {
-            moduleMap[parentId].children.push(moduleMap[m.id]);
-          } else {
-            rootModules.push(moduleMap[m.id]);
-          }
-        });
-
-        // 2. Handle default context root modules
-        const defaultModules = rootModules.filter(m => m.raw?.dashboard_context !== 'product');
-        const defaultNode = {
-          id: `default-${panel.id}-${lvlId}`,
-          name: "Default Dashboard Context",
-          isProductNode: true,
-          panel_id: panel.id,
-          children: defaultModules
-        };
-        levelNode.children.push(defaultNode);
-
-        // 3. Handle product context modules grouped by product
-        const productIds = (panel.saas_product_ids || []).filter(prodId => {
-          if (selectedCountryId && activeCountrySaaSProducts) {
-            return activeCountrySaaSProducts.includes(prodId.toString());
-          }
-          return true;
-        });
-        productIds.forEach(prodId => {
-          const panelObj = allPanels.find(p => (p.id || p._id)?.toString() === panel.id?.toString());
-          const prodObj = panelObj?.products?.find(p => (p.id || p._id)?.toString() === prodId?.toString());
-          const prodName = prodObj ? `${prodObj.name} Product Context` : `Product ${prodId} Product Context`;
-
-          const productNode = {
-            id: `product-${panel.id}-${lvlId}-${prodId}`,
-            name: prodName,
-            isProductNode: true,
-            productId: prodId,
-            panel_id: panel.id,
-            children: []
-          };
-
-          const productModules = rootModules.filter(m => {
-            const mProdId = (m.raw?.saas_product_id?._id || m.raw?.saas_product_id || m.raw?.dashboard_type_id?._id || m.raw?.dashboard_type_id || m.saas_product_id)?.toString();
-            return m.raw?.dashboard_context === 'product' && mProdId === prodId?.toString();
-          });
-
-          productNode.children.push(...productModules);
-          levelNode.children.push(productNode);
-        });
-
-        if (levelNode.children.length > 0) {
-          panelNode.children.push(levelNode);
-        }
-      });
-
-      roots.push(panelNode);
-    });
-
-    return roots;
-  };
-
-  const ModuleTreeItem = ({ node, depth = 0, type = "assigned" }) => {
-    const isPanel = !!node.isPanelNode;
-    const isProduct = !!node.isProductNode;
-    const isLevel = !!node.isLevelNode;
-    const isModule = !isPanel && !isProduct && !isLevel;
-
-    const [isExpanded, setIsExpanded] = useState(
-      depth < 3 || !!assignedSearchQuery || !!unassignedSearchQuery
-    );
-    const hasChildren = node.children && node.children.length > 0;
-
-    const nodeType = isPanel ? 'panel' : isLevel ? 'level' : isProduct ? 'architecture' : 'module';
-    const icons = {
-      panel:        <FiGrid size={16} />,
-      level:        <FiMapPin size={14} />,
-      architecture: <FiSettings size={14} />,
-      module:       <FiFile size={14} />
-    };
-    const colors = {
-      panel:        'text-primary bg-primary/10 border-primary/20',
-      level:        'text-amber-500 bg-amber-500/10 border-amber-500/20',
-      architecture: 'text-purple-500 bg-purple-500/10 border-purple-500/20',
-      module:       'text-text-muted bg-surface/50 border-border'
-    };
-    const typeLabels = { 
-      panel:        'Panel', 
-      level:        'Level', 
-      architecture: 'Context', 
-      module:       'Module' 
-    };
-
-    return (
-      <div className="space-y-2">
-        <div
-          className={`group relative flex items-center gap-3 p-3 rounded-2xl border transition-all duration-300 ${
-            isExpanded && hasChildren
-              ? 'bg-surface border-border shadow-sm shadow-primary/5'
-              : 'bg-transparent border-transparent hover:bg-surface/40'
-          }`}
-          style={{ marginLeft: `${depth * 28}px` }}
-        >
-          {depth > 0 && (
-            <div className="absolute left-[-18px] top-1/2 -translate-y-1/2 w-4 h-px bg-border group-hover:bg-primary/40 transition-colors" />
-          )}
-
-          {/* Expand/Collapse */}
-          {hasChildren ? (
-            <button
-              onClick={() => setIsExpanded(v => !v)}
-              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all shadow-sm ${
-                isExpanded
-                  ? 'bg-primary text-white scale-105 shadow-primary/20'
-                  : 'bg-surface border border-border text-text-muted hover:text-primary hover:border-primary/30'
-              }`}
-            >
-              {isExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
-            </button>
-          ) : (
-            <div className="w-7 h-7 flex items-center justify-center">
-              <div className="w-1.5 h-1.5 rounded-full bg-border" />
-            </div>
-          )}
-
-          {/* Type Icon */}
-          <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shadow-inner shrink-0 ${colors[nodeType]}`}>
-            {icons[nodeType]}
-          </div>
-
-          {/* Label */}
-          <div className="flex-1 min-w-0">
-            <h4 className="font-black text-text-primary text-sm capitalize tracking-tight leading-none group-hover:text-primary transition-colors truncate">
-              {node.name}
-            </h4>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-[8px] font-black text-text-muted capitalize tracking-[0.2em] leading-none px-1.5 py-0.5 rounded bg-bg border border-border">
-                {typeLabels[nodeType]}
-              </span>
-            </div>
-          </div>
-
-          {/* Module Actions */}
-          {isModule && (
-            <div className="flex items-center gap-3 shrink-0">
-              {type === 'assigned' ? (
-                !node.isAssigned ? (
-                  <span className="text-[9px] font-black text-amber-500 bg-amber-500/5 border border-amber-500/20 px-2.5 py-1 rounded-lg uppercase tracking-wider">
-                    Parent (Unassigned)
-                  </span>
-                ) : (
-                  <>
-                    <div className="hidden sm:flex items-center gap-4">
-                      {[['can_view', 'View', true], ['can_add', 'Add', false], ['can_edit', 'Edit', false], ['can_delete', 'Delete', false]].map(([perm, label, locked]) => (
-                        <div key={perm} className="flex flex-col items-center gap-1">
-                          <span className="text-[8px] text-text-muted uppercase font-black tracking-widest">{label}</span>
-                          <ToggleButton
-                            checked={!!node[perm]}
-                            onChange={() => togglePermission(node.id, perm)}
-                            disabled={locked || !!viewRole?.is_protected}
-                            size="sm"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    {!viewRole?.is_protected && (
-                      <Button onClick={() => handleUnassignClick(node.id)} variant="danger" size="sm"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity">
-                        Unassign
-                      </Button>
-                    )}
-                  </>
-                )
-              ) : (
-                node.isAssigned ? (
-                  <span className="text-[9px] font-black text-success bg-success/5 border border-success/20 px-2.5 py-1 rounded-lg uppercase tracking-wider">
-                    Assigned
-                  </span>
-                ) : (
-                  !viewRole?.is_protected && (
-                    <Button onClick={() => handleAssignModule(node.id)} loading={savingModules} variant="primary" size="sm"
-                      leftIcon={<FiPlusIcon />} className="bg-linear-120 from-primary to-primary-end">
-                      Assign
-                    </Button>
-                  )
-                )
-              )}
-            </div>
-          )}
-        </div>
-
-        {isExpanded && hasChildren && (
-          <div className="relative">
-            <div
-              className="absolute top-0 bottom-4 w-px bg-gradient-to-b from-border/60 via-border/40 to-transparent"
-              style={{ left: `${depth * 28 + 13.5}px` }}
-            />
-            <div className="space-y-2 py-1">
-              {node.children.map(child => (
-                <ModuleTreeItem key={child.id} node={child} depth={depth + 1} type={type} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const getFilteredTree = (flatList, query, isAssignedTree) => {
-    const groupedTree = buildGroupedTree(flatList, isAssignedTree);
-    if (!query) return groupedTree;
-
-    const filterNodes = (nodes) => {
-      return nodes.reduce((acc, node) => {
-        const filteredChildren = filterNodes(node.children);
-        const matchesSearch = node.name.toLowerCase().includes(query.toLowerCase());
-
-        if (matchesSearch || filteredChildren.length > 0) {
-          acc.push({ ...node, children: filteredChildren });
-        }
-        return acc;
-      }, []);
-    };
-
-    return filterNodes(groupedTree);
-  };
-
-
-
-  if (viewRoleLoading) return <Loader text="Loading role details..." />;
   if (!viewRole) {
     return (
-      <div className="min-h-screen">
-        <div className="card shadow-sm p-8 text-center">
-          <div className="w-20 h-20 rounded-xl bg-linear-to-br from-primary to-primary-end flex items-center justify-center mx-auto mb-4">
-            <FiAlertCircle className="text-white text-3xl" />
-          </div>
-          <h2 className="text-xl font-bold text-text-primary mb-2">Role Not Found</h2>
-          <p className="text-text-secondary mb-6">The role you are looking for does not exist or could not be loaded.</p>
-          <Button 
-            onClick={() => navigate('/admin-panel/settings/role-settings/role-based-access-control')} 
-            variant="primary"
-            leftIcon={<FiArrowLeft />}
-            className="bg-linear-120 from-primary to-primary-end"
-          >
-            Back to Roles List
-          </Button>
-        </div>
+      <div className="card shadow-sm p-8 text-center text-text-secondary">
+        <FiAlertCircle className="w-12 h-12 mx-auto text-amber-500 mb-3" />
+        <h3 className="text-lg font-bold">Role Not Found</h3>
+        <p className="text-sm mt-1">Unable to load details for this role.</p>
+        <Button onClick={() => navigate('/admin-panel/settings/role-settings/role-based-access-control')} className="mt-4" variant="primary">
+          Back to Roles
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
+      {/* Page Header */}
       <PageHeader
         title={viewRole.name}
-        subtitle="View and manage role permissions and module assignments"
+        subtitle="Manage panel-wise modules, authorization rules, and feature permissions"
         icon={FiShield}
         showBackButton={true}
         onBackClick={() => navigate('/admin-panel/settings/role-settings/role-based-access-control')}
-        breadcrumbOverrides={{ [role_id]: viewRole.name }}
         stats={[
-          { label: "Assigned", value: assignedModules.length, description: "Modules" },
-          { label: "Available", value: unassignedModules.length, description: "To assign" },
-          { label: "Department", value: viewRole.department_name, description: "Organization" },
-          { label: "Level", value: viewRole.level_name, description: "Hierarchy" }
+          { label: "Active Modules", value: totalActiveModules.toString(), description: "Across all panels" },
+          { label: "Allowed Panels", value: rolePanels.length.toString(), description: "Portals" },
+          { label: "Department", value: viewRole.department_name || "General", description: "Unit" },
+          { label: "Tier", value: (viewRole.level_name || "Country").toUpperCase(), description: "Scope" }
         ]}
       />
 
-      {/* Role Information Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="card shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-to-br from-primary to-primary-end text-white">
-              <FiBriefcase className="w-5 h-5" />
-            </div>
-            <h3 className="font-bold text-text-primary">Department</h3>
+      {/* Role Summary Badges */}
+      <div className="card shadow-sm p-4 bg-surface border border-border rounded-2xl flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="px-3 py-1.5 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center gap-2 text-xs font-bold">
+            <FiBriefcase size={14} />
+            <span>Dept: {viewRole.department_name}</span>
           </div>
-          <p className="text-text-primary text-lg font-medium">{viewRole.department_name}</p>
+          <div className="px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 flex items-center gap-2 text-xs font-bold">
+            <FiLayers size={14} />
+            <span>Level: {viewRole.level_name || 'Country'}</span>
+          </div>
+          <div className="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-2 text-xs font-bold">
+            <FiCheckCircle size={14} />
+            <span>Status: {viewRole.is_active ? 'Active' : 'Inactive'}</span>
+          </div>
         </div>
 
-        <div className="card shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-to-br from-primary to-primary-end text-white">
-              <FiLayers className="w-5 h-5" />
-            </div>
-            <h3 className="font-bold text-text-primary">Level</h3>
-          </div>
-          <p className="text-text-primary text-lg font-medium capitalize">{viewRole.level_name}</p>
+        <button
+          onClick={() => navigate('/admin-panel/settings/role-settings/role-based-access-control')}
+          className="text-xs font-bold text-text-muted hover:text-primary transition-colors flex items-center gap-1.5 cursor-pointer"
+        >
+          <FiArrowLeft size={14} />
+          <span>Back to Roles Registry</span>
+        </button>
+      </div>
+
+      {/* STEP 1: PANEL TABS SWITCHER */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-black uppercase tracking-wider text-text-muted flex items-center gap-2">
+            <FiGrid className="text-primary" size={15} />
+            <span>Step 1: Select Portal Panel</span>
+          </h3>
+          <span className="text-xs font-bold text-text-secondary">
+            {activeInCurrentPanel} / {currentPanelModules.length} Modules Active in this Panel
+          </span>
         </div>
 
-        <div className="card shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-to-br from-primary to-primary-end text-white">
-              <FiUserCheck className="w-5 h-5" />
-            </div>
-            <h3 className="font-bold text-text-primary">Parent Role</h3>
-          </div>
-          <p className="text-text-primary text-lg font-medium">{viewRole.parent_role_name || 'No Parent Role'}</p>
-        </div>
+        <div className="flex flex-wrap gap-2.5">
+          {rolePanels.map(panel => {
+            const isActive = activePanelId === panel.id;
+            const panelModulesCount = allModules.filter(m => (m.panel_id?._id || m.panel_id || m.raw?.panel_id)?.toString() === panel.id.toString()).length;
+            const activeCountInPanel = allModules.filter(m => {
+              const pId = (m.panel_id?._id || m.panel_id || m.raw?.panel_id)?.toString();
+              return pId === panel.id.toString() && permissionMap[(m.id || m._id).toString()]?.can_view;
+            }).length;
 
-        <div className="card shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-to-br from-primary to-primary-end text-white">
-              <FiCornerDownRight className="w-5 h-5" />
-            </div>
-            <h3 className="font-bold text-text-primary">Inherits Modules</h3>
-          </div>
-          <p className="text-text-primary text-lg font-medium">{viewRole.access_modules_by_parent ? 'Yes' : 'No'}</p>
-        </div>
-
-        {viewRole.department_level === 'country' && (
-          <div className="card shadow-sm p-6 flex flex-col justify-between">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-to-br from-primary to-primary-end text-white">
-                <FiGlobe className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-text-primary">Geographical Country Scope</h3>
-            </div>
-            {viewRole.country_id ? (
-              <div>
-                <p className="text-text-primary text-lg font-medium">
-                  {countries.find(c => (c.id || c._id)?.toString() === viewRole.country_id?.toString())?.name || 'Specific Country'}
-                </p>
-                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest mt-1 block">
-                  Restricted Role Scope
+            return (
+              <button
+                key={panel.id}
+                type="button"
+                onClick={() => {
+                  setActivePanelId(panel.id);
+                  setSearchQuery("");
+                }}
+                className={`px-4 py-3 rounded-2xl font-bold text-sm transition-all duration-200 flex items-center gap-3 cursor-pointer border ${
+                  isActive
+                    ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-[1.02]'
+                    : 'bg-surface hover:bg-surface-hover text-text-primary border-border'
+                }`}
+              >
+                <FiGrid size={16} className={isActive ? 'text-white' : 'text-primary'} />
+                <span>{panel.name}</span>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-black ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
+                }`}>
+                  {activeCountInPanel}/{panelModulesCount}
                 </span>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest block mb-1">
-                  Universal Country Role (Select country to filter SaaS products)
-                </span>
-                <DropdownWithSearchInput
-                  options={countries
-                    .filter(c => viewRole.department_country_ids?.includes(c.id || c._id))
-                    .map(c => ({ value: c.id || c._id, text: c.name }))
-                  }
-                  value={selectedCountryId}
-                  onChange={setSelectedCountryId}
-                  placeholder="Select country..."
-                  className="w-full"
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="card shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-to-br from-primary to-primary-end text-white">
-              <FiGrid className="w-5 h-5" />
-            </div>
-            <h3 className="font-bold text-text-primary">Authorized Panel Scopes</h3>
-          </div>
-          <div className="flex flex-col gap-3">
-            {(() => {
-              const displayPanels = viewRole.name === 'Super Admin' 
-                ? allPanels.map(p => ({
-                    id: p.id || p._id,
-                    name: p.name,
-                    saas_product_ids: p.products?.map(prod => prod.id || prod._id) || []
-                  }))
-                : (viewRole.panels || []);
-
-              if (displayPanels.length > 0) {
-                return displayPanels.map(panel => {
-                  const panelObj = allPanels.find(p => (p.id || p._id)?.toString() === panel.id?.toString());
-                  const productNames = panel.saas_product_ids?.map(spId => {
-                    const prod = panelObj?.products?.find(p => (p.id || p._id)?.toString() === spId?.toString());
-                    return prod ? prod.name : null;
-                  }).filter(Boolean);
-
-                  return (
-                    <div key={panel.id} className="flex flex-col gap-1.5 p-3 rounded-2xl border border-border bg-linear-to-r from-primary/5 to-transparent">
-                      <span className="text-sm font-semibold text-text-primary capitalize flex items-center gap-1.5">
-                        <FiGrid className="text-primary w-4 h-4" />
-                        {panel.name}
-                      </span>
-                      {productNames && productNames.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pl-5">
-                          {productNames.map(name => (
-                            <span key={name} className="px-2 py-0.5 bg-success/10 text-success text-[10px] font-bold rounded-md border border-success/20 capitalize">
-                              {name} Product
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                });
-              }
-
-              return <span className="text-text-muted text-sm font-medium">None</span>;
-            })()}
-          </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Unassigned Modules Section */}
-      {!modulesLoading && (
-        <div className="card shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
-          <div className="p-5">
-            <div className="flex justify-end mb-4">
-              <span className="text-xs bg-linear-120 from-primary/5 to-primary/15 text-text-secondary px-2 py-1 rounded-full flex items-center gap-1">
-                <FiClock size={10} />
-                Available modules
-              </span>
+      {/* STEP 2: MODULES & PERMISSION CONTROLS FOR ACTIVE PANEL */}
+      <div className="card shadow-sm border border-border rounded-3xl bg-surface overflow-hidden">
+        {/* Panel Toolbar */}
+        <div className="p-5 border-b border-border bg-linear-120 from-primary/5 via-transparent to-transparent flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+              <h3 className="font-black text-text-primary text-base">
+                {rolePanels.find(p => p.id === activePanelId)?.name || 'Panel'} Permissions
+              </h3>
+            </div>
+            <p className="text-xs text-text-muted mt-0.5">
+              Choose which modules and actions are allowed for "{viewRole.name}".
+            </p>
+          </div>
+
+          {/* Quick Presets & Search */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-1.5 p-1 bg-surface-hover/50 rounded-xl border border-border">
+              <button
+                type="button"
+                onClick={() => handleBulkPreset('full')}
+                className="px-2.5 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                title="Grant full access (View, Add, Edit, Delete) to all modules in this panel"
+              >
+                <FiCheckCircle size={13} />
+                <span>Allow All (Full)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleBulkPreset('view_only')}
+                className="px-2.5 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                title="Set all modules in this panel to View Only"
+              >
+                <FiEye size={13} />
+                <span>View Only All</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleBulkPreset('disabled')}
+                className="px-2.5 py-1 text-xs font-bold text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                title="Disable all modules in this panel"
+              >
+                <FiX size={13} />
+                <span>Disable All</span>
+              </button>
             </div>
 
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-to-br from-primary to-primary-end text-white">
-                <FiGrid className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-text-primary">Available Modules</h3>
-                <p className="text-text-secondary text-sm">Modules that can be assigned to this role</p>
-              </div>
-              <span className="ml-auto px-3 py-1 bg-primary/10 text-primary text-xs font-semibold rounded-full">
-                {filteredUnassignedModules.length} Available
-              </span>
-            </div>
-
-            {/* Level Selector Dropdown */}
-            {(() => {
-              const roleLevelObj = allLevels.find(l => (l.id || l._id)?.toString() === viewRole?.level_id?.toString());
-              const roleScopePriority = roleLevelObj ? roleLevelObj.scope_priority : 1;
-              const filteredLevelsForAssign = allLevels.filter(l => l.scope_priority >= roleScopePriority);
-
-              if (viewRole && viewRole.name !== 'Super Admin' && filteredLevelsForAssign.length > 1) {
-                return (
-                  <div className="mb-6 flex flex-col gap-1.5 p-4 rounded-2xl bg-surface-hover/20 border border-border/50">
-                    <label className="text-xs font-black text-text-muted uppercase tracking-wider">Select Module Level</label>
-                    <div className="w-full sm:w-64">
-                      <DropdownWithSearchInput
-                        options={filteredLevelsForAssign.map(l => ({ value: (l.id || l._id).toString(), text: l.name.toUpperCase() }))}
-                        value={selectedModuleLevelId}
-                        onChange={(val) => setSelectedModuleLevelId(val)}
-                        placeholder="Select module level..."
-                        className="w-full font-semibold"
-                      />
-                    </div>
-                  </div>
-                );
-              }
-              return null;
-            })()}
-
-            <div className="relative mb-6">
-              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-secondary z-10" size={16} />
+            {/* Search Input */}
+            <div className="relative w-full sm:w-56">
+              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
               <input
                 type="text"
-                value={unassignedSearchQuery}
-                onChange={(e) => setUnassignedSearchQuery(e.target.value)}
-                placeholder="Search available modules..."
-                className="w-full bg-surface border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search modules..."
+                className="w-full bg-surface border border-border rounded-xl pl-9 pr-3 py-1.5 text-xs font-medium focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
               />
             </div>
-
-            {filteredUnassignedModules.length > 0 ? (
-              <div className="space-y-2">
-                {getFilteredTree(allModules, unassignedSearchQuery, false).map(node => (
-                  <ModuleTreeItem key={node.id} node={node} type="unassigned" />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-text-secondary border-2 border-dashed border-border rounded-xl">
-                <FiGrid className="w-16 h-16 mx-auto mb-4 text-text-muted" />
-                <p className="text-lg font-medium">
-                  {unassignedModules.length === 0 ? "All modules are assigned" : "No modules match your search"}
-                </p>
-                <p className="text-sm mt-1">
-                  {unassignedModules.length === 0 
-                    ? "No more modules available for this role" 
-                    : "Try adjusting your search query"}
-                </p>
-              </div>
-            )}
           </div>
         </div>
-      )}
 
-      {/* Assigned Modules Section */}
-      <div className="card shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
-        <div className="p-5">
-          <div className="flex justify-end mb-4">
-            <span className="text-xs bg-linear-120 from-primary/5 to-primary/15 text-text-secondary px-2 py-1 rounded-full flex items-center gap-1">
-              <FiClock size={10} />
-              Manage permissions
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-linear-to-br from-primary to-primary-end text-white">
-              <FiShield className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-text-primary">Assigned Modules</h3>
-              <p className="text-text-secondary text-sm">Configure permissions for assigned modules</p>
-            </div>
-            <span className="ml-auto px-3 py-1 bg-primary/10 text-primary text-xs font-semibold rounded-full">
-              {filteredAssignedModules.length} Assigned
-            </span>
-          </div>
-
+        {/* Modules Table */}
+        <div className="overflow-x-auto">
           {modulesLoading ? (
-            <div className="py-12"><Loader text="Loading modules..." /></div>
+            <div className="py-16 text-center">
+              <Loader text="Loading modules..." />
+            </div>
+          ) : filteredModules.length === 0 ? (
+            <div className="py-16 text-center text-text-secondary">
+              <FiFolder size={36} className="mx-auto text-text-muted mb-2 opacity-50" />
+              <h4 className="font-bold text-sm">No Modules Found in this Panel</h4>
+              <p className="text-xs text-text-muted mt-1">Try selecting another panel tab or clearing the search query.</p>
+            </div>
           ) : (
-            <>
-              <div className="relative mb-6">
-                <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-secondary z-10" size={16} />
-                <input
-                  type="text"
-                  value={assignedSearchQuery}
-                  onChange={(e) => setAssignedSearchQuery(e.target.value)}
-                  placeholder="Search assigned modules..."
-                  className="w-full bg-surface border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
-                />
-              </div>
+            <table className="w-full text-left text-sm">
+              <thead className="bg-bg/40 border-b border-border text-[11px] font-black uppercase tracking-wider text-text-muted">
+                <tr>
+                  <th className="py-3 px-5">Module / Feature Name</th>
+                  <th className="py-3 px-4 w-48">Access Mode</th>
+                  <th className="py-3 px-4 w-72">Allowed Actions</th>
+                  <th className="py-3 px-4 w-28 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {filteredModules.map(module => {
+                  const mId = (module.id || module._id).toString();
+                  const perm = permissionMap[mId] || { can_view: false, can_add: false, can_edit: false, can_delete: false };
+                  const currentPreset = getModulePreset(mId);
 
-              {filteredAssignedModules.length > 0 ? (
-                <>
-                  <div className="space-y-2">
-                    {getFilteredTree(allModules, assignedSearchQuery, true).map(node => (
-                      <ModuleTreeItem key={node.id} node={node} type="assigned" />
-                    ))}
-                  </div>
+                  return (
+                    <tr key={mId} className="hover:bg-surface-hover/40 transition-colors">
+                      {/* Module Info */}
+                      <td className="py-3.5 px-5">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
+                            perm.can_view 
+                              ? 'bg-primary/10 text-primary border border-primary/20' 
+                              : 'bg-border/30 text-text-muted'
+                          }`}>
+                            <FiGrid size={15} />
+                          </div>
+                          <div>
+                            <div className="font-bold text-text-primary text-sm flex items-center gap-2">
+                              <span>{module.name}</span>
+                              {module.parent_module_name && (
+                                <span className="text-[10px] font-normal text-text-muted px-1.5 py-0.5 rounded bg-bg border border-border">
+                                  Sub-feature
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] font-mono text-text-muted tracking-tight mt-0.5">
+                              {module.unique_code || 'CODE'}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
 
-                  {!viewRole?.is_protected && (
-                    <div className="flex justify-end mt-6 pt-4 border-t border-border">
-                      <Button 
-                        onClick={handleSavePermissions} 
-                        loading={savingModules} 
-                        variant="primary"
-                        size="lg"
-                        leftIcon={<FiSave />}
-                        className="bg-linear-120 from-primary to-primary-end shadow-lg hover:shadow-xl"
-                      >
-                        {savingModules ? 'Saving...' : 'Save Permissions'}
-                      </Button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-center py-16 text-text-secondary border-2 border-dashed border-border rounded-xl">
-                  <FiShield className="w-16 h-16 mx-auto mb-4 text-text-muted" />
-                  <p className="text-lg font-medium">
-                    {assignedModules.length === 0 ? "No modules assigned" : "No assigned modules match your search"}
-                  </p>
-                  <p className="text-sm mt-1">
-                    {assignedModules.length === 0 
-                      ? "Assign modules from the Available Modules section above" 
-                      : "Try adjusting your search query"}
-                  </p>
-                </div>
-              )}
-            </>
+                      {/* Access Preset Dropdown */}
+                      <td className="py-3.5 px-4">
+                        <select
+                          value={currentPreset}
+                          onChange={(e) => handleSetPreset(mId, e.target.value)}
+                          className={`w-full py-1.5 px-2.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer focus:outline-none focus:ring-2 ${
+                            currentPreset === 'full'
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                              : currentPreset === 'manage'
+                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                              : currentPreset === 'view_only'
+                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                              : currentPreset === 'custom'
+                              ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30'
+                              : 'bg-surface border-border text-text-muted'
+                          }`}
+                        >
+                          <option value="full">Full Access (All)</option>
+                          <option value="manage">View & Modify</option>
+                          <option value="view_only">View Only</option>
+                          <option value="custom">Custom Configuration</option>
+                          <option value="disabled">Disabled (No Access)</option>
+                        </select>
+                      </td>
+
+                      {/* Granular Action Pills */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-1.5">
+                          {/* View */}
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePill(mId, 'can_view')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                              perm.can_view
+                                ? 'bg-blue-500 text-white border-blue-600 shadow-xs'
+                                : 'bg-surface hover:bg-surface-hover text-text-muted border-border'
+                            }`}
+                            title="Toggle View Permission (Show in sidebar)"
+                          >
+                            <FiEye size={12} />
+                            <span>View</span>
+                          </button>
+
+                          {/* Add */}
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePill(mId, 'can_add')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                              perm.can_add
+                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-xs'
+                                : 'bg-surface hover:bg-surface-hover text-text-muted border-border'
+                            }`}
+                            title="Toggle Create / Add Permission"
+                          >
+                            <FiPlus size={12} />
+                            <span>Add</span>
+                          </button>
+
+                          {/* Edit */}
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePill(mId, 'can_edit')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                              perm.can_edit
+                                ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                                : 'bg-surface hover:bg-surface-hover text-text-muted border-border'
+                            }`}
+                            title="Toggle Modify / Edit Permission"
+                          >
+                            <FiEdit3 size={12} />
+                            <span>Edit</span>
+                          </button>
+
+                          {/* Delete */}
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePill(mId, 'can_delete')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                              perm.can_delete
+                                ? 'bg-rose-500 text-white border-rose-600 shadow-xs'
+                                : 'bg-surface hover:bg-surface-hover text-text-muted border-border'
+                            }`}
+                            title="Toggle Delete Permission"
+                          >
+                            <FiTrash2 size={12} />
+                            <span>Delete</span>
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-3.5 px-4 text-center">
+                        {perm.can_view ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <FiCheck size={12} />
+                            <span>Active</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-border/40 text-text-muted border border-border">
+                            <FiX size={12} />
+                            <span>Off</span>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </div>
       </div>
 
-      {/* Unassign Module Confirmation Popup */}
-      <ConfirmationPopup
-        isOpen={unassignConfirmation.isOpen}
-        title={unassignConfirmation.otpMode ? `Verify OTP: ${unassignConfirmation.module?.name}` : `Unassign Module: ${unassignConfirmation.module?.name}`}
-        message={unassignConfirmation.otpMode ? "Please enter the OTP sent to your email to confirm module unassignment." : unassignConfirmation.message}
-        mode={unassignConfirmation.otpMode ? "otp" : "text"}
-        variant="warning"
-        onConfirm={unassignConfirmation.otpMode ? handleConfirmUnassignStep2 : handleConfirmUnassignStep1}
-        onCancel={handleCancelUnassign}
-        confirmText={unassignConfirmation.otpMode ? "Confirm Unassign" : "Send OTP"}
-        cancelText={unassignConfirmation.otpMode ? "Cancel" : "No, Keep"}
-        otp={unassignConfirmation.otp}
-        onOtpChange={(otp) => setUnassignConfirmation(prev => ({ ...prev, otp }))}
-        isLoading={unassignConfirmation.isLoading}
-      />
+      {/* STICKY BOTTOM SAVE ACTION BAR */}
+      <div className="sticky bottom-4 z-30 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-surface/95 backdrop-blur-md border border-border shadow-2xl rounded-2xl">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-linear-120 from-primary to-primary-end text-white flex items-center justify-center font-bold shrink-0 shadow-md">
+            <FiShield size={20} />
+          </div>
+          <div>
+            <h4 className="font-black text-sm text-text-primary">
+              Apply Permissions to "{viewRole.name}"
+            </h4>
+            <p className="text-xs text-text-muted">
+              {totalActiveModules} modules configured across {rolePanels.length} portal panel(s).
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => navigate('/admin-panel/settings/role-settings/role-based-access-control')}
+            className="px-4 py-2.5 rounded-xl text-xs font-bold text-text-secondary hover:bg-surface-hover border border-border transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+
+          <Button
+            onClick={handleSavePermissions}
+            loading={savingModules}
+            disabled={savingModules}
+            size="md"
+            className="flex-1 sm:flex-none bg-linear-120 from-primary to-primary-end px-7 py-3 rounded-xl shadow-lg hover:shadow-xl font-bold flex items-center justify-center gap-2 text-xs uppercase tracking-wider"
+          >
+            <FiSave size={16} />
+            <span>{savingModules ? 'Saving Changes...' : 'Save & Apply Permissions'}</span>
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

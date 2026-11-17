@@ -794,17 +794,36 @@ const update_module_permissions = async (req, res) => {
             const module_id = m.module_id || m.id;
             if (!module_id) continue;
 
-            await CmsRoleWiseModule.updateOne(
-                { role_id: id, module_id: module_id, deleted_at: null },
-                {
-                    $set: {
+            const isEnabled = m.can_view || m.isAssigned || m.can_add || m.can_edit || m.can_delete;
+
+            if (!isEnabled) {
+                // If module is disabled/unassigned, soft delete from role
+                await CmsRoleWiseModule.updateMany(
+                    { role_id: id, module_id: module_id, deleted_at: null },
+                    { $set: { deleted_at: new Date() } }
+                );
+            } else {
+                // Upsert active permission
+                const existing = await CmsRoleWiseModule.findOne({ role_id: id, module_id: module_id });
+                if (existing) {
+                    existing.deleted_at = null;
+                    existing.can_view = true;
+                    existing.can_add = !!m.can_add;
+                    existing.can_edit = !!m.can_edit;
+                    existing.can_delete = !!m.can_delete;
+                    await existing.save();
+                } else {
+                    await CmsRoleWiseModule.create({
+                        role_id: id,
+                        module_id: module_id,
                         can_view: true,
-                        can_add: m.can_add ? true : false,
-                        can_edit: m.can_edit ? true : false,
-                        can_delete: m.can_delete ? true : false
-                    }
+                        can_add: !!m.can_add,
+                        can_edit: !!m.can_edit,
+                        can_delete: !!m.can_delete,
+                        deleted_at: null
+                    });
                 }
-            );
+            }
         }
 
         return res.status(200).json({ status: 'success', message: 'Module permissions updated successfully' });
