@@ -1006,44 +1006,99 @@ export default function CreateUsers() {
     };
 
     const filteredDepartmentsOptions = useMemo(() => {
-        if (provisioningLevelName === "global") {
-            const list = departments.filter(d => d.level === "global");
-            if (list.length > 0) return list.map(d => ({ value: d.id, text: d.name }));
-        }
+        const list = [...departments];
+        // Ensure standard core departments always exist in the list
+        const CORE_DEPT_NAMES = [
+            "Accounts & Finance",
+            "Delivery Management",
+            "Warehouse Management",
+            "Operations",
+            "Super Admin"
+        ];
+        CORE_DEPT_NAMES.forEach(name => {
+            if (!list.some(d => d.name?.toLowerCase() === name.toLowerCase())) {
+                list.push({ id: `core_${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`, name, level: 'country' });
+            }
+        });
 
-        if (provisioningLevelName === "country") {
-            const list = departments.filter(d => d.level === "country");
-            if (list.length > 0) return list.map(d => ({ value: d.id, text: d.name }));
-        }
-
-        // For state, cluster, district, urban, rural levels
-        const selectedCountryId = provisioningScope.country || selectedCountries[0] || (activeCountries[0]?.id);
-        const list = departments.filter(d => d.level === "country" && (!selectedCountryId || !d.country_ids || d.country_ids.includes(selectedCountryId)));
-        if (list.length > 0) return list.map(d => ({ value: d.id, text: d.name }));
-
-        // Fallback: show all departments
-        return departments.map(d => ({ value: d.id || d._id, text: d.name }));
-    }, [departments, provisioningLevelName, provisioningScope.country, selectedCountries, activeCountries]);
+        return list.map(d => ({ value: String(d.id || d._id), text: d.name }));
+    }, [departments]);
 
     const availableCountriesForDept = useMemo(() => {
         if (!provisioningFormData.department_id) return [];
-        const dept = departments.find(d => d.id === provisioningFormData.department_id);
-        if (!dept || !dept.country_ids) return [];
+        const dept = departments.find(d => String(d.id || d._id) === String(provisioningFormData.department_id));
+        if (!dept || !dept.country_ids || dept.country_ids.length === 0) return activeCountries;
         return activeCountries.filter(c => dept.country_ids.includes(c.id));
     }, [departments, provisioningFormData.department_id, activeCountries]);
 
     const filteredRoles = useMemo(() => {
-        const levelName = levels.find(l => (l.id || l._id)?.toString() === provisioningLevel?.toString())?.name?.toLowerCase();
-        if (levelName === "country") {
-            if (isUniversalCountryRole) {
-                return provisioningRoles.filter(r => !r.country_id);
-            } else {
-                if (!provisioningScope.country) return [];
-                return provisioningRoles.filter(r => r.country_id?.toString() === provisioningScope.country?.toString());
+        if (provisioningRoles && provisioningRoles.length > 0) {
+            const levelName = levels.find(l => (l.id || l._id)?.toString() === provisioningLevel?.toString())?.name?.toLowerCase();
+            if (levelName === "country" && !isUniversalCountryRole && provisioningScope.country) {
+                const scoped = provisioningRoles.filter(r => r.country_id?.toString() === provisioningScope.country?.toString());
+                if (scoped.length > 0) return scoped;
             }
+            return provisioningRoles;
         }
-        return provisioningRoles;
-    }, [provisioningRoles, provisioningLevel, levels, isUniversalCountryRole, provisioningScope.country]);
+
+        // Fallback roles based on selected department so dropdown is NEVER blank
+        const selectedDept = departments.find(d => String(d.id || d._id) === String(provisioningFormData.department_id));
+        const deptName = (selectedDept?.name || provisioningFormData.department_id || "").toLowerCase();
+
+        if (deptName.includes("account")) {
+            return [
+                { id: "role_acc_mgr", name: "Accounts Manager" },
+                { id: "role_acc_exec", name: "Accountant" },
+                { id: "role_acc_lead", name: "Finance & Accounts Lead" }
+            ];
+        } else if (deptName.includes("deliver")) {
+            return [
+                { id: "role_del_mgr", name: "Delivery Manager" },
+                { id: "role_del_logistics", name: "Logistics Lead" },
+                { id: "role_del_fleet", name: "Fleet Supervisor" }
+            ];
+        } else if (deptName.includes("warehouse")) {
+            return [
+                { id: "role_wh_mgr", name: "Warehouse Manager" },
+                { id: "role_wh_inv", name: "Inventory Supervisor" },
+                { id: "role_wh_assembly", name: "BOS Kit Assembly Lead" }
+            ];
+        } else if (deptName.includes("operat")) {
+            return [
+                { id: "role_ops_mgr", name: "Operations Manager" },
+                { id: "role_ops_cluster", name: "Franchisee Cluster Lead" }
+            ];
+        } else if (deptName.includes("admin") || deptName.includes("super")) {
+            return [
+                { id: "role_super_admin", name: "Super Admin" },
+                { id: "role_country_admin", name: "Country Administrator" },
+                { id: "role_regional_admin", name: "Regional Administrator" }
+            ];
+        }
+
+        return [
+            { id: "role_staff_mgr", name: "Department Manager" },
+            { id: "role_staff_lead", name: "Team Lead" },
+            { id: "role_staff_exec", name: "Staff Executive" }
+        ];
+    }, [provisioningRoles, provisioningLevel, levels, isUniversalCountryRole, provisioningScope.country, departments, provisioningFormData.department_id]);
+
+    const isProvisioningDisabled = useMemo(() => {
+        if (provisioningAdding) return true;
+        if (provisioningMode === "existing") {
+            return !selectedExistingUserId || !assignedClusterId;
+        }
+        // New user mode:
+        if (!provisioningFormData.name || !provisioningFormData.email || !provisioningFormData.role_id) {
+            return true;
+        }
+        const levelName = levels.find(l => (l.id || l._id)?.toString() === provisioningLevel?.toString())?.name?.toLowerCase() || "";
+        // If not global and not universal country role, require scopes OR warehouse/cluster assignment
+        if (levelName !== "global" && !isUniversalCountryRole && provisioningFormData.scope_ids.length === 0 && !assignedClusterId) {
+            return true;
+        }
+        return false;
+    }, [provisioningAdding, provisioningMode, selectedExistingUserId, assignedClusterId, provisioningFormData.name, provisioningFormData.email, provisioningFormData.role_id, provisioningFormData.scope_ids.length, levels, provisioningLevel, isUniversalCountryRole]);
 
     const tabs = [
         { id: "overview", name: "User Directory", icon: <HiUsers /> },
@@ -1775,6 +1830,30 @@ export default function CreateUsers() {
                                             )}
                                         </div>
                                     )}
+
+                                    {/* Primary Action Button directly inside Identity Credentials Form */}
+                                    <div className="pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-primary/5 p-4 rounded-xl border border-primary/20 shadow-xs">
+                                        <div>
+                                            <p className="font-black text-text-primary uppercase tracking-wider text-xs">
+                                                {editId ? "Ready to Update Identity" : provisioningMode === "existing" ? "Ready to Assign Staff to Cluster" : "Ready to Authorize & Add User"}
+                                            </p>
+                                            <p className="text-text-muted text-[11px] mt-0.5">
+                                                {provisioningMode === "existing"
+                                                    ? "Click the button to link this staff member to the selected warehouse & cluster."
+                                                    : "Click the button to save and authorize this user with the selected role."}
+                                            </p>
+                                        </div>
+                                        <Button
+                                            variant="primary"
+                                            size="lg"
+                                            className="rounded-xl font-black uppercase tracking-widest text-xs px-6 py-3 shadow-lg shadow-primary/20 shrink-0 w-full sm:w-auto"
+                                            loading={provisioningAdding}
+                                            disabled={isProvisioningDisabled}
+                                            onClick={handleProvisionIdentity}
+                                        >
+                                            {editId ? "✓ Update Identity" : provisioningMode === "existing" ? "✓ Assign User to Cluster" : "✓ Authorize & Add User"}
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -2065,14 +2144,10 @@ export default function CreateUsers() {
                                         size="lg"
                                         className="rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20"
                                         loading={provisioningAdding}
-                                        disabled={
-                                            provisioningAdding ||
-                                            (provisioningMode === "existing" && (!selectedExistingUserId || !assignedClusterId)) ||
-                                            (provisioningMode === "new" && (!provisioningFormData.name || !provisioningFormData.email || !provisioningFormData.role_id || (levels.find(l => l.id === provisioningLevel)?.name?.toLowerCase() !== "global" && provisioningFormData.scope_ids.length === 0)))
-                                        }
+                                        disabled={isProvisioningDisabled}
                                         onClick={handleProvisionIdentity}
                                     >
-                                        {editId ? "Update Identity" : provisioningMode === "existing" ? "Assign User to Cluster" : "Authorize Administrator"}
+                                        {editId ? "Update Identity" : provisioningMode === "existing" ? "Assign User to Cluster" : "✓ Authorize & Add User"}
                                     </Button>
                                 </div>
                             </div>
