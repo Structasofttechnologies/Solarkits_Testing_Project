@@ -24,6 +24,8 @@ router.get('/available-districts/:state_id', clusterHandler.get_state_districts_
 router.get('/list', clusterHandler.get_clusters);
 router.get('/:id', clusterHandler.get_cluster_by_id);
 router.post('/create', clusterHandler.create_cluster);
+router.post('/:id/assign-staff', clusterHandler.assign_staff_to_cluster);
+router.post('/:id/unassign-staff', clusterHandler.unassign_staff_from_cluster);
 router.put('/:id', clusterHandler.update_cluster);
 router.put('/:id/fees', clusterHandler.update_cluster_fees);
 router.delete('/:id', clusterHandler.delete_cluster);

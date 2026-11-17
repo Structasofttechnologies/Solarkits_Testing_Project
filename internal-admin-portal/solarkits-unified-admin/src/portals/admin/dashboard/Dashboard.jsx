@@ -261,6 +261,12 @@ const menus = [
       unique_id: "ADM_USERS",
       subMenu: [
         {
+          name: "Staff & User Management",
+          icon: <FaUserCheck />,
+          path: "/admin-panel/create-users",
+          unique_id: "ADM_USERS"
+        },
+        {
           name: "EPCs",
           icon: <FaUsers />,
           path: "/admin-panel/manage-users/epcs",

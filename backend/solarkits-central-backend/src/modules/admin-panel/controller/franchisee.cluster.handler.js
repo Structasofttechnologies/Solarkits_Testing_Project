@@ -6,6 +6,7 @@ const {
   FranchiseeAgreement,
   FranchiseeClusterGoal,
 } = require('../models/india_solarshop_db');
+const { CmsUser } = require('../models/user_db');
 const { GeoLevel1, GeoLevel2, Level1, Level2 } = require('../models/geolocation_db');
 const StateLevel = GeoLevel1 || Level1;
 const DistrictLevel = GeoLevel2 || Level2;
@@ -236,6 +237,7 @@ exports.get_clusters = async (req, res) => {
       .populate('assigned_franchisee_id', 'business_name mobile email store_category gst_number kyc_status reseller_lifecycle_status')
       .populate('primary_bde_id', 'full_name mobile_number email bde_id')
       .populate('support_bde_ids', 'full_name mobile_number email bde_id')
+      .populate('assigned_staff_users', 'name email phone role_id department_name warehouse_name')
       .sort({ created_at: -1 })
       .lean();
 
@@ -753,5 +755,92 @@ exports.get_resellers_list = async (req, res) => {
   } catch (err) {
     console.error('Error in get_resellers_list:', err);
     return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
+ * 8. Assign Staff / Handling Users to Franchisee Cluster
+ */
+exports.assign_staff_to_cluster = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, user_ids, warehouse_id, warehouse_name } = req.body;
+    const idsToAdd = (user_ids && Array.isArray(user_ids) ? user_ids : (user_id ? [user_id] : [])).map(String);
+
+    if (idsToAdd.length === 0) {
+      return res.status(400).json({ status: 'error', message: 'user_id or user_ids is required.' });
+    }
+
+    const cluster = await FranchiseeCluster.findById(id);
+    if (!cluster) {
+      return res.status(404).json({ status: 'error', message: 'Cluster not found.' });
+    }
+
+    const existingStaff = (cluster.assigned_staff_users || []).map(String);
+    const mergedStaff = Array.from(new Set([...existingStaff, ...idsToAdd]));
+
+    cluster.assigned_staff_users = mergedStaff;
+    cluster.staffing_status = mergedStaff.length > 0 ? 'staffed' : 'unassigned';
+    await cluster.save();
+
+    // Also update CmsUser records with cluster & warehouse metadata
+    const userUpdates = {
+      cluster_id: cluster._id,
+      cluster_name: cluster.cluster_name,
+      state_name: cluster.state_name
+    };
+    if (warehouse_id) userUpdates.warehouse_id = warehouse_id;
+    if (warehouse_name) userUpdates.warehouse_name = warehouse_name;
+
+    await CmsUser.updateMany(
+      { _id: { $in: idsToAdd } },
+      { $set: userUpdates }
+    );
+
+    return res.status(200).json({
+      status: 'success',
+      message: `Staff assigned to cluster ${cluster.cluster_name} successfully.`,
+      data: cluster,
+    });
+  } catch (err) {
+    console.error('Error in assign_staff_to_cluster:', err);
+    return res.status(500).json({ status: 'error', message: err.message || 'Internal server error.' });
+  }
+};
+
+/**
+ * 9. Unassign Staff User from Franchisee Cluster
+ */
+exports.unassign_staff_from_cluster = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({ status: 'error', message: 'user_id is required.' });
+    }
+
+    const cluster = await FranchiseeCluster.findById(id);
+    if (!cluster) {
+      return res.status(404).json({ status: 'error', message: 'Cluster not found.' });
+    }
+
+    cluster.assigned_staff_users = (cluster.assigned_staff_users || []).filter(u => String(u) !== String(user_id));
+    cluster.staffing_status = cluster.assigned_staff_users.length > 0 ? 'staffed' : 'unassigned';
+    await cluster.save();
+
+    await CmsUser.updateOne(
+      { _id: user_id },
+      { $unset: { cluster_id: "", cluster_name: "" } }
+    );
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Staff user unassigned successfully.',
+      data: cluster,
+    });
+  } catch (err) {
+    console.error('Error in unassign_staff_from_cluster:', err);
+    return res.status(500).json({ status: 'error', message: err.message || 'Internal server error.' });
   }
 };

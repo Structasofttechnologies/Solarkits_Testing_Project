@@ -883,7 +883,7 @@ const get_cms_users = async (req, res) => {
 
 const add_cms_user = async (req, res) => {
     try {
-        const { name, email, phone_code, phone, department_id, role_id, scope_ids, parent_user_id, country_id, panels } = req.body;
+        const { name, email, phone_code, phone, department_id, role_id, scope_ids, parent_user_id, country_id, panels, warehouse_id, warehouse_name, cluster_id, cluster_name, state_name, department_name } = req.body;
         if (!name || !email || !phone_code || !phone || !role_id || !department_id || !scope_ids || scope_ids.length === 0) {
             return res.status(400).json({ status: "error", message: 'Required fields missing' })
         }
@@ -938,8 +938,29 @@ const add_cms_user = async (req, res) => {
             if (!isValid) return res.status(400).json({ status: "error", message: 'Invalid reporting manager hierarchy' });
         }
 
-        const newUser = new CmsUser({ name, email, phone_code, phone, role_id, parent_user_id: resolvedParentId, country_id, is_active: true });
+        const newUser = new CmsUser({
+            name, email, phone_code, phone, role_id, parent_user_id: resolvedParentId, country_id, is_active: true,
+            warehouse_id: warehouse_id || null,
+            warehouse_name: warehouse_name || null,
+            cluster_id: cluster_id || null,
+            cluster_name: cluster_name || null,
+            state_name: state_name || null,
+            department_name: department_name || dept?.name || null
+        });
         await newUser.save();
+
+        if (cluster_id) {
+            try {
+                const { FranchiseeCluster } = require('../models/india_solarshop_db');
+                await FranchiseeCluster.findByIdAndUpdate(cluster_id, {
+                    $addToSet: { assigned_staff_users: newUser._id },
+                    $set: { staffing_status: 'staffed' }
+                });
+            } catch (cErr) {
+                console.warn('Could not update cluster staffing status on user create:', cErr);
+            }
+        }
+
         for (const sId of scope_ids) {
             await new CmsUserScope({ user_id: newUser._id, scope_id: sId }).save();
         }
@@ -1020,6 +1041,11 @@ const get_all_subordinates = async (req, res) => {
             department_name: u.role_id?.department_id?.name || 'General',
             parent_user_id: u.parent_user_id ? String(u.parent_user_id._id) : null,
             parent_user_name: u.parent_user_id ? u.parent_user_id.name : null,
+            warehouse_id: u.warehouse_id ? String(u.warehouse_id) : null,
+            warehouse_name: u.warehouse_name || null,
+            cluster_id: u.cluster_id ? String(u.cluster_id) : null,
+            cluster_name: u.cluster_name || null,
+            state_name: u.state_name || null,
             is_active: u.is_active ? 1 : 0,
             scope_ids: allScopes.filter(s => s.user_id.toString() === u._id.toString()).map(s => String(s.scope_id)),
             scope_names: allScopes.filter(s => s.user_id.toString() === u._id.toString())
@@ -1046,7 +1072,7 @@ const get_all_subordinates = async (req, res) => {
 const update_cms_user = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, email, phone_code, phone, department_id, role_id, scope_ids, parent_user_id, country_id, panels } = req.body;
+        const { name, email, phone_code, phone, department_id, role_id, scope_ids, parent_user_id, country_id, panels, warehouse_id, warehouse_name, cluster_id, cluster_name, state_name, department_name } = req.body;
 
         const user = await CmsUser.findById(id);
         if (!user) return res.status(404).json({ status: "error", message: 'User not found' });
@@ -1112,6 +1138,23 @@ const update_cms_user = async (req, res) => {
 
         if (role_id) user.role_id = role_id;
         if (country_id) user.country_id = country_id;
+        if (warehouse_id !== undefined) user.warehouse_id = warehouse_id;
+        if (warehouse_name !== undefined) user.warehouse_name = warehouse_name;
+        if (cluster_id !== undefined) {
+            user.cluster_id = cluster_id;
+            if (cluster_id) {
+                try {
+                    const { FranchiseeCluster } = require('../models/india_solarshop_db');
+                    await FranchiseeCluster.findByIdAndUpdate(cluster_id, {
+                        $addToSet: { assigned_staff_users: user._id },
+                        $set: { staffing_status: 'staffed' }
+                    });
+                } catch (cErr) {}
+            }
+        }
+        if (cluster_name !== undefined) user.cluster_name = cluster_name;
+        if (state_name !== undefined) user.state_name = state_name;
+        if (department_name !== undefined) user.department_name = department_name;
 
         await user.save();
 
