@@ -273,4 +273,9 @@ module.exports = {
   FranchiseeAgreement: require('./franchisee_agreements.schema'),
   FranchiseeClusterGoal: require('./franchisee_cluster_goals.schema'),
   SolarKitsServiceTicket: require('../../../solarshop-india/models/india_solarshop_db/solarkits_service_tickets.schema'),
+
+  // --- SOLARKITS: Trial Kit Management Module ---
+  TrialKitInventory: require('./trial_kit_inventories.schema'),
+  TrialKitStockHistory: require('./trial_kit_stock_histories.schema'),
+  TrialKitOrder: require('./trial_kit_orders.schema'),
 };

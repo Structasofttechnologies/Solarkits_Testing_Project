@@ -9,7 +9,7 @@ import Loader from "../components/Loader";
 import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
-import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse } from "react-icons/fa";
+import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck } from "react-icons/fa";
 import {
   MdAccountTree,
   MdEngineering,
@@ -57,6 +57,9 @@ const InvoiceValidationModule = lazy(() => import("../../accounts/pages/complian
 const ExpenseManagementModule = lazy(() => import("../../accounts/pages/expenses/ExpenseManagementModule"));
 const WarehouseFinanceModule = lazy(() => import("../../accounts/pages/warehouse-finance/WarehouseFinanceModule"));
 const ExecutiveFinanceDashboard = lazy(() => import("../../accounts/pages/executive/ExecutiveFinanceDashboard"));
+const TrialKitInventoryPage = lazy(() => import("../pages/trial-kits/TrialKitInventoryPage"));
+const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrdersPage"));
+const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
 
 /* ===================== MENU CONFIG ===================== */
 
@@ -87,6 +90,32 @@ const menus = [
     { name: "Operations Dashboard", icon: <MdEngineering />, path: "/admin-panel/operations-dashboard", unique_id: "00000000" },
     { name: "Store Dashboard", icon: <FaStore />, path: "/admin-panel/store-dashboard", unique_id: "00000000" },
     { name: "EPC Analytics", icon: <FaChartLine />, path: "/admin-panel/epc-analytics", unique_id: "00000000" },
+    // {
+    //   name: "Trial Kit Management",
+    //   icon: <FaBoxes />,
+    //   path: "/admin-panel/trial-kits",
+    //   unique_id: "00000000",
+    //   subMenu: [
+    //     {
+    //       name: "Trial Kit Inventory",
+    //       icon: <FaWarehouse />,
+    //       path: "/admin-panel/trial-kits/inventory",
+    //       unique_id: "00000000",
+    //     },
+    //     {
+    //       name: "Trial Orders & Tracking",
+    //       icon: <FaTruck />,
+    //       path: "/admin-panel/trial-kits/orders",
+    //       unique_id: "00000000",
+    //     },
+    //     {
+    //       name: "Conversion Analytics (BI)",
+    //       icon: <FaChartLine />,
+    //       path: "/admin-panel/trial-kits/analytics",
+    //       unique_id: "00000000",
+    //     },
+    //   ],
+    // },
   ],
   [
     {
@@ -344,12 +373,12 @@ const menus = [
           path: "/admin-panel/website-configurations/solar-store",
           unique_id: "ADM_WEBSITE_SOLARSTORE"
         },
-        {
-          name: "Website EPC Leads",
-          icon: <FiUsers />,
-          path: "/admin-panel/website-configurations/epc-leads",
-          unique_id: "ADM_WEBSITE_LEADS"
-        }
+        // {
+        //   name: "Website EPC Leads",
+        //   icon: <FiUsers />,
+        //   path: "/admin-panel/website-configurations/epc-leads",
+        //   unique_id: "ADM_WEBSITE_LEADS"
+        // }
       ]
     }
   ],
@@ -745,6 +774,33 @@ export default function Dashboard() {
                       </Suspense>
                     }
                   />
+                  {/* SOLARKITS – Trial Kit Management Module (Sections 1-9) */}
+                  <Route
+                    path="/trial-kits/inventory"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Trial Kit Inventory..." />}>
+                        <TrialKitInventoryPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/trial-kits/orders"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Trial Kit Orders..." />}>
+                        <TrialKitOrdersPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/trial-kits/analytics"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Conversion BI Analytics..." />}>
+                        <TrialKitAnalyticsPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route path="/trial-kits" element={<Navigate to="/admin-panel/trial-kits/inventory" replace />} />
+
                   <Route
                     path="/profile"
                     element={

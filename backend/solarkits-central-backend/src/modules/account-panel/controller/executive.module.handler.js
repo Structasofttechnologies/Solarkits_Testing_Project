@@ -1,4 +1,5 @@
-const { AccountingVoucher } = require('../models/india_solarshop_db/accounting_voucher.schema');
+const voucherModule = require('../models/india_solarshop_db/accounting_voucher.schema');
+const AccountingVoucher = voucherModule.AccountingVoucher || voucherModule;
 const { ExpenseEntry } = require('../models/india_solarshop_db/expense_management.schema');
 const { PurchaseInvoiceValidation } = require('../models/india_solarshop_db/invoice_validation.schema');
 const { GstFilingRecord } = require('../models/india_solarshop_db/gst_management.schema');
@@ -10,7 +11,7 @@ exports.get_executive_overview = async (req, res) => {
     // Invoiced Turnover & Collections from Vouchers
     const vouchers = await AccountingVoucher.find({
       financial_year,
-      status: 'POSTED'
+      status: { $in: ['POSTED', 'Posted', 'posted'] }
     }).lean();
 
     let totalInvoicedTurnover = 0;
@@ -18,14 +19,15 @@ exports.get_executive_overview = async (req, res) => {
     let totalPurchases = 0;
     let totalSupplierPayments = 0;
 
-    vouchers.forEach(v => {
-      if (v.voucher_type === 'SALES') {
+    (vouchers || []).forEach(v => {
+      const type = (v.voucher_type || '').toUpperCase();
+      if (type === 'SALES') {
         totalInvoicedTurnover += v.total_amount || 0;
-      } else if (v.voucher_type === 'RECEIPT') {
+      } else if (type === 'RECEIPT') {
         totalCollections += v.total_amount || 0;
-      } else if (v.voucher_type === 'PURCHASE') {
+      } else if (type === 'PURCHASE') {
         totalPurchases += v.total_amount || 0;
-      } else if (v.voucher_type === 'PAYMENT') {
+      } else if (type === 'PAYMENT') {
         totalSupplierPayments += v.total_amount || 0;
       }
     });

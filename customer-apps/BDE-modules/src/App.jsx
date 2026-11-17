@@ -21,6 +21,7 @@ import BdeEpcQuoteDetail from './pages/BdeEpcQuoteDetail';
 import BdeEpcQuoteFollowupList from './pages/BdeEpcQuoteFollowupList';
 import BdePoOrders from './pages/BdePoOrders';
 import BdeEpcAnalytics from './pages/BdeEpcAnalytics';
+import BdeTrialKitFunnel from './pages/BdeTrialKitFunnel';
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
           <Route element={<BdeProtectedRoute />}>
             <Route element={<BdeLayout />}>
               <Route path="/" element={<BdeDashboard />} />
+              <Route path="/trial-kit-funnel" element={<BdeTrialKitFunnel />} />
               <Route path="/leads" element={<BdeLeads />} />
               <Route path="/franchisee-leads" element={<BdeLeads />} />
               <Route path="/epc-leads" element={<BdeEpcLeads />} />

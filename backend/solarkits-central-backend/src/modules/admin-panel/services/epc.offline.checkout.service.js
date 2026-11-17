@@ -20,6 +20,9 @@ const {
   EpcCheckoutLog,
   ResellerInventoryLedger,
   SolarShopSettings,
+  TrialKitInventory,
+  TrialKitStockHistory,
+  TrialKitOrder,
 } = require('../models/india_solarshop_db');
 const { CompanyWarehouse } = require('../models/company_warehouse_db');
 const { calculateCheckoutPrice } = require('./reseller.pricing.service');
@@ -210,7 +213,7 @@ async function createEpcOfflineOrder({
     throw new Error(`UTR "${cleanUtr}" is already submitted for Order #${duplicateUtr.order_number}.`);
   }
 
-  // Validate Trial Kit items & purchase limit per buyer
+  // Validate Trial Kit items & purchase limit per buyer & live buffer stock
   for (const rawItem of items) {
     const isTrial = Boolean(rawItem.is_trial_kit || rawItem.isTrialKit);
     if (isTrial) {
@@ -224,35 +227,94 @@ async function createEpcOfflineOrder({
           if (!kitDoc.allow_trial_kit) {
             throw new Error(`Trial kit order is not currently enabled for "${kitDoc.name || 'this combo kit'}".`);
           }
+
+          // Strict GST-level and Account-level check
           const maxLimit = kitDoc.trial_kit_max_orders_per_buyer !== undefined ? Number(kitDoc.trial_kit_max_orders_per_buyer) : 1;
           if (maxLimit > 0) {
-            const previousTrialCount = await EpcOrder.countDocuments({
-              epc_id: (mongoose.Types.ObjectId.isValid(epc_id) ? new mongoose.Types.ObjectId(epc_id) : epc_id),
-              order_status: { $nin: ['cancelled'] },
-              payment_status: { $nin: ['rejected'] },
-              $or: [
-                {
-                  items: {
-                    $elemMatch: {
-                      kit_id: kitObjId,
-                      $or: [{ is_trial_kit: true }, { item_name: { $regex: /trial/i } }]
-                    }
-                  }
-                },
-                {
-                  items: {
-                    $elemMatch: {
-                      item_name: { $regex: new RegExp(kitDoc.name, 'i') },
-                      $or: [{ is_trial_kit: true }, { item_name: { $regex: /trial/i } }]
-                    }
-                  }
-                }
-              ]
-            });
-
-            if (previousTrialCount >= maxLimit) {
-              throw new Error(`You have reached the maximum trial kit order limit (${maxLimit} order${maxLimit === 1 ? '' : 's'}) for "${kitDoc.name}".`);
+            let epcIdsToCheck = [];
+            if (epc_id && mongoose.Types.ObjectId.isValid(epc_id)) {
+              epcIdsToCheck.push(new mongoose.Types.ObjectId(epc_id));
             }
+            const buyerEpc = (epc_id && mongoose.Types.ObjectId.isValid(epc_id))
+              ? await EpcAccount.findById(epc_id).lean()
+              : null;
+            const buyerGst = (buyerEpc?.gstin || delivery_address?.gst_number || '').trim().toUpperCase();
+
+            if (buyerGst) {
+              const siblingEpcs = await EpcAccount.find({
+                gstin: { $regex: new RegExp(`^${buyerGst}$`, 'i') }
+              }).select('_id').lean();
+              siblingEpcs.forEach(s => {
+                if (!epcIdsToCheck.some(id => String(id) === String(s._id))) {
+                  epcIdsToCheck.push(s._id);
+                }
+              });
+            }
+
+            const [previousEpcOrderCount, previousTrialOrderCount] = await Promise.all([
+              EpcOrder.countDocuments({
+                epc_id: { $in: epcIdsToCheck },
+                order_status: { $nin: ['cancelled'] },
+                payment_status: { $nin: ['rejected'] },
+                $or: [
+                  {
+                    items: {
+                      $elemMatch: {
+                        kit_id: kitObjId,
+                        $or: [{ is_trial_kit: true }, { item_name: { $regex: /trial/i } }]
+                      }
+                    }
+                  },
+                  {
+                    items: {
+                      $elemMatch: {
+                        item_name: { $regex: new RegExp(kitDoc.name, 'i') },
+                        $or: [{ is_trial_kit: true }, { item_name: { $regex: /trial/i } }]
+                      }
+                    }
+                  }
+                ]
+              }),
+              TrialKitOrder.countDocuments({
+                order_status: { $nin: ['cancelled'] },
+                $or: [
+                  ...(buyerGst ? [{ gst_number: { $regex: new RegExp(`^${buyerGst}$`, 'i') } }] : []),
+                  { epc_id: { $in: epcIdsToCheck } }
+                ],
+                $or: [
+                  { combo_kit_id: kitObjId },
+                  { kit_type: { $regex: new RegExp(kitDoc.name, 'i') } }
+                ]
+              })
+            ]);
+
+            const previousTrialCount = Math.max(previousEpcOrderCount, previousTrialOrderCount);
+            if (previousTrialCount >= maxLimit) {
+              throw new Error(
+                `Maximum trial kit purchase limit (${maxLimit} order${maxLimit === 1 ? '' : 's'}) has been reached for GST ${buyerGst || 'registered account'} for "${kitDoc.name}".`
+              );
+            }
+          }
+
+          // Buffer stock check from TrialKitInventory
+          const activeInvs = await TrialKitInventory.find({
+            status: 'active',
+            $or: [
+              { combo_kit_id: kitObjId },
+              ...(kitDoc.name ? [{ kit_type: kitDoc.name }] : [])
+            ]
+          }).lean();
+
+          const totalBufferStock = activeInvs.reduce(
+            (sum, inv) => sum + (Number(inv.available_stock) || 0),
+            0
+          );
+          const requestedQty = Number(rawItem.quantity || rawItem.qty || 1);
+
+          if (totalBufferStock < requestedQty) {
+            throw new Error(
+              `Trial kit for "${kitDoc.name}" is currently out of stock in warehouse buffer (Available: ${totalBufferStock} Kits, Requested: ${requestedQty} Kits). Please contact your BDE.`
+            );
           }
         }
       }
@@ -714,6 +776,79 @@ async function createEpcOfflineOrder({
             actor_id: actor_id || epc_id,
           });
         }
+      }
+    }
+
+    // 6. SOLARKITS: Sync to TrialKitOrder collection & deduct buffer stock if this is a trial kit order
+    if (isTrialOrder) {
+      try {
+        const epcDoc = await EpcAccount.findById(epc_id).lean();
+        const trialItem = processedItems.find(it => it.is_trial_kit) || processedItems[0];
+        const gstin = (epcDoc?.gstin || delivery_address?.gst_number || '').trim().toUpperCase();
+
+        await TrialKitOrder.create({
+          order_number: orderNumber,
+          epc_id,
+          epc_name: epcDoc?.name || '',
+          epc_company_name: epcDoc?.company_name || epcDoc?.business_name || '',
+          gst_number: gstin || 'UNSPECIFIED_GST',
+          combo_kit_id: trialItem?.kit_id || null,
+          kit_type: trialItem?.item_name || 'Trial Solar Kit',
+          warehouse_id: assignedWarehouseId || epcOrder.warehouse_id,
+          warehouse_name: epcOrder.fulfillment_bifurcation?.assigned_warehouse_code || 'Central Warehouse',
+          order_status: 'confirmed',
+          delivery_details: {
+            shipping_address: delivery_address || {},
+          },
+          commercial_metrics: {
+            unit_price_inr: (trialItem?.unit_price_paise || 0) / 100,
+            freight_inr: (epcOrder.delivery_charge_paise || 0) / 100,
+            total_inr: (totals.grand_total_paise || 0) / 100,
+          }
+        });
+
+        // Atomic Trial Kit buffer stock reservation & history logging
+        const invQuery = {
+          status: 'active',
+          $or: [
+            ...(trialItem?.kit_id ? [{ combo_kit_id: trialItem.kit_id }] : []),
+            ...(trialItem?.item_name ? [{ kit_type: trialItem.item_name }] : [])
+          ]
+        };
+        if (assignedWarehouseId) {
+          invQuery.warehouse_id = assignedWarehouseId;
+        }
+
+        let inv = await TrialKitInventory.findOne(invQuery);
+        if (!inv && assignedWarehouseId) {
+          delete invQuery.warehouse_id;
+          inv = await TrialKitInventory.findOne(invQuery);
+        }
+
+        if (inv) {
+          const qty = Number(trialItem?.quantity || 1);
+          const prevAvail = Number(inv.available_stock || 0);
+          inv.available_stock = Math.max(0, prevAvail - qty);
+          inv.reserved_stock = (Number(inv.reserved_stock) || 0) + qty;
+          inv.ordered_quantity = (Number(inv.ordered_quantity) || 0) + qty;
+          await inv.save();
+
+          await TrialKitStockHistory.create({
+            trial_kit_inventory_id: inv._id,
+            combo_kit_id: inv.combo_kit_id || trialItem?.kit_id || null,
+            kit_type: inv.kit_type || trialItem?.item_name || 'Trial Solar Kit',
+            warehouse_id: inv.warehouse_id,
+            warehouse_name: inv.warehouse_name || 'Central Warehouse',
+            adjustment_type: 'order_deduction',
+            quantity_change: -qty,
+            previous_available_stock: prevAvail,
+            new_available_stock: inv.available_stock,
+            user_name: epcDoc?.name || 'EPC Store Checkout',
+            remarks: `Trial order reservation for Order #${orderNumber}`
+          });
+        }
+      } catch (tkSyncErr) {
+        console.warn('[createEpcOfflineOrder] Could not sync TrialKitOrder/Stock:', tkSyncErr.message);
       }
     }
 

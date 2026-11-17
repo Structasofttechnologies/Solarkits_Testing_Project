@@ -8,7 +8,7 @@ import {
   FaWarehouse, FaTruckLoading, FaFileInvoice, FaRedo, FaUpload,
   FaBuilding, FaExclamationTriangle, FaCopy, FaCheck, FaExternalLinkAlt,
   FaSearch, FaBoxOpen, FaRoute, FaBolt, FaUniversity,
-  FaLayerGroup, FaBoxes, FaPhone, FaInfoCircle, FaLock
+  FaLayerGroup, FaBoxes, FaPhone, FaInfoCircle, FaLock, FaStar
 } from "react-icons/fa";
 import { BsArrowRepeat } from "react-icons/bs";
 import Button from "@/Components/Button";
@@ -17,6 +17,7 @@ import MapLocationPicker from "@/Components/MapLocationPicker";
 
 export default function ProjectOrderStatus() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth_slice || {});
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,12 +28,78 @@ export default function ProjectOrderStatus() {
   const [searchQuery, setSearchQuery] = useState(location.state?.orderNumber || "");
   const [copiedKey, setCopiedKey] = useState(null);
 
+  // Trial & Order Type Filter ('all' | 'regular' | 'trial')
+  const initialType = new URLSearchParams(location.search).get("type");
+  const [orderTypeFilter, setOrderTypeFilter] = useState(initialType === "trial" ? "trial" : "all");
+
+  // Trial feedback modal state
+  const [feedbackModalOrder, setFeedbackModalOrder] = useState(null);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
+  const [feedbackSuccess, setFeedbackSuccess] = useState("");
+  const [feedbackForm, setFeedbackForm] = useState({
+    trial_kit_received_confirmation: true,
+    product_quality_rating: 5,
+    installation_testing_experience: "",
+    inverter_module_performance: "",
+    technical_issue_complaint: "",
+    future_purchase_requirement: "within_1_month",
+    expected_monthly_kit_purchase_quantity: 5,
+  });
+
+  const handleOpenFeedback = (order) => {
+    setFeedbackModalOrder(order);
+    setFeedbackError("");
+    setFeedbackSuccess("");
+    const prevFb = order.trial_feedback || order.feedback || {};
+    setFeedbackForm({
+      trial_kit_received_confirmation: true,
+      product_quality_rating: prevFb.product_quality_rating || 5,
+      installation_testing_experience: prevFb.installation_testing_experience || "",
+      inverter_module_performance: prevFb.inverter_module_performance || "",
+      technical_issue_complaint: prevFb.technical_issue_complaint || "",
+      future_purchase_requirement: prevFb.future_purchase_requirement || "within_1_month",
+      expected_monthly_kit_purchase_quantity: prevFb.expected_monthly_kit_purchase_quantity || 5,
+    });
+  };
+
+  const handleSubmitFeedback = async (e) => {
+    e.preventDefault();
+    if (!feedbackModalOrder) return;
+    setSubmittingFeedback(true);
+    setFeedbackError("");
+    try {
+      const res = await axiosInstance.post(
+        `/india/v1/shop/trial-kits/my-orders/${feedbackModalOrder._id}/feedback`,
+        feedbackForm
+      );
+      if (res.data?.success) {
+        setFeedbackSuccess("Field quality feedback submitted successfully! Thank you.");
+        setTimeout(() => {
+          setFeedbackModalOrder(null);
+          fetchOrders();
+        }, 1500);
+      } else {
+        setFeedbackError(res.data?.message || "Failed to submit feedback.");
+      }
+    } catch (err) {
+      setFeedbackError(err.response?.data?.message || "Failed to submit feedback.");
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tabParam = params.get("tab");
     const searchParam = params.get("search");
+    const typeParam = params.get("type");
     if (tabParam === "po_allocations" || tabParam === "direct") {
       setMainTab(tabParam);
+    }
+    if (typeParam === "trial") {
+      setOrderTypeFilter("trial");
+      setMainTab("direct");
     }
     if (searchParam) {
       setSearchQuery(searchParam);
@@ -489,8 +556,22 @@ export default function ProjectOrderStatus() {
     }
   };
 
-  // Filter orders by search query across Order #, UTR, kit name, and tracking LR
+  const isTrialOrder = (o) => Boolean(
+    o.is_trial_order ||
+    o.order_type === "trial_order" ||
+    o.fulfillment_bifurcation?.order_type === "trial_order" ||
+    o.items?.some(it => it.is_trial_kit || /trial/i.test(it.item_name || ""))
+  );
+
+  const trialOrdersCount = orders.filter(isTrialOrder).length;
+  const regularOrdersCount = orders.length - trialOrdersCount;
+
+  // Filter orders by search query & orderTypeFilter across Order #, UTR, kit name, and tracking LR
   const filteredOrders = orders.filter((o) => {
+    const isTrial = isTrialOrder(o);
+    if (orderTypeFilter === "trial" && !isTrial) return false;
+    if (orderTypeFilter === "regular" && isTrial) return false;
+
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
     const orderNum = (o.order_number || o.id || o._id || "").toLowerCase();
@@ -596,8 +677,39 @@ export default function ProjectOrderStatus() {
 
       {mainTab === "direct" ? (
         <>
+          {/* Direct Order Sub-Filters: All vs Commercial vs Trial Kit Orders */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setOrderTypeFilter("all")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${orderTypeFilter === "all"
+                  ? "bg-primary text-white shadow-xs"
+                  : "bg-surface hover:bg-surface-hover text-text-secondary border border-border"
+                }`}
+            >
+              All Direct Orders ({orders.length})
+            </button>
+            <button
+              onClick={() => setOrderTypeFilter("regular")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${orderTypeFilter === "regular"
+                  ? "bg-primary text-white shadow-xs"
+                  : "bg-surface hover:bg-surface-hover text-text-secondary border border-border"
+                }`}
+            >
+              Commercial Orders ({regularOrdersCount})
+            </button>
+            <button
+              onClick={() => setOrderTypeFilter("trial")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${orderTypeFilter === "trial"
+                  ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-xs"
+                  : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                }`}
+            >
+              <FaBoxes size={12} />
+              <span>Trial Kit Orders ({trialOrdersCount})</span>
+            </button>
+          </div>
 
-          {/* Search & Stats Bar (Status Filter Pills Removed as requested) */}
+          {/* Search & Stats Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface p-3 rounded-2xl border border-border shadow-xs">
             <div className="relative flex-1">
               <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted text-xs" />
@@ -749,6 +861,12 @@ export default function ProjectOrderStatus() {
                             </span>
                           )}
 
+                          {isTrialOrder(order) && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                              <FaBoxes size={10} /> Trial Kit Order
+                            </span>
+                          )}
+
                           {order.reseller?.business_name ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
                               <FaBuilding size={10} /> Franchise: {order.reseller.business_name}
@@ -815,9 +933,28 @@ export default function ProjectOrderStatus() {
                             <FaTruck /> Dispatched & In Transit
                           </span>
                         ) : isDelivered ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            <FaCheckCircle /> Delivered & Completed
-                          </span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              <FaCheckCircle /> Delivered & Completed
+                            </span>
+                            {isTrialOrder(order) && (
+                              (order.trial_feedback?.feedback_status === "submitted" || order.feedback?.feedback_status === "submitted") ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shadow-2xs">
+                                  <FaStar className="text-amber-500" size={10} />
+                                  <span>Feedback Submitted ({order.trial_feedback?.product_quality_rating || order.feedback?.product_quality_rating || 5}★)</span>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenFeedback(order)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-xs transition-all cursor-pointer group"
+                                >
+                                  <FaStar className="text-white group-hover:scale-110 transition-transform" size={11} />
+                                  <span>Submit Field Feedback</span>
+                                </button>
+                              )
+                            )}
+                          </div>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-black bg-surface text-text-secondary border border-border">
                             {order.status}
@@ -3045,6 +3182,160 @@ export default function ProjectOrderStatus() {
                 </Button>
                 <Button type="submit" variant="primary" loading={milestoneSubmitting}>
                   {milestonePaymentGateway === "icici" ? `Confirm ICICI ${modalRemPct}% Payment Reference` : `Submit ${modalRemPct}% Payment for Verification`}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Trial Kit Quality & Testing Feedback Modal ──────────────── */}
+      {feedbackModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-surface rounded-3xl max-w-lg w-full p-6 border border-border shadow-2xl text-text-primary animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center">
+                  <FaStar size={15} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-text-primary dark:text-white">
+                    Trial Kit Field Quality Feedback
+                  </h3>
+                  <span className="text-[11px] text-text-muted font-mono font-bold">
+                    Order #{feedbackModalOrder.order_number || feedbackModalOrder._id}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFeedbackModalOrder(null)}
+                className="text-text-muted hover:text-text-primary p-1.5 rounded-lg hover:bg-surface-hover transition-colors"
+              >
+                <FaTimes size={14} />
+              </button>
+            </div>
+
+            {feedbackError && (
+              <div className="mt-4 p-3 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2 border border-rose-500/20">
+                <FaExclamationTriangle size={13} className="shrink-0" />
+                <span>{feedbackError}</span>
+              </div>
+            )}
+            {feedbackSuccess && (
+              <div className="mt-4 p-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-2 border border-emerald-500/20">
+                <FaCheckCircle size={13} className="shrink-0" />
+                <span>{feedbackSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitFeedback} className="mt-4 space-y-4 text-xs">
+              {/* Product Quality Rating */}
+              <div>
+                <label className="block text-text-primary font-black mb-1.5">
+                  Overall Hardware & Packaging Quality
+                </label>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setFeedbackForm({ ...feedbackForm, product_quality_rating: star })}
+                      className={`p-2 rounded-xl border text-sm transition-all cursor-pointer flex items-center gap-1 font-bold ${feedbackForm.product_quality_rating >= star
+                          ? "bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400"
+                          : "bg-surface-hover border-border text-text-muted"
+                        }`}
+                    >
+                      <FaStar size={13} />
+                      <span>{star}</span>
+                    </button>
+                  ))}
+                  <span className="ml-2 text-[11px] text-text-secondary font-semibold">
+                    {feedbackForm.product_quality_rating === 5 ? "Excellent Quality" :
+                      feedbackForm.product_quality_rating === 4 ? "Very Good" :
+                        feedbackForm.product_quality_rating === 3 ? "Average" : "Needs Improvement"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Installation / Testing Experience */}
+              <div>
+                <label className="block text-text-primary font-bold mb-1">
+                  Installation & Commissioning Experience
+                </label>
+                <textarea
+                  rows={2}
+                  value={feedbackForm.installation_testing_experience}
+                  onChange={(e) => setFeedbackForm({ ...feedbackForm, installation_testing_experience: e.target.value })}
+                  placeholder="How was the wiring, BOS kit fitment, and mechanical mounting on site?"
+                  className="w-full px-3 py-2 bg-surface-hover/50 hover:bg-surface-hover border border-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+
+              {/* Inverter & Module Performance */}
+              <div>
+                <label className="block text-text-primary font-bold mb-1">
+                  Inverter & Solar Module Generation Performance
+                </label>
+                <textarea
+                  rows={2}
+                  value={feedbackForm.inverter_module_performance}
+                  onChange={(e) => setFeedbackForm({ ...feedbackForm, inverter_module_performance: e.target.value })}
+                  placeholder="Observed peak generation, MPPT synchronization, or grid safety testing notes..."
+                  className="w-full px-3 py-2 bg-surface-hover/50 hover:bg-surface-hover border border-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+
+              {/* Future Commercial Requirement & Expected Monthly Volume */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-text-primary font-bold mb-1">
+                    Commercial Buy Interest
+                  </label>
+                  <select
+                    value={feedbackForm.future_purchase_requirement}
+                    onChange={(e) => setFeedbackForm({ ...feedbackForm, future_purchase_requirement: e.target.value })}
+                    className="w-full px-3 py-2 bg-surface-hover/50 hover:bg-surface-hover border border-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-primary transition-colors font-bold"
+                  >
+                    <option value="within_1_month">Ready to Order (Within 1 Month)</option>
+                    <option value="within_3_months">Interested (1 to 3 Months)</option>
+                    <option value="evaluating">Still Benchmarking / Testing</option>
+                    <option value="not_interested">Not Interested at Present</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-text-primary font-bold mb-1">
+                    Expected Monthly Kit Volume
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={feedbackForm.expected_monthly_kit_purchase_quantity}
+                    onChange={(e) => setFeedbackForm({ ...feedbackForm, expected_monthly_kit_purchase_quantity: parseInt(e.target.value, 10) || 1 })}
+                    className="w-full px-3 py-2 bg-surface-hover/50 hover:bg-surface-hover border border-border rounded-xl text-xs text-text-primary focus:outline-none focus:border-primary transition-colors font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFeedbackModalOrder(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  disabled={submittingFeedback}
+                  className="font-black px-5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-sm"
+                >
+                  {submittingFeedback ? "Submitting Feedback..." : "Submit Quality Feedback"}
                 </Button>
               </div>
             </form>

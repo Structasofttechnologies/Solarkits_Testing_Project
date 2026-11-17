@@ -148,6 +148,9 @@ export default function Board() {
             <Route path="/know-my-margin/*" element={<KnowMyMargin />} />
             <Route path="/know-my-margin" element={<KnowMyMargin />} />
 
+            {/* Trial Kit Module Redirect: Connected directly via Combokit Display */}
+            <Route path="/trial-kits" element={<Navigate to="/preconfigured-combo-kit" replace />} />
+
             {/* Franchisee Product Catalogue & PO Lifecycle */}
             <Route path="/epc-catalogue" element={<ProtectedRoute><EpcCatalogue /></ProtectedRoute>} />
             <Route path="/po-orders" element={<ProtectedRoute><EpcPoAllocations /></ProtectedRoute>} />

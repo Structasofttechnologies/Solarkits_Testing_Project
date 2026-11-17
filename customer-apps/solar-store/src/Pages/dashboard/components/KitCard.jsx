@@ -1,11 +1,12 @@
-import { memo, useCallback, useMemo, useState, useEffect } from"react";
+import { memo, useCallback, useMemo, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  FaPlus, FaMinus, FaRupeeSign, FaCheck,
+  FaPlus, FaMinus, FaRupeeSign, FaCheck, FaCheckCircle, FaBan,
   FaShoppingCart, FaTag, FaStar, FaGem, FaHome, FaBolt,
   FaInfoCircle, FaTruck, FaPiggyBank, FaAward,
   FaShieldAlt, FaLeaf, FaChevronDown, FaChevronUp,
   FaCogs, FaSolarPanel, FaFilePdf
-} from"react-icons/fa";
+} from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import {
   addToCart,
@@ -102,6 +103,7 @@ const KitComponentsRow = ({ kit }) => {
 import { FaLayerGroup } from "react-icons/fa";
 
 const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact = false, isCart = false, activeOffers = [], isCompared = false, onToggleCompare = null }) => {
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const cart = useSelector((state) => state.slice.cart);
   const liveStock = useSelector(selectLiveStock);
@@ -110,12 +112,17 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
   const [trialModalOpen, setTrialModalOpen] = useState(false);
   const [showDatasheetModal, setShowDatasheetModal] = useState(false);
   const hasTrialKit = Boolean(kit?.allow_trial_kit || kit?.allowTrialKit);
-  const trialKitQty = Number(kit?.trial_kit_quantity || 10);
+  const trialKitQty = Math.max(1, Number(kit?.trial_kit_quantity || 1));
   const trialLimit = Number(kit?.trial_kit_max_orders_per_buyer ?? kit?.trialKitMaxOrdersPerBuyer ?? 1);
   const purchasedTrialCount = Number(kit?.trial_kit_purchased_count ?? kit?.trialKitPurchasedCount ?? 0);
   const isTrialLimitReached = Boolean(kit?.trial_kit_limit_reached ?? kit?.trialKitLimitReached) ||
     (trialLimit > 0 && purchasedTrialCount >= trialLimit);
-  const canShowTrialButton = hasTrialKit && !isTrialLimitReached && !isCart;
+  const trialStock = Number(kit?.trial_kit_available_stock ?? kit?.trialKitAvailableStock ?? 0);
+  const isTrialInStock = Boolean((kit?.is_trial_in_stock ?? kit?.isTrialInStock) ?? (trialStock >= trialKitQty && trialStock > 0));
+
+  const canShowTrialButton = hasTrialKit && !isTrialLimitReached && isTrialInStock && !isCart;
+  const canShowOutOfStockTrial = hasTrialKit && !isTrialLimitReached && !isTrialInStock && !isCart;
+  const canShowOrderedBadge = hasTrialKit && isTrialLimitReached && !isCart;
 
   const hasDatasheets = Boolean(
     kit?.hasDatasheet ||
@@ -132,7 +139,7 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
       return;
     }
     if (kit.variants) {
-      const cartIndex = kit.variants.findIndex((v, idx) => 
+      const cartIndex = kit.variants.findIndex((v, idx) =>
         cart.some(item => item.id === kit.id && item.variantIndex === idx)
       );
       if (cartIndex >= 0) {
@@ -535,11 +542,10 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
   // Grid View Component
   const GridView = () => (
     <div
-      className={`relative bg-surface rounded-2xl border flex flex-col transition-all duration-300 cursor-pointer overflow-hidden h-full group ${
-        isSelected
-          ?"border-primary ring-2 ring-primary/20 bg-gradient-to-b from-primary/[0.01] to-primary/[0.02] shadow-lg"
-          :"border-border hover:border-primary/30 hover:shadow-xl hover:-translate-y-1.5"
-      } ${compact ? 'p-3' : 'p-5'}`}
+      className={`relative bg-surface rounded-2xl border flex flex-col transition-all duration-300 cursor-pointer overflow-hidden h-full group ${isSelected
+          ? "border-primary ring-2 ring-primary/20 bg-gradient-to-b from-primary/[0.01] to-primary/[0.02] shadow-lg"
+          : "border-border hover:border-primary/30 hover:shadow-xl hover:-translate-y-1.5"
+        } ${compact ? 'p-3' : 'p-5'}`}
       onClick={handleSelect}
       onKeyDown={handleKeyPress}
       tabIndex={0}
@@ -574,11 +580,11 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
           <div />
         )}
         <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full border shadow-xs ${!kit.usageTypeColor ? usageTypeClass :""}`}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full border shadow-xs ${!kit.usageTypeColor ? usageTypeClass : ""}`}
           style={kit.usageTypeColor ? {
-            backgroundColor:`${kit.usageTypeColor}15`,
+            backgroundColor: `${kit.usageTypeColor}15`,
             color: kit.usageTypeColor,
-            borderColor:`${kit.usageTypeColor}35`
+            borderColor: `${kit.usageTypeColor}35`
           } : undefined}
         >
           {kit.usageTypeImage && (
@@ -626,11 +632,10 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
               e.stopPropagation();
               onToggleCompare(kit);
             }}
-            className={`absolute top-2 right-2 z-10 px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
-              isCompared
+            className={`absolute top-2 right-2 z-10 px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${isCompared
                 ? "bg-primary text-white ring-2 ring-primary/40"
                 : "bg-white/95 dark:bg-slate-900/95 text-text-primary hover:bg-white border border-border"
-            }`}
+              }`}
             title={isCompared ? "Remove from comparison" : "Add to comparison"}
           >
             <FaLayerGroup size={10} className={isCompared ? "text-white" : "text-primary"} />
@@ -738,7 +743,7 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
                 {showVariants ? <FaChevronUp size={10} className="ml-1" /> : <FaChevronDown size={10} className="ml-1" />}
               </span>
             </button>
-            
+
             {showVariants && (
               <div className="absolute bottom-full mb-1 left-0 right-0 bg-surface rounded-xl border border-border shadow-xl z-20 overflow-hidden divide-y divide-border animate-in fade-in slide-in-from-bottom-2 duration-200">
                 {kit.variants.map((variant, index) => {
@@ -750,10 +755,9 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
                     <button
                       key={index}
                       onClick={() => handleVariantChange(index)}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 hover:bg-surface-hover text-xs transition-colors ${
-                        index === selectedVariant ? 'bg-primary/[0.03] font-bold' : 'text-text-primary'
-                      }`}
-                      style={index === selectedVariant && variant.tierColor ? { color: variant.tierColor, backgroundColor:`${variant.tierColor}08` } : undefined}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 hover:bg-surface-hover text-xs transition-colors ${index === selectedVariant ? 'bg-primary/[0.03] font-bold' : 'text-text-primary'
+                        }`}
+                      style={index === selectedVariant && variant.tierColor ? { color: variant.tierColor, backgroundColor: `${variant.tierColor}08` } : undefined}
                     >
                       <span className="flex items-center gap-2">
                         <span>{variantTierConfig.icon}</span>
@@ -783,11 +787,10 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider block">Special Price</span>
               {activeTierPricing && (
-                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                  activeTierPricing.type === 'po'
+                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${activeTierPricing.type === 'po'
                     ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
                     : 'bg-primary/10 text-primary dark:text-info border border-primary/20'
-                }`}>
+                  }`}>
                   {activeTierPricing.type === 'po' ? 'PO Bulk Tier' : 'Loose Tier'}
                 </span>
               )}
@@ -840,7 +843,7 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
                     <FaAward className={tierConfig.text} />
                     <span>{currentVariant?.productTier} Tier Perks</span>
                   </div>
-                  <button 
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowPerksTooltip(false);
@@ -862,7 +865,7 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
               </div>
             )}
 
-            <div 
+            <div
               onClick={(e) => {
                 e.stopPropagation();
                 setShowPerksTooltip(!showPerksTooltip);
@@ -910,22 +913,20 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setActiveTierType("loose"); }}
-                    className={`flex-1 py-1 px-1.5 rounded-md transition-all text-center ${
-                      activeTierType === "loose"
+                    className={`flex-1 py-1 px-1.5 rounded-md transition-all text-center ${activeTierType === "loose"
                         ? "bg-surface text-primary shadow-xs font-black"
                         : "text-text-secondary hover:text-text-primary"
-                    }`}
+                      }`}
                   >
                     Loose ({looseOrderQuantities[0] || 5}-{looseOrderQuantities[looseOrderQuantities.length - 1] || 25})
                   </button>
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setActiveTierType("po"); }}
-                    className={`flex-1 py-1 px-1.5 rounded-md transition-all text-center ${
-                      activeTierType === "po"
+                    className={`flex-1 py-1 px-1.5 rounded-md transition-all text-center ${activeTierType === "po"
                         ? "bg-surface text-amber-600 dark:text-amber-400 shadow-xs font-black"
                         : "text-text-secondary hover:text-text-primary"
-                    }`}
+                      }`}
                   >
                     Bulk PO ({poOrderQuantities[0] || 100}+)
                   </button>
@@ -1059,6 +1060,38 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
             </button>
           )}
 
+          {canShowOutOfStockTrial && (
+            <button
+              type="button"
+              disabled
+              className="w-full mt-2 py-2 px-3 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800/80 text-text-muted border border-border cursor-not-allowed flex items-center justify-center gap-2 opacity-75"
+              title="Trial kit is currently out of stock in warehouse buffer. Please contact your BDE."
+            >
+              <FaBan className="text-amber-500 text-xs" />
+              <span>Out of Stock (Trial Kit)</span>
+            </button>
+          )}
+
+          {canShowOrderedBadge && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate("/track-status?tab=direct");
+              }}
+              className="w-full mt-2 py-2 px-3 rounded-xl text-xs font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center justify-between shadow-xs transition-all duration-200 cursor-pointer group/trialstatus"
+              title="You have ordered a trial kit for this configuration under your GST number. Click to track shipment and delivery status."
+            >
+              <span className="flex items-center gap-1.5">
+                <FaCheckCircle className="text-emerald-600 dark:text-emerald-400" />
+                <span>Trial Kit Ordered ({purchasedTrialCount}/{trialLimit})</span>
+              </span>
+              <span className="text-[11px] font-extrabold underline group-hover/trialstatus:translate-x-0.5 transition-transform">
+                Track Status &rarr;
+              </span>
+            </button>
+          )}
+
           {/* Download Datasheet Button */}
           <button
             type="button"
@@ -1066,11 +1099,10 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
               e.stopPropagation();
               setShowDatasheetModal(true);
             }}
-            className={`w-full mt-2 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-xs transition-all duration-200 cursor-pointer group/datasheet hover:scale-[1.01] ${
-              hasDatasheets
+            className={`w-full mt-2 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-xs transition-all duration-200 cursor-pointer group/datasheet hover:scale-[1.01] ${hasDatasheets
                 ? "bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30"
                 : "bg-surface-hover hover:bg-surface-hover/80 text-text-secondary border border-border"
-            }`}
+              }`}
           >
             <FaFilePdf className={`${hasDatasheets ? "text-red-500" : "text-text-muted"} group-hover/datasheet:scale-110 transition-transform`} size={13} />
             <span>{hasDatasheets ? "Download Datasheet (PDF)" : "View Datasheet (PDF)"}</span>
@@ -1102,11 +1134,10 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
   // List View Component
   const ListView = () => (
     <div
-      className={`relative bg-surface rounded-2xl border flex transition-all duration-300 cursor-pointer overflow-hidden group w-full ${
-        isSelected
-          ?"border-primary ring-2 ring-primary/20 bg-gradient-to-r from-primary/[0.01] to-primary/[0.02] shadow-lg"
-          :"border-border hover:border-primary/30 hover:shadow-xl hover:-translate-y-1"
-      } ${compact ? 'p-3' : 'p-5'}`}
+      className={`relative bg-surface rounded-2xl border flex transition-all duration-300 cursor-pointer overflow-hidden group w-full ${isSelected
+          ? "border-primary ring-2 ring-primary/20 bg-gradient-to-r from-primary/[0.01] to-primary/[0.02] shadow-lg"
+          : "border-border hover:border-primary/30 hover:shadow-xl hover:-translate-y-1"
+        } ${compact ? 'p-3' : 'p-5'}`}
       onClick={handleSelect}
       onKeyDown={handleKeyPress}
       tabIndex={0}
@@ -1121,9 +1152,8 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
 
       <div className="flex gap-5 w-full items-stretch">
         {/* Left: Image with hover effect */}
-        <div className={`relative z-[2] flex-shrink-0 bg-gradient-to-tr from-gray-50/50 to-slate-100/50 rounded-xl overflow-hidden border border-border flex items-center justify-center ${
-          compact ? 'w-28 h-28' : 'w-52 h-52'
-        }`}>
+        <div className={`relative z-[2] flex-shrink-0 bg-gradient-to-tr from-gray-50/50 to-slate-100/50 rounded-xl overflow-hidden border border-border flex items-center justify-center ${compact ? 'w-28 h-28' : 'w-52 h-52'
+          }`}>
           {/* Badges Overlay */}
           <div className="absolute top-1 left-1 flex flex-col gap-1 z-10">
             {(kit.is_best_seller || kit.best_seller_badge) && (
@@ -1155,11 +1185,10 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
                 e.stopPropagation();
                 onToggleCompare(kit);
               }}
-              className={`absolute top-1 right-1 z-10 px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-1 transition-all shadow cursor-pointer ${
-                isCompared
+              className={`absolute top-1 right-1 z-10 px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-1 transition-all shadow cursor-pointer ${isCompared
                   ? "bg-primary text-white"
                   : "bg-white/95 dark:bg-slate-900/95 text-text-primary hover:bg-white border border-border"
-              }`}
+                }`}
               title={isCompared ? "Remove from comparison" : "Add to comparison"}
             >
               <FaLayerGroup size={8} className={isCompared ? "text-white" : "text-primary"} />
@@ -1203,11 +1232,11 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
                   </div>
                 )}
                 <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-semibold rounded-full border shadow-xs ${!kit.usageTypeColor ? usageTypeClass :""}`}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-semibold rounded-full border shadow-xs ${!kit.usageTypeColor ? usageTypeClass : ""}`}
                   style={kit.usageTypeColor ? {
-                    backgroundColor:`${kit.usageTypeColor}15`,
+                    backgroundColor: `${kit.usageTypeColor}15`,
                     color: kit.usageTypeColor,
-                    borderColor:`${kit.usageTypeColor}35`
+                    borderColor: `${kit.usageTypeColor}35`
                   } : undefined}
                 >
                   {kit.usageTypeImage && (
@@ -1238,37 +1267,37 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
 
             <KitComponentsRow kit={kit} />
 
-        {/* Milestone Policy Progress Indicator */}
-        {kit.payment_milestones && (
-          <div className="mb-4 p-2.5 rounded-xl bg-surface-hover/70 border border-border/80 text-[11px] space-y-1.5 shadow-2xs">
-            <div className="flex items-center justify-between font-bold">
-              <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block shadow-2xs"></span>
-                Advance: {kit.payment_milestones.advance_percentage}%
-              </span>
-              <span className="text-primary dark:text-info flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-primary dark:bg-info inline-block shadow-2xs"></span>
-                Balance: {kit.payment_milestones.remaining_percentage}%
-              </span>
-            </div>
-            <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden flex">
-              <div
-                className="bg-amber-500 h-full transition-all duration-300"
-                style={{ width: `${kit.payment_milestones.advance_percentage}%` }}
-                title={`Advance: ${kit.payment_milestones.advance_percentage}%`}
-              />
-              <div
-                className="bg-primary dark:bg-info h-full transition-all duration-300"
-                style={{ width: `${kit.payment_milestones.remaining_percentage}%` }}
-                title={`Balance before dispatch: ${kit.payment_milestones.remaining_percentage}%`}
-              />
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-text-muted font-medium">
-              <span>Order Placement</span>
-              <span>Before Dispatch</span>
-            </div>
-          </div>
-        )}
+            {/* Milestone Policy Progress Indicator */}
+            {kit.payment_milestones && (
+              <div className="mb-4 p-2.5 rounded-xl bg-surface-hover/70 border border-border/80 text-[11px] space-y-1.5 shadow-2xs">
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 inline-block shadow-2xs"></span>
+                    Advance: {kit.payment_milestones.advance_percentage}%
+                  </span>
+                  <span className="text-primary dark:text-info flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-primary dark:bg-info inline-block shadow-2xs"></span>
+                    Balance: {kit.payment_milestones.remaining_percentage}%
+                  </span>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden flex">
+                  <div
+                    className="bg-amber-500 h-full transition-all duration-300"
+                    style={{ width: `${kit.payment_milestones.advance_percentage}%` }}
+                    title={`Advance: ${kit.payment_milestones.advance_percentage}%`}
+                  />
+                  <div
+                    className="bg-primary dark:bg-info h-full transition-all duration-300"
+                    style={{ width: `${kit.payment_milestones.remaining_percentage}%` }}
+                    title={`Balance before dispatch: ${kit.payment_milestones.remaining_percentage}%`}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-text-muted font-medium">
+                  <span>Order Placement</span>
+                  <span>Before Dispatch</span>
+                </div>
+              </div>
+            )}
 
             {/* Spec Badges Row & Benefits */}
             <div className="space-y-3">
@@ -1300,7 +1329,7 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
                       title={benefit}
                     >
                       <FaCheck className="text-green-600 text-[8px]" />
-                      {benefit.length > 24 ?`${benefit.substring(0, 24)}...` : benefit}
+                      {benefit.length > 24 ? `${benefit.substring(0, 24)}...` : benefit}
                     </span>
                   ))}
                   {currentVariant.tierBenefits.length > 2 && (
@@ -1320,11 +1349,10 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
               <div className="flex items-center md:justify-end gap-1.5 mb-0.5">
                 <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider block">Special Price</span>
                 {activeTierPricing && (
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                    activeTierPricing.type === 'po'
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${activeTierPricing.type === 'po'
                       ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
                       : 'bg-primary/10 text-primary dark:text-info border border-primary/20'
-                  }`}>
+                    }`}>
                     {activeTierPricing.type === 'po' ? 'PO Tier' : 'Loose Tier'}
                   </span>
                 )}
@@ -1346,59 +1374,58 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
                   (Includes ₹{formattedPrices.gstIncluded} GST @ {formattedPrices.gstRate}%)
                 </span>
               )}
-                
-                {/* Variant Selector Button - List View */}
-                {kit.variants?.length > 1 && (
-                  <div className="relative mb-3 w-full" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => setShowVariants(!showVariants)}
-                      className="w-full flex items-center justify-between px-2.5 py-1.5 bg-surface-hover hover:bg-surface-hover rounded-lg border border-border text-xs font-semibold text-text-primary"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        {tierConfig.icon}
-                        <span style={currentVariant?.tierColor ? { color: currentVariant.tierColor } : undefined}>{currentVariant?.productTier}</span>
-                      </span>
-                      {showVariants ? <FaChevronUp size={10} /> : <FaChevronDown size={10} />}
-                    </button>
-                    
-                    {showVariants && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-surface rounded-xl border border-border shadow-xl z-20 overflow-hidden divide-y divide-border">
-                        {kit.variants.map((variant, index) => {
-                          const variantTierConfig = getTierConfig(variant.productTier, variant.tierColor);
-                          const variantDiscount = variant.marketPrice > variant.ourPrice
-                            ? Math.round(((variant.marketPrice - variant.ourPrice) / variant.marketPrice) * 100)
-                            : 0;
-                          return (
-                            <button
-                              key={index}
-                              onClick={() => handleVariantChange(index)}
-                              className={`w-full flex items-center justify-between px-3 py-2 hover:bg-surface-hover text-xs transition-colors ${
-                                index === selectedVariant ? 'bg-primary/[0.03] font-bold' : 'text-text-primary'
+
+              {/* Variant Selector Button - List View */}
+              {kit.variants?.length > 1 && (
+                <div className="relative mb-3 w-full" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => setShowVariants(!showVariants)}
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 bg-surface-hover hover:bg-surface-hover rounded-lg border border-border text-xs font-semibold text-text-primary"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      {tierConfig.icon}
+                      <span style={currentVariant?.tierColor ? { color: currentVariant.tierColor } : undefined}>{currentVariant?.productTier}</span>
+                    </span>
+                    {showVariants ? <FaChevronUp size={10} /> : <FaChevronDown size={10} />}
+                  </button>
+
+                  {showVariants && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-surface rounded-xl border border-border shadow-xl z-20 overflow-hidden divide-y divide-border">
+                      {kit.variants.map((variant, index) => {
+                        const variantTierConfig = getTierConfig(variant.productTier, variant.tierColor);
+                        const variantDiscount = variant.marketPrice > variant.ourPrice
+                          ? Math.round(((variant.marketPrice - variant.ourPrice) / variant.marketPrice) * 100)
+                          : 0;
+                        return (
+                          <button
+                            key={index}
+                            onClick={() => handleVariantChange(index)}
+                            className={`w-full flex items-center justify-between px-3 py-2 hover:bg-surface-hover text-xs transition-colors ${index === selectedVariant ? 'bg-primary/[0.03] font-bold' : 'text-text-primary'
                               }`}
-                              style={index === selectedVariant && variant.tierColor ? { color: variant.tierColor, backgroundColor:`${variant.tierColor}08` } : undefined}
-                            >
-                              <span className="flex items-center gap-1.5">
-                                <span>{variantTierConfig.icon}</span>
-                                <span>{variant.productTier}</span>
+                            style={index === selectedVariant && variant.tierColor ? { color: variant.tierColor, backgroundColor: `${variant.tierColor}08` } : undefined}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span>{variantTierConfig.icon}</span>
+                              <span>{variant.productTier}</span>
+                            </span>
+                            <div className="text-right">
+                              <span className="font-bold" style={variant.tierColor ? { color: variant.tierColor } : { color: 'var(--color-primary)' }}>
+                                ₹{variant.ourPrice?.toLocaleString("en-IN")}
                               </span>
-                              <div className="text-right">
-                                <span className="font-bold" style={variant.tierColor ? { color: variant.tierColor } : { color: 'var(--color-primary)' }}>
-                                  ₹{variant.ourPrice?.toLocaleString("en-IN")}
+                              {variantDiscount > 0 && (
+                                <span className="block text-[9px] text-text-muted font-normal line-through">
+                                  ₹{variant.marketPrice?.toLocaleString("en-IN")}
                                 </span>
-                                {variantDiscount > 0 && (
-                                  <span className="block text-[9px] text-text-muted font-normal line-through">
-                                    ₹{variant.marketPrice?.toLocaleString("en-IN")}
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Cart Calculations Summary */}
             {cartItem && cartCalculations.quantity > 0 && (
@@ -1426,22 +1453,20 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setActiveTierType("loose"); }}
-                        className={`flex-1 py-0.5 px-1 rounded transition-all text-center ${
-                          activeTierType === "loose"
+                        className={`flex-1 py-0.5 px-1 rounded transition-all text-center ${activeTierType === "loose"
                             ? "bg-surface text-primary shadow-xs font-black"
                             : "text-text-secondary hover:text-text-primary"
-                        }`}
+                          }`}
                       >
                         Loose
                       </button>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setActiveTierType("po"); }}
-                        className={`flex-1 py-0.5 px-1 rounded transition-all text-center ${
-                          activeTierType === "po"
+                        className={`flex-1 py-0.5 px-1 rounded transition-all text-center ${activeTierType === "po"
                             ? "bg-surface text-amber-600 dark:text-amber-400 shadow-xs font-black"
                             : "text-text-secondary hover:text-text-primary"
-                        }`}
+                          }`}
                       >
                         Bulk PO
                       </button>
@@ -1575,6 +1600,38 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
                 </button>
               )}
 
+              {canShowOutOfStockTrial && (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full mt-2 py-2 px-3 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800/80 text-text-muted border border-border cursor-not-allowed flex items-center justify-center gap-2 opacity-75"
+                  title="Trial kit is currently out of stock in warehouse buffer. Please contact your BDE."
+                >
+                  <FaBan className="text-amber-500 text-xs" />
+                  <span>Out of Stock (Trial Kit)</span>
+                </button>
+              )}
+
+              {canShowOrderedBadge && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate("/track-status?tab=direct");
+                  }}
+                  className="w-full mt-2 py-2 px-3 rounded-xl text-xs font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center justify-between shadow-xs transition-all duration-200 cursor-pointer group/trialstatus"
+                  title="You have ordered a trial kit for this configuration under your GST number. Click to track shipment and delivery status."
+                >
+                  <span className="flex items-center gap-1.5">
+                    <FaCheckCircle className="text-emerald-600 dark:text-emerald-400" />
+                    <span>Trial Kit Ordered ({purchasedTrialCount}/{trialLimit})</span>
+                  </span>
+                  <span className="text-[11px] font-extrabold underline group-hover/trialstatus:translate-x-0.5 transition-transform">
+                    Track Status &rarr;
+                  </span>
+                </button>
+              )}
+
               {/* Download Datasheet Button */}
               <button
                 type="button"
@@ -1582,11 +1639,10 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
                   e.stopPropagation();
                   setShowDatasheetModal(true);
                 }}
-                className={`w-full mt-2 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-xs transition-all duration-200 cursor-pointer group/datasheet hover:scale-[1.01] ${
-                  hasDatasheets
+                className={`w-full mt-2 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-xs transition-all duration-200 cursor-pointer group/datasheet hover:scale-[1.01] ${hasDatasheets
                     ? "bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30"
                     : "bg-surface-hover hover:bg-surface-hover/80 text-text-secondary border border-border"
-                }`}
+                  }`}
               >
                 <FaFilePdf className={`${hasDatasheets ? "text-red-500" : "text-text-muted"} group-hover/datasheet:scale-110 transition-transform`} size={13} />
                 <span>{hasDatasheets ? "Download Datasheet (PDF)" : "View Datasheet (PDF)"}</span>
@@ -1621,6 +1677,6 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
   );
 });
 
-KitCard.displayName ="KitCard";
+KitCard.displayName = "KitCard";
 
 export default KitCard;

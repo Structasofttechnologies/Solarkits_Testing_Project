@@ -1,5 +1,6 @@
 const { GstConfig, GstFilingRecord } = require('../models/india_solarshop_db/gst_management.schema');
-const { AccountingVoucher } = require('../models/india_solarshop_db/accounting_voucher.schema');
+const voucherModule = require('../models/india_solarshop_db/accounting_voucher.schema');
+const AccountingVoucher = voucherModule.AccountingVoucher || voucherModule;
 const { PurchaseInvoiceValidation } = require('../models/india_solarshop_db/invoice_validation.schema');
 
 // Initial seed configurations if none exist
@@ -65,7 +66,7 @@ exports.get_gst_dashboard_summary = async (req, res) => {
     // Aggregate Output GST from sales vouchers & tax ledgers
     const vouchers = await AccountingVoucher.find({
       financial_year,
-      status: 'POSTED'
+      status: { $in: ['POSTED', 'Posted', 'posted'] }
     }).lean();
 
     let output_cgst = 0;
@@ -75,21 +76,25 @@ exports.get_gst_dashboard_summary = async (req, res) => {
     let input_sgst = 0;
     let input_igst = 0;
 
-    vouchers.forEach(v => {
-      v.entries.forEach(e => {
+    (vouchers || []).forEach(v => {
+      (v.entries || []).forEach(e => {
         const headName = (e.head_name || '').toUpperCase();
-        if (headName.includes('OUTPUT CGST') || (headName.includes('CGST') && e.type === 'CREDIT')) {
-          output_cgst += e.credit_amount || 0;
-        } else if (headName.includes('OUTPUT SGST') || (headName.includes('SGST') && e.type === 'CREDIT')) {
-          output_sgst += e.credit_amount || 0;
-        } else if (headName.includes('OUTPUT IGST') || (headName.includes('IGST') && e.type === 'CREDIT')) {
-          output_igst += e.credit_amount || 0;
-        } else if (headName.includes('INPUT CGST') || (headName.includes('CGST') && e.type === 'DEBIT')) {
-          input_cgst += e.debit_amount || 0;
-        } else if (headName.includes('INPUT SGST') || (headName.includes('SGST') && e.type === 'DEBIT')) {
-          input_sgst += e.debit_amount || 0;
-        } else if (headName.includes('INPUT IGST') || (headName.includes('IGST') && e.type === 'DEBIT')) {
-          input_igst += e.debit_amount || 0;
+        const entryType = (e.entry_type || e.type || '').toUpperCase();
+        const creditAmt = e.credit_amount !== undefined ? (e.credit_amount || 0) : (entryType === 'CREDIT' ? (e.amount || 0) : 0);
+        const debitAmt = e.debit_amount !== undefined ? (e.debit_amount || 0) : (entryType === 'DEBIT' ? (e.amount || 0) : 0);
+
+        if (headName.includes('OUTPUT CGST') || (headName.includes('CGST') && entryType === 'CREDIT')) {
+          output_cgst += creditAmt;
+        } else if (headName.includes('OUTPUT SGST') || (headName.includes('SGST') && entryType === 'CREDIT')) {
+          output_sgst += creditAmt;
+        } else if (headName.includes('OUTPUT IGST') || (headName.includes('IGST') && entryType === 'CREDIT')) {
+          output_igst += creditAmt;
+        } else if (headName.includes('INPUT CGST') || (headName.includes('CGST') && entryType === 'DEBIT')) {
+          input_cgst += debitAmt;
+        } else if (headName.includes('INPUT SGST') || (headName.includes('SGST') && entryType === 'DEBIT')) {
+          input_sgst += debitAmt;
+        } else if (headName.includes('INPUT IGST') || (headName.includes('IGST') && entryType === 'DEBIT')) {
+          input_igst += debitAmt;
         }
       });
     });
@@ -103,7 +108,7 @@ exports.get_gst_dashboard_summary = async (req, res) => {
     let purchase_itc_cgst = 0;
     let purchase_itc_sgst = 0;
     let purchase_itc_igst = 0;
-    validatedInvoices.forEach(inv => {
+    (validatedInvoices || []).forEach(inv => {
       purchase_itc_cgst += inv.cgst_amount || 0;
       purchase_itc_sgst += inv.sgst_amount || 0;
       purchase_itc_igst += inv.igst_amount || 0;
@@ -188,9 +193,9 @@ exports.get_gstr1_data = async (req, res) => {
 
     // Filter sales vouchers
     const salesVouchers = await AccountingVoucher.find({
-      voucher_type: { $in: ['SALES', 'RECEIPT'] },
+      voucher_type: { $in: ['SALES', 'RECEIPT', 'Sales', 'Receipt'] },
       financial_year,
-      status: 'POSTED'
+      status: { $in: ['POSTED', 'Posted', 'posted'] }
     }).sort({ voucher_date: -1 }).lean();
 
     // Group into B2B (with GSTIN), B2C Large, B2C Small
@@ -201,17 +206,20 @@ exports.get_gstr1_data = async (req, res) => {
     let totalSgst = 0;
     let totalIgst = 0;
 
-    salesVouchers.forEach(v => {
+    (salesVouchers || []).forEach(v => {
       const isB2B = Boolean(v.entity_gstin);
       let invCgst = 0, invSgst = 0, invIgst = 0, invTaxable = 0;
 
-      v.entries.forEach(e => {
+      (v.entries || []).forEach(e => {
         const head = (e.head_name || '').toUpperCase();
-        if (head.includes('CGST')) invCgst += (e.credit_amount || 0);
-        else if (head.includes('SGST')) invSgst += (e.credit_amount || 0);
-        else if (head.includes('IGST')) invIgst += (e.credit_amount || 0);
-        else if (e.type === 'CREDIT' && (head.includes('SALES') || head.includes('REVENUE'))) {
-          invTaxable += (e.credit_amount || 0);
+        const entryType = (e.entry_type || e.type || '').toUpperCase();
+        const creditAmt = e.credit_amount !== undefined ? (e.credit_amount || 0) : (entryType === 'CREDIT' ? (e.amount || 0) : 0);
+
+        if (head.includes('CGST')) invCgst += creditAmt;
+        else if (head.includes('SGST')) invSgst += creditAmt;
+        else if (head.includes('IGST')) invIgst += creditAmt;
+        else if (entryType === 'CREDIT' && (head.includes('SALES') || head.includes('REVENUE'))) {
+          invTaxable += creditAmt;
         }
       });
 

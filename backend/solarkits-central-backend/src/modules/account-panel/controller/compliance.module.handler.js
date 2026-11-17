@@ -1,7 +1,9 @@
 const { PurchaseInvoiceValidation } = require('../models/india_solarshop_db/invoice_validation.schema');
 const { ComplianceTask } = require('../models/india_solarshop_db/compliance_calendar.schema');
-const { AccountingVoucher } = require('../models/india_solarshop_db/accounting_voucher.schema');
-const { AccountingHead } = require('../models/india_solarshop_db/accounting_head.schema');
+const voucherModule = require('../models/india_solarshop_db/accounting_voucher.schema');
+const AccountingVoucher = voucherModule.AccountingVoucher || voucherModule;
+const headModule = require('../models/india_solarshop_db/accounting_head.schema');
+const AccountingHead = headModule.AccountingHead || headModule;
 
 // Initial seed statutory calendar if empty
 const DEFAULT_COMPLIANCE_TASKS = [
@@ -223,21 +225,23 @@ exports.post_invoice_to_ledger = async (req, res) => {
     }
 
     // Find Purchase and Tax heads
-    let purchaseHead = await AccountingHead.findOne({ head_name: /Product Purchases/i });
+    let purchaseHead = await AccountingHead.findOne({ $or: [{ name: /Product Purchases/i }, { head_name: /Product Purchases/i }] });
     if (!purchaseHead) purchaseHead = await AccountingHead.findOne({ category: 'Purchase Accounts' });
 
-    let cgstInputHead = await AccountingHead.findOne({ head_name: /Input CGST/i });
-    let sgstInputHead = await AccountingHead.findOne({ head_name: /Input SGST/i });
-    let igstInputHead = await AccountingHead.findOne({ head_name: /Input IGST/i });
-    let supplierPayableHead = await AccountingHead.findOne({ head_name: /Accounts Payable/i }) || await AccountingHead.findOne({ ledger_type: 'Liability' });
+    let cgstInputHead = await AccountingHead.findOne({ $or: [{ name: /Input CGST/i }, { head_name: /Input CGST/i }] });
+    let sgstInputHead = await AccountingHead.findOne({ $or: [{ name: /Input SGST/i }, { head_name: /Input SGST/i }] });
+    let igstInputHead = await AccountingHead.findOne({ $or: [{ name: /Input IGST/i }, { head_name: /Input IGST/i }] });
+    let supplierPayableHead = await AccountingHead.findOne({ $or: [{ name: /Accounts Payable/i }, { head_name: /Accounts Payable/i }] }) || await AccountingHead.findOne({ ledger_type: 'Liability' });
 
     const entries = [];
     // Debit Purchase Account
     entries.push({
-      head_id: purchaseHead?._id,
-      head_name: purchaseHead?.head_name || 'Product Purchases',
+      head_id: purchaseHead?._id || null,
+      head_name: purchaseHead?.name || purchaseHead?.head_name || 'Product Purchases',
       head_code: purchaseHead?.head_code || 'AH-1005',
       type: 'DEBIT',
+      entry_type: 'Debit',
+      amount: invoice.taxable_value,
       debit_amount: invoice.taxable_value,
       credit_amount: 0,
       narration: `Purchase of inventory against Inv #${invoice.invoice_number}`
@@ -247,9 +251,11 @@ exports.post_invoice_to_ledger = async (req, res) => {
     if (invoice.cgst_amount > 0 && cgstInputHead) {
       entries.push({
         head_id: cgstInputHead._id,
-        head_name: cgstInputHead.head_name,
-        head_code: cgstInputHead.head_code,
+        head_name: cgstInputHead.name || cgstInputHead.head_name || 'Input CGST',
+        head_code: cgstInputHead.head_code || 'AH-1014',
         type: 'DEBIT',
+        entry_type: 'Debit',
+        amount: invoice.cgst_amount,
         debit_amount: invoice.cgst_amount,
         credit_amount: 0,
         narration: `Input CGST against Inv #${invoice.invoice_number}`
@@ -258,9 +264,11 @@ exports.post_invoice_to_ledger = async (req, res) => {
     if (invoice.sgst_amount > 0 && sgstInputHead) {
       entries.push({
         head_id: sgstInputHead._id,
-        head_name: sgstInputHead.head_name,
-        head_code: sgstInputHead.head_code,
+        head_name: sgstInputHead.name || sgstInputHead.head_name || 'Input SGST',
+        head_code: sgstInputHead.head_code || 'AH-1015',
         type: 'DEBIT',
+        entry_type: 'Debit',
+        amount: invoice.sgst_amount,
         debit_amount: invoice.sgst_amount,
         credit_amount: 0,
         narration: `Input SGST against Inv #${invoice.invoice_number}`
@@ -269,9 +277,11 @@ exports.post_invoice_to_ledger = async (req, res) => {
     if (invoice.igst_amount > 0 && igstInputHead) {
       entries.push({
         head_id: igstInputHead._id,
-        head_name: igstInputHead.head_name,
-        head_code: igstInputHead.head_code,
+        head_name: igstInputHead.name || igstInputHead.head_name || 'Input IGST',
+        head_code: igstInputHead.head_code || 'AH-1016',
         type: 'DEBIT',
+        entry_type: 'Debit',
+        amount: invoice.igst_amount,
         debit_amount: invoice.igst_amount,
         credit_amount: 0,
         narration: `Input IGST against Inv #${invoice.invoice_number}`
@@ -280,10 +290,12 @@ exports.post_invoice_to_ledger = async (req, res) => {
 
     // Credit Supplier / Accounts Payable
     entries.push({
-      head_id: supplierPayableHead?._id,
+      head_id: supplierPayableHead?._id || null,
       head_name: `${invoice.supplier_name} (Payable)`,
       head_code: supplierPayableHead?.head_code || 'AH-2001',
       type: 'CREDIT',
+      entry_type: 'Credit',
+      amount: invoice.invoice_total_amount,
       debit_amount: 0,
       credit_amount: invoice.invoice_total_amount,
       narration: `Total invoice payable to ${invoice.supplier_name}`

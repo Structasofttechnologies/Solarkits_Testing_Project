@@ -78,6 +78,7 @@ export default function BdeLayout() {
       ? [
         { name: 'EPC Leads', path: '/epc-leads', icon: Zap },
         { name: 'EPC Onboarding', path: '/epc-onboarding', icon: ShieldCheck },
+        { name: 'Trial Kit Funnel', path: '/trial-kit-funnel', icon: Package },
         { name: 'EPC Quotes', path: '/epc-quotes', icon: FileText },
         { name: 'Quote Follow-ups', path: '/epc-quote-followups', icon: CalendarCheck },
       ]
