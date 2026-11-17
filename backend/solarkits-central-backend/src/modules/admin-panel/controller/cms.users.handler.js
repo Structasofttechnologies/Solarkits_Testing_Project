@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const { CmsUser, CmsRole, CmsLevel, CmsDepartment, CmsUserScope, UserPanel, CmsPanel, PanelSaaSProduct, RolePanel, SaaSProduct, CountrySaaSProduct } = require("../models/user_db");
 const { GeoLevel0, GeoLevel1, GeoLevel2, GeoLevel3, GeoLevel4, Cluster } = require("../models/geolocation_db");
 const { user_db, geolocation_db } = require("../config/databases");
