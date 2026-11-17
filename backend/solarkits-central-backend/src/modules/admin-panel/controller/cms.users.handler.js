@@ -1020,12 +1020,6 @@ const add_cms_user = async (req, res) => {
             state_name: state_name || null,
             department_name: department_name || dept?.name || null
         });
-            warehouse_name: warehouse_name || null,
-            cluster_id: cluster_id || null,
-            cluster_name: cluster_name || null,
-            state_name: state_name || null,
-            department_name: department_name || dept?.name || null
-        });
         await newUser.save();
 
         if (cluster_id) {
