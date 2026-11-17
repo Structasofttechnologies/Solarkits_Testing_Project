@@ -10,7 +10,11 @@ const get_modules_by_level_and_panel = async (req, res) => {
         const panelIds = panel_id.split(',');
 
         const modules = await CmsModule.find({
-            level_id: level_id,
+            $or: [
+                { level_id: level_id },
+                { level_id: null },
+                { level_id: { $exists: false } }
+            ],
             panel_id: { $in: panelIds }
         }).populate('parent_module_id', 'name').sort({ created_at: -1 }).lean();
 
