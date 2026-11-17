@@ -17,6 +17,7 @@ router.put('/module-permission/:id', check_auth, check_permissions([{ unique_cod
 router.post('/unassign-module/:id', check_auth, check_permissions([{ unique_code: 'ADM_RBAC', permissions: ['edit'] }]), roles_handler.unassign_module_from_role)
 router.get('/country-saas-products/:country_id', check_auth, check_permissions([{ unique_code: 'ADM_RBAC', permissions: ['view'] }]), roles_handler.get_country_saas_products)
 router.get('/:id', check_auth, check_permissions([{ unique_code: 'ADM_RBAC', permissions: ['view'] }]), roles_handler.get_role)
+router.put('/:id/panels', check_auth, check_permissions([{ unique_code: 'ADM_RBAC', permissions: ['edit'] }]), roles_handler.update_role_panels)
 router.put('/:id', check_auth, check_permissions([{ unique_code: 'ADM_RBAC', permissions: ['edit'] }]), roles_handler.update_role)
 router.delete('/:id', check_auth, check_permissions([{ unique_code: 'ADM_RBAC', permissions: ['edit'] }]), roles_handler.delete_role)
 router.get('/:department_id/:level_id', check_auth, check_permissions([{ unique_code: 'ADM_RBAC', permissions: ['view'] }]), roles_handler.get_parent_roles)

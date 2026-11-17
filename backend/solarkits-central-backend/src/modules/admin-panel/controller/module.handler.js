@@ -1,21 +1,28 @@
+const mongoose = require('mongoose');
 const { CmsModule } = require('../models/user_db');
 
 const get_modules_by_level_and_panel = async (req, res) => {
     try {
         const { level_id, panel_id } = req.params;
-        if (!level_id || !panel_id) {
-            return res.status(400).json({ status: 'error', message: 'level_id and panel_id are required' });
+        if (!panel_id) {
+            return res.status(400).json({ status: 'error', message: 'panel_id is required' });
         }
 
-        const panelIds = panel_id.split(',');
+        const rawPanelIds = panel_id.split(',').map(p => p.trim()).filter(Boolean);
+        const objPanelIds = rawPanelIds
+            .filter(id => mongoose.Types.ObjectId.isValid(id))
+            .map(id => new mongoose.Types.ObjectId(id));
+
+        const panelConditions = [
+            { panel_id: { $in: rawPanelIds } }
+        ];
+        if (objPanelIds.length > 0) {
+            panelConditions.push({ panel_id: { $in: objPanelIds } });
+        }
 
         const modules = await CmsModule.find({
-            $or: [
-                { level_id: level_id },
-                { level_id: null },
-                { level_id: { $exists: false } }
-            ],
-            panel_id: { $in: panelIds }
+            $or: panelConditions,
+            is_deleted: { $ne: true }
         }).populate('parent_module_id', 'name').sort({ created_at: -1 }).lean();
 
         const data = modules.map(m => ({

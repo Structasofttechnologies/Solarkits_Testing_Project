@@ -991,4 +991,46 @@ const delete_role = async (req, res) => {
     }
 };
 
-module.exports = { get_levels, get_roles, get_role, add_role, get_parent_roles, update_role, delete_role, send_otp_for_update_role, send_otp_for_unassign_module, assign_module_to_role, update_module_permissions, unassign_module_from_role, get_country_saas_products }
+const update_role_panels = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { panels } = req.body;
+
+        if (!Array.isArray(panels)) {
+            return res.status(400).json({ status: 'error', message: 'panels array is required' });
+        }
+
+        const role = await CmsRole.findOne({ _id: id, deleted_at: null });
+        if (!role) {
+            return res.status(404).json({ status: 'error', message: 'Role not found' });
+        }
+
+        const panelIds = panels.map(p => {
+            if (typeof p === 'string') return p;
+            return (p.panel_id || p.id || p._id || '').toString();
+        }).filter(Boolean);
+
+        // Replace RolePanel entries for this role
+        await RolePanel.deleteMany({ role_id: id });
+        for (const pId of panelIds) {
+            await RolePanel.create({
+                role_id: id,
+                panel_id: pId,
+                saas_product_ids: []
+            });
+        }
+
+        const updatedRolePanels = await RolePanel.find({ role_id: id }).populate('panel_id').lean();
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Role panels updated successfully',
+            data: updatedRolePanels
+        });
+    } catch (error) {
+        console.error("Error updating role panels:", error);
+        return res.status(500).json({ status: 'error', message: error.message || 'Internal Server Error' });
+    }
+};
+
+module.exports = { get_levels, get_roles, get_role, add_role, get_parent_roles, update_role, delete_role, update_role_panels, send_otp_for_update_role, send_otp_for_unassign_module, assign_module_to_role, update_module_permissions, unassign_module_from_role, get_country_saas_products }

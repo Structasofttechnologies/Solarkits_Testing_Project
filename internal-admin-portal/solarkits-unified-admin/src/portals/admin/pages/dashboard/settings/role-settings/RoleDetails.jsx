@@ -47,6 +47,11 @@ export default function RoleDetails({ moduleUniqueId }) {
   // Working state: map of moduleId -> { can_view, can_add, can_edit, can_delete }
   const [permissionMap, setPermissionMap] = useState({});
 
+  // Manage Panels Modal state
+  const [showPanelModal, setShowPanelModal] = useState(false);
+  const [selectedPanelIds, setSelectedPanelIds] = useState([]);
+  const [savingPanels, setSavingPanels] = useState(false);
+
   // Fetch initial role details
   const getRoleDetails = async (id) => {
     setViewRoleLoading(true);
@@ -103,12 +108,6 @@ export default function RoleDetails({ moduleUniqueId }) {
   // Panels associated with this role
   const rolePanels = useMemo(() => {
     if (!viewRole) return [];
-    if (viewRole.name === 'Super Admin') {
-      return allPanels.map(p => ({
-        id: (p.id || p._id).toString(),
-        name: p.name
-      }));
-    }
     const panelsList = [];
     if (viewRole.panels && viewRole.panels.length > 0) {
       viewRole.panels.forEach(p => {
@@ -117,7 +116,15 @@ export default function RoleDetails({ moduleUniqueId }) {
           name: p.name
         });
       });
-    } else if (viewRole.panel_id) {
+      return panelsList;
+    }
+    if (viewRole.name === 'Super Admin') {
+      return allPanels.map(p => ({
+        id: (p.id || p._id).toString(),
+        name: p.name
+      }));
+    }
+    if (viewRole.panel_id) {
       const pId = (viewRole.panel_id._id || viewRole.panel_id).toString();
       const pObj = allPanels.find(p => (p.id || p._id).toString() === pId);
       panelsList.push({
@@ -128,10 +135,15 @@ export default function RoleDetails({ moduleUniqueId }) {
     return panelsList;
   }, [viewRole, allPanels]);
 
-  // Set default active panel tab once panels are loaded
+  // Set default active panel tab once panels are loaded or change
   useEffect(() => {
-    if (rolePanels.length > 0 && !activePanelId) {
-      setActivePanelId(rolePanels[0].id);
+    if (rolePanels.length > 0) {
+      const stillValid = rolePanels.some(p => p.id === activePanelId);
+      if (!activePanelId || !stillValid) {
+        setActivePanelId(rolePanels[0].id);
+      }
+    } else {
+      setActivePanelId(null);
     }
   }, [rolePanels, activePanelId]);
 
@@ -139,9 +151,9 @@ export default function RoleDetails({ moduleUniqueId }) {
   const loadModules = async () => {
     if (!viewRole) return;
     const level_id = viewRole.level_id || (allLevels[0]?.id || allLevels[0]?._id);
-    const panel_ids = rolePanels.length > 0 
-      ? rolePanels.map(p => p.id).join(',') 
-      : (allPanels.map(p => p.id || p._id).join(','));
+    const panel_ids = allPanels.length > 0
+      ? allPanels.map(p => (p.id || p._id).toString()).join(',')
+      : (rolePanels.map(p => p.id).join(','));
 
     if (!panel_ids) return;
 
@@ -202,10 +214,56 @@ export default function RoleDetails({ moduleUniqueId }) {
   };
 
   useEffect(() => {
-    if (viewRole && rolePanels.length > 0) {
+    if (viewRole && allPanels.length > 0) {
       loadModules();
     }
-  }, [viewRole, rolePanels.length]);
+  }, [viewRole, allPanels.length]);
+
+  // Open Manage Panels Modal
+  const openPanelModal = () => {
+    setSelectedPanelIds(rolePanels.map(p => p.id));
+    setShowPanelModal(true);
+  };
+
+  // Save updated panels for this role
+  const handleSaveRolePanels = async () => {
+    if (!role_id) return;
+    if (selectedPanelIds.length === 0) {
+      dispatch(setAlert({
+        type: 'error',
+        message: 'At least one portal panel must be selected for this role.',
+        duration: 3500
+      }));
+      return;
+    }
+
+    setSavingPanels(true);
+    try {
+      await axios.put(
+        `${API}/roles/${role_id}/panels?unique_id=${moduleUniqueId}&req_for=edit`,
+        { panels: selectedPanelIds },
+        { headers: authHeaderObj() }
+      );
+
+      dispatch(setAlert({
+        type: 'success',
+        message: `Allowed panels updated successfully for ${viewRole?.name}!`,
+        duration: 3500
+      }));
+
+      setShowPanelModal(false);
+      await getRoleDetails(role_id);
+    } catch (err) {
+      console.error("Error updating role panels:", err);
+      dispatch(setAlert({
+        type: 'error',
+        message: err.response?.data?.message || 'Failed to update allowed panels for this role.',
+        duration: 4000
+      }));
+    } finally {
+      setSavingPanels(false);
+    }
+  };
 
   // Modules belonging to current active panel
   const currentPanelModules = useMemo(() => {
@@ -420,50 +478,75 @@ export default function RoleDetails({ moduleUniqueId }) {
 
       {/* STEP 1: PANEL TABS SWITCHER */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-black uppercase tracking-wider text-text-muted flex items-center gap-2">
-            <FiGrid className="text-primary" size={15} />
-            <span>Step 1: Select Portal Panel</span>
-          </h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h3 className="text-xs font-black uppercase tracking-wider text-text-muted flex items-center gap-2">
+              <FiGrid className="text-primary" size={15} />
+              <span>Step 1: Select Portal Panel</span>
+            </h3>
+            <button
+              type="button"
+              onClick={openPanelModal}
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-black rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25 transition-all cursor-pointer shadow-xs"
+              title="Add or remove portal panels allowed for this role"
+            >
+              <FiSliders size={12} />
+              <span>Manage Allowed Panels ({rolePanels.length}/{allPanels.length})</span>
+            </button>
+          </div>
           <span className="text-xs font-bold text-text-secondary">
             {activeInCurrentPanel} / {currentPanelModules.length} Modules Active in this Panel
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-2.5">
-          {rolePanels.map(panel => {
-            const isActive = activePanelId === panel.id;
-            const panelModulesCount = allModules.filter(m => (m.panel_id?._id || m.panel_id || m.raw?.panel_id)?.toString() === panel.id.toString()).length;
-            const activeCountInPanel = allModules.filter(m => {
-              const pId = (m.panel_id?._id || m.panel_id || m.raw?.panel_id)?.toString();
-              return pId === panel.id.toString() && permissionMap[(m.id || m._id).toString()]?.can_view;
-            }).length;
+        {rolePanels.length === 0 ? (
+          <div className="p-6 text-center bg-surface border border-dashed border-border rounded-2xl">
+            <p className="text-sm text-text-secondary font-medium">No portal panels are currently assigned to this role.</p>
+            <button
+              type="button"
+              onClick={openPanelModal}
+              className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold shadow-md hover:bg-primary-hover transition-colors cursor-pointer"
+            >
+              <FiSliders size={14} />
+              <span>Assign Panels to this Role</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2.5">
+            {rolePanels.map(panel => {
+              const isActive = activePanelId === panel.id;
+              const panelModulesCount = allModules.filter(m => (m.panel_id?._id || m.panel_id || m.raw?.panel_id)?.toString() === panel.id.toString()).length;
+              const activeCountInPanel = allModules.filter(m => {
+                const pId = (m.panel_id?._id || m.panel_id || m.raw?.panel_id)?.toString();
+                return pId === panel.id.toString() && permissionMap[(m.id || m._id).toString()]?.can_view;
+              }).length;
 
-            return (
-              <button
-                key={panel.id}
-                type="button"
-                onClick={() => {
-                  setActivePanelId(panel.id);
-                  setSearchQuery("");
-                }}
-                className={`px-4 py-3 rounded-2xl font-bold text-sm transition-all duration-200 flex items-center gap-3 cursor-pointer border ${
-                  isActive
-                    ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-[1.02]'
-                    : 'bg-surface hover:bg-surface-hover text-text-primary border-border'
-                }`}
-              >
-                <FiGrid size={16} className={isActive ? 'text-white' : 'text-primary'} />
-                <span>{panel.name}</span>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full font-black ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
-                }`}>
-                  {activeCountInPanel}/{panelModulesCount}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <button
+                  key={panel.id}
+                  type="button"
+                  onClick={() => {
+                    setActivePanelId(panel.id);
+                    setSearchQuery("");
+                  }}
+                  className={`px-4 py-3 rounded-2xl font-bold text-sm transition-all duration-200 flex items-center gap-3 cursor-pointer border ${
+                    isActive
+                      ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-[1.02]'
+                      : 'bg-surface hover:bg-surface-hover text-text-primary border-border'
+                  }`}
+                >
+                  <FiGrid size={16} className={isActive ? 'text-white' : 'text-primary'} />
+                  <span>{panel.name}</span>
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-black ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
+                  }`}>
+                    {activeCountInPanel}/{panelModulesCount}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* STEP 2: MODULES & PERMISSION CONTROLS FOR ACTIVE PANEL */}
@@ -736,6 +819,122 @@ export default function RoleDetails({ moduleUniqueId }) {
           </Button>
         </div>
       </div>
+
+      {/* MANAGE ALLOWED PANELS MODAL */}
+      {showPanelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-surface border border-border rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-border bg-linear-120 from-primary/10 via-transparent to-transparent flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-primary/10 text-primary rounded-2xl">
+                  <FiSliders size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-text-primary">
+                    Manage Allowed Panels
+                  </h3>
+                  <p className="text-xs text-text-secondary mt-0.5">
+                    Configure which portal panels are accessible to "{viewRole?.name}".
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPanelModal(false)}
+                className="p-2 text-text-muted hover:text-text-primary rounded-xl hover:bg-surface-hover transition-colors cursor-pointer"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body - Panel Checkbox List */}
+            <div className="p-6 space-y-3 max-h-[60vh] overflow-y-auto">
+              <p className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">
+                Select Portal Panels ({selectedPanelIds.length} Selected):
+              </p>
+              {allPanels.map((panel) => {
+                const pId = (panel.id || panel._id).toString();
+                const isSelected = selectedPanelIds.includes(pId);
+                const modCount = allModules.filter(m => (m.panel_id?._id || m.panel_id || m.raw?.panel_id)?.toString() === pId).length;
+
+                return (
+                  <div
+                    key={pId}
+                    onClick={() => {
+                      setSelectedPanelIds(prev =>
+                        prev.includes(pId)
+                          ? prev.filter(id => id !== pId)
+                          : [...prev, pId]
+                      );
+                    }}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                      isSelected
+                        ? 'border-primary/50 bg-primary/5 shadow-xs'
+                        : 'border-border bg-surface-hover/30 hover:border-text-muted/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-colors ${
+                        isSelected ? 'bg-primary border-primary text-white' : 'border-border bg-surface'
+                      }`}>
+                        {isSelected && <FiCheck size={13} strokeWidth={3} />}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-text-primary">
+                          {panel.name}
+                        </h4>
+                        <p className="text-xs text-text-muted mt-0.5">
+                          {modCount > 0 ? `${modCount} module(s) available in this panel` : 'Portal workspace panel'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`text-[11px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                      isSelected ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-surface-hover text-text-muted'
+                    }`}>
+                      {isSelected ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-5 border-t border-border bg-surface-hover/40 flex items-center justify-between gap-3">
+              <span className="text-xs text-text-muted">
+                Unchecked panels will be removed from this role's scope.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPanelModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-text-secondary hover:text-text-primary rounded-xl hover:bg-surface-hover transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveRolePanels}
+                  disabled={savingPanels}
+                  className="px-5 py-2 text-xs font-black text-white bg-primary hover:bg-primary-hover rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {savingPanels ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiSave size={13} />
+                      <span>Apply Panels</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
