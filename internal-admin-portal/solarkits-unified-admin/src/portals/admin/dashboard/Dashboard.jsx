@@ -10,8 +10,6 @@ import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
 
-import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaTruck } from "react-icons/fa";
-
 import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck } from "react-icons/fa";
 
 import {
@@ -305,15 +303,15 @@ const menus = [
           unique_id: "00000000"
         },
         {
-
           name: "Invoice & DO Settings",
           icon: <FaReceipt />,
           path: "/admin-panel/accounts-module?tab=invoice-do",
-
+          unique_id: "00000000"
+        },
+        {
           name: "Franchise Business Profiles",
           icon: <FaBriefcase />,
           path: "/admin-panel/settings/business-profiles",
-
           unique_id: "00000000"
         }
       ],
@@ -586,12 +584,17 @@ export default function Dashboard() {
                       <PermissionGuard requiredUniqueId="00000000">
                         <Suspense fallback={<Loader text="Loading Accounts Module..." />}>
                           <AccountsModuleHub />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+
+                  <Route
                     path="/franchisee-performance-dashboard"
                     element={
                       <PermissionGuard requiredUniqueId="00000000">
                         <Suspense fallback={<Loader text="Loading Franchisee Performance Dashboard..." />}>
                           <FranchiseePerformanceDashboard />
-
                         </Suspense>
                       </PermissionGuard>
                     }

@@ -30,12 +30,9 @@ const InvoiceValidationModule = lazy(() => import("../pages/compliance/InvoiceVa
 const ExpenseManagementModule = lazy(() => import("../pages/expenses/ExpenseManagementModule"));
 const WarehouseFinanceModule = lazy(() => import("../pages/warehouse-finance/WarehouseFinanceModule"));
 const ExecutiveFinanceDashboard = lazy(() => import("../pages/executive/ExecutiveFinanceDashboard"));
-<<<<<<< HEAD
 const CompanyProfileAndFy = lazy(() => import("../pages/company-profile/CompanyProfileAndFy"));
 const StatutoryRegistersHub = lazy(() => import("../pages/registers/StatutoryRegistersHub"));
-=======
 const AccountsTrialKitStockPage = lazy(() => import("../pages/trial-kits/AccountsTrialKitStockPage"));
->>>>>>> 5f973cd0afa3e6fc96c71878e4a13a18589ea349
 
 const getMenusWithBadges = (badgeCounts = {}) => [
   [

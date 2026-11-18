@@ -301,22 +301,7 @@ export default function Footer({ footerConfig }) {
                       </div>
 
                       {/* Pincode or Quantity (Optional) */}
-<<<<<<< HEAD
-=======
-                      {/* <div className="sm:col-span-2">
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-1">
-                          Pincode / Bulk Quantity (Optional)
-                        </label>
-                        <input
-                          type="text"
-                          name="pincode"
-                          value={formData.pincode}
-                          onChange={handleInputChange}
-                          placeholder="e.g. 360001 or 5x 3kW Kits"
-                          className="w-full rounded-xl border border-white/25 bg-white px-3.5 py-2.5 text-xs text-navy outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-accent"
-                        />
-                      </div> */}
->>>>>>> 5f973cd0afa3e6fc96c71878e4a13a18589ea349
+
                     </div>
 
                     <div className="mt-3.5 flex items-center justify-between gap-3 pt-1 border-t border-white/10">

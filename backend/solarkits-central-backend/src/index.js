@@ -221,15 +221,12 @@ adminRouter.use('/knowledge-center', require('./modules/solarshop-india/routes/v
 // ─── Franchisee Cluster & Business Model Module ───
 adminRouter.use('/franchise-clusters', require('./modules/admin-panel/routes/franchisee.cluster.route'));
 
-<<<<<<< HEAD
 // ─── Dynamic Invoice & Delivery Order (DO) Settings ────────────────────────
 adminRouter.use('/invoice-do-settings', require('./modules/admin-panel/routes/invoice.do.settings.route'));
 adminRouter.use('/registers', require('./modules/account-panel/routes/registers.route'));
 
-=======
 // ─── SOLARKITS: Trial Kit Management Module ───
 adminRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
->>>>>>> 5f973cd0afa3e6fc96c71878e4a13a18589ea349
 
 app.use('/admin-api', adminRouter);
 app.use('/api', adminRouter);
