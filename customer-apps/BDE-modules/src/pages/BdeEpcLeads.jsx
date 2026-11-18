@@ -132,6 +132,121 @@ function getEpcTypeBadge(type, typeList = []) {
   }
 }
 
+export const BULK_FIELD_OPTIONS = [
+  {
+    key: 'company_name',
+    label: 'Company / Firm Name',
+    desc: 'Contractor legal business name',
+    required: true,
+    tag: 'Required',
+    tagColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  },
+  {
+    key: 'mobile_number',
+    label: 'Mobile Number',
+    desc: '10-digit Indian contact number',
+    required: true,
+    tag: 'Required',
+    tagColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  },
+  {
+    key: 'gst_number',
+    label: 'GSTIN / GST Number',
+    desc: '15-char Tax ID (Extract & Validate)',
+    required: false,
+    tag: 'Tax / GST',
+    tagColor: 'bg-amber-100 text-amber-800 border-amber-200',
+  },
+  {
+    key: 'email',
+    label: 'Email Address',
+    desc: 'Contractor email (optional check)',
+    required: false,
+    tag: 'Optional',
+    tagColor: 'bg-blue-100 text-blue-800 border-blue-200',
+  },
+  {
+    key: 'contact_person',
+    label: 'Contact Person',
+    desc: 'Proprietor name (or firm name fallback)',
+    required: false,
+    tag: 'Contact',
+    tagColor: 'bg-slate-100 text-slate-700 border-slate-200',
+  },
+  {
+    key: 'district_name',
+    label: 'District / City',
+    desc: 'Contractor district (or fallback to default)',
+    required: false,
+    tag: 'Territory',
+    tagColor: 'bg-purple-100 text-purple-800 border-purple-200',
+  },
+  {
+    key: 'state_name',
+    label: 'State',
+    desc: 'Contractor state (or fallback to default)',
+    required: false,
+    tag: 'Territory',
+    tagColor: 'bg-purple-100 text-purple-800 border-purple-200',
+  },
+  {
+    key: 'pincode',
+    label: 'Pincode / Postal',
+    desc: '6-digit area postal code',
+    required: false,
+    tag: 'Location',
+    tagColor: 'bg-slate-100 text-slate-700 border-slate-200',
+  },
+  {
+    key: 'address_line',
+    label: 'Office / Shop Address',
+    desc: 'Premises street or landmark',
+    required: false,
+    tag: 'Location',
+    tagColor: 'bg-slate-100 text-slate-700 border-slate-200',
+  },
+  {
+    key: 'epc_type',
+    label: 'Classification Type',
+    desc: 'e.g. New EPC, Govt Contractor (or default)',
+    required: false,
+    tag: 'Classification',
+    tagColor: 'bg-teal-100 text-teal-800 border-teal-200',
+  },
+  {
+    key: 'lead_source',
+    label: 'Lead Source',
+    desc: 'e.g. Direct Visit, Expo (or default)',
+    required: false,
+    tag: 'Source',
+    tagColor: 'bg-teal-100 text-teal-800 border-teal-200',
+  },
+  {
+    key: 'interested_products',
+    label: 'Products of Interest',
+    desc: 'Solar products (or default)',
+    required: false,
+    tag: 'Products',
+    tagColor: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  },
+  {
+    key: 'follow_up_date',
+    label: 'Follow-up Date',
+    desc: 'Next call date (or default)',
+    required: false,
+    tag: 'Schedule',
+    tagColor: 'bg-sky-100 text-sky-800 border-sky-200',
+  },
+  {
+    key: 'remarks',
+    label: 'Campaign Note / Remarks',
+    desc: 'Custom note (or default)',
+    required: false,
+    tag: 'Notes',
+    tagColor: 'bg-slate-100 text-slate-700 border-slate-200',
+  },
+];
+
 export default function BdeEpcLeads() {
   const { canOnboardEpc, canOnboardFranchise } = useBdeAuth();
   const navigate = useNavigate();
@@ -180,6 +295,24 @@ export default function BdeEpcLeads() {
   const [bulkDragOver, setBulkDragOver] = useState(false);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [bulkResult, setBulkResult] = useState(null);
+  const [selectedBulkFields, setSelectedBulkFields] = useState({
+    company_name: true,
+    mobile_number: true,
+    gst_number: true,
+    email: true,
+    contact_person: true,
+    district_name: true,
+    state_name: false,
+    pincode: false,
+    address_line: false,
+    epc_type: false,
+    lead_source: false,
+    interested_products: false,
+    follow_up_date: false,
+    remarks: false,
+  });
+  const [rawWorkbookBinary, setRawWorkbookBinary] = useState(null);
+  const [detectedFileHeaders, setDetectedFileHeaders] = useState([]);
 
   // Assign Franchisee Modal State
   const [assignModalLead, setAssignModalLead] = useState(null);
@@ -323,11 +456,15 @@ export default function BdeEpcLeads() {
   const handleBulkStateSelect = (selectedState) => {
     const matchedTerritory = territories.find((t) => t.state_name === selectedState);
     const firstDistrict = matchedTerritory?.district_names?.[0] || '';
-    setBulkSettings((prev) => ({
-      ...prev,
+    const updated = {
+      ...bulkSettings,
       state_name: selectedState,
       district_name: firstDistrict,
-    }));
+    };
+    setBulkSettings(updated);
+    if (rawWorkbookBinary) {
+      parseAndMapRows(rawWorkbookBinary, selectedBulkFields, updated);
+    }
   };
 
   const handleBulkToggleProduct = (product) => {
@@ -475,6 +612,8 @@ export default function BdeEpcLeads() {
       interested_products: ['Residential On-Grid'],
       remarks: '',
     });
+    setRawWorkbookBinary(null);
+    setDetectedFileHeaders([]);
     setParsedRows([]);
     setBulkFilter('all');
     setBulkResult(null);
@@ -482,57 +621,183 @@ export default function BdeEpcLeads() {
     setBulkModalOpen(true);
   };
 
+  const applyBulkPreset = (presetKey) => {
+    let nextFields = { ...selectedBulkFields };
+    if (presetKey === 'all') {
+      nextFields = {
+        company_name: true,
+        mobile_number: true,
+        gst_number: true,
+        email: true,
+        contact_person: true,
+        district_name: true,
+        state_name: true,
+        pincode: true,
+        address_line: true,
+        epc_type: true,
+        lead_source: true,
+        interested_products: true,
+        follow_up_date: true,
+        remarks: true,
+      };
+    } else if (presetKey === 'with_gst') {
+      nextFields = {
+        company_name: true,
+        mobile_number: true,
+        gst_number: true,
+        email: true,
+        contact_person: true,
+        district_name: true,
+        state_name: false,
+        pincode: true,
+        address_line: false,
+        epc_type: false,
+        lead_source: false,
+        interested_products: false,
+        follow_up_date: false,
+        remarks: false,
+      };
+    } else if (presetKey === 'no_gst') {
+      nextFields = {
+        company_name: true,
+        mobile_number: true,
+        gst_number: false,
+        email: true,
+        contact_person: true,
+        district_name: true,
+        state_name: false,
+        pincode: false,
+        address_line: false,
+        epc_type: false,
+        lead_source: false,
+        interested_products: false,
+        follow_up_date: false,
+        remarks: false,
+      };
+    } else if (presetKey === 'minimal') {
+      nextFields = {
+        company_name: true,
+        mobile_number: true,
+        gst_number: false,
+        email: false,
+        contact_person: false,
+        district_name: false,
+        state_name: false,
+        pincode: false,
+        address_line: false,
+        epc_type: false,
+        lead_source: false,
+        interested_products: false,
+        follow_up_date: false,
+        remarks: false,
+      };
+    }
+    setSelectedBulkFields(nextFields);
+    if (rawWorkbookBinary) {
+      parseAndMapRows(rawWorkbookBinary, nextFields, bulkSettings);
+    }
+  };
+
+  const handleToggleBulkField = (fieldKey) => {
+    if (fieldKey === 'company_name' || fieldKey === 'mobile_number') return;
+    setSelectedBulkFields((prev) => {
+      const nextFields = {
+        ...prev,
+        [fieldKey]: !prev[fieldKey],
+      };
+      if (rawWorkbookBinary) {
+        parseAndMapRows(rawWorkbookBinary, nextFields, bulkSettings);
+      }
+      return nextFields;
+    });
+  };
+
   const handleDownloadSampleTemplate = (format = 'xlsx') => {
-    const headers = [
-      'EPC Company Name *',
-      'Contact Person Name *',
-      'Mobile Number *',
-      'Email Address *',
-      'GST Number (Optional)',
-      'State *',
-      'District *',
-      'Pincode',
-      'Address Line',
-      'Lead Source',
-      'EPC Classification Type',
-      'Interested Products',
-      'Follow-up Date (YYYY-MM-DD)',
-      'Remarks & Requirements',
-    ];
+    const headers = [];
+    const sampleRow1 = [];
+    const sampleRow2 = [];
 
-    const sampleRow1 = [
-      'Apex Solar Tech Pvt Ltd',
-      'Rajesh Sharma',
-      '9876543210',
-      'contact@apexsolar.in',
-      '24ABCDE1234F1Z5',
-      bulkSettings.state_name || 'Gujarat',
-      bulkSettings.district_name || 'Ahmedabad',
-      '380001',
-      '101 Titanium City Centre, Prahladnagar',
-      'direct_visit',
-      'New EPC',
-      'Residential On-Grid, Commercial On-Grid',
-      '2026-11-25',
-      'Met at Gujarat Solar Expo 2026',
-    ];
+    // Always mandatory
+    headers.push('EPC Company Name *');
+    sampleRow1.push('Apex Solar Tech Pvt Ltd');
+    sampleRow2.push('Surat Power Solutions');
 
-    const sampleRow2 = [
-      'Surat Power Solutions',
-      'Pravin Patel',
-      '9825001122',
-      'info@suratpower.com',
-      '',
-      bulkSettings.state_name || 'Gujarat',
-      'Surat',
-      '395001',
-      'Ring Road Industrial Area',
-      'referral',
-      'Experienced EPC',
-      'Commercial On-Grid, Industrial Rooftop',
-      '2026-11-30',
-      'Interested in 50kW solar inverters',
-    ];
+    if (selectedBulkFields.contact_person) {
+      headers.push('Contact Person Name');
+      sampleRow1.push('Rajesh Sharma');
+      sampleRow2.push('Pravin Patel');
+    }
+
+    // Always mandatory
+    headers.push('Mobile Number *');
+    sampleRow1.push('9876543210');
+    sampleRow2.push('9825001122');
+
+    if (selectedBulkFields.email) {
+      headers.push('Email Address');
+      sampleRow1.push('contact@apexsolar.in');
+      sampleRow2.push('info@suratpower.com');
+    }
+
+    if (selectedBulkFields.gst_number) {
+      headers.push('GST Number (15 Digits)');
+      sampleRow1.push('24ABCDE1234F1Z5');
+      sampleRow2.push('');
+    }
+
+    if (selectedBulkFields.state_name) {
+      headers.push('State');
+      sampleRow1.push(bulkSettings.state_name || 'Gujarat');
+      sampleRow2.push(bulkSettings.state_name || 'Gujarat');
+    }
+
+    if (selectedBulkFields.district_name) {
+      headers.push('District');
+      sampleRow1.push(bulkSettings.district_name || 'Ahmedabad');
+      sampleRow2.push('Surat');
+    }
+
+    if (selectedBulkFields.pincode) {
+      headers.push('Pincode');
+      sampleRow1.push('380001');
+      sampleRow2.push('395001');
+    }
+
+    if (selectedBulkFields.address_line) {
+      headers.push('Address Line');
+      sampleRow1.push('101 Titanium City Centre, Prahladnagar');
+      sampleRow2.push('Ring Road Industrial Area');
+    }
+
+    if (selectedBulkFields.lead_source) {
+      headers.push('Lead Source');
+      sampleRow1.push('direct_visit');
+      sampleRow2.push('referral');
+    }
+
+    if (selectedBulkFields.epc_type) {
+      headers.push('EPC Classification Type');
+      sampleRow1.push(bulkSettings.epc_type || 'New EPC');
+      sampleRow2.push('Experienced EPC');
+    }
+
+    if (selectedBulkFields.interested_products) {
+      headers.push('Interested Products');
+      sampleRow1.push('Residential On-Grid, Commercial On-Grid');
+      sampleRow2.push('Commercial On-Grid, Industrial Rooftop');
+    }
+
+    if (selectedBulkFields.follow_up_date) {
+      headers.push('Follow-up Date (YYYY-MM-DD)');
+      sampleRow1.push('2026-11-25');
+      sampleRow2.push('2026-11-30');
+    }
+
+    if (selectedBulkFields.remarks) {
+      headers.push('Remarks & Requirements');
+      sampleRow1.push('Met at Gujarat Solar Expo 2026');
+      sampleRow2.push('Interested in 50kW solar inverters');
+    }
 
     if (format === 'csv') {
       const csvData = [headers, sampleRow1, sampleRow2]
@@ -548,29 +813,13 @@ export default function BdeEpcLeads() {
       document.body.removeChild(link);
     } else {
       const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow1, sampleRow2]);
-      ws['!cols'] = [
-        { wch: 26 },
-        { wch: 22 },
-        { wch: 16 },
-        { wch: 24 },
-        { wch: 20 },
-        { wch: 16 },
-        { wch: 16 },
-        { wch: 12 },
-        { wch: 35 },
-        { wch: 16 },
-        { wch: 24 },
-        { wch: 32 },
-        { wch: 20 },
-        { wch: 30 },
-      ];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'EPC Leads');
       XLSX.writeFile(wb, 'EPC_Leads_Bulk_Upload_Sample.xlsx');
     }
   };
 
-  const handleProcessWorkbook = (dataBinary) => {
+  const parseAndMapRows = (dataBinary, activeFields, currentBulkSettings) => {
     try {
       const workbook = XLSX.read(dataBinary, { type: 'binary', cellDates: true });
       const sheetName = workbook.SheetNames[0];
@@ -582,57 +831,109 @@ export default function BdeEpcLeads() {
         return;
       }
 
+      const headers = Object.keys(rows[0] || {});
+      setDetectedFileHeaders(headers);
+
       const allowedStates = territories.map(t => (t.state_name || '').toLowerCase());
 
       const mapped = rows.map((rawRow, idx) => {
         const normalized = {};
+
         Object.entries(rawRow).forEach(([k, v]) => {
           const normKey = String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+          // Company Name (Mandatory)
           if (normKey.includes('company') || normKey.includes('firm') || normKey.includes('contractor') || normKey === 'name') {
             if (!normalized.company_name) normalized.company_name = v;
-          } else if (normKey.includes('contactperson') || normKey.includes('contactname') || normKey.includes('person') || normKey.includes('owner')) {
+          }
+          // Contact Person
+          if (activeFields.contact_person && (normKey.includes('contactperson') || normKey.includes('contactname') || normKey.includes('person') || normKey.includes('owner') || normKey.includes('proprietor'))) {
             if (!normalized.contact_person) normalized.contact_person = v;
-          } else if (normKey.includes('mobile') || normKey.includes('phone') || normKey.includes('contactno') || normKey.includes('cell')) {
+          }
+          // Mobile Number (Mandatory)
+          if (normKey.includes('mobile') || normKey.includes('phone') || normKey.includes('contactno') || normKey.includes('cell') || normKey.includes('whatsapp')) {
             if (!normalized.mobile_number) normalized.mobile_number = v;
-          } else if (normKey.includes('email') || normKey.includes('mail')) {
+          }
+          // Email Address
+          if (activeFields.email && (normKey.includes('email') || normKey.includes('mail'))) {
             if (!normalized.email) normalized.email = v;
-          } else if (normKey.includes('gst') || normKey.includes('gstin')) {
+          }
+          // GSTIN Number (User specifically requested: tick karega to GST fetch hoga!)
+          if (activeFields.gst_number && (normKey.includes('gst') || normKey.includes('gstin') || normKey.includes('tax') || normKey.includes('tin'))) {
             if (!normalized.gst_number) normalized.gst_number = v;
-          } else if (normKey.includes('district') || normKey.includes('city')) {
+          }
+          // District
+          if (activeFields.district_name && (normKey.includes('district') || normKey.includes('city') || normKey.includes('town'))) {
             if (!normalized.district_name) normalized.district_name = v;
-          } else if (normKey.includes('state')) {
+          }
+          // State
+          if (activeFields.state_name && (normKey.includes('state') || normKey.includes('province'))) {
             if (!normalized.state_name) normalized.state_name = v;
-          } else if (normKey.includes('pin') || normKey.includes('zip')) {
+          }
+          // Pincode
+          if (activeFields.pincode && (normKey.includes('pin') || normKey.includes('zip') || normKey.includes('postal'))) {
             if (!normalized.pincode) normalized.pincode = v;
-          } else if (normKey.includes('address') || normKey.includes('location')) {
+          }
+          // Address
+          if (activeFields.address_line && (normKey.includes('address') || normKey.includes('location') || normKey.includes('street'))) {
             if (!normalized.address_line) normalized.address_line = v;
-          } else if (normKey.includes('source')) {
+          }
+          // Lead Source
+          if (activeFields.lead_source && (normKey.includes('source') || normKey.includes('channel'))) {
             if (!normalized.lead_source) normalized.lead_source = v;
-          } else if (normKey.includes('classification') || normKey.includes('type') || normKey.includes('epctype')) {
+          }
+          // EPC Classification Type
+          if (activeFields.epc_type && (normKey.includes('classification') || normKey.includes('type') || normKey.includes('epctype') || normKey.includes('tier'))) {
             if (!normalized.epc_type) normalized.epc_type = v;
-          } else if (normKey.includes('product') || normKey.includes('project')) {
+          }
+          // Products
+          if (activeFields.interested_products && (normKey.includes('product') || normKey.includes('project') || normKey.includes('category'))) {
             if (!normalized.interested_products) normalized.interested_products = v;
-          } else if (normKey.includes('followup') || normKey.includes('follow')) {
+          }
+          // Follow-up
+          if (activeFields.follow_up_date && (normKey.includes('followup') || normKey.includes('follow') || normKey.includes('nextcall'))) {
             if (!normalized.follow_up_date) normalized.follow_up_date = v;
-          } else if (normKey.includes('remark') || normKey.includes('note') || normKey.includes('requirement')) {
+          }
+          // Remarks
+          if (activeFields.remarks && (normKey.includes('remark') || normKey.includes('note') || normKey.includes('comment') || normKey.includes('requirement'))) {
             if (!normalized.remarks) normalized.remarks = v;
           }
         });
 
         const company = String(normalized.company_name || '').trim();
-        const contact = String(normalized.contact_person || company || '').trim();
+        const contact = activeFields.contact_person
+          ? String(normalized.contact_person || company || '').trim()
+          : (company || 'Owner');
         const mobile = String(normalized.mobile_number || '').trim().replace(/\D/g, '');
-        const email = String(normalized.email || '').trim().toLowerCase();
-        const state = String(normalized.state_name || bulkSettings.state_name || '').trim();
-        const district = String(normalized.district_name || bulkSettings.district_name || '').trim();
-        const gst = normalized.gst_number ? String(normalized.gst_number).trim().toUpperCase() : '';
-        const pin = normalized.pincode ? String(normalized.pincode).trim().replace(/\D/g, '') : '';
-        const address = normalized.address_line ? String(normalized.address_line).trim() : '';
-        const source = normalized.lead_source ? String(normalized.lead_source).trim() : bulkSettings.lead_source;
-        const epcType = normalized.epc_type ? String(normalized.epc_type).trim() : bulkSettings.epc_type;
+        const email = activeFields.email && normalized.email ? String(normalized.email).trim().toLowerCase() : '';
+        const gst = activeFields.gst_number && normalized.gst_number ? String(normalized.gst_number).trim().toUpperCase() : '';
 
-        let products = bulkSettings.interested_products;
-        if (normalized.interested_products) {
+        const state = (activeFields.state_name && normalized.state_name)
+          ? String(normalized.state_name).trim()
+          : String(currentBulkSettings.state_name || territories[0]?.state_name || 'Gujarat').trim();
+
+        const district = (activeFields.district_name && normalized.district_name)
+          ? String(normalized.district_name).trim()
+          : String(currentBulkSettings.district_name || 'Ahmedabad').trim();
+
+        const pin = (activeFields.pincode && normalized.pincode)
+          ? String(normalized.pincode).trim().replace(/\D/g, '')
+          : '';
+
+        const address = (activeFields.address_line && normalized.address_line)
+          ? String(normalized.address_line).trim()
+          : '';
+
+        const source = (activeFields.lead_source && normalized.lead_source)
+          ? String(normalized.lead_source).trim()
+          : currentBulkSettings.lead_source;
+
+        const epcType = (activeFields.epc_type && normalized.epc_type)
+          ? String(normalized.epc_type).trim()
+          : currentBulkSettings.epc_type;
+
+        let products = currentBulkSettings.interested_products;
+        if (activeFields.interested_products && normalized.interested_products) {
           if (Array.isArray(normalized.interested_products)) {
             products = normalized.interested_products;
           } else if (typeof normalized.interested_products === 'string' && normalized.interested_products.trim()) {
@@ -640,23 +941,29 @@ export default function BdeEpcLeads() {
           }
         }
 
-        const followUp = normalized.follow_up_date ? String(normalized.follow_up_date).trim() : bulkSettings.follow_up_date;
-        const remarks = normalized.remarks ? String(normalized.remarks).trim() : bulkSettings.remarks;
+        const followUp = (activeFields.follow_up_date && normalized.follow_up_date)
+          ? String(normalized.follow_up_date).trim()
+          : currentBulkSettings.follow_up_date;
+
+        const remarks = (activeFields.remarks && normalized.remarks)
+          ? String(normalized.remarks).trim()
+          : currentBulkSettings.remarks;
 
         const rowErrors = [];
         if (!company) rowErrors.push('Missing Company Name');
-        if (!contact) rowErrors.push('Missing Contact Person');
         if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) rowErrors.push('Invalid 10-digit Mobile (must start with 6-9)');
-        if (!email || !/^\S+@\S+\.\S+$/.test(email)) rowErrors.push('Invalid Email');
+        if (activeFields.email && email && !/^\S+@\S+\.\S+$/.test(email)) {
+          rowErrors.push('Invalid Email format');
+        }
         if (!state) rowErrors.push('Missing State');
         if (!district) rowErrors.push('Missing District');
         if (allowedStates.length > 0 && !allowedStates.includes(state.toLowerCase())) {
           rowErrors.push(`State "${state}" outside territory`);
         }
-        if (gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gst)) {
+        if (activeFields.gst_number && gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gst)) {
           rowErrors.push('Invalid 15-char GSTIN format');
         }
-        if (pin && !/^\d{6}$/.test(pin)) {
+        if (activeFields.pincode && pin && !/^\d{6}$/.test(pin)) {
           rowErrors.push('Pincode must be 6 digits');
         }
 
@@ -686,6 +993,11 @@ export default function BdeEpcLeads() {
       console.error('File parsing error', err);
       alert('Failed to parse file: ' + err.message);
     }
+  };
+
+  const handleProcessWorkbook = (dataBinary) => {
+    setRawWorkbookBinary(dataBinary);
+    parseAndMapRows(dataBinary, selectedBulkFields, bulkSettings);
   };
 
   const handleFileDrop = (e) => {
@@ -724,18 +1036,19 @@ export default function BdeEpcLeads() {
         const pin = updated.pincode ? String(updated.pincode).trim().replace(/\D/g, '') : '';
 
         if (!company) errors.push('Missing Company Name');
-        if (!contact) errors.push('Missing Contact Person');
         if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) errors.push('Invalid 10-digit Mobile (must start with 6-9)');
-        if (!email || !/^\S+@\S+\.\S+$/.test(email)) errors.push('Invalid Email');
+        if (selectedBulkFields.email && email && !/^\S+@\S+\.\S+$/.test(email)) {
+          errors.push('Invalid Email format');
+        }
         if (!state) errors.push('Missing State');
         if (!district) errors.push('Missing District');
         if (allowedStates.length > 0 && !allowedStates.includes(state.toLowerCase())) {
           errors.push(`State "${state}" outside territory`);
         }
-        if (gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gst)) {
+        if (selectedBulkFields.gst_number && gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(gst)) {
           errors.push('Invalid 15-char GSTIN format');
         }
-        if (pin && !/^\d{6}$/.test(pin)) {
+        if (selectedBulkFields.pincode && pin && !/^\d{6}$/.test(pin)) {
           errors.push('Pincode must be 6 digits');
         }
 
@@ -1030,8 +1343,16 @@ export default function BdeEpcLeads() {
               EPC Pipeline
             </span>
             {territory?.state_name && (
-              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-slate-400" /> {territory.state_name}
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1" title={territory.state_name}>
+                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                {(() => {
+                  const stateList = territory.state_name.includes(',')
+                    ? territory.state_name.split(',').map((s) => s.trim())
+                    : [territory.state_name];
+                  if (stateList.length >= 25) return `Pan India (${stateList.length} States)`;
+                  if (stateList.length > 2) return `${stateList.slice(0, 2).join(', ')} +${stateList.length - 2} More`;
+                  return territory.state_name;
+                })()}
               </span>
             )}
           </div>
@@ -1594,7 +1915,112 @@ export default function BdeEpcLeads() {
             ) : (
               /* Main Bulk Upload Work Area */
               <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 text-xs">
-                {/* 1. Dynamic Batch Defaults (Collapsible) */}
+                {/* 1. Dynamic CSV Field Selector (Checkboxes) */}
+                <div className="border border-indigo-200 bg-indigo-50/40 rounded-2xl p-4 transition-all">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-indigo-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black shadow-xs text-xs">
+                        <Check className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-slate-900 text-xs">
+                            Step 1: Choose Fields to Extract from CSV / Excel
+                          </span>
+                          <span className="text-[10px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
+                            {Object.values(selectedBulkFields).filter(Boolean).length} of {BULK_FIELD_OPTIONS.length} Fields Active
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-normal">
+                          Tick the checkboxes for columns present in your file. Unchecked fields are skipped or take default values below.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Quick Presets */}
+                    <div className="flex items-center flex-wrap gap-1">
+                      <span className="text-[10px] font-bold text-slate-400 mr-1 uppercase tracking-wider">Presets:</span>
+                      <button
+                        type="button"
+                        onClick={() => applyBulkPreset('with_gst')}
+                        className="px-2 py-1 bg-white hover:bg-indigo-100 hover:text-indigo-800 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold transition shadow-xs"
+                      >
+                        With GST (Commercial)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyBulkPreset('no_gst')}
+                        className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold transition shadow-xs"
+                      >
+                        Basic (No GST)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyBulkPreset('minimal')}
+                        className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold transition shadow-xs"
+                      >
+                        Name + Mobile
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyBulkPreset('all')}
+                        className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition shadow-xs"
+                      >
+                        All Fields
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Checkbox Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pt-3">
+                    {BULK_FIELD_OPTIONS.map((field) => {
+                      const isChecked = selectedBulkFields[field.key];
+                      const isRequired = field.required;
+
+                      return (
+                        <label
+                          key={field.key}
+                          onClick={() => !isRequired && handleToggleBulkField(field.key)}
+                          className={`relative flex items-start gap-2.5 p-2.5 rounded-xl border transition select-none ${isRequired
+                            ? 'bg-white border-slate-200 cursor-not-allowed opacity-90'
+                            : isChecked
+                              ? field.key === 'gst_number'
+                                ? 'bg-amber-50/80 border-amber-300 shadow-xs cursor-pointer'
+                                : 'bg-white border-indigo-300 shadow-xs cursor-pointer hover:border-indigo-400'
+                              : 'bg-slate-50/60 border-slate-200 text-slate-400 cursor-pointer hover:bg-white hover:border-slate-300'
+                            }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            disabled={isRequired}
+                            onChange={() => {}}
+                            className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className={`font-bold text-[11px] truncate ${isChecked ? 'text-slate-900' : 'text-slate-500'}`}
+                              >
+                                {field.label}
+                              </span>
+                              {field.tag && (
+                                <span
+                                  className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${field.tagColor}`}
+                                >
+                                  {field.tag}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 truncate mt-0.5">{field.desc}</p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Dynamic Batch Defaults (Fallback for Missing / Unticked Fields) */}
                 <div className="border border-blue-200/80 bg-blue-50/40 rounded-2xl p-4 transition-all">
                   <button
                     type="button"
@@ -1605,10 +2031,10 @@ export default function BdeEpcLeads() {
                       <Sparkles className="w-4 h-4 text-blue-600" />
                       <div>
                         <span className="font-black text-slate-900 text-xs group-hover:text-blue-700 transition">
-                          Dynamic Batch Defaults (Fallback for Missing Row Values)
+                          Step 2: Dynamic Batch Defaults (Fallback for Missing / Unticked Fields)
                         </span>
                         <p className="text-[11px] text-slate-500 font-normal">
-                          Set default territory, classification, and source automatically applied when file rows omit these fields
+                          Territory, classification, and source automatically applied when file rows omit these fields or when fields are unchecked above
                         </p>
                       </div>
                     </div>
@@ -1839,6 +2265,50 @@ export default function BdeEpcLeads() {
                   </div>
                 </div>
 
+                {/* Detected File Columns & Extraction Status Banner */}
+                {detectedFileHeaders.length > 0 && (
+                  <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black shadow-xs">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-emerald-950">
+                            File Loaded: {parsedRows.length} Leads Parsed
+                          </span>
+                          <span className="text-[10px] font-bold bg-white text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
+                            {parsedRows.filter(r => r._isValid).length} Ready • {parsedRows.filter(r => !r._isValid).length} Needs Review
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-emerald-800 mt-0.5">
+                          Detected Columns in File: <span className="font-mono font-semibold">{detectedFileHeaders.join(', ')}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {selectedBulkFields.gst_number ? (
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-xs flex items-center gap-1">
+                          <Check className="w-3 h-3 text-amber-700" /> GST Extraction Active
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                          GST Extraction Skipped
+                        </span>
+                      )}
+                      {selectedBulkFields.email ? (
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300 shadow-xs flex items-center gap-1">
+                          <Check className="w-3 h-3 text-blue-700" /> Email Active
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                          Email Skipped
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* 3. Interactive Review & Inline Edit Grid */}
                 {parsedRows.length > 0 && (
                   <div className="space-y-3 pt-2">
@@ -1886,7 +2356,11 @@ export default function BdeEpcLeads() {
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setParsedRows([])}
+                          onClick={() => {
+                            setParsedRows([]);
+                            setRawWorkbookBinary(null);
+                            setDetectedFileHeaders([]);
+                          }}
                           className="px-3 py-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition flex items-center gap-1"
                         >
                           <Trash2 className="w-3.5 h-3.5" /> Clear All Rows
@@ -1903,12 +2377,36 @@ export default function BdeEpcLeads() {
                               <th className="py-2.5 px-3 w-10 text-center">#</th>
                               <th className="py-2.5 px-3 w-28">Status</th>
                               <th className="py-2.5 px-3 min-w-[180px]">Company Name *</th>
-                              <th className="py-2.5 px-3 min-w-[150px]">Contact Person *</th>
+                              {selectedBulkFields.contact_person && (
+                                <th className="py-2.5 px-3 min-w-[150px]">Contact Person</th>
+                              )}
                               <th className="py-2.5 px-3 min-w-[130px]">Mobile Number *</th>
-                              <th className="py-2.5 px-3 min-w-[170px]">Email Address *</th>
-                              <th className="py-2.5 px-3 min-w-[140px]">GSTIN (Opt)</th>
-                              <th className="py-2.5 px-3 min-w-[120px]">District *</th>
-                              <th className="py-2.5 px-3 min-w-[140px]">Classification</th>
+                              {selectedBulkFields.email && (
+                                <th className="py-2.5 px-3 min-w-[170px]">Email Address</th>
+                              )}
+                              {selectedBulkFields.gst_number && (
+                                <th className="py-2.5 px-3 min-w-[150px]">
+                                  <div className="flex items-center gap-1">
+                                    <span>GSTIN</span>
+                                    <span className="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-bold">15 Chars</span>
+                                  </div>
+                                </th>
+                              )}
+                              {selectedBulkFields.state_name && (
+                                <th className="py-2.5 px-3 min-w-[120px]">State</th>
+                              )}
+                              <th className="py-2.5 px-3 min-w-[130px]">
+                                District {selectedBulkFields.district_name ? '*' : '(Default)'}
+                              </th>
+                              {selectedBulkFields.pincode && (
+                                <th className="py-2.5 px-3 min-w-[100px]">Pincode</th>
+                              )}
+                              {selectedBulkFields.address_line && (
+                                <th className="py-2.5 px-3 min-w-[170px]">Address</th>
+                              )}
+                              {selectedBulkFields.epc_type && (
+                                <th className="py-2.5 px-3 min-w-[140px]">Classification</th>
+                              )}
                               <th className="py-2.5 px-3 w-12 text-center">Del</th>
                             </tr>
                           </thead>
@@ -1956,15 +2454,17 @@ export default function BdeEpcLeads() {
                                       />
                                     </td>
                                     {/* Contact Person */}
-                                    <td className="py-2 px-3">
-                                      <input
-                                        type="text"
-                                        value={row.contact_person}
-                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'contact_person', e.target.value)}
-                                        placeholder="Contact Person"
-                                        className={`w-full bg-transparent border rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none ${!row.contact_person ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
-                                      />
-                                    </td>
+                                    {selectedBulkFields.contact_person && (
+                                      <td className="py-2 px-3">
+                                        <input
+                                          type="text"
+                                          value={row.contact_person}
+                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'contact_person', e.target.value)}
+                                          placeholder="Contact Person"
+                                          className="w-full bg-transparent border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500"
+                                        />
+                                      </td>
+                                    )}
                                     {/* Mobile */}
                                     <td className="py-2 px-3">
                                       <input
@@ -1977,26 +2477,42 @@ export default function BdeEpcLeads() {
                                       />
                                     </td>
                                     {/* Email */}
-                                    <td className="py-2 px-3">
-                                      <input
-                                        type="email"
-                                        value={row.email}
-                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'email', e.target.value)}
-                                        placeholder="Email"
-                                        className={`w-full bg-transparent border rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none ${!row.email || !/^\S+@\S+\.\S+$/.test(row.email) ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
-                                      />
-                                    </td>
+                                    {selectedBulkFields.email && (
+                                      <td className="py-2 px-3">
+                                        <input
+                                          type="email"
+                                          value={row.email || ''}
+                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'email', e.target.value)}
+                                          placeholder="Optional Email"
+                                          className={`w-full bg-transparent border rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none ${row.email && !/^\S+@\S+\.\S+$/.test(row.email) ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
+                                        />
+                                      </td>
+                                    )}
                                     {/* GSTIN */}
-                                    <td className="py-2 px-3">
-                                      <input
-                                        type="text"
-                                        maxLength={15}
-                                        value={row.gst_number || ''}
-                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'gst_number', e.target.value)}
-                                        placeholder="Optional GSTIN"
-                                        className={`w-full bg-transparent border rounded-lg px-2 py-1 font-mono uppercase text-slate-800 focus:bg-white focus:outline-none ${row.gst_number && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(row.gst_number) ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
-                                      />
-                                    </td>
+                                    {selectedBulkFields.gst_number && (
+                                      <td className="py-2 px-3">
+                                        <input
+                                          type="text"
+                                          maxLength={15}
+                                          value={row.gst_number || ''}
+                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'gst_number', e.target.value)}
+                                          placeholder="15-char GSTIN"
+                                          className={`w-full bg-transparent border rounded-lg px-2 py-1 font-mono uppercase text-slate-800 focus:bg-white focus:outline-none ${row.gst_number && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(row.gst_number) ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
+                                        />
+                                      </td>
+                                    )}
+                                    {/* State */}
+                                    {selectedBulkFields.state_name && (
+                                      <td className="py-2 px-3">
+                                        <input
+                                          type="text"
+                                          value={row.state_name || ''}
+                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'state_name', e.target.value)}
+                                          placeholder="State"
+                                          className="w-full bg-transparent border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500"
+                                        />
+                                      </td>
+                                    )}
                                     {/* District */}
                                     <td className="py-2 px-3">
                                       <input
@@ -2007,23 +2523,50 @@ export default function BdeEpcLeads() {
                                         className={`w-full bg-transparent border rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none ${!row.district_name ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
                                       />
                                     </td>
+                                    {/* Pincode */}
+                                    {selectedBulkFields.pincode && (
+                                      <td className="py-2 px-3">
+                                        <input
+                                          type="text"
+                                          maxLength={6}
+                                          value={row.pincode || ''}
+                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'pincode', e.target.value)}
+                                          placeholder="Pincode"
+                                          className={`w-full bg-transparent border rounded-lg px-2 py-1 font-mono text-slate-800 focus:bg-white focus:outline-none ${row.pincode && !/^\d{6}$/.test(row.pincode) ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
+                                        />
+                                      </td>
+                                    )}
+                                    {/* Address */}
+                                    {selectedBulkFields.address_line && (
+                                      <td className="py-2 px-3">
+                                        <input
+                                          type="text"
+                                          value={row.address_line || ''}
+                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'address_line', e.target.value)}
+                                          placeholder="Address"
+                                          className="w-full bg-transparent border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500"
+                                        />
+                                      </td>
+                                    )}
                                     {/* Classification */}
-                                    <td className="py-2 px-3">
-                                      <select
-                                        value={row.epc_type || bulkSettings.epc_type}
-                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'epc_type', e.target.value)}
-                                        className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:outline-none focus:border-blue-500"
-                                      >
-                                        {row.epc_type && !epcTypes.some(t => t.name === row.epc_type) && (
-                                          <option value={row.epc_type}>{row.epc_type}</option>
-                                        )}
-                                        {epcTypes.map((t) => (
-                                          <option key={t.id || t._id || t.code || t.name} value={t.name}>
-                                            {t.name}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </td>
+                                    {selectedBulkFields.epc_type && (
+                                      <td className="py-2 px-3">
+                                        <select
+                                          value={row.epc_type || bulkSettings.epc_type}
+                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'epc_type', e.target.value)}
+                                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:outline-none focus:border-blue-500"
+                                        >
+                                          {row.epc_type && !epcTypes.some(t => t.name === row.epc_type) && (
+                                            <option value={row.epc_type}>{row.epc_type}</option>
+                                          )}
+                                          {epcTypes.map((t) => (
+                                            <option key={t.id || t._id || t.code || t.name} value={t.name}>
+                                              {t.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                    )}
                                     {/* Action */}
                                     <td className="py-2 px-3 text-center">
                                       <button

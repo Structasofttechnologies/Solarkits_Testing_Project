@@ -30,8 +30,12 @@ const InvoiceValidationModule = lazy(() => import("../pages/compliance/InvoiceVa
 const ExpenseManagementModule = lazy(() => import("../pages/expenses/ExpenseManagementModule"));
 const WarehouseFinanceModule = lazy(() => import("../pages/warehouse-finance/WarehouseFinanceModule"));
 const ExecutiveFinanceDashboard = lazy(() => import("../pages/executive/ExecutiveFinanceDashboard"));
+<<<<<<< HEAD
 const CompanyProfileAndFy = lazy(() => import("../pages/company-profile/CompanyProfileAndFy"));
 const StatutoryRegistersHub = lazy(() => import("../pages/registers/StatutoryRegistersHub"));
+=======
+const AccountsTrialKitStockPage = lazy(() => import("../pages/trial-kits/AccountsTrialKitStockPage"));
+>>>>>>> 5f973cd0afa3e6fc96c71878e4a13a18589ea349
 
 const getMenusWithBadges = (badgeCounts = {}) => [
   [
@@ -59,6 +63,12 @@ const getMenusWithBadges = (badgeCounts = {}) => [
       path: "/account-panel/new-orders",
       unique_id: "ACC_NEW_ORDERS",
       badge: badgeCounts.new_orders || 0
+    },
+    {
+      name: "Trial Kit Stock",
+      icon: <FaBoxes />,
+      path: "/account-panel/trial-kits",
+      unique_id: "ACC_TRIAL_KITS"
     },
     {
       name: "Procurement",
@@ -326,6 +336,14 @@ export default function Dashboard() {
                 className="min-h-full w-full max-w-full min-w-0"
               >
                 <Routes location={location}>
+                  <Route
+                    path="/trial-kits/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Trial Kit Stock..." />}>
+                        <AccountsTrialKitStockPage />
+                      </Suspense>
+                    }
+                  />
                   <Route
                     path="/home/*"
                     element={

@@ -10,6 +10,7 @@ import {
   FiShoppingBag,
   FiArrowRight,
   FiCheck,
+  FiCopy,
   FiX,
   FiLoader,
   FiLogOut,
@@ -19,6 +20,7 @@ import {
   FiAlertCircle,
   FiEye,
   FiExternalLink,
+  FiDownload,
   FiZap,
   FiUserCheck,
   FiMapPin,
@@ -32,6 +34,15 @@ import logoImg from "@/assets/images/logo.png";
 export default function OnboardingPortal() {
   const navigate = useNavigate();
   const token = localStorage.getItem("reseller_token");
+
+  // Helper to format full URL for documents
+  const getDocumentFullUrl = (url) => {
+    if (!url) return "";
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    const serverBase = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
+    const cleanPath = url.replace(/^[\\/]+/, "").replace(/\\/g, "/");
+    return `${serverBase}/${cleanPath}`;
+  };
 
   const [reseller, setReseller] = useState(() => {
     try {
@@ -70,7 +81,15 @@ export default function OnboardingPortal() {
   const [receiptFile, setReceiptFile] = useState(null);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [copiedField, setCopiedField] = useState("");
   const [masterChecklist, setMasterChecklist] = useState([]);
+
+  const handleCopyText = (text, field) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(""), 2000);
+  };
 
   const fetchStoreSetup = useCallback(async () => {
     try {
@@ -126,17 +145,7 @@ export default function OnboardingPortal() {
     }
   }, [token, navigate, signerName, utrNumber]);
 
-  useEffect(() => {
-    fetchMe();
-    fetchStoreSetup();
-    const interval = setInterval(() => {
-      fetchMe();
-      fetchStoreSetup();
-    }, 6000);
-    return () => clearInterval(interval);
-  }, [fetchMe, fetchStoreSetup]);
-
-  const loadAgreement = async () => {
+  const loadAgreement = useCallback(async () => {
     try {
       const res = await api.get("/india/v1/reseller/agreement/current");
       if (res.data?.status === "success") {
@@ -145,21 +154,34 @@ export default function OnboardingPortal() {
     } catch (err) {
       console.warn("Failed to load agreement details:", err);
     }
-  };
+  }, []);
 
-  const loadFeeInfo = async () => {
+  const loadFeeInfo = useCallback(async () => {
     try {
       const res = await api.get("/india/v1/reseller/fee-payment/info");
       if (res.data?.status === "success") {
         setFeeInfo(res.data.data);
-        if (res.data.data?.plan?.fee_amount) {
-          setAmountPaid(res.data.data.plan.fee_amount);
+        const fee = res.data.data?.setup_fee || res.data.data?.fee_amount || res.data.data?.plan?.fee_amount;
+        if (fee) {
+          setAmountPaid(fee);
         }
       }
     } catch (err) {
       console.warn("Failed to load fee info:", err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchMe();
+    fetchStoreSetup();
+    loadAgreement();
+    loadFeeInfo();
+    const interval = setInterval(() => {
+      fetchMe();
+      fetchStoreSetup();
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [fetchMe, fetchStoreSetup, loadAgreement, loadFeeInfo]);
 
   useEffect(() => {
     if (agreementModalOpen) loadAgreement();
@@ -384,14 +406,14 @@ export default function OnboardingPortal() {
                   {isAccountActive
                     ? "✓ All Steps Completed — Operations 100% Live"
                     : isStoreSetupCompleted
-                    ? "Step 7 Pending: Final Launch & Operations Activation"
-                    : isReceiptVerified
-                    ? "Step 6 In Progress: Physical Store Setup & Inspection"
-                    : isReceiptUploaded
-                    ? "Step 5 Pending: Receipt Verification by Admin"
-                    : isAgreementSigned
-                    ? "Step 4 Pending: Offline Payment Receipt Required"
-                    : "Step 3 Pending: Legal Agreement Execution Required"}
+                      ? "Step 7 Pending: Final Launch & Operations Activation"
+                      : isReceiptVerified
+                        ? "Step 6 In Progress: Physical Store Setup & Inspection"
+                        : isReceiptUploaded
+                          ? "Step 5 Pending: Receipt Verification by Admin"
+                          : isAgreementSigned
+                            ? "Step 4 Pending: Offline Payment Receipt Required"
+                            : "Step 3 Pending: Legal Agreement Execution Required"}
                 </span>
               </div>
 
@@ -408,8 +430,8 @@ export default function OnboardingPortal() {
                 {isAccountActive
                   ? "Congratulations! Your franchise retail operations are fully active. You now have complete access to wholesale catalog ordering, distributor pricing, and customer allocations."
                   : isStoreSetupInProgress
-                  ? "Fee payment confirmed! Complete your 16-step physical store setup & branding checklist with our assigned State Coordinator to unlock retail operations."
-                  : "Complete your onboarding sequence step-by-step below. Store setup record is initialized automatically upon fee payment confirmation."}
+                    ? "Fee payment confirmed! Complete your 16-step physical store setup & branding checklist with our assigned State Coordinator to unlock retail operations."
+                    : "Complete your onboarding sequence step-by-step below. Store setup record is initialized automatically upon fee payment confirmation."}
               </p>
             </div>
 
@@ -448,11 +470,10 @@ export default function OnboardingPortal() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-3.5">
           {/* Step 1 */}
           <div
-            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${
-              isGstVerified
-                ? "border-emerald-300/80 bg-emerald-50/60 text-emerald-950 shadow-xs"
-                : "border-slate-200 bg-white shadow-xs"
-            }`}
+            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${isGstVerified
+              ? "border-emerald-300/80 bg-emerald-50/60 text-emerald-950 shadow-xs"
+              : "border-slate-200 bg-white shadow-xs"
+              }`}
           >
             <div>
               <div className="flex items-center justify-between gap-1 mb-2.5">
@@ -476,11 +497,10 @@ export default function OnboardingPortal() {
 
           {/* Step 2 */}
           <div
-            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${
-              isApproved
-                ? "border-emerald-300/80 bg-emerald-50/60 text-emerald-950 shadow-xs"
-                : "border-slate-200 bg-white shadow-xs"
-            }`}
+            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${isApproved
+              ? "border-emerald-300/80 bg-emerald-50/60 text-emerald-950 shadow-xs"
+              : "border-slate-200 bg-white shadow-xs"
+              }`}
           >
             <div>
               <div className="flex items-center justify-between gap-1 mb-2.5">
@@ -504,24 +524,21 @@ export default function OnboardingPortal() {
 
           {/* Step 3 */}
           <div
-            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${
-              isAgreementSigned
-                ? "border-emerald-300/80 bg-emerald-50/60 text-emerald-950 shadow-xs"
-                : "border-[#253880] bg-blue-50/70 text-blue-950 ring-2 ring-blue-500/20 shadow-md"
-            }`}
+            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${isAgreementSigned
+              ? "border-emerald-300/80 bg-emerald-50/60 text-emerald-950 shadow-xs"
+              : "border-[#253880] bg-blue-50/70 text-blue-950 ring-2 ring-blue-500/20 shadow-md"
+              }`}
           >
             <div>
               <div className="flex items-center justify-between gap-1 mb-2.5">
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
-                  isAgreementSigned ? "bg-emerald-600 text-white" : "bg-[#253880] text-white"
-                }`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${isAgreementSigned ? "bg-emerald-600 text-white" : "bg-[#253880] text-white"
+                  }`}>
                   3
                 </span>
-                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap inline-flex items-center gap-1 ${
-                  isAgreementSigned 
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300" 
-                    : "bg-[#253880] text-white"
-                }`}>
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap inline-flex items-center gap-1 ${isAgreementSigned
+                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  : "bg-[#253880] text-white"
+                  }`}>
                   {isAgreementSigned ? <><FiCheck size={10} /> SIGNED</> : "ACTION REQUIRED"}
                 </span>
               </div>
@@ -536,9 +553,8 @@ export default function OnboardingPortal() {
             <div className="mt-3">
               <button
                 onClick={() => setAgreementModalOpen(true)}
-                className={`w-full py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer ${
-                  isAgreementSigned ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-[#253880] hover:bg-[#1d2c66] text-white"
-                }`}
+                className={`w-full py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer ${isAgreementSigned ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-[#253880] hover:bg-[#1d2c66] text-white"
+                  }`}
               >
                 <span>{isAgreementSigned ? "View Agreement" : "Sign Agreement →"}</span>
               </button>
@@ -547,28 +563,25 @@ export default function OnboardingPortal() {
 
           {/* Step 4 */}
           <div
-            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${
-              isReceiptUploaded
-                ? "border-emerald-300/80 bg-emerald-50/60 text-emerald-950 shadow-xs"
-                : isAgreementSigned
+            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${isReceiptUploaded
+              ? "border-emerald-300/80 bg-emerald-50/60 text-emerald-950 shadow-xs"
+              : isAgreementSigned
                 ? "border-amber-400 bg-amber-50 text-amber-950 ring-2 ring-amber-400/20 shadow-md"
                 : "border-slate-200 bg-white/70 text-slate-400 opacity-60"
-            }`}
+              }`}
           >
             <div>
               <div className="flex items-center justify-between gap-1 mb-2.5">
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
-                  isReceiptUploaded ? "bg-emerald-600 text-white" : isAgreementSigned ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-500"
-                }`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${isReceiptUploaded ? "bg-emerald-600 text-white" : isAgreementSigned ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-500"
+                  }`}>
                   4
                 </span>
-                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap inline-flex items-center gap-1 ${
-                  isReceiptUploaded 
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300" 
-                    : isAgreementSigned 
-                    ? "bg-amber-100 text-amber-900 border border-amber-300" 
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap inline-flex items-center gap-1 ${isReceiptUploaded
+                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  : isAgreementSigned
+                    ? "bg-amber-100 text-amber-900 border border-amber-300"
                     : "bg-slate-100 text-slate-500"
-                }`}>
+                  }`}>
                   {isReceiptUploaded ? <><FiCheck size={10} /> TRANSFERRED</> : isAgreementSigned ? "PAYMENT PENDING" : <><FiLock size={9} /> LOCKED</>}
                 </span>
               </div>
@@ -584,9 +597,8 @@ export default function OnboardingPortal() {
               {isAgreementSigned ? (
                 <button
                   onClick={() => setPaymentModalOpen(true)}
-                  className={`w-full py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer ${
-                    isReceiptUploaded ? "bg-slate-800 hover:bg-slate-900 text-white" : "bg-amber-600 hover:bg-amber-700 text-white"
-                  }`}
+                  className={`w-full py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer ${isReceiptUploaded ? "bg-slate-800 hover:bg-slate-900 text-white" : "bg-amber-600 hover:bg-amber-700 text-white"
+                    }`}
                 >
                   <span>{isReceiptUploaded ? "Payment Info" : "Upload Receipt →"}</span>
                 </button>
@@ -600,28 +612,25 @@ export default function OnboardingPortal() {
 
           {/* Step 5 */}
           <div
-            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${
-              isReceiptVerified
-                ? "border-emerald-300/80 bg-emerald-50/60 text-emerald-950 shadow-xs"
-                : isReceiptUploaded
+            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${isReceiptVerified
+              ? "border-emerald-300/80 bg-emerald-50/60 text-emerald-950 shadow-xs"
+              : isReceiptUploaded
                 ? "border-sky-400 bg-sky-50 text-sky-950 ring-2 ring-sky-400/20 shadow-md"
                 : "border-slate-200 bg-white/70 text-slate-400 opacity-60"
-            }`}
+              }`}
           >
             <div>
               <div className="flex items-center justify-between gap-1 mb-2.5">
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
-                  isReceiptVerified ? "bg-emerald-600 text-white" : isReceiptUploaded ? "bg-sky-600 text-white" : "bg-slate-100 text-slate-500"
-                }`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${isReceiptVerified ? "bg-emerald-600 text-white" : isReceiptUploaded ? "bg-sky-600 text-white" : "bg-slate-100 text-slate-500"
+                  }`}>
                   5
                 </span>
-                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap inline-flex items-center gap-1 ${
-                  isReceiptVerified 
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300" 
-                    : isReceiptUploaded 
-                    ? "bg-sky-100 text-sky-900 border border-sky-300" 
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap inline-flex items-center gap-1 ${isReceiptVerified
+                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  : isReceiptUploaded
+                    ? "bg-sky-100 text-sky-900 border border-sky-300"
                     : "bg-slate-100 text-slate-500"
-                }`}>
+                  }`}>
                   {isReceiptVerified ? <><FiCheck size={10} /> CONFIRMED</> : isReceiptUploaded ? "UNDER REVIEW" : <><FiLock size={9} /> LOCKED</>}
                 </span>
               </div>
@@ -651,28 +660,25 @@ export default function OnboardingPortal() {
 
           {/* Step 6: Physical Store Setup & Inspection (NEW CRITICAL STAGE) */}
           <div
-            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${
-              isStoreSetupCompleted
-                ? "border-emerald-300/80 bg-emerald-50/60 text-emerald-950 shadow-xs"
-                : isStoreSetupInProgress
+            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${isStoreSetupCompleted
+              ? "border-emerald-300/80 bg-emerald-50/60 text-emerald-950 shadow-xs"
+              : isStoreSetupInProgress
                 ? "border-amber-500 bg-amber-50/90 text-amber-950 ring-3 ring-amber-500/25 shadow-lg shadow-amber-500/10"
                 : "border-slate-200 bg-white/70 text-slate-400 opacity-60"
-            }`}
+              }`}
           >
             <div>
               <div className="flex items-center justify-between gap-1 mb-2.5">
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
-                  isStoreSetupCompleted ? "bg-emerald-600 text-white" : isStoreSetupInProgress ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-500"
-                }`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${isStoreSetupCompleted ? "bg-emerald-600 text-white" : isStoreSetupInProgress ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-500"
+                  }`}>
                   6
                 </span>
-                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap inline-flex items-center gap-1 ${
-                  isStoreSetupCompleted 
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300" 
-                    : isStoreSetupInProgress 
-                    ? "bg-amber-100 text-amber-900 border border-amber-300 font-black" 
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap inline-flex items-center gap-1 ${isStoreSetupCompleted
+                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  : isStoreSetupInProgress
+                    ? "bg-amber-100 text-amber-900 border border-amber-300 font-black"
                     : "bg-slate-100 text-slate-500"
-                }`}>
+                  }`}>
                   {isStoreSetupCompleted ? (
                     <><FiCheck size={10} /> VERIFIED</>
                   ) : isStoreSetupInProgress ? (
@@ -690,19 +696,18 @@ export default function OnboardingPortal() {
                 {isStoreSetupCompleted
                   ? "Store Verified & Ready"
                   : isStoreSetupInProgress
-                  ? `${setup?.completed_activities || 0}/${setup?.total_activities || 16} Checklist Steps`
-                  : "Physical Store Checklist"}
+                    ? `${setup?.completed_activities || 0}/${setup?.total_activities || 16} Checklist Steps`
+                    : "Physical Store Checklist"}
               </p>
             </div>
             <div className="mt-3">
               {isReceiptVerified ? (
                 <button
                   onClick={() => setStoreSetupModalOpen(true)}
-                  className={`w-full py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer ${
-                    isStoreSetupCompleted
-                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                      : "bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 active:scale-[0.98]"
-                  }`}
+                  className={`w-full py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 shadow-sm transition-all cursor-pointer ${isStoreSetupCompleted
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                    : "bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 active:scale-[0.98]"
+                    }`}
                 >
                   <span>{isStoreSetupCompleted ? "View Store Record" : "Track Store Setup →"}</span>
                 </button>
@@ -716,22 +721,19 @@ export default function OnboardingPortal() {
 
           {/* Step 7: Operations Start */}
           <div
-            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${
-              isAccountActive
-                ? "border-emerald-400 bg-emerald-100/90 text-emerald-950 shadow-md ring-3 ring-emerald-500/20"
-                : "border-slate-200 bg-white/70 text-slate-400 opacity-60"
-            }`}
+            className={`p-4 rounded-2xl border-2 flex flex-col justify-between transition-all duration-200 ${isAccountActive
+              ? "border-emerald-400 bg-emerald-100/90 text-emerald-950 shadow-md ring-3 ring-emerald-500/20"
+              : "border-slate-200 bg-white/70 text-slate-400 opacity-60"
+              }`}
           >
             <div>
               <div className="flex items-center justify-between gap-1 mb-2.5">
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
-                  isAccountActive ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
-                }`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${isAccountActive ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+                  }`}>
                   7
                 </span>
-                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap inline-flex items-center gap-1 ${
-                  isAccountActive ? "bg-emerald-600 text-white shadow-xs" : "bg-slate-100 text-slate-500"
-                }`}>
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap inline-flex items-center gap-1 ${isAccountActive ? "bg-emerald-600 text-white shadow-xs" : "bg-slate-100 text-slate-500"
+                  }`}>
                   {isAccountActive ? <><FiCheckCircle size={10} /> 100% ACTIVE</> : <><FiLock size={9} /> LOCKED</>}
                 </span>
               </div>
@@ -770,14 +772,14 @@ export default function OnboardingPortal() {
                   {isAccountActive
                     ? "Phase 5: Operations Live & Active Retailer"
                     : isStoreSetupCompleted
-                    ? "Phase 4: Store Verified — Final Activation Pending"
-                    : isStoreSetupInProgress
-                    ? "Phase 4: Physical Store Setup & Inspection"
-                    : isReceiptUploaded
-                    ? "Phase 3: Administrative Receipt Verification"
-                    : isAgreementSigned
-                    ? "Phase 2: Offline Fee Payment & Receipt Submission"
-                    : "Phase 1: Legal Agreement Review & Execution"}
+                      ? "Phase 4: Store Verified — Final Activation Pending"
+                      : isStoreSetupInProgress
+                        ? "Phase 4: Physical Store Setup & Inspection"
+                        : isReceiptUploaded
+                          ? "Phase 3: Administrative Receipt Verification"
+                          : isAgreementSigned
+                            ? "Phase 2: Offline Fee Payment & Receipt Submission"
+                            : "Phase 1: Legal Agreement Review & Execution"}
                 </span>
               </h2>
               <p className="text-sm text-slate-500 mt-1 font-medium">
@@ -801,25 +803,50 @@ export default function OnboardingPortal() {
           {/* Interactive Guided Action Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-sm">
             {/* Action 1: Sign Agreement */}
-            <div className={`p-6 rounded-3xl border-2 transition-all flex flex-col justify-between ${
-              isAgreementSigned
-                ? "border-emerald-200 bg-emerald-50/50 shadow-xs"
-                : "border-[#253880] bg-blue-50/60 shadow-md ring-2 ring-blue-500/20"
-            }`}>
+            <div className={`p-6 rounded-3xl border-2 transition-all flex flex-col justify-between ${isAgreementSigned
+              ? "border-emerald-200 bg-emerald-50/50 shadow-xs"
+              : "border-[#253880] bg-blue-50/60 shadow-md ring-2 ring-blue-500/20"
+              }`}>
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="font-black text-base text-slate-900 flex items-center gap-2">
                     <FiFileText size={18} className="text-[#253880]" /> Step 3: Agreement
                   </span>
-                  <span className={`text-xs font-black px-3 py-1 rounded-full ${
-                    isAgreementSigned ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-900 border border-blue-200"
-                  }`}>
+                  <span className={`text-xs font-black px-3 py-1 rounded-full ${isAgreementSigned ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-900 border border-blue-200"
+                    }`}>
                     {isAgreementSigned ? "✓ Completed" : "Action Needed"}
                   </span>
                 </div>
-                <p className="text-slate-600 mb-5 leading-relaxed font-medium">
-                  Review your tailored franchise distribution agreement and execute it digitally or upload a signed scan.
-                </p>
+
+                {agreementData ? (
+                  <div className="space-y-2 mb-4">
+                    <div className="p-3 bg-white/90 rounded-xl border border-blue-200/80 text-xs space-y-1 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-semibold">Agreement No:</span>
+                        <span className="font-mono font-bold text-slate-900">{agreementData.agreement_number || 'AGR-SKT'}</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                        <span className="text-slate-500 font-medium">Allocated Cluster:</span>
+                        <span className="font-bold text-slate-800 truncate max-w-[150px]">{agreementData.cluster?.cluster_name || agreementData.territory_scope || 'Partner Region'}</span>
+                      </div>
+                      {agreementData.document_url && (
+                        <div className="pt-1 border-t border-slate-100 flex items-center gap-1.5 text-blue-700 text-[11px] font-bold">
+                          <FiFileText className="text-red-600 shrink-0" size={13} />
+                          <span className="truncate">Admin Agreement PDF Attached</span>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-slate-600 text-xs leading-relaxed font-medium">
+                      {isAgreementSigned
+                        ? "Franchise partner agreement executed successfully. You can view or download the stamped copy anytime."
+                        : "Review your tailored franchise distribution agreement and execute it digitally or upload a signed scan."}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-slate-600 mb-5 leading-relaxed font-medium">
+                    Review your tailored franchise distribution agreement and execute it digitally or upload a signed scan.
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setAgreementModalOpen(true)}
@@ -831,33 +858,48 @@ export default function OnboardingPortal() {
             </div>
 
             {/* Action 2: Fee Payment & Receipt */}
-            <div className={`p-6 rounded-3xl border-2 transition-all flex flex-col justify-between ${
-              isReceiptVerified
-                ? "border-emerald-200 bg-emerald-50/50 shadow-xs"
-                : isReceiptUploaded
+            <div className={`p-6 rounded-3xl border-2 transition-all flex flex-col justify-between ${isReceiptVerified
+              ? "border-emerald-200 bg-emerald-50/50 shadow-xs"
+              : isReceiptUploaded
                 ? "border-sky-400 bg-sky-50/60 shadow-md ring-2 ring-sky-400/20"
                 : isAgreementSigned
-                ? "border-amber-400 bg-amber-50/60 shadow-md ring-2 ring-amber-400/20"
-                : "border-slate-200 bg-slate-50 opacity-60"
-            }`}>
+                  ? "border-amber-400 bg-amber-50/60 shadow-md ring-2 ring-amber-400/20"
+                  : "border-slate-200 bg-slate-50 opacity-60"
+              }`}>
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="font-black text-base text-slate-900 flex items-center gap-2">
                     <FiCreditCard size={18} className="text-amber-700" /> Step 4 & 5: Fee Payment
                   </span>
-                  <span className={`text-xs font-black px-3 py-1 rounded-full ${
-                    isReceiptVerified ? "bg-emerald-100 text-emerald-800" : isReceiptUploaded ? "bg-sky-100 text-sky-900 border border-sky-300" : isAgreementSigned ? "bg-amber-100 text-amber-900 border border-amber-300" : "bg-slate-200 text-slate-600"
-                  }`}>
+                  <span className={`text-xs font-black px-3 py-1 rounded-full ${isReceiptVerified ? "bg-emerald-100 text-emerald-800" : isReceiptUploaded ? "bg-sky-100 text-sky-900 border border-sky-300" : isAgreementSigned ? "bg-amber-100 text-amber-900 border border-amber-300" : "bg-slate-200 text-slate-600"
+                    }`}>
                     {isReceiptVerified ? "✓ Fee Verified" : isReceiptUploaded ? "Under Review" : isAgreementSigned ? "Pending Upload" : "Locked"}
                   </span>
                 </div>
-                <p className="text-slate-600 mb-5 leading-relaxed font-medium">
-                  {isReceiptVerified
-                    ? "Franchise fee verified! Store setup workflow is now initialized."
-                    : isReceiptUploaded
-                    ? "Payment slip submitted. Admin is confirming your transaction."
-                    : "Payment details are discussed verbally with your Account Manager. Upload your bank UTR and transfer receipt slip."}
-                </p>
+
+                <div className="space-y-2 mb-4">
+                  <div className="p-3 bg-white/90 rounded-xl border border-amber-200/80 text-xs space-y-1 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 font-semibold">Franchisee Setup Fee:</span>
+                      <span className="text-sm font-black text-slate-900">
+                        ₹{(feeInfo?.setup_fee || feeInfo?.plan?.fee_amount || amountPaid || 100000).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                    {feeInfo?.renewal_fee && (
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
+                        <span className="text-slate-400 font-medium">Annual Renewal Fee:</span>
+                        <span className="font-bold text-slate-700">₹{feeInfo.renewal_fee.toLocaleString('en-IN')}/cycle</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-slate-600 text-xs leading-relaxed font-medium">
+                    {isReceiptVerified
+                      ? "Franchise fee verified! Store setup workflow is now initialized."
+                      : isReceiptUploaded
+                        ? "Payment slip submitted. Admin is confirming your transaction."
+                        : "Transfer the setup fee and upload your bank UTR number and transfer receipt slip for verification."}
+                  </p>
+                </div>
               </div>
               <button
                 disabled={!isAgreementSigned}
@@ -870,29 +912,27 @@ export default function OnboardingPortal() {
             </div>
 
             {/* Action 3: Physical Store Setup & Go-Live */}
-            <div className={`p-6 rounded-3xl border-2 transition-all flex flex-col justify-between ${
-              isAccountActive
-                ? "border-emerald-300 bg-emerald-50/60 shadow-xs"
-                : isStoreSetupInProgress
+            <div className={`p-6 rounded-3xl border-2 transition-all flex flex-col justify-between ${isAccountActive
+              ? "border-emerald-300 bg-emerald-50/60 shadow-xs"
+              : isStoreSetupInProgress
                 ? "border-amber-500 bg-amber-50/60 shadow-md ring-2 ring-amber-500/20"
                 : isStoreSetupCompleted
-                ? "border-emerald-300 bg-emerald-50/60 shadow-xs"
-                : "border-slate-200 bg-slate-50 opacity-60"
-            }`}>
+                  ? "border-emerald-300 bg-emerald-50/60 shadow-xs"
+                  : "border-slate-200 bg-slate-50 opacity-60"
+              }`}>
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="font-black text-base text-slate-900 flex items-center gap-2">
                     <FaStore size={18} className="text-amber-600" /> Step 6 & 7: Store Setup & Launch
                   </span>
-                  <span className={`text-xs font-black px-3 py-1 rounded-full ${
-                    isAccountActive
-                      ? "bg-emerald-100 text-emerald-800"
-                      : isStoreSetupCompleted
+                  <span className={`text-xs font-black px-3 py-1 rounded-full ${isAccountActive
+                    ? "bg-emerald-100 text-emerald-800"
+                    : isStoreSetupCompleted
                       ? "bg-emerald-100 text-emerald-800"
                       : isStoreSetupInProgress
-                      ? "bg-amber-100 text-amber-900 border border-amber-300 font-bold"
-                      : "bg-slate-200 text-slate-600"
-                  }`}>
+                        ? "bg-amber-100 text-amber-900 border border-amber-300 font-bold"
+                        : "bg-slate-200 text-slate-600"
+                    }`}>
                     {isAccountActive ? "✓ Active" : isStoreSetupCompleted ? "✓ Verified" : isStoreSetupInProgress ? "In Progress" : "Pending Steps"}
                   </span>
                 </div>
@@ -900,8 +940,8 @@ export default function OnboardingPortal() {
                   {isAccountActive
                     ? "Admin verification confirmed. Your franchise partner retail privileges are 100% active."
                     : isStoreSetupInProgress
-                    ? `Physical store execution in progress (${setup?.progress_percentage || 0}% completed). Assigned Coordinator: ${setup?.assigned_employee_name || 'State Coordinator'}.`
-                    : "Complete agreement execution and fee payment confirmation to initialize store setup."}
+                      ? `Physical store execution in progress (${setup?.progress_percentage || 0}% completed). Assigned Coordinator: ${setup?.assigned_employee_name || 'State Coordinator'}.`
+                      : "Complete agreement execution and fee payment confirmation to initialize store setup."}
                 </p>
               </div>
 
@@ -989,38 +1029,83 @@ export default function OnboardingPortal() {
                 </div>
               </div>
 
-              {/* Agreement Text Reader */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <FiFileText className="text-[#253880]" size={14} />
-                    <span>Official Agreement Terms & Legal Clauses (Scroll to read complete document)</span>
-                  </span>
-                  <span className="text-[11px] text-slate-400">Standard Legal Text</span>
-                </div>
-
-                <div className="h-80 sm:h-96 overflow-y-auto p-6 sm:p-8 rounded-2xl bg-slate-50/90 border border-slate-200 text-xs sm:text-sm text-slate-800 space-y-4 font-sans leading-relaxed shadow-inner whitespace-pre-wrap selection:bg-blue-100">
-                  {agreementData?.agreement_content || (
-                    <div className="space-y-3">
-                      <p className="font-bold text-slate-900 text-base border-b pb-2">
-                        TERMS OF FRANCHISE APPOINTMENT & DISTRIBUTION RIGHTS
-                      </p>
-                      <p>
-                        <strong>1. APPOINTMENT:</strong> SolarKits Clean Energy Solutions Private Limited authorizes <strong>{companyName}</strong> as an authorized regional partner for combo kit distribution and EPC contractor allocation.
-                      </p>
-                      <p>
-                        <strong>2. TERRITORY:</strong> Operations are granted within assigned territory: <strong>{reseller?.address?.city || reseller?.address?.state || "Assigned District"}</strong>.
-                      </p>
-                      <p>
-                        <strong>3. STORE SETUP:</strong> The partner agrees to execute physical retail branding and display standards as specified by SolarKits within the allowed setup SLA.
-                      </p>
-                      <p>
-                        <strong>4. COMMERCIAL TERMS & CONFIDENTIALITY:</strong> Minimum order quantities, price lists, and margin schedules shall apply as per active franchise plan.
-                      </p>
+              {/* Agreement Document Reader */}
+              {agreementData?.document_url ? (
+                <div className="space-y-3">
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-red-100 text-red-600 flex items-center justify-center font-bold text-lg shrink-0 shadow-xs">
+                        <FiFileText size={24} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-black text-slate-900">
+                            {agreementData.document_name || "Official_Franchisee_Agreement.pdf"}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-[#253880] uppercase tracking-wider">
+                            Admin Stamped PDF
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Uploaded by SolarKits Admin • Tailored legal contract with assigned cluster and fee terms
+                        </p>
+                      </div>
                     </div>
-                  )}
+
+                    <a
+                      href={getDocumentFullUrl(agreementData.document_url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-colors shrink-0"
+                    >
+                      <FiDownload size={14} />
+                      <span>Download / Open PDF</span>
+                      <FiExternalLink size={12} />
+                    </a>
+                  </div>
+
+                  {/* Embedded PDF Viewer */}
+                  <div className="rounded-2xl border border-slate-300 overflow-hidden bg-slate-900/5 shadow-inner">
+                    <iframe
+                      src={`${getDocumentFullUrl(agreementData.document_url)}#toolbar=1`}
+                      title="Franchisee Agreement Document"
+                      className="w-full h-96 sm:h-[480px] rounded-2xl border-0 bg-white"
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <FiFileText className="text-[#253880]" size={14} />
+                      <span>Official Agreement Terms & Legal Clauses (Scroll to read complete document)</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400">Standard Legal Text</span>
+                  </div>
+
+                  <div className="h-80 sm:h-96 overflow-y-auto p-6 sm:p-8 rounded-2xl bg-slate-50/90 border border-slate-200 text-xs sm:text-sm text-slate-800 space-y-4 font-sans leading-relaxed shadow-inner whitespace-pre-wrap selection:bg-blue-100">
+                    {agreementData?.agreement_content || (
+                      <div className="space-y-3">
+                        <p className="font-bold text-slate-900 text-base border-b pb-2">
+                          TERMS OF FRANCHISE APPOINTMENT & DISTRIBUTION RIGHTS
+                        </p>
+                        <p>
+                          <strong>1. APPOINTMENT:</strong> SolarKits Clean Energy Solutions Private Limited authorizes <strong>{companyName}</strong> as an authorized regional partner for combo kit distribution and EPC contractor allocation.
+                        </p>
+                        <p>
+                          <strong>2. TERRITORY:</strong> Operations are granted within assigned territory: <strong>{reseller?.address?.city || reseller?.address?.state || "Assigned District"}</strong>.
+                        </p>
+                        <p>
+                          <strong>3. STORE SETUP:</strong> The partner agrees to execute physical retail branding and display standards as specified by SolarKits within the allowed setup SLA.
+                        </p>
+                        <p>
+                          <strong>4. COMMERCIAL TERMS & CONFIDENTIALITY:</strong> Minimum order quantities, price lists, and margin schedules shall apply as per active franchise plan.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Signing Controls */}
               {!isAgreementSigned ? (
@@ -1154,7 +1239,115 @@ export default function OnboardingPortal() {
                 </p>
               </div>
 
+              {/* Fee Breakdown Configured by Admin */}
+              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-amber-900 uppercase tracking-wider">
+                    {feeInfo?.plan?.name || "Franchisee Partner Plan"}
+                  </span>
+                  {feeInfo?.agreement_number && (
+                    <span className="font-mono font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-amber-200">
+                      {feeInfo.agreement_number}
+                    </span>
+                  )}
+                </div>
 
+                <div className="grid grid-cols-2 gap-3 pt-1 border-t border-amber-200/60 text-xs">
+                  <div className="bg-white p-3 rounded-xl border border-amber-100 shadow-2xs">
+                    <span className="text-[11px] text-slate-500 font-semibold block">Franchisee Setup Fee</span>
+                    <span className="text-base font-black text-slate-900 mt-0.5 block">
+                      ₹{(feeInfo?.setup_fee || feeInfo?.plan?.fee_amount || 100000).toLocaleString('en-IN')}
+                    </span>
+                    <span className="text-[10px] text-emerald-700 font-bold block mt-0.5">One-time Payable</span>
+                  </div>
+
+                  <div className="bg-white p-3 rounded-xl border border-amber-100 shadow-2xs">
+                    <span className="text-[11px] text-slate-500 font-semibold block">Annual Renewal Fee</span>
+                    <span className="text-base font-black text-slate-900 mt-0.5 block">
+                      ₹{(feeInfo?.renewal_fee || 10000).toLocaleString('en-IN')}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium block mt-0.5">Per renewal cycle</span>
+                  </div>
+                </div>
+
+                {feeInfo?.cluster?.cluster_name && (
+                  <div className="text-[11px] text-slate-600 flex items-center gap-1.5 pt-1">
+                    <FiMapPin className="text-amber-700 shrink-0" size={13} />
+                    <span>Allocated Cluster: <strong>{feeInfo.cluster.cluster_name}</strong> {feeInfo.cluster.cluster_code ? `(${feeInfo.cluster.cluster_code})` : ''}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Dynamic Company Bank Account Details for Offline Fee Transfer */}
+              {feeInfo?.company_bank_details?.account_number ? (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+                      <FiCreditCard className="text-amber-700" size={15} /> Company Bank Account Details (Offline Transfer)
+                    </span>
+                    <span className="text-[10px] text-amber-900 font-bold bg-amber-200/80 px-2 py-0.5 rounded border border-amber-300">
+                      Verified Escrow Account
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    Transfer the franchise setup fee to the company bank account below via NEFT / RTGS / IMPS before submitting your transaction receipt:
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                    {/* Account Holder Name */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-200/80 shadow-2xs">
+                      <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide block">
+                        Account Holder Name
+                      </span>
+                      <span className="font-bold text-slate-900 mt-0.5 block truncate" title={feeInfo.company_bank_details.account_holder_name}>
+                        {feeInfo.company_bank_details.account_holder_name || "—"}
+                      </span>
+                    </div>
+
+                    {/* Account Number */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-200/80 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide block">
+                          Account Number
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(feeInfo.company_bank_details.account_number, "modal_acc_no")}
+                          className="text-amber-700 hover:text-amber-900 text-[10px] flex items-center gap-1 font-bold cursor-pointer transition"
+                          title="Copy Account Number"
+                        >
+                          {copiedField === "modal_acc_no" ? <FiCheck size={11} className="text-emerald-600" /> : <FiCopy size={11} />}
+                          <span>{copiedField === "modal_acc_no" ? "Copied" : "Copy"}</span>
+                        </button>
+                      </div>
+                      <span className="font-mono font-black text-slate-900 text-sm mt-0.5 block select-all tracking-wider">
+                        {feeInfo.company_bank_details.account_number || "—"}
+                      </span>
+                    </div>
+
+                    {/* IFSC Code */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-200/80 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide block">
+                          IFSC Code
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(feeInfo.company_bank_details.ifsc_code, "modal_ifsc")}
+                          className="text-amber-700 hover:text-amber-900 text-[10px] flex items-center gap-1 font-bold cursor-pointer transition"
+                          title="Copy IFSC Code"
+                        >
+                          {copiedField === "modal_ifsc" ? <FiCheck size={11} className="text-emerald-600" /> : <FiCopy size={11} />}
+                          <span>{copiedField === "modal_ifsc" ? "Copied" : "Copy"}</span>
+                        </button>
+                      </div>
+                      <span className="font-mono font-black text-slate-900 text-sm mt-0.5 block select-all uppercase tracking-wider">
+                        {feeInfo.company_bank_details.ifsc_code || "—"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               <form onSubmit={handleUploadReceipt} className="space-y-4 text-xs">
                 {uploadError && (
@@ -1178,13 +1371,18 @@ export default function OnboardingPortal() {
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Amount Paid (₹) *</label>
+                    <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Amount Paid (₹) *</span>
+                      <span className="text-[10px] text-amber-800 font-bold inline-flex items-center gap-1 bg-amber-100/80 px-2 py-0.5 rounded-md">
+                        <FiLock size={11} /> Locked
+                      </span>
+                    </label>
                     <input
                       type="number"
-                      required
+                      readOnly
                       value={amountPaid}
-                      onChange={(e) => setAmountPaid(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-bold focus:outline-none focus:border-amber-500"
+                      className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-300 rounded-xl text-slate-800 font-bold cursor-not-allowed select-none focus:outline-none"
+                      title="Amount is fixed and locked to the official Franchisee Setup Fee configured by Admin"
                     />
                   </div>
 
@@ -1281,11 +1479,10 @@ export default function OnboardingPortal() {
                       ID: {setup.store_setup_id}
                     </span>
                   )}
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    isStoreSetupCompleted
-                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                      : "bg-amber-100 text-amber-900 border border-amber-300"
-                  }`}>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${isStoreSetupCompleted
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    : "bg-amber-100 text-amber-900 border border-amber-300"
+                    }`}>
                     {isStoreSetupCompleted ? "✓ ADMIN VERIFIED" : `IN PROGRESS (${setup?.progress_percentage || 0}%)`}
                   </span>
                 </div>
@@ -1315,8 +1512,8 @@ export default function OnboardingPortal() {
                     {setup?.revised_completion_date
                       ? new Date(setup.revised_completion_date).toLocaleDateString()
                       : setup?.original_completion_date
-                      ? new Date(setup.original_completion_date).toLocaleDateString()
-                      : "Within 21 Days"}
+                        ? new Date(setup.original_completion_date).toLocaleDateString()
+                        : "Within 21 Days"}
                   </strong>
                   <span className="text-[11px] text-slate-500">Allowed SLA: {setup?.allowed_setup_days || 21} Days</span>
                 </div>
@@ -1372,13 +1569,12 @@ export default function OnboardingPortal() {
                         </div>
 
                         <div className="shrink-0">
-                          <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
-                            item.status === "completed"
-                              ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                              : item.status === "in_progress"
+                          <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${item.status === "completed"
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            : item.status === "in_progress"
                               ? "bg-amber-100 text-amber-900 border-amber-300"
                               : "bg-slate-100 text-slate-600 border-slate-200"
-                          }`}>
+                            }`}>
                             {item.status ? item.status.toUpperCase() : "PENDING"}
                           </span>
                         </div>

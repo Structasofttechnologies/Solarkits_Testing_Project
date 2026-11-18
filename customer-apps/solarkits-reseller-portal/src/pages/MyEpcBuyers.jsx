@@ -24,6 +24,7 @@ const GST_STATE_MAP = {
 export default function MyEpcBuyers() {
   const [buyers, setBuyers] = useState([]);
   const [territories, setTerritories] = useState([]);
+  const [clusterInfo, setClusterInfo] = useState(null);
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
@@ -68,6 +69,14 @@ export default function MyEpcBuyers() {
 
   useEffect(() => {
     fetchBuyers();
+    api.get('/india/v1/franchise-clusters/my-cluster-info')
+      .then((res) => {
+        if (res.data?.status === "success" && res.data.data) {
+          setClusterInfo(res.data.data);
+        }
+      })
+      .catch(() => { });
+
     api.get('/india/v1/reseller/territories')
       .then((res) => {
         if (res.data?.status === "success" && res.data.data?.length > 0) {
@@ -277,71 +286,101 @@ export default function MyEpcBuyers() {
       </div>
 
       {/* Plan Scope & Territory Authorization Banner */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0">
-            <FiShield size={20} />
-          </div>
-          <div>
-            <div className="text-xs font-black uppercase tracking-wider text-slate-500">
-              Franchisee Territory Onboarding Rights
-            </div>
-            <div className="text-sm font-bold text-slate-900 mt-0.5">
-              {plan ? (
-                <>
-                  <span className="text-blue-600 font-extrabold">{plan.name}</span> ({plan.territory_level?.toUpperCase()} Plan) — Authorized to onboard EPC Buyers across{" "}
-                  <span className="text-emerald-700 font-black">
-                    {territories.map((t) => t.location_name || t.state?.name || t.district?.name).join(", ") || "Authorized Territories"}
+      {(() => {
+        const clusters = clusterInfo?.clusters || (clusterInfo?.cluster ? [clusterInfo.cluster] : []);
+        return (
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0 mt-0.5">
+                <FiShield size={20} />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-500">
+                    Franchisee Territory Onboarding Rights
                   </span>
-                </>
-              ) : (
-                "Authorized to onboard EPC Buyers across registered territories"
-              )}
+                  {clusters.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black uppercase border border-blue-200">
+                      Cluster-Wise Scope
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm font-bold text-slate-900 leading-relaxed">
+                  {plan ? (
+                    <>
+                      <span className="text-blue-600 font-extrabold">{plan.name}</span> ({plan.territory_level?.toUpperCase()} Plan) — Authorized to onboard EPC Buyers across{" "}
+                      {clusters.length > 0 ? (
+                        <span className="inline-flex flex-wrap items-center gap-1.5 align-middle mt-1">
+                          {clusters.map((c, cIdx) => {
+                            const distNames = (c.districts || c.district_ids || c.district_names || []).map(d => typeof d === 'string' ? d : d.name);
+                            return (
+                              <span
+                                key={c._id || c.cluster_code || cIdx}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-black"
+                              >
+                                <span className="text-blue-700 font-black">{c.cluster_name}</span>
+                                <span className="text-[10px] text-slate-500 font-mono font-medium">({c.cluster_code}):</span>
+                                <span className="text-emerald-700 font-extrabold">{distNames.join(", ")}</span>
+                              </span>
+                            );
+                          })}
+                        </span>
+                      ) : (
+                        <span className="text-emerald-700 font-black">
+                          {territories.map((t) => t.location_name || t.state?.name || t.district?.name).join(", ") || "Authorized Territories"}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    "Authorized to onboard EPC Buyers across registered franchise clusters & territories"
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start lg:self-center shrink-0">
+              <button
+                onClick={() => setTabFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${tabFilter === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+              >
+                All EPCs ({buyers.length})
+              </button>
+              <button
+                onClick={() => setTabFilter('assigned_bde')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 ${tabFilter === 'assigned_bde' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                  }`}
+              >
+                <span>Assigned by BDE</span>
+                <span className="bg-white/20 text-white px-1.5 py-0.2 rounded-full text-[10px] font-black">
+                  {buyers.filter((b) => b.is_assigned_by_bde).length}
+                </span>
+              </button>
+              <button
+                onClick={() => setTabFilter('self')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${tabFilter === 'self' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+              >
+                Self Onboarded
+              </button>
+
+              {/* EPC Type Dropdown Filter */}
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-slate-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All EPC Types</option>
+                {epcTypes.map((t) => (
+                  <option key={t.id || t.code || t.name} value={t.name}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setTabFilter('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${tabFilter === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-          >
-            All EPCs ({buyers.length})
-          </button>
-          <button
-            onClick={() => setTabFilter('assigned_bde')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 ${tabFilter === 'assigned_bde' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-              }`}
-          >
-            <span>Assigned by BDE</span>
-            <span className="bg-white/20 text-white px-1.5 py-0.2 rounded-full text-[10px] font-black">
-              {buyers.filter((b) => b.is_assigned_by_bde).length}
-            </span>
-          </button>
-          <button
-            onClick={() => setTabFilter('self')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${tabFilter === 'self' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-          >
-            Self Onboarded
-          </button>
-
-          {/* EPC Type Dropdown Filter */}
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-slate-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All EPC Types</option>
-            {epcTypes.map((t) => (
-              <option key={t.id || t.code || t.name} value={t.name}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* EPC List Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -443,10 +482,10 @@ export default function MyEpcBuyers() {
                     </td>
                     <td className="px-5 py-4 text-center">
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold capitalize ${b.status === 'approved' || b.status === 'active'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : b.status === 'pending'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-red-100 text-red-800'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : b.status === 'pending'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-red-100 text-red-800'
                         }`}>
                         {b.status === 'approved' || b.status === 'active' ? (
                           <FiCheckCircle size={13} />
@@ -735,33 +774,65 @@ export default function MyEpcBuyers() {
                   </div>
                 </div>
 
-                {territories.length > 0 && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Authorized Territory *</label>
-                    <select
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      onChange={(e) => {
-                        const selected = territories.find(t => String(t.id || t._id) === String(e.target.value));
-                        if (selected) {
-                          setForm({
-                            ...form,
-                            state_id: selected.state_id || selected.state?.id || "",
-                            district_id: selected.district_id || selected.district?.id || "",
-                          });
-                        }
-                      }}
-                    >
-                      {territories.map((t) => {
-                        const locName = t.location_name || (t.district?.name ? `${t.district.name}, ${t.state?.name || ''}` : t.state?.name || 'Authorized Territory');
-                        return (
-                          <option key={t.id || t._id} value={t.id || t._id}>
-                            {locName} ({t.territory_level || 'district'})
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                )}
+                {(() => {
+                  const clusters = clusterInfo?.clusters || (clusterInfo?.cluster ? [clusterInfo.cluster] : []);
+                  if (clusters.length === 0 && territories.length === 0) return null;
+
+                  return (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Authorized Cluster Territory *
+                      </label>
+                      <select
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const selectedT = territories.find((t) => String(t.id || t._id) === val);
+                          if (selectedT) {
+                            setForm({
+                              ...form,
+                              state_id: selectedT.state_id || selectedT.state?.id || "",
+                              district_id: selectedT.district_id || selectedT.district?.id || "",
+                            });
+                            return;
+                          }
+                          for (const c of clusters) {
+                            const dist = (c.districts || c.district_ids || []).find((d) => String(d._id || d.id) === val);
+                            if (dist) {
+                              setForm({
+                                ...form,
+                                state_id: c.state_id?._id || c.state_id || "",
+                                district_id: dist._id || dist.id || "",
+                              });
+                              return;
+                            }
+                          }
+                        }}
+                      >
+                        {clusters.length > 0 ? (
+                          clusters.map((c) => (
+                            <optgroup key={c._id || c.cluster_code} label={`${c.cluster_name} (${c.cluster_code}) — ${c.state?.name || c.state_name || 'State'}`}>
+                              {(c.districts || c.district_ids || []).map((dist) => (
+                                <option key={dist._id || dist.id || dist.name} value={dist._id || dist.id}>
+                                  {dist.name || dist}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))
+                        ) : (
+                          territories.map((t) => {
+                            const locName = t.location_name || (t.district?.name ? `${t.district.name}, ${t.state?.name || ''}` : t.state?.name || 'Authorized Territory');
+                            return (
+                              <option key={t.id || t._id} value={t.id || t._id}>
+                                {locName} ({t.territory_level || 'district'})
+                              </option>
+                            );
+                          })
+                        )}
+                      </select>
+                    </div>
+                  );
+                })()}
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">EPC Classification / Type</label>

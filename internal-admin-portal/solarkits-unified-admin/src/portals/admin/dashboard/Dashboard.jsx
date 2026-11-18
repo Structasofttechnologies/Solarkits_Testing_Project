@@ -9,7 +9,11 @@ import Loader from "../components/Loader";
 import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
+
 import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaTruck } from "react-icons/fa";
+
+import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck } from "react-icons/fa";
+
 import {
   MdAccountTree,
   MdEngineering,
@@ -25,12 +29,13 @@ import { FaMagnifyingGlassLocation, FaMapLocationDot } from "react-icons/fa6";
 import { BiSolidLayerPlus } from "react-icons/bi";
 import { GoProject } from "react-icons/go";
 import { HiCube, HiOutlineTemplate } from "react-icons/hi";
-import { FiSmartphone, FiUsers } from "react-icons/fi";
+import { FiSmartphone, FiUsers, FiBarChart2 } from "react-icons/fi";
 import VisionDashboard from "../pages/dashboard/vision-dashboard/VisionDashboard";
 
 /* ===================== Lazy Pages ===================== */
 
 const Home = lazy(() => import("../pages/dashboard/Home"));
+const FranchiseePerformanceDashboard = lazy(() => import("../pages/solar-shop/franchisee-clusters/FranchiseePerformanceDashboard"));
 const Operations = lazy(() => import("../pages/dashboard/operations/Operations"));
 const Settings = lazy(() => import("../pages/dashboard/settings/Settings"));
 const ManageUsers = lazy(() => import("../pages/dashboard/manage-users/ManageUsers"));
@@ -58,6 +63,10 @@ const WarehouseFinanceModule = lazy(() => import("../../accounts/pages/warehouse
 const ExecutiveFinanceDashboard = lazy(() => import("../../accounts/pages/executive/ExecutiveFinanceDashboard"));
 const AccountsModuleHub = lazy(() => import("../pages/accounting/AccountsModuleHub"));
 const InvoiceDoSettings = lazy(() => import("../pages/solar-shop/order-management-settings/InvoiceDoSettings"));
+const TrialKitInventoryPage = lazy(() => import("../pages/trial-kits/TrialKitInventoryPage"));
+const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrdersPage"));
+const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
+
 
 /* ===================== MENU CONFIG ===================== */
 
@@ -104,9 +113,36 @@ const menus = [
     },
     { name: "Vision Dashboard", icon: <MdVisibility />, path: "/admin-panel/vision-dashboard", unique_id: "00000000" },
     { name: "Configuration Dashboard", icon: <MdTune />, path: "/admin-panel/configuration-dashboard", unique_id: "00000000" },
+    { name: "Franchisee Performance Dashboard", icon: <FiBarChart2 />, path: "/admin-panel/franchisee-performance-dashboard", unique_id: "00000000" },
     { name: "Operations Dashboard", icon: <MdEngineering />, path: "/admin-panel/operations-dashboard", unique_id: "00000000" },
     { name: "Store Dashboard", icon: <FaStore />, path: "/admin-panel/store-dashboard", unique_id: "00000000" },
     { name: "EPC Analytics", icon: <FaChartLine />, path: "/admin-panel/epc-analytics", unique_id: "00000000" },
+    // {
+    //   name: "Trial Kit Management",
+    //   icon: <FaBoxes />,
+    //   path: "/admin-panel/trial-kits",
+    //   unique_id: "00000000",
+    //   subMenu: [
+    //     {
+    //       name: "Trial Kit Inventory",
+    //       icon: <FaWarehouse />,
+    //       path: "/admin-panel/trial-kits/inventory",
+    //       unique_id: "00000000",
+    //     },
+    //     {
+    //       name: "Trial Orders & Tracking",
+    //       icon: <FaTruck />,
+    //       path: "/admin-panel/trial-kits/orders",
+    //       unique_id: "00000000",
+    //     },
+    //     {
+    //       name: "Conversion Analytics (BI)",
+    //       icon: <FaChartLine />,
+    //       path: "/admin-panel/trial-kits/analytics",
+    //       unique_id: "00000000",
+    //     },
+    //   ],
+    // },
   ],
   [
     {
@@ -269,9 +305,15 @@ const menus = [
           unique_id: "00000000"
         },
         {
+
           name: "Invoice & DO Settings",
           icon: <FaReceipt />,
           path: "/admin-panel/accounts-module?tab=invoice-do",
+
+          name: "Franchise Business Profiles",
+          icon: <FaBriefcase />,
+          path: "/admin-panel/settings/business-profiles",
+
           unique_id: "00000000"
         }
       ],
@@ -376,12 +418,12 @@ const menus = [
           path: "/admin-panel/website-configurations/solar-store",
           unique_id: "ADM_WEBSITE_SOLARSTORE"
         },
-        {
-          name: "Website EPC Leads",
-          icon: <FiUsers />,
-          path: "/admin-panel/website-configurations/epc-leads",
-          unique_id: "ADM_WEBSITE_LEADS"
-        }
+        // {
+        //   name: "Website EPC Leads",
+        //   icon: <FiUsers />,
+        //   path: "/admin-panel/website-configurations/epc-leads",
+        //   unique_id: "ADM_WEBSITE_LEADS"
+        // }
       ]
     }
   ],
@@ -472,6 +514,7 @@ export default function Dashboard() {
   // Dynamic Title detection
   const getPageTitle = () => {
     const path = location.pathname;
+    if (path.includes('/franchisee-performance-dashboard')) return 'Franchisee Performance Dashboard';
     if (path.includes('/home')) return 'Home Dashboard';
     if (path.includes('/vision-dashboard')) return 'Vision Dashboard';
     if (path.includes('/configuration-dashboard')) return 'Configuration Dashboard';
@@ -526,6 +569,7 @@ export default function Dashboard() {
                 <Routes location={location}>
 
                   <Route
+
                     path="/invoice-do-settings/*"
                     element={
                       <PermissionGuard requiredUniqueId="00000000">
@@ -542,6 +586,12 @@ export default function Dashboard() {
                       <PermissionGuard requiredUniqueId="00000000">
                         <Suspense fallback={<Loader text="Loading Accounts Module..." />}>
                           <AccountsModuleHub />
+                    path="/franchisee-performance-dashboard"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Franchisee Performance Dashboard..." />}>
+                          <FranchiseePerformanceDashboard />
+
                         </Suspense>
                       </PermissionGuard>
                     }
@@ -787,6 +837,33 @@ export default function Dashboard() {
                       </Suspense>
                     }
                   />
+                  {/* SOLARKITS – Trial Kit Management Module (Sections 1-9) */}
+                  <Route
+                    path="/trial-kits/inventory"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Trial Kit Inventory..." />}>
+                        <TrialKitInventoryPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/trial-kits/orders"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Trial Kit Orders..." />}>
+                        <TrialKitOrdersPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/trial-kits/analytics"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Conversion BI Analytics..." />}>
+                        <TrialKitAnalyticsPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route path="/trial-kits" element={<Navigate to="/admin-panel/trial-kits/inventory" replace />} />
+
                   <Route
                     path="/profile"
                     element={

@@ -7,6 +7,7 @@ const RoleSettings = lazy(() => import("./RoleSettings"));
 const HRSettings = lazy(() => import("./HRSettings"));
 const LocationSetting = lazy(() => import("./LocationSetting"));
 const EpcTypeSettings = lazy(() => import("./EpcTypeSettings"));
+const BusinessProfileSettings = lazy(() => import("./BusinessProfileSettings"));
 
 export default function Settings() {
     return (
@@ -14,6 +15,11 @@ export default function Settings() {
             <Route path='/epc-types/*' element={
                 <Suspense fallback={<Loader text='Loading EPC type settings...' />}>
                     <EpcTypeSettings />
+                </Suspense>
+            } />
+            <Route path='/business-profiles/*' element={
+                <Suspense fallback={<Loader text='Loading Business Profile settings...' />}>
+                    <BusinessProfileSettings />
                 </Suspense>
             } />
             <Route path='/role-settings/*' element={

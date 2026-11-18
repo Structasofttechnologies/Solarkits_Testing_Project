@@ -1,4 +1,4 @@
-import { FiUsers, FiTag, FiFileText, FiMapPin, FiPackage, FiDollarSign, FiInbox, FiSliders } from "react-icons/fi";
+import { FiUsers, FiTag, FiFileText, FiMapPin, FiPackage, FiDollarSign, FiInbox, FiSliders, FiCheckSquare } from "react-icons/fi";
 import { FaStore, FaAward } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -39,19 +39,27 @@ const QUICK_LINKS = [
   },
   {
     label: "Franchisee Settings",
-    description: "Manage product MOQ rules, Commission models, PO parameters & Monthly Kit Targets per plan",
+    description: "Manage product MOQ rules, PO parameters, PO Contracts & Plan settings",
     icon: FiSliders,
     path: "/admin-panel/solar-shop/reseller-management/franchise-settings",
     color: "text-primary",
     bg: "bg-info-soft",
   },
   {
-    label: "Flagship Excluded Districts & Policy",
-    description: "Exclude company flagship store districts from franchisee applications and manage agreements",
-    icon: FiShield,
+    label: "Franchise Form Settings",
+    description: "Manage prospective partner application form fields, active visibility & compulsory requirements",
+    icon: FiCheckSquare,
+    path: "/admin-panel/solar-shop/reseller-management/franchise-form-settings",
+    color: "text-primary",
+    bg: "bg-info-soft",
+  },
+  {
+    label: "Franchisee Agreements & Policy",
+    description: "Manage franchisee agreement lifecycles, contract renewals, master legal templates & flagship store exclusions",
+    icon: FiFileText,
     path: "/admin-panel/solar-shop/reseller-management/settings",
-    color: "text-amber-500",
-    bg: "bg-amber-500/10",
+    color: "text-primary",
+    bg: "bg-info-soft",
   },
 
   // ── Onboarding & Pipeline ──

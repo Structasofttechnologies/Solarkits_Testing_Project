@@ -475,14 +475,20 @@ exports.update_bde_me = async (req, res) => {
 exports.get_my_territory = async (req, res) => {
   try {
     const territories = await _getBdeTerritories(req.user.id);
+    const assignedStates = [...new Set(territories.map(t => t.state_name).filter(Boolean))];
+    const assignedDistricts = [...new Set(territories.flatMap(t => t.district_names || []))];
     return res.status(200).json({
       status: 'success',
       data: territories[0] || null,
+      assigned_states: assignedStates,
+      state_count: assignedStates.length,
+      is_all_india: assignedStates.length >= 25,
       territories: territories.map(t => ({
         id: t._id,
         state_id: t.state_id,
         state_name: t.state_name,
         district_names: t.district_names || [],
+        district_count: (t.district_names || []).length,
         priority: t.priority,
         start_date: t.assignment_start_date,
       })),
@@ -726,12 +732,31 @@ exports.get_bde_dashboard = async (req, res) => {
       });
     });
 
+    // ── District to State Mapping & Grouping ──
+    const districtToStateMap = {};
+    const stateGroups = [];
+    (activeTerritories || []).forEach((t) => {
+      const dList = t.district_names || [];
+      dList.forEach((d) => {
+        districtToStateMap[d.toLowerCase().trim()] = t.state_name;
+      });
+      stateGroups.push({
+        state_id: t.state_id,
+        state_name: t.state_name,
+        priority: t.priority || 'medium',
+        district_count: dList.length,
+        districts: dList,
+      });
+    });
+
     // ── District Breakdown Table ──
     const districtBreakdown = await Promise.all(
       (assignedDistricts.length > 0 ? assignedDistricts : ['Central District']).map(async (dName) => {
         const dFranchisees = territoryFranchisees.filter(
           (f) => f.address?.district_name && f.address.district_name.toLowerCase().trim() === dName.toLowerCase().trim()
         );
+
+        const dState = districtToStateMap[dName.toLowerCase().trim()] || (activeTerritories[0]?.state_name || 'Assigned Territory');
 
         const [dLeads, dOnboarded, dFpoOrders, dEpcOrders] = await Promise.all([
           EPCLead.countDocuments({
@@ -774,6 +799,8 @@ exports.get_bde_dashboard = async (req, res) => {
 
         return {
           district: dName,
+          state: dState,
+          state_name: dState,
           franchisees_count: dFranchisees.length,
           operational_count: dFranchisees.filter((f) => f.is_operational).length,
           epc_leads_count: dLeads,
@@ -800,6 +827,19 @@ exports.get_bde_dashboard = async (req, res) => {
       ? Number(goal.monthly_network_kit_goal)
       : 200;
 
+    const stateCount = assignedStates.length;
+    const isAllIndia = stateCount >= 25;
+    let formattedLabel = 'Assigned Territory';
+    if (stateCount === 1) {
+      formattedLabel = assignedStates[0];
+    } else if (stateCount > 1 && stateCount <= 3) {
+      formattedLabel = assignedStates.join(', ');
+    } else if (isAllIndia) {
+      formattedLabel = `Pan India (${stateCount} States)`;
+    } else if (stateCount > 3) {
+      formattedLabel = `${assignedStates.slice(0, 2).join(', ')} +${stateCount - 2} More`;
+    }
+
     return res.status(200).json({
       status: 'success',
       data: {
@@ -816,7 +856,12 @@ exports.get_bde_dashboard = async (req, res) => {
         },
         territory: {
           state_name: stateName,
+          display_name: formattedLabel,
           assigned_states: assignedStates,
+          state_count: stateCount,
+          is_multi_state: stateCount > 1,
+          is_all_india: isAllIndia,
+          state_groups: stateGroups,
           districts: assignedDistricts,
           district_names: assignedDistricts,
           district_count: assignedDistricts.length,
@@ -1192,8 +1237,8 @@ exports.bulk_create_epc_leads = async (req, res) => {
         skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile || 'Empty', reason: 'Invalid Indian 10-digit mobile number' });
         continue;
       }
-      if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
-        skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: 'Invalid or missing email address' });
+      if (cleanEmail && !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+        skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: 'Invalid email address format' });
         continue;
       }
       if (!state_name || !district_name) {
@@ -1218,7 +1263,7 @@ exports.bulk_create_epc_leads = async (req, res) => {
         skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: 'Duplicate mobile number in this batch' });
         continue;
       }
-      if (seenBatchEmails.has(cleanEmail)) {
+      if (cleanEmail && seenBatchEmails.has(cleanEmail)) {
         skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: 'Duplicate email in this batch' });
         continue;
       }
@@ -1233,7 +1278,7 @@ exports.bulk_create_epc_leads = async (req, res) => {
         skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: `Mobile already exists (${dup.lead_id} - ${dup.company_name})` });
         continue;
       }
-      if (existingEmailMap.has(cleanEmail)) {
+      if (cleanEmail && existingEmailMap.has(cleanEmail)) {
         const dup = existingEmailMap.get(cleanEmail);
         skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: `Email already exists (${dup.lead_id} - ${dup.company_name})` });
         continue;
@@ -1249,7 +1294,7 @@ exports.bulk_create_epc_leads = async (req, res) => {
       }
 
       seenBatchMobiles.add(cleanMobile);
-      seenBatchEmails.add(cleanEmail);
+      if (cleanEmail) seenBatchEmails.add(cleanEmail);
       if (cleanGst) seenBatchGsts.add(cleanGst);
 
       // Generate sequential Lead ID
@@ -1261,7 +1306,7 @@ exports.bulk_create_epc_leads = async (req, res) => {
         company_name,
         contact_person,
         mobile_number: cleanMobile,
-        email: cleanEmail,
+        email: cleanEmail || null,
         gst_number: cleanGst,
         gst_verified: false,
         state_name,

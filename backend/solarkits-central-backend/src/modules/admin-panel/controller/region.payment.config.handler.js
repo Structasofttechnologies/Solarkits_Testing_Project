@@ -7,7 +7,7 @@
  */
 
 const mongoose = require('mongoose');
-const { RegionPaymentConfig, EpcOrder, FpoOrder } = require('../models/india_solarshop_db');
+const { RegionPaymentConfig, EpcOrder, FpoOrder, SolarShopSettings } = require('../models/india_solarshop_db');
 const { GeoLevel1, GeoLevel2 } = require('../models/geolocation_db');
 
 // ── 1. LIST REGION CONFIGS (Admin) ───────────────────────────────────────────
@@ -280,6 +280,14 @@ const resolve_payment_config = async (req, res) => {
   try {
     const { state_id, district_id, order_type = 'epc_order' } = req.query;
 
+    // Fetch configured offline company bank details from SolarShopSettings
+    const settings = await SolarShopSettings.findOne().lean();
+    const offlineBankDetails = {
+      account_number: settings?.offline_bank_details?.account_number || '',
+      ifsc_code: settings?.offline_bank_details?.ifsc_code || '',
+      account_holder_name: settings?.offline_bank_details?.account_holder_name || '',
+    };
+
     // Default fallback when no config exists
     const fallbackConfig = {
       is_configured: false,
@@ -289,6 +297,7 @@ const resolve_payment_config = async (req, res) => {
       offline_requires_accounts_verification: true,
       offline_requires_admin_approval: true,
       applies_to: ['epc_order', 'fpo_order', 'loose_order'],
+      offline_bank_details: offlineBankDetails,
     };
 
     if (!district_id || !mongoose.Types.ObjectId.isValid(district_id)) {
@@ -348,6 +357,7 @@ const resolve_payment_config = async (req, res) => {
         offline_requires_accounts_verification: Boolean(config.offline_requires_accounts_verification),
         offline_requires_admin_approval: Boolean(config.offline_requires_admin_approval),
         applies_to: config.applies_to,
+        offline_bank_details: offlineBankDetails,
       },
     });
   } catch (error) {
@@ -642,6 +652,78 @@ const reject_offline_order = async (req, res) => {
   }
 };
 
+// ── 10. GET OFFLINE BANK ACCOUNT DETAILS ─────────────────────────────────────
+const get_bank_account_details = async (req, res) => {
+  try {
+    const settings = await SolarShopSettings.findOne().lean();
+    const bankDetails = {
+      account_number: settings?.offline_bank_details?.account_number || '',
+      ifsc_code: settings?.offline_bank_details?.ifsc_code || '',
+      account_holder_name: settings?.offline_bank_details?.account_holder_name || '',
+      updated_at: settings?.offline_bank_details?.updated_at || null,
+    };
+    return res.status(200).json({
+      status: 'success',
+      data: bankDetails,
+    });
+  } catch (error) {
+    console.error('[RegionPaymentConfig] get_bank_account_details error:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to retrieve offline bank details' });
+  }
+};
+
+// ── 11. UPDATE OFFLINE BANK ACCOUNT DETAILS (Admin) ──────────────────────────
+const update_bank_account_details = async (req, res) => {
+  try {
+    const { account_number, ifsc_code, account_holder_name } = req.body;
+
+    if (!account_number || typeof account_number !== 'string' || !account_number.trim()) {
+      return res.status(400).json({ status: 'error', message: 'Account Number is required.' });
+    }
+    if (!ifsc_code || typeof ifsc_code !== 'string' || !ifsc_code.trim()) {
+      return res.status(400).json({ status: 'error', message: 'IFSC Code is required.' });
+    }
+    if (!account_holder_name || typeof account_holder_name !== 'string' || !account_holder_name.trim()) {
+      return res.status(400).json({ status: 'error', message: 'Account Holder Name is required.' });
+    }
+
+    const cleanedAccountNumber = account_number.trim().replace(/\s/g, '');
+    const cleanedIfsc = ifsc_code.trim().toUpperCase().replace(/\s/g, '');
+    const cleanedHolderName = account_holder_name.trim();
+
+    if (!cleanedIfsc || cleanedIfsc.length < 4) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please enter a valid IFSC Code.',
+      });
+    }
+
+    let settings = await SolarShopSettings.findOne({});
+    if (!settings) {
+      settings = new SolarShopSettings({});
+    }
+
+    settings.offline_bank_details = {
+      account_number: cleanedAccountNumber,
+      ifsc_code: cleanedIfsc,
+      account_holder_name: cleanedHolderName,
+      updated_at: new Date(),
+      updated_by: req.user?._id || req.user?.id || null,
+    };
+
+    await settings.save();
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Offline bank account details successfully saved.',
+      data: settings.offline_bank_details,
+    });
+  } catch (error) {
+    console.error('[RegionPaymentConfig] update_bank_account_details error:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to update offline bank details' });
+  }
+};
+
 module.exports = {
   list_configs,
   get_config_by_id,
@@ -652,4 +734,6 @@ module.exports = {
   list_pending_offline_orders,
   approve_offline_order,
   reject_offline_order,
+  get_bank_account_details,
+  update_bank_account_details,
 };

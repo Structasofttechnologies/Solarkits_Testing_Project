@@ -175,6 +175,38 @@ function BdeTerritoryCard({ bde, onManageTerritory }) {
               <p className="text-[11px] text-slate-400 italic">No districts assigned</p>
             )}
           </div>
+
+          {/* Assigned Clusters */}
+          {(() => {
+            const activeTerr = (hasMultipleStates && selectedStateTab !== '__ALL__')
+              ? territories.find(t => t.state_name?.toLowerCase().trim() === selectedStateTab?.toLowerCase().trim())
+              : null;
+            const clusterList = activeTerr ? (activeTerr.cluster_names || []) : (territories.flatMap(t => t.cluster_names || []));
+            const uniqueClusters = [...new Set(clusterList)];
+
+            if (uniqueClusters.length === 0) return null;
+
+            return (
+              <div className="space-y-1 pt-1.5 border-t border-slate-200">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500 font-medium">
+                    {hasMultipleStates && selectedStateTab !== '__ALL__' ? `Clusters in ${selectedStateTab}:` : 'Assigned Clusters:'}
+                  </span>
+                  <span className="font-bold text-indigo-700">{uniqueClusters.length}</span>
+                </div>
+                <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                  {uniqueClusters.map((cName, ci) => (
+                    <span
+                      key={ci}
+                      className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-lg text-[10px] font-bold border border-indigo-200"
+                    >
+                      🏢 {cName}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -183,7 +215,7 @@ function BdeTerritoryCard({ bde, onManageTerritory }) {
         onClick={() => onManageTerritory(b)}
         className="w-full py-2.5 bg-blue-50 hover:bg-[#0575B8] text-[#0575B8] hover:text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
       >
-        <FaMapMarkedAlt /> Manage Territory & Districts
+        <FaMapMarkedAlt /> Manage Territory & Clusters
       </button>
     </div>
   );

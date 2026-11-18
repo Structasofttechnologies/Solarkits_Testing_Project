@@ -579,7 +579,7 @@ export default function FranchiseeSettings() {
   };
 
   // Open & Save Kit Target Modal
-    // ── PO Order Contract Handlers ──
+  // ── PO Order Contract Handlers ──
   const fetchPlanContract = useCallback(async (planId) => {
     if (!planId) return;
     setLoadingContract(true);
@@ -759,8 +759,8 @@ export default function FranchiseeSettings() {
                   key={lvl}
                   onClick={() => setTerritoryFilter(lvl)}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all capitalize ${territoryFilter === lvl
-                      ? "bg-primary text-white shadow-sm"
-                      : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
                     }`}
                 >
                   {lvl}
@@ -822,10 +822,10 @@ export default function FranchiseeSettings() {
                       <div className="text-xs font-black uppercase tracking-wider text-text-muted flex items-center justify-between">
                         <span>Configuration Status</span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${stats.readinessPct === 100
-                            ? "bg-success-soft text-success border border-success/20"
-                            : stats.readinessPct > 0
-                              ? "bg-warning-soft text-warning border border-warning/20"
-                              : "bg-surface-hover text-text-muted border border-border"
+                          ? "bg-success-soft text-success border border-success/20"
+                          : stats.readinessPct > 0
+                            ? "bg-warning-soft text-warning border border-warning/20"
+                            : "bg-surface-hover text-text-muted border border-border"
                           }`}>
                           {stats.readinessPct}% Configured
                         </span>
@@ -972,8 +972,8 @@ export default function FranchiseeSettings() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all border-b-2 -mb-1 whitespace-nowrap ${active
-                      ? "border-primary bg-primary text-white shadow-md shadow-primary/20"
-                      : "border-transparent text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+                    ? "border-primary bg-primary text-white shadow-md shadow-primary/20"
+                    : "border-transparent text-text-secondary hover:text-text-primary hover:bg-surface-hover"
                     }`}
                 >
                   <Icon size={16} className={active ? "text-white" : tab.color} />
@@ -1019,11 +1019,10 @@ export default function FranchiseeSettings() {
                   <div>
                     <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
                       PO Order Contract & Mobile OTP Terms
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        contractData.is_contract_required
-                          ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-                          : "bg-warning-soft text-warning border border-warning/20"
-                      }`}>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${contractData.is_contract_required
+                        ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                        : "bg-warning-soft text-warning border border-warning/20"
+                        }`}>
                         {contractData.is_contract_required ? "Contract & OTP Mandated" : "Optional / Disabled"}
                       </span>
                     </h3>
@@ -1341,8 +1340,8 @@ export default function FranchiseeSettings() {
                         key={st.value}
                         onClick={() => setStatusFilter(st.value)}
                         className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${statusFilter === st.value
-                            ? "bg-surface shadow-sm text-primary font-bold"
-                            : "text-text-muted hover:text-text-primary"
+                          ? "bg-surface shadow-sm text-primary font-bold"
+                          : "text-text-muted hover:text-text-primary"
                           }`}
                       >
                         {st.label}
@@ -1429,8 +1428,8 @@ export default function FranchiseeSettings() {
                         key={prod.id}
                         whileHover={{ y: -2 }}
                         className={`p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${isConfigured
-                            ? "bg-surface border-border hover:border-primary/40 shadow-sm"
-                            : "bg-surface/60 border-dashed border-amber-300 dark:border-amber-800"
+                          ? "bg-surface border-border hover:border-primary/40 shadow-sm"
+                          : "bg-surface/60 border-dashed border-amber-300 dark:border-amber-800"
                           }`}
                       >
                         {/* Top: Product Name, Code, Badges */}
@@ -1444,8 +1443,8 @@ export default function FranchiseeSettings() {
                             </div>
 
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${isConfigured
-                                ? "bg-success-soft text-success border border-success/20"
-                                : "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
+                              ? "bg-success-soft text-success border border-success/20"
+                              : "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
                               }`}>
                               {isConfigured ? "✓ Configured" : "⏳ Pending"}
                             </span>
@@ -1533,8 +1532,8 @@ export default function FranchiseeSettings() {
                             else handleOpenPoModal(prod, prod.po);
                           }}
                           className={`w-full py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${isConfigured
-                              ? "bg-bg hover:bg-primary hover:text-white border border-border text-text-primary"
-                              : "bg-primary text-white hover:bg-primary-hover shadow-sm"
+                            ? "bg-bg hover:bg-primary hover:text-white border border-border text-text-primary"
+                            : "bg-primary text-white hover:bg-primary-hover shadow-sm"
                             }`}
                         >
                           {isConfigured ? <FiEdit2 size={13} /> : <FiPlus size={13} />}
@@ -1613,8 +1612,8 @@ export default function FranchiseeSettings() {
 
                               <td className="px-3 py-3 text-center">
                                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${isConfigured
-                                    ? "bg-success-soft text-success border border-success/20"
-                                    : "bg-amber-100 text-amber-700 border border-amber-300"
+                                  ? "bg-success-soft text-success border border-success/20"
+                                  : "bg-amber-100 text-amber-700 border border-amber-300"
                                   }`}>
                                   {isConfigured ? "Configured" : "Pending"}
                                 </span>
@@ -1888,8 +1887,8 @@ function PoSettingsModal({ targetProduct, plan, initialData, saving, onClose, on
                       token_value: prev.token_type === "PERCENTAGE" && Number(prev.token_value) <= 100 ? "50000" : (prev.token_value || "50000")
                     }))}
                     className={`py-1.5 px-3 rounded-lg border text-xs font-bold transition-all ${form.token_type === "FIXED_AMOUNT"
-                        ? "bg-white dark:bg-slate-800 border-emerald-500 text-emerald-700 shadow-xs ring-1 ring-emerald-500/20"
-                        : "bg-surface/50 border-border text-text-muted"
+                      ? "bg-white dark:bg-slate-800 border-emerald-500 text-emerald-700 shadow-xs ring-1 ring-emerald-500/20"
+                      : "bg-surface/50 border-border text-text-muted"
                       }`}
                   >
                     Fixed Amount (₹)
@@ -1902,8 +1901,8 @@ function PoSettingsModal({ targetProduct, plan, initialData, saving, onClose, on
                       token_value: prev.token_type === "FIXED_AMOUNT" && Number(prev.token_value) > 100 ? "10" : (prev.token_value || "10")
                     }))}
                     className={`py-1.5 px-3 rounded-lg border text-xs font-bold transition-all ${form.token_type === "PERCENTAGE"
-                        ? "bg-white dark:bg-slate-800 border-emerald-500 text-emerald-700 shadow-xs ring-1 ring-emerald-500/20"
-                        : "bg-surface/50 border-border text-text-muted"
+                      ? "bg-white dark:bg-slate-800 border-emerald-500 text-emerald-700 shadow-xs ring-1 ring-emerald-500/20"
+                      : "bg-surface/50 border-border text-text-muted"
                       }`}
                   >
                     Percentage (%)

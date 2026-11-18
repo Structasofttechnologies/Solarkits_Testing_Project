@@ -51,10 +51,28 @@ export default function EligibilityChecker({ onOpenLeadModal: externalOpenLeadMo
   // Standalone modal state if accessed directly via /eligibility route
   const [internalModalOpen, setInternalModalOpen] = useState(false);
   const [internalModalContext, setInternalModalContext] = useState({});
+  const [businessProfiles, setBusinessProfiles] = useState([]);
+
+  useEffect(() => {
+    api
+      .get("/business-profiles/active")
+      .then((res) => {
+        if (res.data?.status === "success" && Array.isArray(res.data.data)) {
+          setBusinessProfiles(res.data.data);
+          if (res.data.data.length > 0) {
+            setFormData((prev) => ({
+              ...prev,
+              businessType: prev.businessType || res.data.data[0].name,
+            }));
+          }
+        }
+      })
+      .catch(() => { });
+  }, []);
 
   const [formData, setFormData] = useState({
     gstin: "",
-    businessType: "Solar EPC / Installer",
+    businessType: "",
     experience: "1-3",
     investment: "5-15",
     teamSize: "2-5",
@@ -279,13 +297,12 @@ export default function EligibilityChecker({ onOpenLeadModal: externalOpenLeadMo
                       onBlur={() => setTouched(true)}
                       onChange={(e) => updateField("gstin", e.target.value.toUpperCase().replace(/\s/g, ""))}
                       placeholder="22AAAAA0000A1Z5"
-                      className={`${inputClass} pr-11 uppercase font-mono ${
-                        touched && !gstinValid
+                      className={`${inputClass} pr-11 uppercase font-mono ${touched && !gstinValid
                           ? "border-red-400 focus:border-red-500 focus:ring-red-100"
                           : gstinValid
-                          ? "border-emerald-400 focus:border-emerald-500 focus:ring-emerald-100"
-                          : ""
-                      }`}
+                            ? "border-emerald-400 focus:border-emerald-500 focus:ring-emerald-100"
+                            : ""
+                        }`}
                       aria-invalid={touched && !gstinValid}
                     />
                     {gstinValid && (
@@ -308,12 +325,15 @@ export default function EligibilityChecker({ onOpenLeadModal: externalOpenLeadMo
                       onChange={(e) => updateField("businessType", e.target.value)}
                       className={inputClass}
                     >
-                      <option>Solar EPC / Installer</option>
-                      <option>Electrical Goods Dealer</option>
-                      <option>Battery & Inverter Shop</option>
-                      <option>Real Estate / Contractor</option>
-                      <option>Commercial / Industrial Business Owner</option>
-                      <option>New Entrepreneur</option>
+                      {businessProfiles.length === 0 ? (
+                        <option value="">No Business Profiles Configured</option>
+                      ) : (
+                        businessProfiles.map((bp) => (
+                          <option key={bp.code || bp._id || bp.name} value={bp.name}>
+                            {bp.name}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </label>
 
@@ -379,11 +399,10 @@ export default function EligibilityChecker({ onOpenLeadModal: externalOpenLeadMo
                           key={id}
                           type="button"
                           onClick={() => setSelectedPlanId(id)}
-                          className={`relative rounded-2xl border p-3.5 text-left transition-all flex flex-col justify-between ${
-                            active
+                          className={`relative rounded-2xl border p-3.5 text-left transition-all flex flex-col justify-between ${active
                               ? "border-[#253880] bg-blue-50/70 text-[#253880] ring-2 ring-blue-100 shadow-xs"
                               : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-slate-50"
-                          }`}
+                            }`}
                         >
                           {plan.is_popular && (
                             <span className="absolute -top-2 right-3 px-2 py-0.5 rounded-full bg-gradient-to-r from-[#F49222] to-[#E07D10] text-[9px] font-black text-white uppercase tracking-wider shadow-xs">
@@ -393,9 +412,8 @@ export default function EligibilityChecker({ onOpenLeadModal: externalOpenLeadMo
 
                           <div className="flex items-center gap-2">
                             <div
-                              className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                                active ? "bg-[#253880] text-white" : "bg-slate-100 text-slate-500"
-                              }`}
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center ${active ? "bg-[#253880] text-white" : "bg-slate-100 text-slate-500"
+                                }`}
                             >
                               <Icon size={14} />
                             </div>
@@ -592,9 +610,8 @@ export default function EligibilityChecker({ onOpenLeadModal: externalOpenLeadMo
 
                   {/* Qualification Alert */}
                   <div
-                    className={`flex items-start gap-3 rounded-2xl border p-3.5 ${
-                      qualification.ready ? "border-emerald-200 bg-emerald-50" : "border-orange-200 bg-orange-50"
-                    }`}
+                    className={`flex items-start gap-3 rounded-2xl border p-3.5 ${qualification.ready ? "border-emerald-200 bg-emerald-50" : "border-orange-200 bg-orange-50"
+                      }`}
                   >
                     {qualification.ready ? (
                       <FiCheckCircle className="mt-0.5 shrink-0 text-emerald-600" />

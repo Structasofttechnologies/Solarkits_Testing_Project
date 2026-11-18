@@ -72,6 +72,40 @@ export default function FranchiseeAgreementManagement() {
     'Standard renewal subject to annual EPC onboarding goal and monthly kit sales quota achievement.'
   );
 
+  const selectedPartner = useMemo(() => {
+    if (!selectedFranchiseeId) return null;
+    return resellers.find((r) => String(r._id || r.id) === String(selectedFranchiseeId)) || null;
+  }, [selectedFranchiseeId, resellers]);
+
+  const handleFranchiseeSelect = (partnerId) => {
+    setSelectedFranchiseeId(partnerId);
+    if (!partnerId) {
+      setSelectedClusterId('');
+      return;
+    }
+    const partner = resellers.find((r) => String(r._id || r.id) === String(partnerId));
+    if (partner) {
+      if (partner.cluster_id) {
+        const clusterIdStr = String(partner.cluster_id._id || partner.cluster_id);
+        setSelectedClusterId(clusterIdStr);
+        const clu = clusters.find((c) => String(c._id) === clusterIdStr);
+        if (clu?.setup_fee_config?.setup_fee) {
+          setSetupFeeAmount(clu.setup_fee_config.setup_fee);
+        } else if (partner.cluster_setup_fee) {
+          setSetupFeeAmount(partner.cluster_setup_fee);
+        }
+        if (clu?.setup_fee_config?.renewal_fee) {
+          setRenewalFeeAmount(clu.setup_fee_config.renewal_fee);
+        } else if (partner.cluster_renewal_fee) {
+          setRenewalFeeAmount(partner.cluster_renewal_fee);
+        }
+        if (clu?.assigned_bde_id || partner.cluster_assigned_bde_id) {
+          setSelectedBdeId(clu?.assigned_bde_id?._id || clu?.assigned_bde_id || partner.cluster_assigned_bde_id);
+        }
+      }
+    }
+  };
+
   // Renew Modal
   const [renewingAgreement, setRenewingAgreement] = useState(null);
   const [renewSubmitting, setRenewSubmitting] = useState(false);
@@ -547,47 +581,85 @@ export default function FranchiseeAgreementManagement() {
             </div>
 
             <form onSubmit={handleCreateAgreement} className="space-y-4 text-xs font-semibold">
+              {/* 1. Select Franchisee Store First */}
               <div>
-                <label className="block text-slate-700 uppercase mb-1 font-bold">Select Cluster *</label>
+                <label className="block text-slate-700 uppercase mb-1 font-bold flex items-center justify-between">
+                  <span>Select Franchisee Store *</span>
+                  {selectedPartner?.city && (
+                    <span className="text-[11px] text-blue-600 font-semibold normal-case">
+                      Territory: {selectedPartner.city}{selectedPartner.state ? `, ${selectedPartner.state}` : ''}
+                    </span>
+                  )}
+                </label>
+                <select
+                  required
+                  value={selectedFranchiseeId}
+                  onChange={(e) => handleFranchiseeSelect(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Choose Partner</option>
+                  {resellers.map((r) => (
+                    <option key={r._id || r.id} value={r._id || r.id}>
+                      {r.business_name || r.name} {r.mobile ? `(${r.mobile})` : ''} {r.cluster_name ? `• [${r.cluster_name}]` : ''}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Auto-detect Notification Badge */}
+                {selectedPartner && (
+                  <div className="mt-1.5 p-2 rounded-lg bg-blue-50 border border-blue-200/80 text-[11px] flex items-center justify-between">
+                    {selectedPartner.cluster_name ? (
+                      <div className="flex items-center gap-1.5 text-blue-900">
+                        <FiCheckCircle className="text-emerald-600 shrink-0" size={14} />
+                        <span>
+                          <strong>Applicant's Chosen Cluster:</strong> {selectedPartner.cluster_name}{' '}
+                          {selectedPartner.cluster_code ? `(${selectedPartner.cluster_code})` : ''} —{' '}
+                          <span className="text-emerald-700 font-bold">Auto Selected</span>
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-slate-600">
+                        <FiAlertTriangle className="text-amber-500 shrink-0" size={14} />
+                        <span>Applicant did not pre-select a cluster. Please choose a cluster below.</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Select Cluster (Auto-populated or Manually Chosen) */}
+              <div>
+                <label className="block text-slate-700 uppercase mb-1 font-bold flex items-center justify-between">
+                  <span>Select Cluster *</span>
+                  {selectedClusterId && (
+                    <span className="text-emerald-600 text-[11px] font-semibold normal-case">
+                      ✓ Cluster linked
+                    </span>
+                  )}
+                </label>
                 <select
                   required
                   value={selectedClusterId}
                   onChange={(e) => {
-                    setSelectedClusterId(e.target.value);
-                    const clu = clusters.find((c) => c._id === e.target.value);
-                    if (clu?.assigned_franchisee_id?._id) {
-                      setSelectedFranchiseeId(clu.assigned_franchisee_id._id);
-                    }
+                    const cid = e.target.value;
+                    setSelectedClusterId(cid);
+                    const clu = clusters.find((c) => String(c._id) === String(cid));
                     if (clu?.setup_fee_config?.setup_fee) {
                       setSetupFeeAmount(clu.setup_fee_config.setup_fee);
                     }
                     if (clu?.setup_fee_config?.renewal_fee) {
                       setRenewalFeeAmount(clu.setup_fee_config.renewal_fee);
                     }
+                    if (clu?.assigned_bde_id) {
+                      setSelectedBdeId(clu.assigned_bde_id._id || clu.assigned_bde_id);
+                    }
                   }}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Choose Franchisee Cluster</option>
                   {clusters.map((c) => (
                     <option key={c._id} value={c._id}>
                       {c.cluster_name} ({c.cluster_code}) - {c.state_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 uppercase mb-1 font-bold">Select Franchisee Store *</label>
-                <select
-                  required
-                  value={selectedFranchiseeId}
-                  onChange={(e) => setSelectedFranchiseeId(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800"
-                >
-                  <option value="">Choose Partner</option>
-                  {resellers.map((r) => (
-                    <option key={r._id || r.id} value={r._id || r.id}>
-                      {r.business_name || r.name} {r.mobile ? `(${r.mobile})` : ''}
                     </option>
                   ))}
                 </select>

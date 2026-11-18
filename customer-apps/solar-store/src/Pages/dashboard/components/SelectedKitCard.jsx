@@ -1,7 +1,8 @@
 import { useRef, useState, memo, useCallback, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FaPlus, FaMinus, FaSolarPanel, FaBolt, FaBatteryFull, FaCogs,
-  FaLayerGroup, FaBoxOpen, FaRupeeSign, FaCheck, FaShoppingCart, FaPiggyBank,
+  FaLayerGroup, FaBoxOpen, FaRupeeSign, FaCheck, FaCheckCircle, FaBan, FaShoppingCart, FaPiggyBank,
   FaGem, FaStar, FaHome, FaInfoCircle, FaTruck, FaTag, FaChevronDown, FaChevronUp,
   FaBalanceScale, FaAward, FaMapMarkerAlt, FaFilePdf
 } from "react-icons/fa";
@@ -164,6 +165,7 @@ const KitComponentsRow = ({ kit }) => {
 };
 
 const SelectedKitCard = memo(({ kit, initialVariantIndex = 0, isCart = false, activeOffers = [] }) => {
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const cart = useSelector((state) => state.slice.cart);
   const { isAuthenticated, user } = useSelector((state) => state.auth_slice);
@@ -172,12 +174,17 @@ const SelectedKitCard = memo(({ kit, initialVariantIndex = 0, isCart = false, ac
   const [selectedOrderQty, setSelectedOrderQty] = useState(null);
   const [trialModalOpen, setTrialModalOpen] = useState(false);
   const hasTrialKit = Boolean(kit?.allow_trial_kit || kit?.allowTrialKit);
-  const trialKitQty = Number(kit?.trial_kit_quantity || 10);
+  const trialKitQty = Math.max(1, Number(kit?.trial_kit_quantity || 1));
   const trialLimit = Number(kit?.trial_kit_max_orders_per_buyer ?? kit?.trialKitMaxOrdersPerBuyer ?? 1);
   const purchasedTrialCount = Number(kit?.trial_kit_purchased_count ?? kit?.trialKitPurchasedCount ?? 0);
   const isTrialLimitReached = Boolean(kit?.trial_kit_limit_reached ?? kit?.trialKitLimitReached) ||
     (trialLimit > 0 && purchasedTrialCount >= trialLimit);
-  const canShowTrialButton = hasTrialKit && !isTrialLimitReached && !isCart;
+  const trialStock = Number(kit?.trial_kit_available_stock ?? kit?.trialKitAvailableStock ?? 0);
+  const isTrialInStock = Boolean((kit?.is_trial_in_stock ?? kit?.isTrialInStock) ?? (trialStock >= trialKitQty && trialStock > 0));
+
+  const canShowTrialButton = hasTrialKit && !isTrialLimitReached && isTrialInStock && !isCart;
+  const canShowOutOfStockTrial = hasTrialKit && !isTrialLimitReached && !isTrialInStock && !isCart;
+  const canShowOrderedBadge = hasTrialKit && isTrialLimitReached && !isCart;
 
   // Loose order quantities (e.g. 5, 10, 15, 20, 25 kits)
   const looseOrderQuantities = useMemo(() => {
@@ -1037,11 +1044,10 @@ const SelectedKitCard = memo(({ kit, initialVariantIndex = 0, isCart = false, ac
                   <span className="text-xs text-text-secondary font-semibold ml-1">/ kit</span>
                 </div>
                 {activeTierPricing && (
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                    activeTierPricing.type === 'po'
-                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                      : 'bg-primary/10 text-primary dark:text-info border border-primary/20'
-                  }`}>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${activeTierPricing.type === 'po'
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                    : 'bg-primary/10 text-primary dark:text-info border border-primary/20'
+                    }`}>
                     {activeTierPricing.type === 'po' ? 'PO Bulk Tier' : 'Loose Tier'}
                   </span>
                 )}
@@ -1181,22 +1187,20 @@ const SelectedKitCard = memo(({ kit, initialVariantIndex = 0, isCart = false, ac
                   <button
                     type="button"
                     onClick={() => setActiveTierType("loose")}
-                    className={`flex-1 py-1.5 px-3 rounded-lg transition-all text-center ${
-                      activeTierType === "loose"
-                        ? "bg-surface text-primary shadow-xs font-black"
-                        : "text-text-secondary hover:text-text-primary"
-                    }`}
+                    className={`flex-1 py-1.5 px-3 rounded-lg transition-all text-center ${activeTierType === "loose"
+                      ? "bg-surface text-primary shadow-xs font-black"
+                      : "text-text-secondary hover:text-text-primary"
+                      }`}
                   >
                     Loose Orders ({looseOrderQuantities[0] || 5}-{looseOrderQuantities[looseOrderQuantities.length - 1] || 25} Kits)
                   </button>
                   <button
                     type="button"
                     onClick={() => setActiveTierType("po")}
-                    className={`flex-1 py-1.5 px-3 rounded-lg transition-all text-center ${
-                      activeTierType === "po"
-                        ? "bg-surface text-amber-600 dark:text-amber-400 shadow-xs font-black"
-                        : "text-text-secondary hover:text-text-primary"
-                    }`}
+                    className={`flex-1 py-1.5 px-3 rounded-lg transition-all text-center ${activeTierType === "po"
+                      ? "bg-surface text-amber-600 dark:text-amber-400 shadow-xs font-black"
+                      : "text-text-secondary hover:text-text-primary"
+                      }`}
                   >
                     Bulk PO Orders ({poOrderQuantities[0] || 100}+ Kits)
                   </button>
@@ -1319,6 +1323,35 @@ const SelectedKitCard = memo(({ kit, initialVariantIndex = 0, isCart = false, ac
             >
               <FaTruck className="text-amber-600 dark:text-amber-400 group-hover/trial:animate-pulse" />
               <span>Order Trial Kit ({trialKitQty} Kits)</span>
+            </button>
+          )}
+
+          {canShowOutOfStockTrial && (
+            <button
+              type="button"
+              disabled
+              className="w-full mt-3 py-3 px-4 rounded-xl text-sm font-bold bg-slate-100 dark:bg-slate-800/80 text-text-muted border border-border cursor-not-allowed flex items-center justify-center gap-2 opacity-75"
+              title="Trial kit is currently out of stock in warehouse buffer. Please contact your BDE."
+            >
+              <FaBan className="text-amber-500 text-sm" />
+              <span>Out of Stock (Trial Kit)</span>
+            </button>
+          )}
+
+          {canShowOrderedBadge && (
+            <button
+              type="button"
+              onClick={() => navigate("/track-status?tab=direct")}
+              className="w-full mt-3 py-3 px-4 rounded-xl text-sm font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center justify-between shadow-xs transition-all duration-200 cursor-pointer group/trialstatus"
+              title="You have ordered a trial kit for this configuration under your GST number. Click to track shipment and delivery status."
+            >
+              <span className="flex items-center gap-2">
+                <FaCheckCircle className="text-emerald-600 dark:text-emerald-400" />
+                <span>Trial Kit Ordered ({purchasedTrialCount}/{trialLimit})</span>
+              </span>
+              <span className="text-xs font-extrabold underline group-hover/trialstatus:translate-x-0.5 transition-transform">
+                Track Status &rarr;
+              </span>
             </button>
           )}
         </div>

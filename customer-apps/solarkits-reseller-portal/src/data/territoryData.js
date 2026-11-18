@@ -180,24 +180,24 @@ export const TERRITORY_STATUS_MAP = {
   "400001": { status: "ALLOCATED", hub: "Bhiwandi Central Hub", activeDealers: 6, quotaRemaining: 0 },
   "400050": { status: "LIMITED", hub: "Bhiwandi Central Hub", activeDealers: 3, quotaRemaining: 1 },
   "422001": { status: "AVAILABLE", hub: "Nashik Hub", activeDealers: 1, quotaRemaining: 3 },
-  
+
   // Gujarat
   "380001": { status: "ALLOCATED", hub: "Ahmedabad North Hub", activeDealers: 5, quotaRemaining: 0 },
   "380015": { status: "LIMITED", hub: "Ahmedabad West Hub", activeDealers: 3, quotaRemaining: 1 },
   "395001": { status: "AVAILABLE", hub: "Surat Regional Hub", activeDealers: 2, quotaRemaining: 3 },
   "390001": { status: "AVAILABLE", hub: "Vadodara Hub", activeDealers: 1, quotaRemaining: 4 },
-  
+
   // Rajasthan
   "302001": { status: "LIMITED", hub: "Jaipur Central Hub", activeDealers: 3, quotaRemaining: 1 },
   "302020": { status: "AVAILABLE", hub: "Jaipur South Hub", activeDealers: 1, quotaRemaining: 3 },
   "342001": { status: "AVAILABLE", hub: "Jodhpur Desert Hub", activeDealers: 1, quotaRemaining: 4 },
-  
+
   // NCR & UP
   "110001": { status: "ALLOCATED", hub: "Delhi NCR Mega Hub", activeDealers: 8, quotaRemaining: 0 },
   "201301": { status: "LIMITED", hub: "Noida Regional Hub", activeDealers: 3, quotaRemaining: 1 },
   "226001": { status: "AVAILABLE", hub: "Lucknow Central Hub", activeDealers: 2, quotaRemaining: 3 },
   "208001": { status: "AVAILABLE", hub: "Kanpur Hub", activeDealers: 1, quotaRemaining: 4 },
-  
+
   // South India
   "560001": { status: "ALLOCATED", hub: "Bengaluru South Hub", activeDealers: 6, quotaRemaining: 0 },
   "560066": { status: "LIMITED", hub: "Bengaluru East Hub", activeDealers: 3, quotaRemaining: 1 },
@@ -211,7 +211,7 @@ export const TERRITORY_STATUS_MAP = {
  */
 export function checkTerritoryAvailability(state, district, pincode) {
   const cleanPin = pincode ? pincode.trim() : "";
-  
+
   if (cleanPin && TERRITORY_STATUS_MAP[cleanPin]) {
     return {
       pincode: cleanPin,
@@ -265,3 +265,219 @@ export function checkTerritoryAvailability(state, district, pincode) {
     };
   }
 }
+
+/**
+ * Pre-defined regional Franchise Clusters across Indian States.
+ * Maps 1:1 with central Franchisee Cluster models and acts as immediate client fallback.
+ */
+export const STATE_FRANCHISE_CLUSTERS = {
+  "Maharashtra": [
+    {
+      cluster_name: "Pune Region",
+      cluster_code: "CLU-MA-004",
+      state_name: "Maharashtra",
+      district_names: ["Pune", "Kolhapur", "Sangli", "Satara", "Solapur"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Konkan region",
+      cluster_code: "CLU-MA-001",
+      state_name: "Maharashtra",
+      district_names: ["Mumbai City", "Mumbai Suburban", "Palghar", "Raigad", "Ratnagiri", "Sindhudurg", "Thane"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Nashik Region",
+      cluster_code: "CLU-MA-002",
+      state_name: "Maharashtra",
+      district_names: ["Ahmednagar", "Dhule", "Jalgaon", "Nandurbar", "Nashik"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Aurangabad Region",
+      cluster_code: "CLU-MA-003",
+      state_name: "Maharashtra",
+      district_names: ["Aurangabad", "Beed", "Hingoli", "Jalna", "Latur", "Nanded", "Osmanabad", "Parbhani"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Nagpur Region",
+      cluster_code: "CLU-MA-005",
+      state_name: "Maharashtra",
+      district_names: ["Bhandara", "Chandrapur", "Gadchiroli", "Gondia", "Nagpur", "Wardha"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Amravati Region",
+      cluster_code: "CLU-MA-006",
+      state_name: "Maharashtra",
+      district_names: ["Akola", "Amravati", "Buldhana", "Washim", "Yavatmal"],
+      status: "available",
+      is_shared_territory_allowed: false
+    }
+  ],
+  "Gujarat": [
+    {
+      cluster_name: "Dang Region",
+      cluster_code: "CLU-GU-008",
+      state_name: "Gujarat",
+      district_names: ["Surat", "Dang", "Navsari", "Tapi", "Valsad"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Ahmadabad Region",
+      cluster_code: "CLU-GU-007",
+      state_name: "Gujarat",
+      district_names: ["Ahmedabad", "Anand", "Bharuch", "Chhota Udaipur", "Narmada", "Vadodara"],
+      status: "allotted",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Gandhinagar Region",
+      cluster_code: "CLU-GU-004",
+      state_name: "Gujarat",
+      district_names: ["Gandhinagar", "Banaskantha", "Kheda", "Mehsana", "Patan"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Amreli Region",
+      cluster_code: "CLU-GU-006",
+      state_name: "Gujarat",
+      district_names: ["Amreli", "Bhavnagar", "Botad", "Kutch", "Morbi", "Rajkot", "Surendranagar"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Devbhumi Dwarka Region",
+      cluster_code: "CLU-GU-003",
+      state_name: "Gujarat",
+      district_names: ["Devbhoomi Dwarka", "Gir Somnath", "Jamnagar", "Junagadh", "Porbandar"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Arvalli Region",
+      cluster_code: "CLU-GU-005",
+      state_name: "Gujarat",
+      district_names: ["Aravalli", "Dahod", "Mahisagar", "Panchmahal", "Sabarkantha"],
+      status: "available",
+      is_shared_territory_allowed: false
+    }
+  ],
+  "Rajasthan": [
+    {
+      cluster_name: "Jaipur Central Region",
+      cluster_code: "CLU-RJ-001",
+      state_name: "Rajasthan",
+      district_names: ["Jaipur", "Alwar", "Dausa", "Sikar", "Jhunjhunu"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Marwar Jodhpur Region",
+      cluster_code: "CLU-RJ-002",
+      state_name: "Rajasthan",
+      district_names: ["Jodhpur", "Pali", "Barmer", "Jaisalmer", "Nagaur"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Mewar Udaipur Region",
+      cluster_code: "CLU-RJ-003",
+      state_name: "Rajasthan",
+      district_names: ["Udaipur", "Bhilwara", "Chittorgarh", "Rajsamand", "Banswara"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Hadoti Kota Region",
+      cluster_code: "CLU-RJ-004",
+      state_name: "Rajasthan",
+      district_names: ["Kota", "Bundi", "Baran", "Jhalawar"],
+      status: "available",
+      is_shared_territory_allowed: false
+    }
+  ],
+  "Uttar Pradesh": [
+    {
+      cluster_name: "Awadh Lucknow Region",
+      cluster_code: "CLU-UP-001",
+      state_name: "Uttar Pradesh",
+      district_names: ["Lucknow", "Kanpur Nagar", "Unnao", "Barabanki", "Rae Bareli", "Sitapur"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Noida Western UP Region",
+      cluster_code: "CLU-UP-002",
+      state_name: "Uttar Pradesh",
+      district_names: ["Gautam Buddha Nagar", "Ghaziabad", "Meerut", "Bulandshahr", "Hapur"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Purvanchal Varanasi Region",
+      cluster_code: "CLU-UP-003",
+      state_name: "Uttar Pradesh",
+      district_names: ["Varanasi", "Gorakhpur", "Prayagraj", "Mirzapur", "Jaunpur", "Azamgarh"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Braj Agra Region",
+      cluster_code: "CLU-UP-004",
+      state_name: "Uttar Pradesh",
+      district_names: ["Agra", "Mathura", "Aligarh", "Firozabad", "Mainpuri"],
+      status: "available",
+      is_shared_territory_allowed: false
+    }
+  ],
+  "Madhya Pradesh": [
+    {
+      cluster_name: "Malwa Indore Region",
+      cluster_code: "CLU-MP-001",
+      state_name: "Madhya Pradesh",
+      district_names: ["Indore", "Ujjain", "Dewas", "Dhar", "Khargone", "Ratlam"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Bhopal Central Region",
+      cluster_code: "CLU-MP-002",
+      state_name: "Madhya Pradesh",
+      district_names: ["Bhopal", "Sehore", "Raisen", "Rajgarh", "Vidisha", "Hoshangabad"],
+      status: "available",
+      is_shared_territory_allowed: false
+    },
+    {
+      cluster_name: "Mahakoshal Jabalpur Region",
+      cluster_code: "CLU-MP-003",
+      state_name: "Madhya Pradesh",
+      district_names: ["Jabalpur", "Gwalior", "Rewa", "Satna", "Katni", "Sagar"],
+      status: "available",
+      is_shared_territory_allowed: false
+    }
+  ]
+};
+
+/**
+ * Returns available franchise clusters for a given state name.
+ * Returns an empty array if no clusters are configured (no fake clusters).
+ */
+export const getClustersForState = (stateName) => {
+  if (!stateName) return [];
+  const foundKey = Object.keys(STATE_FRANCHISE_CLUSTERS).find(
+    (k) => k.toLowerCase() === stateName.trim().toLowerCase()
+  );
+  if (foundKey) return STATE_FRANCHISE_CLUSTERS[foundKey];
+
+  // Return empty array if state has no configured franchise clusters
+  return [];
+};

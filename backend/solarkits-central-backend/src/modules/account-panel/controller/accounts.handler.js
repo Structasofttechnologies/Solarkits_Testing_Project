@@ -3226,7 +3226,7 @@ const get_vehicles_master = async (req, res) => {
     const { DeliveryVehicleMaster } = require('../../admin-panel/models/india_solarshop_db');
     let vehicles = await DeliveryVehicleMaster.find({ deleted_at: null }).sort({ max_load_kg: 1 }).lean();
     if (!vehicles || vehicles.length === 0) {
-      vehicles = DEFAULT_VEHICLES;
+      vehicles = [];
     } else {
       // Ensure key attributes exist and are properly formatted
       vehicles = vehicles.map(v => ({
@@ -3235,7 +3235,7 @@ const get_vehicles_master = async (req, res) => {
         name: v.name || `${v.brand_make || ''} ${v.model || 'Vehicle'}`,
         brand_make: v.brand_make || 'Standard Commercial',
         model: v.model || 'Standard',
-        max_load_kg: Number(v.max_load_kg) || 15000,
+        max_load_kg: Number(v.max_load_kg) || 0,
         length_ft: Number(v.length_ft) || 20,
         width_ft: Number(v.width_ft) || 7.5,
         height_ft: Number(v.height_ft) || 7.5,
@@ -3245,7 +3245,7 @@ const get_vehicles_master = async (req, res) => {
     return res.status(200).json({ status: 'success', data: vehicles });
   } catch (err) {
     console.error('Error in get_vehicles_master:', err);
-    return res.status(200).json({ status: 'success', data: DEFAULT_VEHICLES });
+    return res.status(200).json({ status: 'success', data: [] });
   }
 };
 
@@ -3281,7 +3281,7 @@ const get_new_orders_filter_options = async (req, res) => {
 
     const { DeliveryVehicleMaster } = require('../../admin-panel/models/india_solarshop_db');
     let vehicles = await DeliveryVehicleMaster.find({ deleted_at: null }).lean();
-    if (!vehicles || vehicles.length === 0) vehicles = DEFAULT_VEHICLES;
+    if (!vehicles) vehicles = [];
 
     let comboKits = [];
     try {
@@ -3352,7 +3352,7 @@ const get_new_orders_filter_options = async (req, res) => {
         order_modes: ['Online Orders', 'Offline Orders'],
         order_categories: ['Govt. Tenders Order', 'Industry Kits'],
         delivery_destinations: ['EPC Location', 'Franchisee Store', 'Company Store'],
-        vehicles: DEFAULT_VEHICLES,
+        vehicles: [],
       },
     });
   }
@@ -4002,48 +4002,50 @@ const calculate_procurement_grouping = async (req, res) => {
 
     // Dynamic Vehicle Calculation from Admin Panel DeliveryVehicleMaster
     let vehicles = await DeliveryVehicleMaster.find({ deleted_at: null }).sort({ max_load_kg: 1 }).lean();
-    if (!vehicles || vehicles.length === 0) vehicles = DEFAULT_VEHICLES;
+    if (!vehicles) vehicles = [];
 
     const activeFleet = vehicles
-      .filter(v => v.status !== 'Inactive')
+      .filter(v => v.status !== 'Inactive' && Number(v.max_load_kg) > 0)
       .map(v => ({
         ...v,
-        max_load_kg: Number(v.max_load_kg) || 15000,
+        max_load_kg: Number(v.max_load_kg) || 0,
       }))
       .sort((a, b) => a.max_load_kg - b.max_load_kg);
 
     const fleetToUse = activeFleet.length > 0 ? activeFleet : vehicles;
 
     // 1. Dynamic Auto-Suggestion Logic:
-    // Smallest vehicle whose payload capacity safely holds totalWeightEstKg
-    let autoRecommended = fleetToUse.find(v => v.max_load_kg >= totalWeightEstKg);
+    let autoRecommended = null;
     let autoStrategy = 'single';
     let autoMultiplier = 1;
 
-    if (!autoRecommended) {
-      // Cargo exceeds single largest vehicle capacity -> recommend multiple of largest
-      autoRecommended = fleetToUse[fleetToUse.length - 1];
-      autoStrategy = 'multiple_same';
-      autoMultiplier = Math.max(1, Math.ceil(totalWeightEstKg / autoRecommended.max_load_kg));
+    if (fleetToUse.length > 0) {
+      // Smallest vehicle whose payload capacity safely holds totalWeightEstKg
+      autoRecommended = fleetToUse.find(v => v.max_load_kg >= totalWeightEstKg);
+      if (!autoRecommended) {
+        // Cargo exceeds single largest vehicle capacity -> recommend multiple of largest
+        autoRecommended = fleetToUse[fleetToUse.length - 1];
+        autoStrategy = 'multiple_same';
+        const cap = autoRecommended.max_load_kg || 15000;
+        autoMultiplier = Math.max(1, Math.ceil(totalWeightEstKg / cap));
+      }
     }
 
     // 2. Resolve Active Vehicle (Respect user manual selection if provided, else use auto-recommended)
-    let selectedVehicle = fleetToUse.find(v => v._id.toString() === vehicle_id || v.vehicle_code === vehicle_id);
-    if (!selectedVehicle) {
-      selectedVehicle = autoRecommended;
-    }
+    let selectedVehicle = fleetToUse.find(v => v._id?.toString() === vehicle_id || v.vehicle_code === vehicle_id) || autoRecommended || null;
 
-    const singleCapacityKg = selectedVehicle.max_load_kg || 15000;
-    const activeStrategy = vehicle_strategy || (selectedVehicle._id.toString() === autoRecommended._id.toString() ? autoStrategy : 'single');
+    const singleCapacityKg = selectedVehicle ? (Number(selectedVehicle.max_load_kg) || 0) : 0;
+    const isAutoMatch = autoRecommended && selectedVehicle && (selectedVehicle._id?.toString() === autoRecommended._id?.toString());
+    const activeStrategy = vehicle_strategy || (isAutoMatch ? autoStrategy : 'single');
     let multiplier = Number(vehicle_count) || 1;
-    if (activeStrategy === 'multiple_same') {
+    if (activeStrategy === 'multiple_same' && singleCapacityKg > 0) {
       multiplier = Math.max(1, Math.ceil(totalWeightEstKg / singleCapacityKg));
     }
     const totalVehicleCapacityKg = singleCapacityKg * multiplier;
 
     const utilizationPct = totalVehicleCapacityKg > 0
       ? Math.round((totalWeightEstKg / totalVehicleCapacityKg) * 100)
-      : 100;
+      : (totalWeightEstKg > 0 ? 100 : 0);
 
     let validationStatus = 'Pass';
     let unallocatedKits = 0;
@@ -4332,11 +4334,11 @@ const calculate_procurement_grouping = async (req, res) => {
         total_weight_est_kg: totalWeightEstKg,
         kit_type_breakdown: kitTypeBreakdown,
         vehicle_assignment: {
-          vehicle_id: selectedVehicle._id,
-          vehicle_code: selectedVehicle.vehicle_code,
-          vehicle_name: selectedVehicle.name,
-          vehicle_brand: selectedVehicle.brand_make,
-          vehicle_model: selectedVehicle.model,
+          vehicle_id: selectedVehicle?._id || null,
+          vehicle_code: selectedVehicle?.vehicle_code || 'NONE',
+          vehicle_name: selectedVehicle?.name || 'No Vehicle Configured',
+          vehicle_brand: selectedVehicle?.brand_make || '',
+          vehicle_model: selectedVehicle?.model || '',
           single_capacity_kg: singleCapacityKg,
           vehicle_count: multiplier,
           vehicle_strategy: activeStrategy,
@@ -4345,9 +4347,9 @@ const calculate_procurement_grouping = async (req, res) => {
           utilization_pct: utilizationPct,
           validation_status: validationStatus,
           unallocated_kits: unallocatedKits,
-          is_auto_recommended: selectedVehicle._id.toString() === autoRecommended._id.toString(),
+          is_auto_recommended: autoRecommended && selectedVehicle ? selectedVehicle._id?.toString() === autoRecommended._id?.toString() : false,
         },
-        auto_recommendation: {
+        auto_recommendation: autoRecommended ? {
           vehicle_id: autoRecommended._id,
           vehicle_code: autoRecommended.vehicle_code,
           vehicle_name: autoRecommended.name,
@@ -4356,22 +4358,22 @@ const calculate_procurement_grouping = async (req, res) => {
           max_load_kg: autoRecommended.max_load_kg,
           vehicle_strategy: autoStrategy,
           vehicle_count: autoMultiplier,
-          total_capacity_kg: autoRecommended.max_load_kg * autoMultiplier,
+          total_capacity_kg: (autoRecommended.max_load_kg || 0) * autoMultiplier,
           estimated_load_kg: totalWeightEstKg,
-          utilization_pct: Math.min(100, Math.round((totalWeightEstKg / (autoRecommended.max_load_kg * autoMultiplier)) * 100)),
-          safe_headroom_kg: Math.max(0, (autoRecommended.max_load_kg * autoMultiplier) - totalWeightEstKg),
-          reason: `${autoRecommended.name} (${autoRecommended.max_load_kg.toLocaleString()} kg) provides optimal safe capacity for ${totalWeightEstKg.toLocaleString()} kg cargo.`,
+          utilization_pct: (autoRecommended.max_load_kg || 0) > 0 ? Math.min(100, Math.round((totalWeightEstKg / (autoRecommended.max_load_kg * autoMultiplier)) * 100)) : 0,
+          safe_headroom_kg: Math.max(0, ((autoRecommended.max_load_kg || 0) * autoMultiplier) - totalWeightEstKg),
+          reason: `${autoRecommended.name} (${(autoRecommended.max_load_kg || 0).toLocaleString()} kg) provides optimal safe capacity for ${totalWeightEstKg.toLocaleString()} kg cargo.`,
           alternatives: fleetToUse
-            .filter(v => v._id.toString() !== autoRecommended._id.toString())
+            .filter(v => v._id?.toString() !== autoRecommended._id?.toString())
             .map(v => ({
               _id: v._id,
               name: v.name,
               brand_make: v.brand_make,
               max_load_kg: v.max_load_kg,
-              utilization_pct: Math.round((totalWeightEstKg / v.max_load_kg) * 100),
-              is_under_capacity: v.max_load_kg < totalWeightEstKg,
+              utilization_pct: (v.max_load_kg || 0) > 0 ? Math.round((totalWeightEstKg / v.max_load_kg) * 100) : 0,
+              is_under_capacity: (v.max_load_kg || 0) < totalWeightEstKg,
             })),
-        },
+        } : null,
         procurement_summary: {
           total_suppliers: totalSuppliersCount,
           total_products: totalProductsCount,
@@ -4446,8 +4448,8 @@ const create_procurement_group = async (req, res) => {
 
     // 3. Resolve vehicle
     let vehicles = await DeliveryVehicleMaster.find({ deleted_at: null }).lean();
-    if (!vehicles || vehicles.length === 0) vehicles = DEFAULT_VEHICLES;
-    const vehicle = vehicles.find(v => v._id.toString() === vehicle_id || v.vehicle_code === vehicle_id) || vehicles[0];
+    if (!vehicles) vehicles = [];
+    const vehicle = vehicles.find(v => v._id?.toString() === vehicle_id || v.vehicle_code === vehicle_id) || vehicles[0] || null;
 
     // 4. Fetch orders to save order_numbers & update status
     const [epcList, fpoList] = await Promise.all([
@@ -4548,13 +4550,13 @@ const create_procurement_group = async (req, res) => {
       ],
       vehicle_strategy: vehicle_strategy,
       vehicle_details: {
-        vehicle_id: vehicle._id,
-        vehicle_code: vehicle.vehicle_code,
-        vehicle_name: vehicle.name,
-        vehicle_model: vehicle.model,
-        capacity_kg: (vehicle.max_load_kg || 15000) * (vehicle_count || 1),
+        vehicle_id: vehicle?._id || null,
+        vehicle_code: vehicle?.vehicle_code || 'NONE',
+        vehicle_name: vehicle?.name || 'No Vehicle Assigned',
+        vehicle_model: vehicle?.model || 'Standard',
+        capacity_kg: (vehicle?.max_load_kg || 0) * (vehicle_count || 1),
         estimated_load_kg: totalWeightKg,
-        utilization_pct: calc.vehicle_assignment?.utilization_pct || 71,
+        utilization_pct: calc.vehicle_assignment?.utilization_pct || 0,
         validation_status: calc.vehicle_assignment?.validation_status || 'Pass',
         unallocated_kits: calc.vehicle_assignment?.unallocated_kits || 0,
       },

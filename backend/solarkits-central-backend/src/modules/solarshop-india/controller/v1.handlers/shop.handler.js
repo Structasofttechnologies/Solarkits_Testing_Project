@@ -332,7 +332,7 @@ const resolveWarehousesForLocation = async ({ targetDistrictId, clusterId, state
     try {
       const sDoc = await GeoLevel1.findById(stateId).lean();
       if (sDoc) stateName = sDoc.name;
-    } catch (e) {}
+    } catch (e) { }
   }
   if (!stateName && targetDistrictId) {
     try {
@@ -341,7 +341,7 @@ const resolveWarehousesForLocation = async ({ targetDistrictId, clusterId, state
         const sDoc = await GeoLevel1.findById(dDoc.level_1).lean();
         if (sDoc) stateName = sDoc.name;
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // 2. State-wise Cluster & Warehouse Routing (New Logic)
@@ -679,7 +679,28 @@ const get_combo_kits_by_district = async (req, res) => {
       console.warn('EPC tenant catalog isolation check warning:', isolationErr.message);
     }
 
-    // ── Count prior trial kit orders for current buyer to enforce purchase limits ──
+    // ── SOLARKITS: Query active trial kit stock from TrialKitInventory ──────────
+    const trialStockByKitId = {};
+    const trialStockByName = {};
+    try {
+      const { TrialKitInventory } = require('../../../admin-panel/models/india_solarshop_db');
+      const allTrialInvs = await TrialKitInventory.find({ status: 'active' }).lean();
+      (allTrialInvs || []).forEach(inv => {
+        const stock = Math.max(0, Number(inv.available_stock || 0));
+        if (inv.combo_kit_id) {
+          const kId = inv.combo_kit_id.toString();
+          trialStockByKitId[kId] = (trialStockByKitId[kId] || 0) + stock;
+        }
+        if (inv.kit_type) {
+          const nameKey = inv.kit_type.trim().toLowerCase();
+          trialStockByName[nameKey] = (trialStockByName[nameKey] || 0) + stock;
+        }
+      });
+    } catch (invErr) {
+      console.warn('[get_combo_kits_by_district] Error loading TrialKitInventory:', invErr.message);
+    }
+
+    // ── Count prior trial kit orders for current buyer & GSTIN to enforce purchase limits ──
     const trialCountByKitId = {};
     try {
       let buyerId = req.user?.account_id || req.user?.id || req.user?._id;
@@ -695,18 +716,34 @@ const get_combo_kits_by_district = async (req, res) => {
       }
 
       if (buyerId && mongoose.Types.ObjectId.isValid(buyerId)) {
-        const { EpcOrder } = require('../../../admin-panel/models/india_solarshop_db');
+        const { EpcOrder, TrialKitOrder, EpcAccount } = require('../../../admin-panel/models/india_solarshop_db');
         const buyerObjId = new mongoose.Types.ObjectId(buyerId);
+
+        // Find EPC account to get GSTIN
+        const epcDoc = await EpcAccount.findById(buyerObjId).select('gstin registered_whatsapp').lean();
+        const buyerGstin = (epcDoc?.gstin || '').trim().toUpperCase();
+
+        const orderOrQueries = [{ epc_id: buyerObjId }];
+        if (buyerGstin) {
+          orderOrQueries.push({ 'delivery_address.gst_number': buyerGstin });
+          orderOrQueries.push({ 'billing_address.gst_number': buyerGstin });
+        }
+
+        // 1. Query EpcOrder collection
         const buyerTrialOrders = await EpcOrder.find({
-          epc_id: buyerObjId,
+          $or: orderOrQueries,
           order_status: { $nin: ['cancelled'] },
           payment_status: { $nin: ['rejected'] },
-          $or: [
-            { is_trial_order: true },
-            { 'items.is_trial_kit': true },
-            { 'items.item_name': { $regex: /trial/i } }
+          $and: [
+            {
+              $or: [
+                { is_trial_order: true },
+                { 'items.is_trial_kit': true },
+                { 'items.item_name': { $regex: /trial/i } }
+              ]
+            }
           ]
-        }, { 'items.kit_id': 1, 'items.is_trial_kit': 1, 'items.item_name': 1 }).lean();
+        }, { 'items.kit_id': 1, 'items.item_name': 1, 'items.is_trial_kit': 1 }).lean();
 
         (buyerTrialOrders || []).forEach(o => {
           (o.items || []).forEach(it => {
@@ -716,6 +753,23 @@ const get_combo_kits_by_district = async (req, res) => {
               trialCountByKitId[kId] = (trialCountByKitId[kId] || 0) + 1;
             }
           });
+        });
+
+        // 2. Query TrialKitOrder collection
+        const tkOrQueries = [{ epc_id: buyerObjId }];
+        if (buyerGstin) {
+          tkOrQueries.push({ gst_number: buyerGstin });
+        }
+        const directTrialOrders = await TrialKitOrder.find({
+          $or: tkOrQueries,
+          order_status: { $nin: ['cancelled'] },
+        }, { combo_kit_id: 1, kit_type: 1 }).lean();
+
+        (directTrialOrders || []).forEach(o => {
+          if (o.combo_kit_id) {
+            const kId = o.combo_kit_id.toString();
+            trialCountByKitId[kId] = (trialCountByKitId[kId] || 0) + 1;
+          }
         });
       }
     } catch (trialCountErr) {
@@ -1843,21 +1897,45 @@ const get_combo_kits_by_district = async (req, res) => {
         po_order_pricing: marginDoc?.po_order_pricing || [],
         allow_trial_kit: Boolean(kit.allow_trial_kit),
         allowTrialKit: Boolean(kit.allow_trial_kit),
-        trial_kit_quantity: Number(kit.trial_kit_quantity) || 10,
-        trialKitQuantity: Number(kit.trial_kit_quantity) || 10,
+        trial_kit_quantity: kit.trial_kit_quantity !== undefined && kit.trial_kit_quantity !== null ? Math.max(1, Number(kit.trial_kit_quantity)) : 1,
+        trialKitQuantity: kit.trial_kit_quantity !== undefined && kit.trial_kit_quantity !== null ? Math.max(1, Number(kit.trial_kit_quantity)) : 1,
         trial_kit_max_orders_per_buyer: kit.trial_kit_max_orders_per_buyer !== undefined ? Number(kit.trial_kit_max_orders_per_buyer) : 1,
         trialKitMaxOrdersPerBuyer: kit.trial_kit_max_orders_per_buyer !== undefined ? Number(kit.trial_kit_max_orders_per_buyer) : 1,
-        trial_kit_purchased_count: trialCountByKitId[kit._id.toString()] || 0,
-        trialKitPurchasedCount: trialCountByKitId[kit._id.toString()] || 0,
+        trial_kit_purchased_count: trialCountByKitId[kit._id.toString()] || (kit.name ? (trialCountByKitId[kit.name] || 0) : 0),
+        trialKitPurchasedCount: trialCountByKitId[kit._id.toString()] || (kit.name ? (trialCountByKitId[kit.name] || 0) : 0),
         trial_kit_limit_reached: (() => {
           const limit = kit.trial_kit_max_orders_per_buyer !== undefined ? Number(kit.trial_kit_max_orders_per_buyer) : 1;
-          const purchased = trialCountByKitId[kit._id.toString()] || 0;
+          const purchased = trialCountByKitId[kit._id.toString()] || (kit.name ? (trialCountByKitId[kit.name] || 0) : 0);
           return Boolean(limit > 0 && purchased >= limit);
         })(),
         trialKitLimitReached: (() => {
           const limit = kit.trial_kit_max_orders_per_buyer !== undefined ? Number(kit.trial_kit_max_orders_per_buyer) : 1;
-          const purchased = trialCountByKitId[kit._id.toString()] || 0;
+          const purchased = trialCountByKitId[kit._id.toString()] || (kit.name ? (trialCountByKitId[kit.name] || 0) : 0);
           return Boolean(limit > 0 && purchased >= limit);
+        })(),
+        trial_kit_available_stock: (() => {
+          const byId = trialStockByKitId[kit._id.toString()];
+          if (byId !== undefined) return byId;
+          const byName = trialStockByName[(kit.name || '').trim().toLowerCase()];
+          return byName !== undefined ? byName : 0;
+        })(),
+        trialKitAvailableStock: (() => {
+          const byId = trialStockByKitId[kit._id.toString()];
+          if (byId !== undefined) return byId;
+          const byName = trialStockByName[(kit.name || '').trim().toLowerCase()];
+          return byName !== undefined ? byName : 0;
+        })(),
+        is_trial_in_stock: (() => {
+          const reqQty = kit.trial_kit_quantity !== undefined && kit.trial_kit_quantity !== null ? Math.max(1, Number(kit.trial_kit_quantity)) : 1;
+          const byId = trialStockByKitId[kit._id.toString()];
+          const stock = byId !== undefined ? byId : (trialStockByName[(kit.name || '').trim().toLowerCase()] || 0);
+          return Boolean(kit.allow_trial_kit && stock >= reqQty && stock > 0);
+        })(),
+        isTrialInStock: (() => {
+          const reqQty = kit.trial_kit_quantity !== undefined && kit.trial_kit_quantity !== null ? Math.max(1, Number(kit.trial_kit_quantity)) : 1;
+          const byId = trialStockByKitId[kit._id.toString()];
+          const stock = byId !== undefined ? byId : (trialStockByName[(kit.name || '').trim().toLowerCase()] || 0);
+          return Boolean(kit.allow_trial_kit && stock >= reqQty && stock > 0);
         })(),
         description: kit.description || (kit.capacity ? `High quality solar kit of ${kit.capacity}kW capacity.` : ""),
         warrantyYears: (firstPanel && firstPanel.warrantyYears) || (firstInverter && firstInverter.warrantyYears) || null,
@@ -3606,11 +3684,12 @@ const get_orders = async (req, res) => {
  */
 const get_company_bank_details = async (req, res) => {
   try {
-    const { COMPANY_BANK_DETAILS } = require("../../../admin-panel/services/epc.offline.checkout.service");
+    const { getDynamicCompanyBankDetails } = require("../../../admin-panel/services/epc.offline.checkout.service");
+    const bankDetails = await getDynamicCompanyBankDetails();
     return res.status(200).json({
       success: true,
       status: "success",
-      data: COMPANY_BANK_DETAILS,
+      data: bankDetails,
     });
   } catch (error) {
     console.error("get_company_bank_details error:", error);

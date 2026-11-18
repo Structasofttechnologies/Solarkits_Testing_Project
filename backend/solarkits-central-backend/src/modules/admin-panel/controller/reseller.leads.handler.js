@@ -26,6 +26,7 @@ const {
 const { GeoLevel0, GeoLevel1, GeoLevel2 } = require('../models/geolocation_db');
 const { logAudit } = require('../utils/audit.service');
 const { sendFranchisePartnerCredentialsEmail } = require('../utils/nodemailer');
+const { DEFAULT_FRANCHISE_FORM_FIELDS } = require('../constants/franchiseFormFields.default');
 
 // ─── 0. QUICKEKYC GST-LINKED MOBILE OTP VERIFICATION ────────────────────────
 /**
@@ -267,6 +268,10 @@ const submit_lead = async (req, res) => {
       state,
       district,
       pincode,
+      cluster_id,
+      cluster_name,
+      cluster_code,
+      cluster_districts,
       businessProfile,
       business_profile,
       expectedOrderQty,
@@ -289,32 +294,84 @@ const submit_lead = async (req, res) => {
       source,
     } = req.body;
 
+    // Load dynamic form field configuration from Admin Settings
+    let formFields = DEFAULT_FRANCHISE_FORM_FIELDS;
+    try {
+      const settingsDoc = await SolarShopSettings.findOne({}).lean();
+      if (settingsDoc && Array.isArray(settingsDoc.franchise_form_fields) && settingsDoc.franchise_form_fields.length > 0) {
+        formFields = settingsDoc.franchise_form_fields;
+      }
+    } catch (e) {
+      console.warn('[submit_lead] Warning reading franchise_form_fields settings:', e.message);
+    }
+
+    const fieldMap = {};
+    formFields.forEach((f) => {
+      fieldMap[f.field_key] = f;
+    });
+
+    const isFieldActive = (key) => fieldMap[key] ? fieldMap[key].is_active !== false : true;
+    const isFieldRequired = (key) => isFieldActive(key) && fieldMap[key]?.is_required === true;
+    const getFieldLabel = (key, fallback) => (fieldMap[key] && fieldMap[key].label) || fallback;
+
     const name = (fullName || full_name || '').trim();
     const mobile = (mobileNumber || mobile_number || '').trim();
-
-    if (!name) {
-      return res.status(400).json({ status: 'error', message: 'Full name is required' });
-    }
-    if (!mobile) {
-      return res.status(400).json({ status: 'error', message: 'Mobile number is required' });
-    }
-    if ((source === 'storefront_modal' || selectedSolution === 'Header Fast Application') && (!gstin || !gstin.trim() || gstin.trim().length < 15)) {
-      return res.status(400).json({ status: 'error', message: 'GSTIN is compulsory for franchisee enquiry' });
-    }
-
-    const company = (businessName || business_name || `${name} Solar Enterprise`).trim();
-    const mail = (email || '').trim().toLowerCase() || `${mobile}@inbound.solarkits.in`;
+    const company = (businessName || business_name || (name ? `${name} Solar Enterprise` : 'Solar Enterprise')).trim();
+    const mail = (email || '').trim().toLowerCase() || (mobile ? `${mobile}@inbound.solarkits.in` : 'partner@inbound.solarkits.in');
+    const cleanGst = (gstin || '').trim().toUpperCase();
+    const cleanPin = (pincode || '').trim();
     const targetState = (state || 'Maharashtra').trim();
     const targetDistrict = (district || 'General').trim();
-    const isGstVerified = Boolean(gst_verified);
+    const bProfile = (businessProfile || business_profile || 'Solar EPC Contractor').trim();
+
+    // ── Dynamic Validations based on Admin Field Configuration ──
+    if (isFieldRequired('fullName') && !name) {
+      return res.status(400).json({ status: 'error', message: `${getFieldLabel('fullName', 'Full Name')} is compulsory` });
+    }
+    if (isFieldRequired('businessName') && !(businessName || business_name)) {
+      return res.status(400).json({ status: 'error', message: `${getFieldLabel('businessName', 'Business / Company Name')} is compulsory` });
+    }
+    if (isFieldRequired('mobileNumber') && !mobile) {
+      return res.status(400).json({ status: 'error', message: `${getFieldLabel('mobileNumber', 'Mobile Number')} is compulsory` });
+    }
+    if (isFieldRequired('whatsappNumber') && !(whatsappNumber || whatsapp_number)) {
+      return res.status(400).json({ status: 'error', message: `${getFieldLabel('whatsappNumber', 'WhatsApp Number')} is compulsory` });
+    }
+    if (isFieldRequired('email') && !(email || '').trim()) {
+      return res.status(400).json({ status: 'error', message: `${getFieldLabel('email', 'Email Address')} is compulsory` });
+    }
+    if (isFieldRequired('gstin')) {
+      if (!cleanGst || cleanGst.length !== 15) {
+        return res.status(400).json({ status: 'error', message: `${getFieldLabel('gstin', 'GSTIN / Tax ID')} is compulsory (Must be valid 15-character GSTIN)` });
+      }
+    } else if (cleanGst && cleanGst.length !== 15 && isFieldActive('gstin')) {
+      return res.status(400).json({ status: 'error', message: 'GSTIN must be exactly 15 characters if provided, or leave empty' });
+    }
+    if (isFieldRequired('state') && !(state || '').trim()) {
+      return res.status(400).json({ status: 'error', message: `${getFieldLabel('state', 'State')} is compulsory` });
+    }
+    if (isFieldRequired('cluster') && !(cluster_id || cluster_name || cluster_code)) {
+      return res.status(400).json({ status: 'error', message: `${getFieldLabel('cluster', 'Franchise Cluster')} is compulsory` });
+    }
+    if (isFieldRequired('pincode') && !cleanPin) {
+      return res.status(400).json({ status: 'error', message: `${getFieldLabel('pincode', 'Pincode')} is compulsory` });
+    }
+    if (isFieldRequired('businessProfile') && !(businessProfile || business_profile)) {
+      return res.status(400).json({ status: 'error', message: `${getFieldLabel('businessProfile', 'Business Profile')} is compulsory` });
+    }
+    if (isFieldRequired('consent') && consent !== true && consent_agreed !== true) {
+      return res.status(400).json({ status: 'error', message: 'You must agree to the partner program terms to continue' });
+    }
+
+    const isGstVerified = isFieldActive('gstin') ? Boolean(gst_verified) : false;
 
     const photosList = Array.isArray(shop_photos)
       ? shop_photos
       : Array.isArray(shopPhotos)
-      ? shopPhotos
-      : Array.isArray(photos)
-      ? photos
-      : [];
+        ? shopPhotos
+        : Array.isArray(photos)
+          ? photos
+          : [];
 
     const leadSource = source || 'storefront_modal';
     const isCallbackReq = Boolean(
@@ -324,27 +381,45 @@ const submit_lead = async (req, res) => {
       selectedSolution?.toLowerCase().includes('callback')
     );
 
+    let resolvedPlanId = plan_id && mongoose.Types.ObjectId.isValid(plan_id) ? plan_id : null;
+    if (!resolvedPlanId) {
+      const targetLevel = (req.body.territoryLevel || req.body.territory_level || 'district').toLowerCase();
+      const defPlan = await ResellerPlan.findOne({
+        is_active: true,
+        deleted_at: null,
+        store_category: 'franchisee_store',
+        territory_level: targetLevel,
+      }).sort({ sort_order: 1, one_time_fee: 1 });
+      if (defPlan) {
+        resolvedPlanId = defPlan._id;
+      }
+    }
+
     const newLead = await FranchiseLead.create({
-      full_name: name,
+      full_name: name || 'Franchise Partner',
       business_name: company,
-      mobile_number: mobile,
-      whatsapp_number: (whatsappNumber || whatsapp_number || mobile).trim(),
+      mobile_number: mobile || 'N/A',
+      whatsapp_number: isFieldActive('whatsappNumber') ? (whatsappNumber || whatsapp_number || mobile || '').trim() : (mobile || '').trim(),
       email: mail,
-      gstin: (gstin || '').trim().toUpperCase() || null,
+      gstin: isFieldActive('gstin') ? ((gstin || '').trim().toUpperCase() || null) : null,
       gst_verified: isGstVerified,
-      gst_legal_name: gst_legal_name ? gst_legal_name.trim() : null,
-      gst_trade_name: gst_trade_name ? gst_trade_name.trim() : null,
-      quickekyc_request_id: quickekyc_request_id || null,
+      gst_legal_name: isGstVerified && gst_legal_name ? gst_legal_name.trim() : null,
+      gst_trade_name: isGstVerified && gst_trade_name ? gst_trade_name.trim() : null,
+      quickekyc_request_id: isGstVerified ? (quickekyc_request_id || null) : null,
       gst_verified_at: isGstVerified ? new Date() : null,
       state: targetState,
       district: targetDistrict,
-      pincode: (pincode || '').trim() || null,
-      business_profile: businessProfile || business_profile || 'Solar EPC Contractor',
-      expected_order_volume: expectedOrderQty || expected_order_volume || '1 - 3 Kits / Month (Starter)',
+      pincode: isFieldActive('pincode') ? ((pincode || '').trim() || null) : null,
+      cluster_id: cluster_id && mongoose.Types.ObjectId.isValid(cluster_id) ? cluster_id : null,
+      cluster_name: cluster_name ? cluster_name.trim() : null,
+      cluster_code: cluster_code ? cluster_code.trim() : null,
+      cluster_districts: Array.isArray(cluster_districts) ? cluster_districts : [],
+      business_profile: bProfile || 'Solar EPC Contractor',
+      expected_order_volume: (expectedOrderQty || expected_order_volume || '').toString().trim() || null,
       selected_solution: selectedSolution || selected_solution || (isCallbackReq ? 'Request Partner Callback' : 'Header Fast Application'),
       action_type: isCallbackReq ? 'callback_request' : (actionType || action_type || 'franchise_apply'),
-      plan_id: plan_id && mongoose.Types.ObjectId.isValid(plan_id) ? plan_id : null,
-      notes: (notes || '').trim() || null,
+      plan_id: resolvedPlanId,
+      notes: isFieldActive('notes') ? ((notes || '').trim() || null) : null,
       shop_photos: photosList,
       consent_agreed: consent !== undefined ? Boolean(consent) : (consent_agreed !== undefined ? Boolean(consent_agreed) : true),
       status: isGstVerified ? 'GST_VERIFIED' : 'NEW',
@@ -381,7 +456,7 @@ const submit_lead = async (req, res) => {
  */
 const list_leads = async (req, res) => {
   try {
-    const { status, state, search, business_profile, source, bde_id, page = 1, limit = 50 } = req.query;
+    const { status, state, search, business_profile, source, bde_id, cluster_name, cluster_code, page = 1, limit = 50 } = req.query;
 
     const query = { deleted_at: null };
 
@@ -391,6 +466,14 @@ const list_leads = async (req, res) => {
 
     if (state && state !== 'ALL') {
       query.state = { $regex: new RegExp(`^${state.trim()}$`, 'i') };
+    }
+
+    if (cluster_name && cluster_name !== 'ALL') {
+      query.cluster_name = { $regex: new RegExp(`^${cluster_name.trim()}$`, 'i') };
+    }
+
+    if (cluster_code && cluster_code !== 'ALL') {
+      query.cluster_code = { $regex: new RegExp(`^${cluster_code.trim()}$`, 'i') };
     }
 
     if (business_profile && business_profile !== 'ALL') {
@@ -432,6 +515,8 @@ const list_leads = async (req, res) => {
         { gstin: searchRegex },
         { district: searchRegex },
         { state: searchRegex },
+        { cluster_name: searchRegex },
+        { cluster_code: searchRegex },
       ];
     }
 
@@ -499,6 +584,11 @@ const list_leads = async (req, res) => {
         state: r.state,
         district: r.district,
         pincode: r.pincode,
+        cluster_id: r.cluster_id || null,
+        cluster_name: r.cluster_name || null,
+        cluster_code: r.cluster_code || null,
+        cluster_districts: Array.isArray(r.cluster_districts) ? r.cluster_districts : [],
+        preferredFranchiseModel: r.preferred_franchise_model || null,
         businessProfile: r.business_profile,
         expectedOrderQty: r.expected_order_volume,
         selectedSolution: r.selected_solution || (isCallback ? 'Request Partner Callback' : 'Header Fast Application'),
@@ -645,7 +735,21 @@ const approve_lead_as_franchisee = async (req, res) => {
       plan = await ResellerPlan.findById(targetPlanId);
     }
     if (!plan) {
-      plan = await ResellerPlan.findOne({ is_active: true, deleted_at: null }).sort({ one_time_fee: 1 });
+      const targetLevel = (lead.territory_level || 'district').toLowerCase();
+      plan = await ResellerPlan.findOne({
+        is_active: true,
+        deleted_at: null,
+        store_category: 'franchisee_store',
+        territory_level: targetLevel,
+      }).sort({ sort_order: 1, one_time_fee: 1 });
+
+      if (!plan) {
+        plan = await ResellerPlan.findOne({
+          is_active: true,
+          deleted_at: null,
+          store_category: 'franchisee_store',
+        }).sort({ sort_order: 1, one_time_fee: 1 });
+      }
     }
 
     // 2. Check if Reseller already exists
@@ -785,7 +889,7 @@ const approve_lead_as_franchisee = async (req, res) => {
     let agreement = await ResellerAgreement.findOne({ reseller_id: reseller._id, status: { $in: ['pending', 'generated', 'signed'] } });
     if (!agreement) {
       const agreementNumber = `SK-FRN-AGR-${new Date().getFullYear()}-${String(reseller._id).slice(-6).toUpperCase()}`;
-      
+
       const settings = await SolarShopSettings.findOne().lean();
       const template = settings?.franchise_agreement_template || `SOLARKITS AUTHORIZED FRANCHISE PARTNER AGREEMENT
 

@@ -179,6 +179,18 @@ export const bdeApi = {
     }
   },
 
+  // Fetch Franchisee Clusters for a State
+  getClustersByState: async (stateId) => {
+    if (!stateId) return { data: [], count: 0 };
+    try {
+      const res = await axios.get(`${API_BASE}/franchise-clusters/list?state_id=${stateId}`, getHeaders());
+      return res.data;
+    } catch (err) {
+      console.error('Failed to fetch clusters for state:', err);
+      return { data: [], count: 0 };
+    }
+  },
+
   // Fetch Master Franchisee Plans
   getFranchiseePlans: async () => {
     const res = await axios.get(`${API_BASE}/reseller-mgmt/plans/list?unique_id=RSL_PLAN&req_for=view`, getHeaders());

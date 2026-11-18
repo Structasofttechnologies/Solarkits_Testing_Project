@@ -18,7 +18,7 @@ import {
   MdOutlineAccessTime
 } from "react-icons/md";
 import { FaRupeeSign, FaShieldAlt, FaSolarPanel, FaBolt, FaBoxOpen, FaTools, FaShoppingCart } from "react-icons/fa";
-import { getTransactionDetails, verifyEpcOrderPayment, dispatchEpcOrder } from "../api/solarshopAccounts";
+import { getTransactionDetails, verifyEpcOrderPayment, dispatchEpcOrder, updatePlanPaymentStatus } from "../api/solarshopAccounts";
 import Button from "./Button";
 
 export default function TransactionDetailsDrawer({ isOpen, onClose, transaction, onStatusUpdated }) {
@@ -40,6 +40,8 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
   const [trackingUrl, setTrackingUrl] = useState("");
   const [estimatedDelivery, setEstimatedDelivery] = useState("");
 
+  const isPlan = details?.type_key === 'franchise_plan' || transaction?.type_key === 'franchise_plan' || transaction?.transaction_type === 'Franchise Plan';
+
   useEffect(() => {
     if (isOpen && transaction) {
       fetchFullDetails();
@@ -52,6 +54,34 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
   }, [isOpen, transaction]);
 
   const handleApprovePayment = async (targetMilestoneNum = null) => {
+    if (isPlan) {
+      if (!window.confirm("Confirm that Franchise Setup Fee UTR and funds have been verified in company bank statement? This will mark payment as Paid and activate the Franchise Partner.")) {
+        return;
+      }
+
+      setActionLoading(true);
+      setActionSuccessMsg("");
+      setActionErrorMsg("");
+      try {
+        const planId = details?.id || details?._id || transaction?.id || transaction?._id;
+        const cleanUtr = details?.transaction_id || details?.payment_info?.reference_no || details?.utr_number || transaction?.transaction_id || transaction?.utr_number || "";
+        const res = await updatePlanPaymentStatus(planId, {
+          payment_status: "Paid",
+          payment_reference: cleanUtr,
+        });
+        if (res.status === "success") {
+          setActionSuccessMsg(res.message || "Franchise plan payment verified and partner activated successfully!");
+          fetchFullDetails();
+          if (onStatusUpdated) onStatusUpdated();
+        }
+      } catch (err) {
+        setActionErrorMsg(err.response?.data?.message || err.message || "Failed to approve franchise plan payment.");
+      } finally {
+        setActionLoading(false);
+      }
+      return;
+    }
+
     const isM1 = targetMilestoneNum === 1;
     const isM2 = targetMilestoneNum === 2;
     const confirmPrompt = isM1
@@ -85,7 +115,7 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
   const handleRejectPayment = async (e) => {
     e.preventDefault();
     if (!rejectionReason.trim()) {
-      setActionErrorMsg("Please enter a specific rejection reason for the EPC contractor.");
+      setActionErrorMsg(isPlan ? "Please enter a specific rejection reason for the franchise partner." : "Please enter a specific rejection reason for the EPC contractor.");
       return;
     }
 
@@ -94,16 +124,30 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
     setActionErrorMsg("");
     try {
       const orderId = details?.id || details?._id || transaction?.id || transaction?._id;
-      const res = await verifyEpcOrderPayment(orderId, {
-        decision: "rejected",
-        rejection_reason: rejectionReason.trim(),
-      });
-      if (res.status === "success") {
-        setActionSuccessMsg(res.message || "Payment rejected. EPC notified with rejection reason.");
-        setShowRejectModal(false);
-        setRejectionReason("");
-        fetchFullDetails();
-        if (onStatusUpdated) onStatusUpdated();
+      if (isPlan) {
+        const res = await updatePlanPaymentStatus(orderId, {
+          payment_status: "Failed",
+          notes: rejectionReason.trim(),
+        });
+        if (res.status === "success") {
+          setActionSuccessMsg(res.message || "Franchise plan payment marked as rejected.");
+          setShowRejectModal(false);
+          setRejectionReason("");
+          fetchFullDetails();
+          if (onStatusUpdated) onStatusUpdated();
+        }
+      } else {
+        const res = await verifyEpcOrderPayment(orderId, {
+          decision: "rejected",
+          rejection_reason: rejectionReason.trim(),
+        });
+        if (res.status === "success") {
+          setActionSuccessMsg(res.message || "Payment rejected. EPC notified with rejection reason.");
+          setShowRejectModal(false);
+          setRejectionReason("");
+          fetchFullDetails();
+          if (onStatusUpdated) onStatusUpdated();
+        }
       }
     } catch (err) {
       setActionErrorMsg(err.response?.data?.message || err.message || "Failed to reject payment.");
@@ -235,7 +279,6 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
     );
   };
 
-  const isPlan = details?.type_key === 'franchise_plan' || transaction?.type_key === 'franchise_plan' || transaction?.transaction_type === 'Franchise Plan';
   const isDirectEpc = details?.type_key === 'direct_epc' || transaction?.type_key === 'direct_epc' || details?.is_direct;
   const isCommission = !isPlan && !isDirectEpc;
 
@@ -340,7 +383,7 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                   <div className="p-5 rounded-2xl bg-linear-135 from-primary/5 via-surface to-primary/10 border border-primary/20 shadow-sm relative overflow-hidden">
                     <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-primary/10 rounded-full blur-xl pointer-events-none" />
                     <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1">
-                      Total Amount Paid by EPC (Incl. GST & Delivery)
+                      {isPlan ? "Franchise Plan Setup Fee (Paid by Franchisee)" : "Total Amount Paid by EPC (Incl. GST & Delivery)"}
                     </span>
                     <div className="flex items-baseline gap-2">
                       <span className="text-2xl sm:text-3xl font-extrabold text-text-primary font-mono tracking-tight">
@@ -427,7 +470,7 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                           )}
                         </span>
                         <span className="text-[10px] text-primary/80 block mt-0.5">
-                          {isDirectEpc ? 'Grand Total (No Commission)' : 'After Partner Comm.'}
+                          {isPlan ? 'Direct Company Revenue' : isDirectEpc ? 'Grand Total (No Commission)' : 'After Partner Comm.'}
                         </span>
                       </div>
                     </div>
@@ -1236,23 +1279,37 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                             Accounts Action Required
                           </span>
                           <h4 className="text-xs font-extrabold text-text-primary mt-1">
-                            {isM1Pending
-                              ? "Verify Milestone 1 Advance (30%) & Issue Proforma Invoice"
-                              : isM2Pending
-                                ? "Verify Milestone 2 Balance (70%) & Issue GST Tax Invoice"
-                                : "Verify Bank Statement Deposit & UTR Reference"}
+                            {isPlan
+                              ? "Verify Franchise Plan Payment & Activate Partner"
+                              : isM1Pending
+                                ? "Verify Milestone 1 Advance (30%) & Issue Proforma Invoice"
+                                : isM2Pending
+                                  ? "Verify Milestone 2 Balance (70%) & Issue GST Tax Invoice"
+                                  : "Verify Bank Statement Deposit & UTR Reference"}
                           </h4>
                           <p className="text-[11px] text-text-muted mt-0.5">
-                            {isM1Pending
-                              ? "Confirm advance funds match UTR in SolarKits bank account to release order for warehouse assembly."
-                              : isM2Pending
-                                ? "Confirm balance funds match UTR in SolarKits bank account to stage order for final dispatch."
-                                : "Confirm funds match UTR in SolarKits bank account before approving."}
+                            {isPlan
+                              ? "Confirm that franchise onboarding fee funds match UTR in SolarKits bank account before approving. Approving will activate the Franchise Partner account and territorial allocation."
+                              : isM1Pending
+                                ? "Confirm advance funds match UTR in SolarKits bank account to release order for warehouse assembly."
+                                : isM2Pending
+                                  ? "Confirm balance funds match UTR in SolarKits bank account to stage order for final dispatch."
+                                  : "Confirm funds match UTR in SolarKits bank account before approving."}
                           </p>
                         </div>
 
                         <div className="flex items-center gap-2 pt-1">
-                          {isM1Pending ? (
+                          {isPlan ? (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => handleApprovePayment(null)}
+                              loading={actionLoading}
+                              className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white border-none flex-1 justify-center py-2.5"
+                            >
+                              <MdCheckCircle size={15} /> Approve & Activate Franchise Partner
+                            </Button>
+                          ) : isM1Pending ? (
                             <Button
                               variant="primary"
                               size="sm"
@@ -1289,7 +1346,7 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                             onClick={() => setShowRejectModal(true)}
                             className="text-xs font-bold text-red-600 border-red-300 hover:bg-red-50 py-2.5"
                           >
-                            <MdErrorOutline size={15} /> Reject
+                            <MdErrorOutline size={15} /> {isPlan ? "Reject Fee Slip" : "Reject"}
                           </Button>
                         </div>
                       </div>
@@ -1297,7 +1354,7 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                   })()}
 
                   {/* Dispatch & Waybill Tracking Section */}
-                  {(String(details?.payment_info?.payment_status || details?.payment_status || transaction?.status).toLowerCase() === "captured" ||
+                  {!isPlan && (String(details?.payment_info?.payment_status || details?.payment_status || transaction?.status).toLowerCase() === "captured" ||
                     String(details?.payment_info?.payment_status || details?.payment_status || transaction?.status).toLowerCase() === "paid") && (
                       <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-2xl space-y-3 text-xs">
                         <div className="flex items-center justify-between">
@@ -1389,11 +1446,11 @@ export default function TransactionDetailsDrawer({ isOpen, onClose, transaction,
                   {showRejectModal && (
                     <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-3">
                       <h4 className="text-xs font-black text-red-600 dark:text-red-400">
-                        Enter Rejection Reason for EPC Contractor
+                        {isPlan ? "Enter Rejection Reason for Franchise Partner" : "Enter Rejection Reason for EPC Contractor"}
                       </h4>
                       <textarea
                         rows={2}
-                        placeholder="e.g. UTR number does not match bank credit, or amount deposited is ₹10,000 less than invoice total."
+                        placeholder={isPlan ? "e.g. UTR number not found in company bank statement or transfer amount does not match franchise setup fee." : "e.g. UTR number does not match bank credit, or amount deposited is ₹10,000 less than invoice total."}
                         value={rejectionReason}
                         onChange={(e) => setRejectionReason(e.target.value)}
                         className="w-full p-2.5 text-xs bg-surface border border-red-300 rounded-xl focus:outline-none focus:border-red-500"

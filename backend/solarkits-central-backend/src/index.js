@@ -125,6 +125,8 @@ adminRouter.use('/reseller-mgmt/pricing-rules', require('./modules/admin-panel/r
 adminRouter.use('/reseller-mgmt/analytics', require('./modules/admin-panel/routes/reseller.analytics.route'));
 // Phase R1: Platform-wide settings (exclusivity policy, settlement config, activation requirements)
 adminRouter.use('/reseller-mgmt/settings', require('./modules/admin-panel/routes/reseller.settings.route'));
+adminRouter.use('/reseller-mgmt/franchise-form-fields', require('./modules/admin-panel/routes/franchise.form.fields.route'));
+adminRouter.use('/franchise-form-fields', require('./modules/admin-panel/routes/franchise.form.fields.route'));
 // Industry Content Management System
 adminRouter.use('/industry-content', require('./modules/admin-panel/routes/industry.content.route'));
 adminRouter.use('/industry-themes', require('./modules/admin-panel/routes/industry.theme.route'));
@@ -210,6 +212,7 @@ adminRouter.use('/payment-milestones', require('./modules/admin-panel/routes/pro
 // ─── Centralized Order & Stage Approval Workflow Engine ───────────────────────
 adminRouter.use('/order-approvals', require('./modules/admin-panel/routes/order.approval.route'));
 adminRouter.use('/epc-types', require('./modules/admin-panel/routes/epc.types.route'));
+adminRouter.use('/business-profiles', require('./modules/admin-panel/routes/business.profiles.route'));
 adminRouter.use('/operations-dashboard', require('./modules/admin-panel/routes/operations.dashboard.route'));
 adminRouter.use('/store-dashboard', require('./modules/admin-panel/routes/store.dashboard.route'));
 adminRouter.use('/epc-analytics', require('./modules/admin-panel/routes/epc.analytics.route'));
@@ -218,10 +221,15 @@ adminRouter.use('/knowledge-center', require('./modules/solarshop-india/routes/v
 // ─── Franchisee Cluster & Business Model Module ───
 adminRouter.use('/franchise-clusters', require('./modules/admin-panel/routes/franchisee.cluster.route'));
 
+<<<<<<< HEAD
 // ─── Dynamic Invoice & Delivery Order (DO) Settings ────────────────────────
 adminRouter.use('/invoice-do-settings', require('./modules/admin-panel/routes/invoice.do.settings.route'));
 adminRouter.use('/registers', require('./modules/account-panel/routes/registers.route'));
 
+=======
+// ─── SOLARKITS: Trial Kit Management Module ───
+adminRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
+>>>>>>> 5f973cd0afa3e6fc96c71878e4a13a18589ea349
 
 app.use('/admin-api', adminRouter);
 app.use('/api', adminRouter);
@@ -242,6 +250,7 @@ app.use('/operation-management-api', opRouter);
 
 // 5. Warehouse Panel routes
 const warehouseRouter = express.Router();
+warehouseRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
 warehouseRouter.use('/', require('./modules/warehouse-panel/routes/root.route'));
 warehouseRouter.use('/auth', require('./modules/warehouse-panel/routes/auth.route'));
 warehouseRouter.use('/warehouse', require('./modules/warehouse-panel/routes/warehouse.route'));
@@ -250,18 +259,29 @@ app.use('/warehouse-api', warehouseRouter);
 
 // 6. Account Panel routes
 const accountRouter = express.Router();
+accountRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
 accountRouter.use('/', require('./modules/account-panel/routes/root.route'));
 app.use('/account-api', accountRouter);
 
 // 7. Solarshop India routes
+app.use('/api/india/v1/business-profiles', require('./modules/admin-panel/routes/business.profiles.route'));
+app.use('/india/v1/business-profiles', require('./modules/admin-panel/routes/business.profiles.route'));
+app.use('/api/india/v1/reseller/leads/form-config', require('./modules/admin-panel/controller/franchise.form.fields.handler').get_public_franchise_form_fields);
+app.use('/india/v1/reseller/leads/form-config', require('./modules/admin-panel/controller/franchise.form.fields.handler').get_public_franchise_form_fields);
 app.use('/api/india/v1/website-leads', require('./modules/admin-panel/routes/website.epc.lead.route'));
 app.use('/india/v1/website-leads', require('./modules/admin-panel/routes/website.epc.lead.route'));
 app.use('/api/website-leads', require('./modules/admin-panel/routes/website.epc.lead.route'));
+app.use('/api/india/v1/shop/trial-kits', require('./modules/solarshop-india/routes/v1.routes/trial_kit.epc.route'));
+app.use('/api/v1/shop/trial-kits', require('./modules/solarshop-india/routes/v1.routes/trial_kit.epc.route'));
+app.use('/india/v1/shop/trial-kits', require('./modules/solarshop-india/routes/v1.routes/trial_kit.epc.route'));
+app.use('/api/shop/trial-kits', require('./modules/solarshop-india/routes/v1.routes/trial_kit.epc.route'));
 app.use('/api/india/v1', require('./modules/solarshop-india/routes/v1.routes'));
 app.use('/api/v1', require('./modules/solarshop-india/routes/v1.routes'));
 app.use('/india/v1', require('./modules/solarshop-india/routes/v1.routes'));
 
 // 7.1 BDE Self-Service Portal routes
+app.use('/api/bde/v1/trial-kits', require('./modules/solarshop-india/routes/v1.routes/trial_kit.bde.route'));
+app.use('/api/bde/trial-kits', require('./modules/solarshop-india/routes/v1.routes/trial_kit.bde.route'));
 app.use('/api/bde/v1', require('./modules/solarshop-india/routes/v1.routes/bde.portal.route'));
 app.use('/api/bde', require('./modules/solarshop-india/routes/v1.routes/bde.portal.route'));
 

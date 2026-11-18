@@ -334,6 +334,14 @@ export default function CheckOut() {
           } else {
             setSelectedPaymentMethod("offline");
           }
+          if (cfg.offline_bank_details?.account_number) {
+            setBankDetails((prev) => ({
+              ...prev,
+              account_name: cfg.offline_bank_details.account_holder_name || prev.account_name,
+              account_number: cfg.offline_bank_details.account_number,
+              ifsc_code: cfg.offline_bank_details.ifsc_code || prev.ifsc_code,
+            }));
+          }
         }
       })
       .catch((err) => {
@@ -341,6 +349,28 @@ export default function CheckOut() {
       })
       .finally(() => setLoadingConfig(false));
   }, [selectedDistrict, selectedState, cart]);
+
+  // ── Fetch Configured Company Bank Details Dynamically on Mount ─────────────
+  useEffect(() => {
+    axios
+      .get(`${API_URL}/payment-config/bank-account`)
+      .then((res) => {
+        if (res.data?.status === "success" && res.data?.data) {
+          const d = res.data.data;
+          if (d.account_number) {
+            setBankDetails((prev) => ({
+              ...prev,
+              account_name: d.account_holder_name || prev.account_name,
+              account_number: d.account_number,
+              ifsc_code: d.ifsc_code || prev.ifsc_code,
+            }));
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not fetch offline bank account details, using default fallback:", err.message);
+      });
+  }, []);
 
   // ── Resolve Product Payment Milestone Configuration ───────────────────────
   useEffect(() => {
@@ -1241,7 +1271,7 @@ export default function CheckOut() {
             )}
 
             {/* Online ICICI Virtual Account (VAN) Details Card */}
-            {(selectedPaymentMethod === "online" || effectivePaymentMode === "online") && (
+            {(effectivePaymentMode === "online" || (effectivePaymentMode === "both" && selectedPaymentMethod === "online")) && (
               <div className="bg-gradient-to-br from-[#264baa]/10 via-surface to-[#264baa]/5 p-5 sm:p-6 rounded-2xl border-2 border-[#264baa]/40 shadow-md space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#264baa]/20 pb-3.5">
                   <div>
@@ -1339,7 +1369,7 @@ export default function CheckOut() {
             )}
 
             {/* Offline Company Bank Transfer Details Card */}
-            {(selectedPaymentMethod === "offline" || effectivePaymentMode === "offline") && (
+            {(effectivePaymentMode === "offline" || (effectivePaymentMode === "both" && selectedPaymentMethod === "offline")) && (
               <div className="bg-surface p-5 sm:p-6 rounded-2xl border border-border shadow-sm space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
                   <div>
@@ -1358,7 +1388,7 @@ export default function CheckOut() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
                   <div className="bg-surface-hover p-3.5 rounded-xl border border-border flex justify-between items-center">
                     <div>
-                      <span className="text-text-muted block text-[11px] font-medium">Beneficiary Name</span>
+                      <span className="text-text-muted block text-[11px] font-medium">Beneficiary Name (Account Holder)</span>
                       <span className="font-bold text-text-primary dark:text-white text-sm">{bankDetails.account_name}</span>
                     </div>
                     <button
@@ -1370,12 +1400,14 @@ export default function CheckOut() {
                     </button>
                   </div>
 
-                  <div className="bg-surface-hover p-3.5 rounded-xl border border-border flex justify-between items-center">
-                    <div>
-                      <span className="text-text-muted block text-[11px] font-medium">Bank Name</span>
-                      <span className="font-bold text-text-primary dark:text-white text-sm">{bankDetails.bank_name}</span>
+                  {bankDetails.bank_name ? (
+                    <div className="bg-surface-hover p-3.5 rounded-xl border border-border flex justify-between items-center">
+                      <div>
+                        <span className="text-text-muted block text-[11px] font-medium">Bank Name</span>
+                        <span className="font-bold text-text-primary dark:text-white text-sm">{bankDetails.bank_name}</span>
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
 
                   <div className="bg-surface-hover p-3.5 rounded-xl border border-border flex justify-between items-center">
                     <div>

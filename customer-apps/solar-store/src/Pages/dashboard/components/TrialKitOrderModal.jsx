@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FaTruck,
   FaMapMarkerAlt,
@@ -25,18 +26,34 @@ export default function TrialKitOrderModal({
   currentVariant,
   selectedVariantIndex = 0,
 }) {
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const { isAuthenticated, user } = useSelector((state) => state.auth_slice);
   const selectedDistrict = useSelector((state) => state.slice.selectedDistrict);
 
-  // Trial Quantity: configured by admin (default 10)
-  const defaultTrialQty = Number(kit?.trial_kit_quantity || 10);
+  // Trial Quantity: configured by admin (default 1)
+  const defaultTrialQty = kit?.trial_kit_quantity !== undefined && kit?.trial_kit_quantity !== null
+    ? Math.max(1, Number(kit.trial_kit_quantity) || 1)
+    : 1;
   const [trialQty, setTrialQty] = useState(defaultTrialQty);
 
   const trialLimit = Number(kit?.trial_kit_max_orders_per_buyer ?? kit?.trialKitMaxOrdersPerBuyer ?? 1);
   const purchasedTrialCount = Number(kit?.trial_kit_purchased_count ?? kit?.trialKitPurchasedCount ?? 0);
   const isTrialLimitReached = Boolean(kit?.trial_kit_limit_reached ?? kit?.trialKitLimitReached) ||
     (trialLimit > 0 && purchasedTrialCount >= trialLimit);
+
+  // Live buffer stock from TrialKitInventory
+  const trialStock = Number(
+    kit?.trial_kit_available_stock ??
+    kit?.trialKitAvailableStock ??
+    kit?.available_stock ??
+    0
+  );
+  const isTrialInStock = Boolean(
+    (kit?.is_trial_in_stock ?? kit?.isTrialInStock) !== undefined
+      ? (kit?.is_trial_in_stock ?? kit?.isTrialInStock)
+      : (trialStock >= trialQty && trialStock > 0)
+  );
 
   // Pincode input & calculation state
   const [pincode, setPincode] = useState(user?.pincode || "");
@@ -46,8 +63,8 @@ export default function TrialKitOrderModal({
 
   // Sync trial quantity when kit changes
   useEffect(() => {
-    if (kit?.trial_kit_quantity) {
-      setTrialQty(Number(kit.trial_kit_quantity));
+    if (kit?.trial_kit_quantity !== undefined && kit?.trial_kit_quantity !== null) {
+      setTrialQty(Math.max(1, Number(kit.trial_kit_quantity) || 1));
     }
   }, [kit?.trial_kit_quantity, kit?.id]);
 
@@ -155,8 +172,8 @@ export default function TrialKitOrderModal({
   const gstIncludedAmount =
     grandTotal > 0 ? Math.round(grandTotal - grandTotal / (1 + gstRate / 100)) : 0;
 
-  // Handle Add to Cart
-  const handleConfirmAddToCart = () => {
+  // Handle Add to Cart / Checkout
+  const handleConfirmAddToCart = (goToCheckout = false) => {
     if (!isAuthenticated) {
       dispatch(setShowAuthDialog(true));
       return;
@@ -164,6 +181,11 @@ export default function TrialKitOrderModal({
 
     if (isTrialLimitReached) {
       setErrorMsg(`Maximum trial kit purchase limit (${trialLimit} order(s)) has been reached for this product.`);
+      return;
+    }
+
+    if (!isTrialInStock) {
+      setErrorMsg("Trial kit is currently out of stock in warehouse buffer. Please contact your BDE or SolarKits support.");
       return;
     }
 
@@ -192,12 +214,15 @@ export default function TrialKitOrderModal({
       dispatch(
         setAlert({
           status: "success",
-          message: `${trialQty} Trial Kits added to cart with ₹${deliveryFreight.toLocaleString("en-IN")} freight for PIN ${pincode}!`,
+          message: `${trialQty} Trial Kits added for PIN ${pincode}! Proceeding to trial checkout.`,
         })
       );
     }
 
     onClose();
+    if (goToCheckout) {
+      navigate("/checkout");
+    }
   };
 
   if (!isOpen) return null;
@@ -241,6 +266,45 @@ export default function TrialKitOrderModal({
             <span className="text-[10px] text-text-muted block">per single kit</span>
           </div>
         </div>
+
+        {/* GSTIN & Strict Policy Notice */}
+        <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/40 p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2 text-blue-900 dark:text-blue-300 font-semibold">
+            <FaShieldAlt className="text-blue-600 dark:text-blue-400 shrink-0 text-sm" />
+            <span>Policy: Strictly One Trial Kit Per EPC GST Number</span>
+          </div>
+          <div className="font-mono text-xs font-bold text-blue-800 dark:text-blue-200 bg-blue-100/80 dark:bg-blue-900/50 px-3 py-1 rounded-xl border border-blue-200 dark:border-blue-800 self-start sm:self-auto">
+            {user?.gstin ? `EPC GSTIN: ${user.gstin}` : "Verified at Order Checkout"}
+          </div>
+        </div>
+
+        {/* Warehouse Buffer Stock Status */}
+        {isTrialInStock ? (
+          <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/40 p-3 rounded-2xl flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-semibold">
+              <FaCheckCircle className="text-emerald-600 dark:text-emerald-400 shrink-0 text-sm" />
+              <span>Trial Buffer Stock Available: {trialStock} Kits in Warehouse</span>
+            </div>
+            <span className="font-mono text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/50 px-2.5 py-0.5 rounded-lg border border-emerald-300 dark:border-emerald-700">
+              In Stock
+            </span>
+          </div>
+        ) : (
+          <div className="bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 p-3.5 rounded-2xl flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2.5 text-rose-800 dark:text-rose-300 font-semibold">
+              <FaExclamationCircle className="text-rose-600 dark:text-rose-400 shrink-0 text-base" />
+              <div>
+                <span className="block font-black text-rose-900 dark:text-rose-200">OUT OF STOCK IN WAREHOUSE BUFFER</span>
+                <span className="text-[11px] font-medium text-rose-700 dark:text-rose-400">
+                  Trial kit stock is 0 Kits. New orders cannot be placed until stock is replenished by Admin.
+                </span>
+              </div>
+            </div>
+            <span className="font-mono text-xs font-black text-rose-800 dark:text-rose-200 bg-rose-100 dark:bg-rose-900/60 px-3 py-1 rounded-xl border border-rose-300 dark:border-rose-700 shrink-0">
+              0 Kits Available
+            </span>
+          </div>
+        )}
 
         {/* Configuration Row: Quantity & Pincode */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -401,19 +465,29 @@ export default function TrialKitOrderModal({
         </div>
 
         {/* Modal Action Buttons */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 border-t border-border">
           <Button variant="ghost" size="md" onClick={onClose} className="font-bold">
             Cancel
           </Button>
           <Button
-            variant="primary"
-            size="lg"
-            onClick={handleConfirmAddToCart}
-            disabled={!deliveryData || loading || isTrialLimitReached}
+            variant="outline"
+            size="md"
+            onClick={() => handleConfirmAddToCart(false)}
+            disabled={!deliveryData || loading || isTrialLimitReached || !isTrialInStock}
             leftIcon={<FaShoppingCart />}
-            className="font-black px-6 bg-gradient-to-r from-primary to-primary-end shadow-md hover:shadow-lg transition-all"
+            className="font-bold px-4 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Add to Cart
+          </Button>
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => handleConfirmAddToCart(true)}
+            disabled={!deliveryData || loading || isTrialLimitReached || !isTrialInStock}
+            leftIcon={<FaTruck className="text-white" />}
+            className="font-black px-6 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-700 hover:to-amber-600 text-white shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {!isTrialInStock ? "Out of Stock (Trial Kit)" : "Order Trial Kit (Checkout)"}
           </Button>
         </div>
       </div>

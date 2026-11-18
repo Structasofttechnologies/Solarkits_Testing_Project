@@ -14,6 +14,11 @@ const h = require('../controller/region.payment.config.handler');
 
 // ── Public / Checkout Resolution (No auth required for checkout) ─────────────
 router.get('/resolve', h.resolve_payment_config);
+router.get('/bank-account', h.get_bank_account_details);
+
+// ── Admin Offline Bank Account Settings (CRUD) ────────────────────────────────
+router.put('/bank-account', check_auth, h.update_bank_account_details);
+router.post('/bank-account', check_auth, h.update_bank_account_details);
 
 // ── Admin Region Payment Configuration CRUD ──────────────────────────────────
 router.get('/regions', check_auth, h.list_configs);

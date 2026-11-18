@@ -1,6 +1,8 @@
 const { ExpenseEntry } = require('../models/india_solarshop_db/expense_management.schema');
-const { AccountingHead } = require('../models/india_solarshop_db/accounting_head.schema');
-const { AccountingVoucher } = require('../models/india_solarshop_db/accounting_voucher.schema');
+const headModule = require('../models/india_solarshop_db/accounting_head.schema');
+const AccountingHead = headModule.AccountingHead || headModule;
+const voucherModule = require('../models/india_solarshop_db/accounting_voucher.schema');
+const AccountingVoucher = voucherModule.AccountingVoucher || voucherModule;
 
 // 1. Get Expenses with Filtering
 exports.get_expenses = async (req, res) => {
@@ -75,7 +77,7 @@ exports.create_expense = async (req, res) => {
     const newExpense = await ExpenseEntry.create({
       expense_number: expenseNumber,
       accounting_head_id: head._id,
-      accounting_head_name: head.head_name,
+      accounting_head_name: head.name || head.head_name || 'Operating Expense',
       category: category || head.category,
       expense_date: expense_date ? new Date(expense_date) : new Date(),
       amount: baseAmount,
@@ -136,6 +138,8 @@ exports.approve_expense = async (req, res) => {
       head_id: expense.accounting_head_id,
       head_name: expense.accounting_head_name,
       type: 'DEBIT',
+      entry_type: 'Debit',
+      amount: expense.amount,
       debit_amount: expense.amount,
       credit_amount: 0,
       narration: `Expense: ${expense.expense_number} - ${expense.remarks || expense.category}`
@@ -147,6 +151,8 @@ exports.approve_expense = async (req, res) => {
         entries.push({
           head_name: 'Input CGST',
           type: 'DEBIT',
+          entry_type: 'Debit',
+          amount: expense.cgst_amount,
           debit_amount: expense.cgst_amount,
           credit_amount: 0,
           narration: `ITC CGST on expense ${expense.expense_number}`
@@ -156,6 +162,8 @@ exports.approve_expense = async (req, res) => {
         entries.push({
           head_name: 'Input SGST',
           type: 'DEBIT',
+          entry_type: 'Debit',
+          amount: expense.sgst_amount,
           debit_amount: expense.sgst_amount,
           credit_amount: 0,
           narration: `ITC SGST on expense ${expense.expense_number}`
@@ -165,6 +173,8 @@ exports.approve_expense = async (req, res) => {
         entries.push({
           head_name: 'Input IGST',
           type: 'DEBIT',
+          entry_type: 'Debit',
+          amount: expense.igst_amount,
           debit_amount: expense.igst_amount,
           credit_amount: 0,
           narration: `ITC IGST on expense ${expense.expense_number}`
@@ -177,6 +187,8 @@ exports.approve_expense = async (req, res) => {
       entries.push({
         head_name: `TDS Payable (${expense.tds_section || 'Statutory'})`,
         type: 'CREDIT',
+        entry_type: 'Credit',
+        amount: expense.tds_deducted,
         debit_amount: 0,
         credit_amount: expense.tds_deducted,
         narration: `TDS deducted at source on expense ${expense.expense_number}`
@@ -188,6 +200,8 @@ exports.approve_expense = async (req, res) => {
     entries.push({
       head_name: creditHead,
       type: 'CREDIT',
+      entry_type: 'Credit',
+      amount: expense.net_payable_amount,
       debit_amount: 0,
       credit_amount: expense.net_payable_amount,
       narration: `Payment/Payable to ${expense.vendor_name} via ${expense.payment_mode}`

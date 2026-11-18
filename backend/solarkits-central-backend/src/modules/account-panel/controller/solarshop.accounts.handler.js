@@ -467,7 +467,7 @@ const get_franchise_plan_purchases = async (req, res) => {
         email: s.reseller_id?.email || 'N/A',
         gst_number: s.reseller_id?.gst_number || 'N/A',
         pan_number: s.reseller_id?.pan_number || 'N/A',
-        plan_name: s.plan_id?.name || 'Standard Franchise Plan',
+        plan_name: (s.plan_id?.name === 'Company Store' && s.reseller_id?.store_category !== 'company_store') ? 'District Franchise Store' : (s.plan_id?.name || 'District Franchise Store'),
         plan_slug: s.plan_id?.slug || '',
         territory: territoryDisplay,
         territory_level: s.plan_id?.territory_level || 'district',
@@ -545,17 +545,100 @@ const update_plan_payment_status = async (req, res) => {
       sub.status = 'active';
       sub.payment_status = 'verified';
       sub.verified_at = new Date();
+      const utrToSave = payment_reference || sub.utr_number || sub.payment_reference || '';
+      const actorId = req.user?.id || req.user?._id || null;
+      const now = sub.verified_at;
+
       if (sub.reseller_id) {
-        const { Reseller, ResellerTerritory } = require('../../admin-panel/models/india_solarshop_db');
+        const {
+          Reseller,
+          ResellerTerritory,
+          FranchiseeCluster,
+          FranchiseeAgreement,
+          StoreSetup,
+          StoreStatusHistory
+        } = require('../../admin-panel/models/india_solarshop_db');
         const reseller = await Reseller.findById(sub.reseller_id);
         if (reseller) {
+          const fromStatus = reseller.reseller_lifecycle_status;
           reseller.fee_payment_status = 'verified';
-          reseller.fee_payment_verified_at = new Date();
+          reseller.fee_payment_verified_at = now;
+          if (actorId) reseller.fee_payment_verified_by = actorId;
+          if (utrToSave) reseller.fee_payment_utr = utrToSave;
           reseller.activation_status = 'active';
           reseller.is_active = true;
           reseller.reseller_lifecycle_status = 'active';
           await reseller.save();
           await ResellerTerritory.updateMany({ reseller_id: reseller._id }, { $set: { status: 'active' } });
+
+          // Synchronize FranchiseeCluster & Agreement (Cluster-Wise Single Source of Truth)
+          await FranchiseeCluster.findOneAndUpdate(
+            { assigned_franchisee_id: reseller._id, deleted_at: null },
+            {
+              $set: {
+                fee_payment_status: 'paid',
+                fee_payment_utr: utrToSave,
+                fee_payment_verified_at: now,
+                ...(actorId ? { fee_payment_verified_by: actorId } : {})
+              }
+            }
+          ).catch(() => { });
+
+          await FranchiseeAgreement.findOneAndUpdate(
+            { franchisee_id: reseller._id, deleted_at: null },
+            {
+              $set: {
+                payment_status: 'paid',
+                'payment_details.utr_number': utrToSave,
+                'payment_details.payment_date': now,
+                ...(actorId ? { 'payment_details.verified_by': actorId } : {})
+              }
+            }
+          ).catch(() => { });
+
+          // Synchronize StoreSetup if present
+          let storeSetup = null;
+          try {
+            if (StoreSetup) {
+              storeSetup = await StoreSetup.findOne({ franchisee_id: reseller._id });
+              if (storeSetup) {
+                storeSetup.payment_verified_by_accounts = true;
+                storeSetup.payment_accounts_verified_at = now;
+                if (actorId) storeSetup.payment_accounts_verified_by = actorId;
+                storeSetup.payment_confirmation_date = now;
+                await storeSetup.save();
+              }
+            }
+          } catch (ssErr) { }
+
+          // Ensure Store Setup Checklist is initiated
+          try {
+            const { ensureStoreSetupChecklist } = require('../../admin-panel/services/store.setup.service');
+            if (typeof ensureStoreSetupChecklist === 'function') {
+              await ensureStoreSetupChecklist(reseller._id);
+            }
+          } catch (clErr) { }
+
+          // Record audit history
+          try {
+            if (StoreStatusHistory) {
+              await StoreStatusHistory.create({
+                store_id: reseller._id,
+                reseller_id: reseller._id,
+                store_setup_id: storeSetup?._id || null,
+                from_status: fromStatus || 'draft',
+                to_status: 'active',
+                actor_type: 'accounts',
+                actor_id: actorId,
+                remarks: `Franchise plan payment verified by Accounts. UTR: ${utrToSave || 'N/A'}.`,
+                metadata: {
+                  utr_number: utrToSave,
+                  subscription_id: sub._id,
+                  verified_at: now,
+                },
+              });
+            }
+          } catch (histErr) { }
         }
       }
     } else if (payment_status === 'Pending') {
@@ -567,18 +650,38 @@ const update_plan_payment_status = async (req, res) => {
     } else if (payment_status === 'Failed') {
       sub.status = 'expired';
       sub.payment_status = 'rejected';
+      if (notes) {
+        sub.rejection_reason = notes;
+        sub.notes = notes;
+      }
       if (sub.reseller_id) {
-        const { Reseller } = require('../../admin-panel/models/india_solarshop_db');
+        const { Reseller, FranchiseeCluster, FranchiseeAgreement } = require('../../admin-panel/models/india_solarshop_db');
         await Reseller.findByIdAndUpdate(sub.reseller_id, {
-          fee_payment_status: 'rejected',
-          reseller_lifecycle_status: 'fee_payment_pending'
-        });
+          $set: {
+            fee_payment_status: 'rejected',
+            reseller_lifecycle_status: 'fee_payment_pending'
+          }
+        }).catch(() => { });
+
+        await FranchiseeCluster.findOneAndUpdate(
+          { assigned_franchisee_id: sub.reseller_id, deleted_at: null },
+          { $set: { fee_payment_status: 'rejected' } }
+        ).catch(() => { });
+
+        await FranchiseeAgreement.findOneAndUpdate(
+          { franchisee_id: sub.reseller_id, deleted_at: null },
+          { $set: { payment_status: 'rejected' } }
+        ).catch(() => { });
       }
     }
 
     if (payment_reference) {
       sub.payment_reference = payment_reference;
       sub.utr_number = payment_reference;
+    }
+    if (notes) {
+      sub.notes = notes;
+      sub.rejection_reason = notes;
     }
     await sub.save();
 
@@ -948,13 +1051,13 @@ const get_franchise_commissions = async (req, res) => {
     const fpoMasterIds = fpoOrders.map((f) => f._id);
     const fpoChildOrders = fpoMasterIds.length > 0
       ? await FpoOrder.find({
-          parent_po_id: { $in: fpoMasterIds },
-          deleted_at: null,
-        })
-          .populate('franchisee_id', 'business_name mobile email contact_person')
-          .populate('epc_id', 'name email whatsapp gstin')
-          .sort({ created_at: -1 })
-          .lean()
+        parent_po_id: { $in: fpoMasterIds },
+        deleted_at: null,
+      })
+        .populate('franchisee_id', 'business_name mobile email contact_person')
+        .populate('epc_id', 'name email whatsapp gstin')
+        .sort({ created_at: -1 })
+        .lean()
       : [];
 
     const childDrawdownsMap = new Map();
@@ -1517,8 +1620,8 @@ const update_commission_status = async (req, res) => {
       }
       const settlementStatus = commission_status === 'Paid' ? 'PAID'
         : commission_status === 'On Hold' ? 'ON_HOLD'
-        : commission_status === 'Failed' ? 'FAILED'
-        : 'PENDING';
+          : commission_status === 'Failed' ? 'FAILED'
+            : 'PENDING';
 
       if (!fpoLedger) {
         fpoLedger = await FpoCommissionLedger.create({
@@ -1833,7 +1936,7 @@ const get_transaction_details = async (req, res) => {
           },
           plan_details: {
             id: s.plan_id?._id,
-            name: s.plan_id?.name,
+            name: (s.plan_id?.name === 'Company Store' && s.reseller_id?.store_category !== 'company_store') ? 'District Franchise Store' : (s.plan_id?.name || 'District Franchise Store'),
             slug: s.plan_id?.slug,
             territory: territoryStr,
             territory_level: s.plan_id?.territory_level,
@@ -2599,7 +2702,7 @@ const verify_epc_po_payment = async (req, res) => {
   try {
     const { poId, epcId } = req.params;
     const { action } = req.body; // 'approve' or 'reject'
-    
+
     const { FpoOrder } = require('../../admin-panel/models/india_solarshop_db');
     const order = await FpoOrder.findOne({ _id: poId });
 
@@ -2680,8 +2783,8 @@ const _stageService = () => require('../../admin-panel/services/epc.offline.chec
 const stage_processing = async (req, res) => {
   try {
     const order = await _stageService().updateOrderStage({
-      order_id:      req.params.id,
-      new_status:    'processing',
+      order_id: req.params.id,
+      new_status: 'processing',
       admin_user_id: req.user?.id,
       req,
     });
@@ -2709,12 +2812,12 @@ const stage_assign_vehicle = async (req, res) => {
     } : null);
 
     const order = await _stageService().assignVehicleToOrder({
-      order_id:        req.params.id,
+      order_id: req.params.id,
       vehicle,
-      driver:          resolvedDriver,
-      is_recommended:  is_recommended !== false,
+      driver: resolvedDriver,
+      is_recommended: is_recommended !== false,
       override_reason: override_reason || null,
-      admin_user_id:   req.user?.id,
+      admin_user_id: req.user?.id,
       req,
     });
     return res.status(200).json({ status: 'success', message: 'Vehicle assigned successfully.', data: { id: order._id, order_status: order.order_status, assigned_vehicle: order.assigned_vehicle } });
@@ -2754,8 +2857,8 @@ const get_warehouse_vehicles = async (req, res) => {
 const stage_ready_for_dispatch = async (req, res) => {
   try {
     const order = await _stageService().updateOrderStage({
-      order_id:      req.params.id,
-      new_status:    'ready_for_dispatch',
+      order_id: req.params.id,
+      new_status: 'ready_for_dispatch',
       admin_user_id: req.user?.id,
       req,
     });
@@ -2770,8 +2873,8 @@ const stage_ready_for_dispatch = async (req, res) => {
 const stage_dispatched = async (req, res) => {
   try {
     const order = await _stageService().updateOrderStage({
-      order_id:      req.params.id,
-      new_status:    'dispatched',
+      order_id: req.params.id,
+      new_status: 'dispatched',
       admin_user_id: req.user?.id,
       dispatch_data: req.body || {},
       req,
@@ -2791,10 +2894,10 @@ const stage_in_transit = async (req, res) => {
     const resolvedDesc = description || milestone?.description || 'En route to delivery site';
 
     const order = await _stageService().updateOrderStage({
-      order_id:      req.params.id,
-      new_status:    'in_transit',
+      order_id: req.params.id,
+      new_status: 'in_transit',
       admin_user_id: req.user?.id,
-      milestone:     { status: resolvedStatus, description: resolvedDesc },
+      milestone: { status: resolvedStatus, description: resolvedDesc },
       req,
     });
     return res.status(200).json({ status: 'success', message: 'In-transit milestone recorded.', data: { id: order._id, order_status: order.order_status, milestones: order.milestones } });
@@ -2808,8 +2911,8 @@ const stage_in_transit = async (req, res) => {
 const stage_reached_destination = async (req, res) => {
   try {
     const order = await _stageService().updateOrderStage({
-      order_id:      req.params.id,
-      new_status:    'reached_destination',
+      order_id: req.params.id,
+      new_status: 'reached_destination',
       admin_user_id: req.user?.id,
       req,
     });
@@ -2824,8 +2927,8 @@ const stage_reached_destination = async (req, res) => {
 const stage_delivered = async (req, res) => {
   try {
     const order = await _stageService().updateOrderStage({
-      order_id:      req.params.id,
-      new_status:    'delivered',
+      order_id: req.params.id,
+      new_status: 'delivered',
       admin_user_id: req.user?.id,
       req,
     });
@@ -3008,14 +3111,14 @@ function resolveEpcDateRange(datePreset, startDate, endDate) {
 
 // ── Global Payment Milestone & Stage TAT Defaults ────────────────────────
 const DEFAULT_STAGE_TATS = {
-  initial_payment:       { stage_key: 'initial_payment',       stage_name: 'Initial Payment / Token', tat_days: 1, warning_threshold_days: 1 },
-  accounts_verification: { stage_key: 'accounts_verification', stage_name: 'Accounts Verification',   tat_days: 1, warning_threshold_days: 1 },
-  admin_approval:        { stage_key: 'admin_approval',        stage_name: 'Admin Approval',          tat_days: 1, warning_threshold_days: 1 },
-  advance_payment:       { stage_key: 'advance_payment',       stage_name: 'Advance Payment',         tat_days: 2, warning_threshold_days: 1 },
-  production_milestone:  { stage_key: 'production_milestone',  stage_name: 'Production Milestone',    tat_days: 2, warning_threshold_days: 1 },
-  delivery_milestone:    { stage_key: 'delivery_milestone',    stage_name: 'Delivery Milestone',      tat_days: 2, warning_threshold_days: 1 },
-  final_settlement:      { stage_key: 'final_settlement',      stage_name: 'Final Settlement',        tat_days: 3, warning_threshold_days: 2 },
-  refund_processing:     { stage_key: 'refund_processing',     stage_name: 'Refund Processing',       tat_days: 2, warning_threshold_days: 1 },
+  initial_payment: { stage_key: 'initial_payment', stage_name: 'Initial Payment / Token', tat_days: 1, warning_threshold_days: 1 },
+  accounts_verification: { stage_key: 'accounts_verification', stage_name: 'Accounts Verification', tat_days: 1, warning_threshold_days: 1 },
+  admin_approval: { stage_key: 'admin_approval', stage_name: 'Admin Approval', tat_days: 1, warning_threshold_days: 1 },
+  advance_payment: { stage_key: 'advance_payment', stage_name: 'Advance Payment', tat_days: 2, warning_threshold_days: 1 },
+  production_milestone: { stage_key: 'production_milestone', stage_name: 'Production Milestone', tat_days: 2, warning_threshold_days: 1 },
+  delivery_milestone: { stage_key: 'delivery_milestone', stage_name: 'Delivery Milestone', tat_days: 2, warning_threshold_days: 1 },
+  final_settlement: { stage_key: 'final_settlement', stage_name: 'Final Settlement', tat_days: 3, warning_threshold_days: 2 },
+  refund_processing: { stage_key: 'refund_processing', stage_name: 'Refund Processing', tat_days: 2, warning_threshold_days: 1 },
 };
 
 async function resolveStageTats() {

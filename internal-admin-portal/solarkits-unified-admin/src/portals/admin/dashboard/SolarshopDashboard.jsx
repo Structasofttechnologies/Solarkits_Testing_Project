@@ -47,6 +47,7 @@ const FranchiseClusterHub = lazy(() => import("../pages/solar-shop/franchisee-cl
 const RegionPaymentConfig = lazy(() => import("../pages/solar-shop/payment-configuration/RegionPaymentConfig"));
 const OfflineApprovalQueue = lazy(() => import("../pages/solar-shop/payment-configuration/OfflineApprovalQueue"));
 const PaymentMilestoneSettings = lazy(() => import("../pages/solar-shop/payment-configuration/PaymentMilestoneSettings"));
+const OfflineBankAccountSettings = lazy(() => import("../pages/solar-shop/payment-configuration/OfflineBankAccountSettings"));
 
 const Home = lazy(() => import("../pages/solar-shop/Home"));
 const ApproveNewEPC = lazy(() => import("../pages/solar-shop/approve-new-epc/ApproveNewEPC"));
@@ -90,10 +91,14 @@ const InvoiceValidationModule = lazy(() => import("../../accounts/pages/complian
 const ExpenseManagementModule = lazy(() => import("../../accounts/pages/expenses/ExpenseManagementModule"));
 const WarehouseFinanceModule = lazy(() => import("../../accounts/pages/warehouse-finance/WarehouseFinanceModule"));
 const ExecutiveFinanceDashboard = lazy(() => import("../../accounts/pages/executive/ExecutiveFinanceDashboard"));
+const TrialKitInventoryPage = lazy(() => import("../pages/trial-kits/TrialKitInventoryPage"));
+const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrdersPage"));
+const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
 
 const menus = [
     [
         { step: "01", badgeKey: "01", name: "Dashboard", icon: <FaHome />, path: "/admin-panel/solar-shop/home", unique_id: "00000000" },
+
         { 
             step: "01B", 
             badgeKey: "ACC_M", 
@@ -126,6 +131,30 @@ const menus = [
             path: "/admin-panel/solar-shop/delivery-management/dashboard",
             unique_id: "00000000"
         }
+        // { 
+        //     step: "01B", 
+        //     badgeKey: "ACC_M", 
+        //     name: "Accounting Overview", 
+        //     icon: <FaFileInvoiceDollar />, 
+        //     path: "/admin-panel/solar-shop/accounting-overview", 
+        //     unique_id: "00000000"
+        // },
+        // {
+        //     step: "01C",
+        //     badgeKey: "WH_F",
+        //     name: "Warehouse Loan & Expansion",
+        //     icon: <FaWarehouse />,
+        //     path: "/admin-panel/solar-shop/warehouse-finance",
+        //     unique_id: "00000000"
+        // },
+        // {
+        //     step: "01D",
+        //     badgeKey: "EXEC_F",
+        //     name: "Executive Finance Dashboard",
+        //     icon: <FaChartLine />,
+        //     path: "/admin-panel/solar-shop/executive-finance",
+        //     unique_id: "00000000"
+        // }
     ],
     [
         { step: "02", badgeKey: "02", name: "Approve New EPC", icon: <FaUsers />, path: "/admin-panel/solar-shop/approve-new-epc", unique_id: "ADM_APPROVE_EPC" },
@@ -367,6 +396,35 @@ const menus = [
                 }
             ]
         },
+        // ── Trial Kit Management Module ─────────────────────────────────────
+        {
+            step: "11B",
+            badgeKey: "TK_M",
+            name: "Trial Kit Management",
+            icon: <FaBoxes />,
+            path: "/admin-panel/solar-shop/trial-kits/inventory",
+            unique_id: "00000000",
+            subMenu: [
+                {
+                    name: "Stock & Allocations",
+                    icon: <HiCube />,
+                    path: "/admin-panel/solar-shop/trial-kits/inventory",
+                    unique_id: "00000000",
+                },
+                {
+                    name: "Trial Kit Orders",
+                    icon: <FaBoxes />,
+                    path: "/admin-panel/solar-shop/trial-kits/orders",
+                    unique_id: "00000000",
+                },
+                {
+                    name: "Conversion Analytics",
+                    icon: <FiBarChart2 />,
+                    path: "/admin-panel/solar-shop/trial-kits/analytics",
+                    unique_id: "00000000",
+                },
+            ]
+        },
     ],
     [
         // ── Service Tickets Module ───────────────────────────────────────────
@@ -419,7 +477,13 @@ const menus = [
                     unique_id: "FPO_SETTINGS"
                 },
                 {
-                    name: "Agreement Settings",
+                    name: "Franchise Form Settings",
+                    icon: <FiCheckSquare />,
+                    path: "/admin-panel/solar-shop/reseller-management/franchise-form-settings",
+                    unique_id: "FPO_SETTINGS"
+                },
+                {
+                    name: "Franchisee Agreements",
                     icon: <FiFileText />,
                     path: "/admin-panel/solar-shop/reseller-management/settings",
                     unique_id: "RSL_SETTINGS"
@@ -516,22 +580,16 @@ const menus = [
                     path: "/admin-panel/solar-shop/franchise-clusters?tab=map",
                     unique_id: "RSL_MGMT"
                 },
+                // {
+                //     name: "Agreement Management",
+                //     icon: <FiFileText />,
+                //     path: "/admin-panel/solar-shop/franchise-clusters?tab=agreements",
+                //     unique_id: "RSL_MGMT"
+                // },
                 {
-                    name: "Agreement Management",
-                    icon: <FiFileText />,
-                    path: "/admin-panel/solar-shop/franchise-clusters?tab=agreements",
-                    unique_id: "RSL_MGMT"
-                },
-                {
-                    name: "Goal Settings",
+                    name: "Goal Tracking",
                     icon: <FiSliders />,
                     path: "/admin-panel/solar-shop/franchise-clusters?tab=goals",
-                    unique_id: "RSL_MGMT"
-                },
-                {
-                    name: "Performance Dashboard",
-                    icon: <FiBarChart2 />,
-                    path: "/admin-panel/solar-shop/franchise-clusters?tab=performance",
                     unique_id: "RSL_MGMT"
                 },
                 {
@@ -629,6 +687,12 @@ const menus = [
                     path: "/admin-panel/solar-shop/payment-configuration/offline-approvals",
                     unique_id: "00000000",
                     badgeKey: "offline-approvals"
+                },
+                {
+                    name: "Offline Bank Account Settings",
+                    icon: <FiCreditCard />,
+                    path: "/admin-panel/solar-shop/payment-configuration/bank-account",
+                    unique_id: "00000000"
                 },
             ]
         },
@@ -1944,6 +2008,30 @@ export default function SolarShopDashboard() {
                                             </Suspense>
                                         }
                                     />
+                                    <Route
+                                        path="/payment-configuration/bank-account"
+                                        element={
+                                            <Suspense fallback={<Loader text="Loading Offline Bank Account Settings..." />}>
+                                                <OfflineBankAccountSettings />
+                                            </Suspense>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/payment-configuration/bank-account"
+                                        element={
+                                            <Suspense fallback={<Loader text="Loading Offline Bank Account Settings..." />}>
+                                                <OfflineBankAccountSettings />
+                                            </Suspense>
+                                        }
+                                    />
+
+                                    {/* ── Trial Kit Management Routes ──── */}
+                                    <Route path="/trial-kits/inventory" element={<Suspense fallback={<Loader text="Loading Trial Kit Inventory..." />}><TrialKitInventoryPage /></Suspense>} />
+                                    <Route path="/:countryName/trial-kits/inventory" element={<Suspense fallback={<Loader text="Loading Trial Kit Inventory..." />}><TrialKitInventoryPage /></Suspense>} />
+                                    <Route path="/trial-kits/orders" element={<Suspense fallback={<Loader text="Loading Trial Kit Orders..." />}><TrialKitOrdersPage /></Suspense>} />
+                                    <Route path="/:countryName/trial-kits/orders" element={<Suspense fallback={<Loader text="Loading Trial Kit Orders..." />}><TrialKitOrdersPage /></Suspense>} />
+                                    <Route path="/trial-kits/analytics" element={<Suspense fallback={<Loader text="Loading Trial Kit Analytics..." />}><TrialKitAnalyticsPage /></Suspense>} />
+                                    <Route path="/:countryName/trial-kits/analytics" element={<Suspense fallback={<Loader text="Loading Trial Kit Analytics..." />}><TrialKitAnalyticsPage /></Suspense>} />
 
                                 </Routes>
                             </motion.div>

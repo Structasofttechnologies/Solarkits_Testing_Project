@@ -761,8 +761,9 @@ export default function FranchiseeTerritoryMap({ onCreateClusterFromDistrict }) 
                         <div className="flex-1 min-w-0">
                           <div className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5 truncate">
                             <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: statusConfig.dotColor }}
+                              className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs border border-black/10"
+                              style={{ backgroundColor: cluster.color_code || statusConfig.dotColor }}
+                              title={`Cluster Color: ${cluster.color_code || statusConfig.dotColor}`}
                             />
                             <span className="truncate">{cluster.cluster_name}</span>
                           </div>
@@ -1100,7 +1101,10 @@ export default function FranchiseeTerritoryMap({ onCreateClusterFromDistrict }) 
             {/* Drawer Header */}
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white bg-orange-600 shadow-xs">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white shadow-xs"
+                  style={{ backgroundColor: selectedClusterDetail?.color_code || '#ea580c' }}
+                >
                   <FiLayers size={18} />
                 </div>
                 <div>
@@ -1160,6 +1164,16 @@ export default function FranchiseeTerritoryMap({ onCreateClusterFromDistrict }) 
                     <div className="flex justify-between py-1 border-b border-slate-200/50">
                       <span className="text-slate-500 text-xs">Cluster Code</span>
                       <span className="font-mono font-bold text-slate-900 text-xs">{selectedClusterDetail.cluster_code}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-1 border-b border-slate-200/50">
+                      <span className="text-slate-500 text-xs">Map Color Theme</span>
+                      <div className="flex items-center gap-1.5 font-bold font-mono text-xs text-slate-800">
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-black/10 shadow-xs inline-block"
+                          style={{ backgroundColor: selectedClusterDetail.color_code || '#2563eb' }}
+                        />
+                        <span>{selectedClusterDetail.color_code || '#2563eb'}</span>
+                      </div>
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-200/50">
                       <span className="text-slate-500 text-xs">State / Region</span>

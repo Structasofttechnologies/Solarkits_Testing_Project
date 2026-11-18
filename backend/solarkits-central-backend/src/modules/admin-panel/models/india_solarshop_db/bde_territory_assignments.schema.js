@@ -37,6 +37,15 @@ const schema = new mongoose.Schema({
     type: String,
     trim: true,
   }],
+  cluster_ids: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'franchisee_clusters',
+    index: true,
+  }],
+  cluster_names: [{
+    type: String,
+    trim: true,
+  }],
   assignment_start_date: {
     type: Date,
     default: Date.now,

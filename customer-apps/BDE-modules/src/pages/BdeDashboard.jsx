@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBdeAuth } from '../context/BdeAuthContext';
 import api from '../services/api';
 import BdeFranchiseeGoalsSection from '../components/BdeFranchiseeGoalsSection';
+import BdeTerritoryViewModal from '../components/BdeTerritoryViewModal';
 import {
   User,
   ShieldCheck,
@@ -28,6 +29,12 @@ import {
   Building2,
   FileCheck,
   ShoppingCart,
+  Search,
+  Globe,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 export default function BdeDashboard() {
@@ -72,6 +79,101 @@ export default function BdeDashboard() {
     }
   };
 
+  const [territoryModalOpen, setTerritoryModalOpen] = useState(false);
+  const [selectedStateFilter, setSelectedStateFilter] = useState('all');
+  const [selectedClusterFilter, setSelectedClusterFilter] = useState('all');
+  const [districtSearch, setDistrictSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const bde = dashboardData?.bde || user || {};
+  const territory = dashboardData?.territory || null;
+  const territories = dashboardData?.territories || [];
+  const stateSummary = dashboardData?.state_summary || {};
+  const districtBreakdown = dashboardData?.district_breakdown || [];
+  const goals = dashboardData?.goals || {};
+  const notifications = dashboardData?.notifications || [];
+
+  const assignedStates = useMemo(() => {
+    if (territory?.assigned_states && territory.assigned_states.length > 0) {
+      return territory.assigned_states;
+    }
+    if (territories && territories.length > 0) {
+      return [...new Set(territories.map((t) => t.state_name).filter(Boolean))];
+    }
+    if (territory?.state_name) {
+      return territory.state_name.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+    return [];
+  }, [territory, territories]);
+
+  const stateCount = assignedStates.length;
+  const isAllIndia = territory?.is_all_india || stateCount >= 25;
+  const totalDistrictsCount = territory?.district_count || districtBreakdown.length || 0;
+
+  const selectedClusterObj = useMemo(() => {
+    if (!selectedClusterFilter || selectedClusterFilter === 'all') return null;
+    return (clusterData?.assigned_clusters || []).find(
+      (c) => String(c.id) === String(selectedClusterFilter) || c.cluster_name === selectedClusterFilter
+    );
+  }, [selectedClusterFilter, clusterData]);
+
+  // Filtered districts based on state filter, cluster filter, and search query
+  const filteredDistricts = useMemo(() => {
+    return districtBreakdown.filter((d) => {
+      const dState = (d.state || d.state_name || '').toLowerCase();
+      const matchState =
+        selectedStateFilter === 'all' || dState === selectedStateFilter.toLowerCase();
+
+      let matchCluster = true;
+      if (selectedClusterObj) {
+        const clusterDistNames = (selectedClusterObj.district_names || []).map((x) => x.toLowerCase().trim());
+        const dName = (d.district || '').toLowerCase().trim();
+        matchCluster = clusterDistNames.includes(dName);
+      }
+
+      const matchSearch =
+        !districtSearch.trim() ||
+        d.district?.toLowerCase().includes(districtSearch.toLowerCase().trim()) ||
+        dState.includes(districtSearch.toLowerCase().trim());
+      return matchState && matchCluster && matchSearch;
+    });
+  }, [districtBreakdown, selectedStateFilter, selectedClusterObj, districtSearch]);
+
+  // Dynamic KPI Metrics for territory summary (Overall vs selected state vs selected cluster)
+  const activeSummaryMetrics = useMemo(() => {
+    if (selectedStateFilter === 'all' && !selectedClusterObj) {
+      return stateSummary;
+    }
+    const stateDistricts = filteredDistricts;
+    const totalDistricts = stateDistricts.length;
+    const totalFranchisees = stateDistricts.reduce((sum, d) => sum + (d.franchisees_count || 0), 0);
+    const operationalFranchisees = stateDistricts.reduce((sum, d) => sum + (d.operational_count || 0), 0);
+    const franchiseesUnderSetup = Math.max(0, totalFranchisees - operationalFranchisees);
+    const epcLeads = stateDistricts.reduce((sum, d) => sum + (d.epc_leads_count || 0), 0);
+    const epcsOnboarded = stateDistricts.reduce((sum, d) => sum + (d.epcs_onboarded_count || 0), 0);
+    const kitsOrdered = stateDistricts.reduce((sum, d) => sum + (d.kits_ordered_count || 0), 0);
+
+    return {
+      total_assigned_districts: totalDistricts,
+      total_franchisees: totalFranchisees,
+      operational_franchisees: operationalFranchisees,
+      franchisees_under_setup: franchiseesUnderSetup,
+      epc_leads: epcLeads,
+      epcs_onboarded: epcsOnboarded,
+      epcs_assigned: stateSummary.epcs_assigned || 0,
+      total_orders: stateSummary.total_orders || 0,
+      total_kits_ordered: kitsOrdered,
+    };
+  }, [selectedStateFilter, selectedClusterObj, filteredDistricts, stateSummary]);
+
+  // Pagination for District Breakdown Table
+  const totalPages = Math.ceil(filteredDistricts.length / itemsPerPage) || 1;
+  const paginatedDistricts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredDistricts.slice(start, start + itemsPerPage);
+  }, [filteredDistricts, currentPage, itemsPerPage]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -82,13 +184,6 @@ export default function BdeDashboard() {
       </div>
     );
   }
-
-  const bde = dashboardData?.bde || user || {};
-  const territory = dashboardData?.territory || null;
-  const stateSummary = dashboardData?.state_summary || {};
-  const districtBreakdown = dashboardData?.district_breakdown || [];
-  const goals = dashboardData?.goals || {};
-  const notifications = dashboardData?.notifications || [];
 
   return (
     <div className="space-y-6">
@@ -116,14 +211,67 @@ export default function BdeDashboard() {
             </p>
 
             <div className="flex flex-wrap items-center gap-3 pt-2 text-xs text-blue-100">
-              <span className="font-mono bg-blue-950/80 px-3 py-1 rounded-lg border border-blue-700/40">
+              <span className="font-mono bg-blue-950/80 px-3 py-1.5 rounded-xl border border-blue-700/40">
                 BDE ID: <strong className="text-white">{bde.bde_id}</strong>
               </span>
-              <span className="bg-blue-950/80 px-3 py-1 rounded-lg border border-blue-700/40 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                State: <strong className="text-white">{territory?.state_name || 'Assigned State'}</strong>
-                <span className="text-blue-300">({territory?.district_count || 0} Districts Assigned)</span>
-              </span>
+
+              {/* Territory Badge with Smart Truncation & Interactive Modal */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="bg-blue-950/80 px-3.5 py-1.5 rounded-xl border border-blue-700/40 flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  {isAllIndia ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-blue-200">Territory:</span>
+                      <strong className="text-amber-300 font-bold">Pan India</strong>
+                      <span className="text-blue-300">({stateCount} States • {totalDistrictsCount} Districts)</span>
+                    </div>
+                  ) : stateCount > 3 ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-blue-200">States:</span>
+                      <strong className="text-white">{assignedStates.slice(0, 2).join(', ')}</strong>
+                      <span className="text-blue-300">+{stateCount - 2} More ({totalDistrictsCount} Districts)</span>
+                    </div>
+                  ) : stateCount > 1 ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-blue-200">States:</span>
+                      <strong className="text-white">{assignedStates.join(', ')}</strong>
+                      <span className="text-blue-300">({totalDistrictsCount} Districts)</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-blue-200">State:</span>
+                      <strong className="text-white">{assignedStates[0] || territory?.state_name || 'Assigned Territory'}</strong>
+                      <span className="text-blue-300">({totalDistrictsCount} Districts Assigned)</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Assigned Clusters Badge */}
+                {clusterData?.assigned_clusters && clusterData.assigned_clusters.length > 0 && (
+                  <div className="bg-indigo-950/80 px-3.5 py-1.5 rounded-xl border border-indigo-700/50 flex items-center gap-2">
+                    <Layers className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span className="text-blue-200">Clusters:</span>
+                    <strong className="text-white">
+                      {clusterData.assigned_clusters.length} Assigned
+                    </strong>
+                    <span className="text-indigo-300 hidden sm:inline">
+                      ({clusterData.assigned_clusters.slice(0, 2).map((c) => c.cluster_name).join(', ')}
+                      {clusterData.assigned_clusters.length > 2 && ` +${clusterData.assigned_clusters.length - 2} more`})
+                    </span>
+                  </div>
+                )}
+
+                {stateCount > 1 && (
+                  <button
+                    onClick={() => setTerritoryModalOpen(true)}
+                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold border border-white/20 transition flex items-center gap-1.5 cursor-pointer"
+                    title="View all assigned states and districts"
+                  >
+                    <span>View All States ({stateCount})</span>
+                    <ChevronDown className="w-3.5 h-3.5 text-amber-300" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -181,34 +329,57 @@ export default function BdeDashboard() {
           {/* Clusters Ribbon */}
           {clusterData.assigned_clusters && clusterData.assigned_clusters.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {clusterData.assigned_clusters.map((clu) => (
-                <div
-                  key={clu.id}
-                  className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between space-y-2 hover:border-indigo-300 transition-colors"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
-                          {clu.cluster_code}
-                        </span>
-                        {clu.is_primary ? (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700">Primary BDE</span>
-                        ) : (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600">Support BDE</span>
-                        )}
+              {clusterData.assigned_clusters.map((clu) => {
+                const isSelectedCluster = selectedClusterFilter === clu.id;
+                return (
+                  <div
+                    key={clu.id}
+                    onClick={() => {
+                      setSelectedClusterFilter(isSelectedCluster ? 'all' : clu.id);
+                      const el = document.getElementById('territory-summary-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className={`p-4 rounded-2xl bg-white border-2 shadow-xs flex flex-col justify-between space-y-2.5 transition-all cursor-pointer ${isSelectedCluster
+                        ? 'border-indigo-600 ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 hover:border-indigo-300'
+                      }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: clu.color_code || '#2563eb' }}
+                          />
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
+                            {clu.cluster_code}
+                          </span>
+                          {clu.is_primary ? (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700">Primary BDE</span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600">Support BDE</span>
+                          )}
+                        </div>
+                        <h4 className="font-black text-sm text-slate-900 mt-1.5">{clu.cluster_name}</h4>
+                        <span className="text-[11px] text-slate-500 font-semibold">{clu.state_name}</span>
                       </div>
-                      <h4 className="font-black text-sm text-slate-900 mt-1">{clu.cluster_name}</h4>
+                      <span className="text-xs text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-lg font-bold">{clu.districts_count} Districts</span>
                     </div>
-                    <span className="text-xs text-slate-400 font-semibold">{clu.districts_count} Districts</span>
-                  </div>
 
-                  <div className="text-xs pt-2 border-t border-slate-100 flex items-center justify-between text-slate-600">
-                    <span className="text-slate-400 font-medium">Franchisee Store:</span>
-                    <span className="font-bold text-slate-900">{clu.franchisee_name}</span>
+                    {clu.district_names && clu.district_names.length > 0 && (
+                      <div className="text-[11px] text-slate-500 line-clamp-1 font-medium" title={clu.district_names.join(', ')}>
+                        {clu.district_names.slice(0, 4).join(', ')}
+                        {clu.district_names.length > 4 && ` +${clu.district_names.length - 4} more`}
+                      </div>
+                    )}
+
+                    <div className="text-xs pt-2 border-t border-slate-100 flex items-center justify-between text-slate-600">
+                      <span className="text-slate-400 font-medium">Franchisee Store:</span>
+                      <span className="font-bold text-slate-900 truncate max-w-[150px]">{clu.franchisee_name}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -359,70 +530,193 @@ export default function BdeDashboard() {
         </div>
       )}
 
-      {/* 5. STATE DASHBOARD — Geography-Focused State Summary */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-blue-600" /> State Territory Summary ({territory?.state_name})
-          </h2>
-          <button
-            onClick={fetchDashboardData}
-            className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-semibold"
-          >
-            <RotateCw className="w-3.5 h-3.5" /> Refresh Data
-          </button>
+      {/* 5. TERRITORY PERFORMANCE SUMMARY */}
+      <div id="territory-summary-section" className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-blue-600" /> Territory Performance Summary
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {selectedClusterObj
+                ? `Filtered for cluster "${selectedClusterObj.cluster_name}" (${selectedClusterObj.districts_count} districts in ${selectedClusterObj.state_name})`
+                : selectedStateFilter === 'all'
+                  ? isAllIndia
+                    ? `Aggregated metrics across all ${stateCount} assigned states (${totalDistrictsCount} districts)`
+                    : stateCount > 1
+                      ? `Aggregated metrics across ${stateCount} assigned states (${totalDistrictsCount} districts)`
+                      : `Statewide metrics for ${assignedStates[0] || 'assigned region'}`
+                  : `Focused metrics for ${selectedStateFilter}`}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {stateCount > 1 && (
+              <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-400">State:</span>
+                <select
+                  value={selectedStateFilter}
+                  onChange={(e) => {
+                    setSelectedStateFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer max-w-[160px] sm:max-w-none truncate"
+                >
+                  <option value="all">All Assigned States ({stateCount})</option>
+                  {assignedStates.map((st) => (
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Cluster Filter */}
+            {clusterData?.assigned_clusters && clusterData.assigned_clusters.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-white border border-indigo-200 rounded-xl px-2.5 py-1.5 shadow-2xs">
+                <span className="text-[11px] font-bold text-indigo-600">Cluster:</span>
+                <select
+                  value={selectedClusterFilter}
+                  onChange={(e) => {
+                    setSelectedClusterFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer max-w-[180px] sm:max-w-none truncate"
+                >
+                  <option value="all">All Clusters ({clusterData.assigned_clusters.length})</option>
+                  {clusterData.assigned_clusters.map((clu) => (
+                    <option key={clu.id} value={clu.id}>
+                      {clu.cluster_name} ({clu.districts_count} Dist)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              onClick={fetchDashboardData}
+              className="px-3 py-1.5 bg-white border border-slate-200 text-xs text-slate-700 hover:text-blue-600 hover:border-blue-200 rounded-xl shadow-2xs flex items-center gap-1.5 font-semibold transition cursor-pointer"
+            >
+              <RotateCw className="w-3.5 h-3.5" /> Refresh Data
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
           {/* Assigned Districts */}
           <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-1">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Assigned Districts</span>
-            <div className="text-2xl font-black text-slate-900">{stateSummary.total_assigned_districts || 0}</div>
+            <div className="text-2xl font-black text-slate-900">{activeSummaryMetrics.total_assigned_districts || 0}</div>
             <span className="text-[10px] text-slate-500 font-medium">In your territory</span>
           </div>
 
           {/* Franchisee Network */}
           <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-1">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Franchisees</span>
-            <div className="text-2xl font-black text-slate-900">{stateSummary.total_franchisees || 0}</div>
+            <div className="text-2xl font-black text-slate-900">{activeSummaryMetrics.total_franchisees || 0}</div>
             <div className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-              <span>{stateSummary.operational_franchisees || 0} Live</span> •{' '}
-              <span className="text-amber-600">{stateSummary.franchisees_under_setup || 0} Setup</span>
+              <span>{activeSummaryMetrics.operational_franchisees || 0} Live</span> •{' '}
+              <span className="text-amber-600">{activeSummaryMetrics.franchisees_under_setup || 0} Setup</span>
             </div>
           </div>
 
           {/* EPC Leads */}
           <div className="p-4 bg-white rounded-2xl border border-blue-100 shadow-xs space-y-1">
             <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">EPC Leads</span>
-            <div className="text-2xl font-black text-blue-700">{stateSummary.epc_leads || 0}</div>
+            <div className="text-2xl font-black text-blue-700">{activeSummaryMetrics.epc_leads || 0}</div>
             <span className="text-[10px] text-blue-600 font-medium">Pipeline contacts</span>
           </div>
 
           {/* EPCs Onboarded & Assigned */}
           <div className="p-4 bg-white rounded-2xl border border-teal-100 shadow-xs space-y-1">
             <span className="text-[11px] font-bold text-teal-600 uppercase tracking-wider">EPCs Onboarded</span>
-            <div className="text-2xl font-black text-teal-700">{stateSummary.epcs_onboarded || 0}</div>
+            <div className="text-2xl font-black text-teal-700">{activeSummaryMetrics.epcs_onboarded || 0}</div>
             <span className="text-[10px] text-teal-600 font-medium">
-              {stateSummary.epcs_assigned || 0} Assigned to Franchisees
+              {activeSummaryMetrics.epcs_assigned || 0} Assigned to Franchisees
             </span>
           </div>
 
           {/* Total Kits Ordered */}
           <div className="p-4 bg-white rounded-2xl border border-emerald-100 shadow-xs space-y-1 sm:col-span-2 lg:col-span-1">
             <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Kits Ordered</span>
-            <div className="text-2xl font-black text-emerald-700">{stateSummary.total_kits_ordered || 0}</div>
-            <span className="text-[10px] text-emerald-600 font-medium">Across {stateSummary.total_orders || 0} PO orders</span>
+            <div className="text-2xl font-black text-emerald-700">{activeSummaryMetrics.total_kits_ordered || 0}</div>
+            <span className="text-[10px] text-emerald-600 font-medium">Across {activeSummaryMetrics.total_orders || 0} PO orders</span>
           </div>
         </div>
       </div>
 
       {/* 5. DISTRICT DASHBOARD TABLE — District-by-District Breakdown */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-4 p-6">
-        <div>
-          <h2 className="text-base font-black text-slate-900">District-by-District Territory Breakdown</h2>
-          <p className="text-xs text-slate-500">
-            Performance comparison of Franchisees, EPC Leads, Onboarded contractors, and actual Kits ordered by district.
-          </p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-black text-slate-900">District-by-District Territory Breakdown</h2>
+            <p className="text-xs text-slate-500">
+              Performance comparison of Franchisees, EPC Leads, Onboarded contractors, and actual Kits ordered by district.
+            </p>
+          </div>
+
+          {/* Controls: Search, State Filter, Items Per Page */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus-within:border-blue-500 focus-within:bg-white transition">
+              <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <input
+                type="text"
+                value={districtSearch}
+                onChange={(e) => {
+                  setDistrictSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder="Search district or state..."
+                className="w-36 sm:w-48 bg-transparent text-xs text-slate-800 focus:outline-none placeholder-slate-400 font-medium"
+              />
+              {districtSearch && (
+                <button
+                  onClick={() => {
+                    setDistrictSearch('');
+                    setCurrentPage(1);
+                  }}
+                  className="text-[10px] text-slate-400 hover:text-slate-600 font-bold px-1"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {stateCount > 1 && (
+              <select
+                value={selectedStateFilter}
+                onChange={(e) => {
+                  setSelectedStateFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer max-w-[140px] truncate"
+              >
+                <option value="all">All States ({stateCount})</option>
+                {assignedStates.map((st) => (
+                  <option key={st} value={st}>
+                    {st}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500">
+              <span className="text-[11px] font-medium">Show:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -430,6 +724,7 @@ export default function BdeDashboard() {
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-bold tracking-wider">
               <tr>
                 <th className="px-4 py-3.5">District</th>
+                {stateCount > 1 && <th className="px-4 py-3.5">State</th>}
                 <th className="px-4 py-3.5 text-center">Franchisees (Live / Setup)</th>
                 <th className="px-4 py-3.5 text-center">EPC Leads</th>
                 <th className="px-4 py-3.5 text-center">EPCs Onboarded</th>
@@ -438,13 +733,20 @@ export default function BdeDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {districtBreakdown.length > 0 ? (
-                districtBreakdown.map((d, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/80 transition">
+              {paginatedDistricts.length > 0 ? (
+                paginatedDistricts.map((d, idx) => (
+                  <tr key={d.district || idx} className="hover:bg-slate-50/80 transition">
                     <td className="px-4 py-3.5 font-bold text-slate-900 flex items-center gap-2">
-                      <MapPin className="w-3.5 h-3.5 text-blue-500" />
+                      <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                       <span>{d.district}</span>
                     </td>
+                    {stateCount > 1 && (
+                      <td className="px-4 py-3.5 text-slate-600">
+                        <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                          {d.state || d.state_name || 'Territory'}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-4 py-3.5 text-center">
                       <span className="font-bold text-slate-800">{d.franchisees_count}</span>
                       <span className="text-[11px] text-slate-400 ml-1">
@@ -483,15 +785,87 @@ export default function BdeDashboard() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400 italic">
-                    No district breakdown records found for this territory.
+                  <td colSpan={stateCount > 1 ? 7 : 6} className="px-4 py-8 text-center text-slate-400">
+                    <p className="font-medium text-xs">
+                      {districtSearch || selectedStateFilter !== 'all'
+                        ? 'No districts found matching your search or state filter.'
+                        : 'No district breakdown records found for this territory.'}
+                    </p>
+                    {(districtSearch || selectedStateFilter !== 'all') && (
+                      <button
+                        onClick={() => {
+                          setDistrictSearch('');
+                          setSelectedStateFilter('all');
+                          setCurrentPage(1);
+                        }}
+                        className="mt-2 text-xs text-blue-600 font-bold hover:underline"
+                      >
+                        Reset filters
+                      </button>
+                    )}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Bar */}
+        {filteredDistricts.length > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
+            <div>
+              Showing{' '}
+              <strong className="text-slate-900">
+                {(currentPage - 1) * itemsPerPage + 1}
+              </strong>{' '}
+              to{' '}
+              <strong className="text-slate-900">
+                {Math.min(currentPage * itemsPerPage, filteredDistricts.length)}
+              </strong>{' '}
+              of <strong className="text-slate-900">{filteredDistricts.length}</strong> districts
+              {filteredDistricts.length !== districtBreakdown.length && (
+                <span className="text-slate-400 ml-1">
+                  (filtered from {districtBreakdown.length} total)
+                </span>
+              )}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                <button
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-semibold transition"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                </button>
+                <span className="px-3 py-1 font-bold text-slate-800 bg-slate-50 rounded-lg border border-slate-200">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-semibold transition"
+                >
+                  Next <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Modal for All Assigned States & Districts */}
+      <BdeTerritoryViewModal
+        isOpen={territoryModalOpen}
+        onClose={() => setTerritoryModalOpen(false)}
+        territory={territory}
+        territories={territories}
+        onSelectState={(st) => {
+          setSelectedStateFilter(st);
+          setCurrentPage(1);
+        }}
+      />
 
       {/* 6. FRANCHISEE MONTHLY GOAL VS ACHIEVEMENT (MERGED) */}
       {canOnboardFranchise !== false && (

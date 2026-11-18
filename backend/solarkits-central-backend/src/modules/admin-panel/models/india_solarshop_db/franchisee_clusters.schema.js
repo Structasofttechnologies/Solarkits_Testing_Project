@@ -82,6 +82,11 @@ const schema = new mongoose.Schema({
     default: 'available',
     index: true,
   },
+  color_code: {
+    type: String,
+    default: '#2563eb',
+    trim: true,
+  },
   is_active: {
     type: Boolean,
     default: true,

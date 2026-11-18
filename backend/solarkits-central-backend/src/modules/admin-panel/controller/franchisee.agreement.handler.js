@@ -4,6 +4,7 @@ const {
   FranchiseeCluster,
   Reseller,
   BDEProfile,
+  ResellerAgreement,
 } = require('../models/india_solarshop_db');
 
 /**
@@ -188,13 +189,39 @@ exports.create_agreement = async (req, res) => {
 
     await agreement.save();
 
-    // Sync cluster dates
+    // Sync cluster dates and assigned franchisee
     await FranchiseeCluster.findByIdAndUpdate(cluster_id, {
       agreement_start_date: agreement.start_date,
       agreement_expiry_date: agreement.end_date,
-      assigned_franchisee_id,
+      assigned_franchisee_id: franchisee_id,
       status: 'allotted',
     });
+
+    // Sync Reseller record with cluster, agreement file, and setup fee
+    await Reseller.findByIdAndUpdate(franchisee_id, {
+      cluster_id: cluster_id,
+      agreement_status: 'pending',
+      agreement_file_url: final_document_url,
+      fee_payment_amount: setup_fee || 0,
+      reseller_lifecycle_status: 'agreement_pending',
+      ...(assigned_bde_id ? { bde_id: assigned_bde_id } : {}),
+    });
+
+    // Synchronize ResellerAgreement for unified access
+    await ResellerAgreement.findOneAndUpdate(
+      { reseller_id: franchisee_id },
+      {
+        agreement_number: agreement.agreement_number,
+        title: agreement.title || 'SolarKits Authorized Franchise Partner Agreement',
+        document_url: final_document_url,
+        pdf_storage_key: final_document_url,
+        status: 'pending',
+        cluster_id: cluster_id,
+        setup_fee: setup_fee || 0,
+        renewal_fee: renewal_fee || 0,
+      },
+      { upsert: true, new: true }
+    );
 
     return res.status(201).json({
       status: 'success',

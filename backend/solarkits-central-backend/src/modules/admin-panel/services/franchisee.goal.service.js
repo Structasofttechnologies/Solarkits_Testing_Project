@@ -31,10 +31,10 @@ const {
 const { logAudit } = require('../utils/audit.service');
 
 const PERFORMANCE_THRESHOLDS = {
-  EXCEEDED:      120,
-  ACHIEVED:      100,
-  ON_TRACK:       75,
-  BEHIND:          1,
+  EXCEEDED: 120,
+  ACHIEVED: 100,
+  ON_TRACK: 75,
+  BEHIND: 1,
   LOW_PERFORMANCE: 0,
 };
 
@@ -69,8 +69,8 @@ async function resolveEffectiveTarget({ franchisee_id, month, year }) {
   const currentYear = year || now.getFullYear();
 
   const baseQuery = {
-    is_active:    true,
-    deleted_at:   null,
+    is_active: true,
+    deleted_at: null,
     $or: [
       { is_recurring: true },
       { target_month: currentMonth, target_year: currentYear },
@@ -80,8 +80,15 @@ async function resolveEffectiveTarget({ franchisee_id, month, year }) {
 
   // 0. Unified Territory Cluster Goal (Primary Single Source of Truth)
   if (franchisee_id) {
+    const fId = mongoose.Types.ObjectId.isValid(franchisee_id)
+      ? new mongoose.Types.ObjectId(franchisee_id)
+      : franchisee_id;
+
     const cluster = await FranchiseeCluster.findOne({
-      assigned_franchisee_id: franchisee_id,
+      $or: [
+        { assigned_franchisee_id: fId },
+        { assigned_franchisee_id: franchisee_id },
+      ],
       deleted_at: null,
     }).populate('state_id', 'name').lean();
 
@@ -99,12 +106,12 @@ async function resolveEffectiveTarget({ franchisee_id, month, year }) {
           _id: clusterGoal._id,
           target_type: 'CLUSTER',
           cluster_id: cluster._id,
-          cluster_code: cluster.code,
-          cluster_name: cluster.name,
+          cluster_code: cluster.cluster_code || cluster.code || 'CLU',
+          cluster_name: cluster.cluster_name || cluster.name || 'Territory Cluster',
           target_quantity: mGoal ? mGoal.target_kits_quantity : 100,
-          target_revenue: mGoal ? mGoal.target_revenue : 0,
-          po_split_kits: mGoal ? mGoal.target_po_kits : 0,
-          loose_split_kits: mGoal ? mGoal.target_loose_orders : 0,
+          target_revenue: mGoal ? mGoal.target_revenue : 5000000,
+          po_split_kits: mGoal ? mGoal.target_po_kits : 80,
+          loose_split_kits: mGoal ? mGoal.target_loose_orders : 20,
           annual_epc_goal: clusterGoal.annual_epc_goal || 100,
           annual_live_epc_goal: clusterGoal.annual_live_epc_goal || 60,
           live_epc_criteria_days: clusterGoal.live_epc_criteria_days || 90,
@@ -118,7 +125,7 @@ async function resolveEffectiveTarget({ franchisee_id, month, year }) {
   if (franchisee_id) {
     const franchiseeTarget = await FranchiseeKitTarget.findOne({
       ...baseQuery,
-      target_type:   'FRANCHISEE',
+      target_type: 'FRANCHISEE',
       franchisee_id: new mongoose.Types.ObjectId(franchisee_id),
     }).lean();
     if (franchiseeTarget) return franchiseeTarget;
@@ -145,7 +152,7 @@ async function resolveEffectiveTarget({ franchisee_id, month, year }) {
     const stateTarget = await FranchiseeKitTarget.findOne({
       ...baseQuery,
       target_type: 'STATE',
-      state_id:    territory.state_id,
+      state_id: territory.state_id,
     }).lean();
     if (stateTarget) return stateTarget;
   }
@@ -173,7 +180,7 @@ async function resolveEffectiveTarget({ franchisee_id, month, year }) {
     const planTarget = await FranchiseeKitTarget.findOne({
       ...baseQuery,
       target_type: 'PLAN',
-      plan_id:     planId,
+      plan_id: planId,
     }).lean();
     if (planTarget) return planTarget;
   }
@@ -223,7 +230,7 @@ async function recalculateProgress(paramsOrId, maybeMonth, maybeYear) {
 
   // Aggregate quantities from delivered FPO orders in the period
   const startDate = new Date(year, month - 1, 1);
-  const endDate   = new Date(year, month, 1);
+  const endDate = new Date(year, month, 1);
 
   const pipeline = [
     {
@@ -280,20 +287,30 @@ async function recalculateProgress(paramsOrId, maybeMonth, maybeYear) {
           },
         },
         cancelled_quantity: { $sum: { $sum: { $ifNull: ['$items.cancelled_quantity', 0] } } },
-        returned_quantity:  { $sum: { $sum: { $ifNull: ['$items.returned_quantity', 0] } } },
+        returned_quantity: { $sum: { $sum: { $ifNull: ['$items.returned_quantity', 0] } } },
+        actual_revenue: {
+          $sum: {
+            $cond: [
+              { $in: ['$status', ['APPROVED', 'AWAITING_PAYMENT', 'PARTIALLY_PAID', 'PAID', 'STOCK_ALLOCATED', 'PROCESSING', 'PARTIALLY_DISPATCHED', 'DISPATCHED', 'PARTIALLY_DELIVERED', 'DELIVERED', 'COMPLETED']] },
+              { $divide: [{ $ifNull: ['$total_amount_paise', 0] }, 100] },
+              0
+            ]
+          }
+        },
       },
     },
   ];
 
   const [agg] = await FpoOrder.aggregate(pipeline);
 
-  const ordered_quantity    = agg?.ordered_quantity    || 0;
-  const approved_quantity   = agg?.approved_quantity   || 0;
-  const paid_quantity       = agg?.paid_quantity        || 0;
-  const dispatched_quantity = agg?.dispatched_quantity  || 0;
-  const delivered_quantity  = agg?.delivered_quantity   || 0;
-  const cancelled_quantity  = agg?.cancelled_quantity   || 0;
-  const returned_quantity   = agg?.returned_quantity    || 0;
+  const ordered_quantity = agg?.ordered_quantity || 0;
+  const approved_quantity = agg?.approved_quantity || 0;
+  const paid_quantity = agg?.paid_quantity || 0;
+  const dispatched_quantity = agg?.dispatched_quantity || 0;
+  const delivered_quantity = agg?.delivered_quantity || 0;
+  const cancelled_quantity = agg?.cancelled_quantity || 0;
+  const returned_quantity = agg?.returned_quantity || 0;
+  const actual_revenue = agg?.actual_revenue || 0;
 
   const target_quantity = target?.target_quantity || 0;
   const stage = target?.calculation_stage || 'DELIVERED_QUANTITY';
@@ -312,8 +329,8 @@ async function recalculateProgress(paramsOrId, maybeMonth, maybeYear) {
   }
 
   const eligible_quantity = Math.max(0, rawStageQty - cancelled_quantity - returned_quantity);
-  const balance_quantity  = Math.max(0, target_quantity - eligible_quantity);
-  const achievement_pct   = target_quantity > 0
+  const balance_quantity = Math.max(0, target_quantity - eligible_quantity);
+  const achievement_pct = target_quantity > 0
     ? Math.round((eligible_quantity / target_quantity) * 10000) / 100 // 2 decimal places
     : 0;
 
@@ -321,9 +338,9 @@ async function recalculateProgress(paramsOrId, maybeMonth, maybeYear) {
 
   const progressData = {
     franchisee_id,
-    target_id:         target?._id || null,
-    target_month:      month,
-    target_year:       year,
+    target_id: target?._id || null,
+    target_month: month,
+    target_year: year,
     target_quantity,
     ordered_quantity,
     approved_quantity,
@@ -333,6 +350,7 @@ async function recalculateProgress(paramsOrId, maybeMonth, maybeYear) {
     cancelled_quantity,
     returned_quantity,
     eligible_quantity,
+    actual_revenue,
     balance_quantity,
     achievement_pct,
     performance_status,
@@ -375,11 +393,18 @@ async function getGoalWidget(franchisee_id) {
 
   const now = new Date();
   const month = now.getMonth() + 1;
-  const year  = now.getFullYear();
+  const year = now.getFullYear();
 
   // Load Cluster & Cluster Goals (Primary Source of Truth)
+  const fId = mongoose.Types.ObjectId.isValid(franchisee_id)
+    ? new mongoose.Types.ObjectId(franchisee_id)
+    : franchisee_id;
+
   const cluster = await FranchiseeCluster.findOne({
-    assigned_franchisee_id: franchisee_id,
+    $or: [
+      { assigned_franchisee_id: fId },
+      { assigned_franchisee_id: franchisee_id },
+    ],
     deleted_at: null,
   }).populate('state_id', 'name').lean();
 
@@ -392,6 +417,9 @@ async function getGoalWidget(franchisee_id) {
   const currentMonth = month;
   const fy = currentMonth >= 4 ? `${currentYear}-${String(currentYear + 1).slice(2)}` : `${currentYear - 1}-${String(currentYear).slice(2)}`;
 
+  let annualKitsTargetTotal = 0;
+  let annualRevenueTargetTotal = 0;
+
   if (cluster) {
     clusterGoal = await FranchiseeClusterGoal.findOne({
       cluster_id: cluster._id,
@@ -399,11 +427,18 @@ async function getGoalWidget(franchisee_id) {
       deleted_at: null,
     }).lean();
 
+    if (clusterGoal?.monthly_kit_goals && Array.isArray(clusterGoal.monthly_kit_goals)) {
+      for (const m of clusterGoal.monthly_kit_goals) {
+        annualKitsTargetTotal += Number(m.target_kits_quantity || 0);
+        annualRevenueTargetTotal += Number(m.target_revenue || 0);
+      }
+    }
+
     // Approved EPCs onboarded for this franchisee or within this cluster
     const approvedEpcs = await EpcAccount.find({
       $or: [
-        { onboarded_by_reseller_id: franchisee_id },
-        { primary_reseller_id: franchisee_id },
+        { onboarded_by_reseller_id: fId },
+        { primary_reseller_id: fId },
         { districts: { $in: cluster.district_ids || [] } },
       ],
       status: 'approved',
@@ -437,9 +472,9 @@ async function getGoalWidget(franchisee_id) {
 
     clusterInfo = {
       id: cluster._id,
-      code: cluster.code,
-      name: cluster.name,
-      state: cluster.state_id?.name || '',
+      code: cluster.cluster_code || cluster.code || 'CLU',
+      name: cluster.cluster_name || cluster.name || 'Franchise Cluster',
+      state: cluster.state_id?.name || cluster.state_name || '',
       districts_count: (cluster.district_ids || []).length,
     };
   }
@@ -458,7 +493,7 @@ async function getGoalWidget(franchisee_id) {
 
   // Previous month comparison
   const prevMonth = month === 1 ? 12 : month - 1;
-  const prevYear  = month === 1 ? year - 1 : year;
+  const prevYear = month === 1 ? year - 1 : year;
   const prevProgress = await FranchiseeTargetProgress.findOne({
     franchisee_id,
     target_year: prevYear,
@@ -476,32 +511,38 @@ async function getGoalWidget(franchisee_id) {
   const targetRevenue = currentMonthGoal?.target_revenue || 5000000;
   const eligibleKits = progress.eligible_quantity || 0;
   const actualRevenue = progress.actual_revenue || 0;
-  const achievementPct = monthlyGoalTarget > 0 ? Math.round((eligibleKits / monthlyGoalTarget) * 100) : 0;
   const balanceKits = Math.max(0, monthlyGoalTarget - eligibleKits);
+  const balanceRevenue = Math.max(0, targetRevenue - actualRevenue);
+  const achievementPct = monthlyGoalTarget > 0 ? Math.round((eligibleKits / monthlyGoalTarget) * 100) : 0;
+  const revenueAchPct = targetRevenue > 0 ? Math.round((actualRevenue / targetRevenue) * 100) : 0;
 
   const widgetData = {
-    period:          `${monthName} ${year}`,
-    financial_year:  fy,
-    target_month:    month,
-    target_year:     year,
-    monthly_goal:    monthlyGoalTarget,
-    target_revenue:  targetRevenue,
-    eligible_kits:   eligibleKits,
-    actual_revenue:  actualRevenue,
-    balance_kits:    balanceKits,
+    period: `${monthName} ${year}`,
+    financial_year: fy,
+    target_month: month,
+    target_year: year,
+    monthly_goal: monthlyGoalTarget,
+    target_revenue: targetRevenue,
+    eligible_kits: eligibleKits,
+    actual_revenue: actualRevenue,
+    balance_kits: balanceKits,
+    balance_revenue: balanceRevenue,
     achievement_pct: achievementPct,
-    po_split_kits:   currentMonthGoal?.target_po_kits || 80,
-    loose_split_kits:currentMonthGoal?.target_loose_orders || 20,
+    revenue_achievement_pct: revenueAchPct,
+    annual_kits_target: annualKitsTargetTotal || (monthlyGoalTarget * 12),
+    annual_revenue_target: annualRevenueTargetTotal || (targetRevenue * 12),
+    po_split_kits: currentMonthGoal?.target_po_kits || Math.round(monthlyGoalTarget * 0.8),
+    loose_split_kits: currentMonthGoal?.target_loose_orders || Math.round(monthlyGoalTarget * 0.2),
     performance_status: classifyPerformance(achievementPct, monthlyGoalTarget),
-    days_remaining:  Math.max(0, daysRemaining),
-    has_target:      true,
-    cluster:         clusterInfo,
+    days_remaining: Math.max(0, daysRemaining),
+    has_target: true,
+    cluster: clusterInfo,
     annual_epc_goal: annualEpcGoal,
-    live_epc_goal:   liveEpcGoal,
+    live_epc_goal: liveEpcGoal,
     previous_month: prevProgress ? {
-      month:           prevMonth,
-      year:            prevYear,
-      eligible_kits:   prevProgress.eligible_quantity,
+      month: prevMonth,
+      year: prevYear,
+      eligible_kits: prevProgress.eligible_quantity,
       achievement_pct: prevProgress.achievement_pct,
       performance_status: prevProgress.performance_status,
     } : null,
@@ -528,7 +569,7 @@ async function getGoalWidget(franchisee_id) {
  */
 async function getPerformanceAnalytics({ month, year, state_id, district_id, plan_id, performance_status } = {}) {
   const currentMonth = Number(month) || (new Date().getMonth() + 1);
-  const currentYear  = Number(year)  || new Date().getFullYear();
+  const currentYear = Number(year) || new Date().getFullYear();
 
   const matchStage = { target_year: currentYear, target_month: currentMonth };
   if (performance_status) matchStage.performance_status = performance_status;

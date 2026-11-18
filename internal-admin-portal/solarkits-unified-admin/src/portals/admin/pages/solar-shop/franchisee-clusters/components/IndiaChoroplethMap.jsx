@@ -214,13 +214,14 @@ export default function IndiaChoroplethMap({
       clustersList.forEach((c) => {
         const theme = getClusterTheme(c._id);
         const distCount = (c.district_ids || c.district_names || []).length;
+        const assignedColor = c.color_code || theme.fill;
         map.set(String(c._id), {
           cluster_id: c._id,
           cluster_name: c.cluster_name,
           cluster_code: c.cluster_code,
           state_name: c.state_name || c.state_id?.name || '',
-          color: theme.fill,
-          stroke: theme.border,
+          color: assignedColor,
+          stroke: c.color_code || theme.border,
           bg: theme.bg,
           text: theme.text,
           districts_count: distCount,
@@ -233,13 +234,14 @@ export default function IndiaChoroplethMap({
     districtsData.forEach((d) => {
       if (d.cluster_id && !map.has(String(d.cluster_id))) {
         const theme = getClusterTheme(d.cluster_id);
+        const assignedColor = d.cluster_color || theme.fill;
         map.set(String(d.cluster_id), {
           cluster_id: d.cluster_id,
           cluster_name: d.cluster_name || 'Cluster',
           cluster_code: d.cluster_code || 'CLU',
           state_name: d.state_name || '',
-          color: theme.fill,
-          stroke: theme.border,
+          color: assignedColor,
+          stroke: d.cluster_color || theme.border,
           bg: theme.bg,
           text: theme.text,
           districts_count: districtsData.filter((x) => String(x.cluster_id) === String(d.cluster_id)).length,
@@ -358,17 +360,18 @@ export default function IndiaChoroplethMap({
       // Selected Cluster highlight
       if (selectedCluster && match?.cluster_id && String(match.cluster_id) === String(selectedCluster)) {
         if (mapViewMode === 'clusters') {
-          return getClusterTheme(match.cluster_id).fill;
+          return match.cluster_color || match.color || getClusterTheme(match.cluster_id).fill;
         }
         return match.color || '#ea580c';
       }
 
       // ── MODE 1: Created Clusters Map ───────────────────────────
       // Every district belonging to ANY created cluster gets filled with that cluster's distinct color!
+      // Priority 1: Admin's chosen custom color (cluster_color)
+      // Priority 2: Fallback deterministic theme
       if (mapViewMode === 'clusters') {
         if (match?.cluster_id) {
-          const theme = getClusterTheme(match.cluster_id);
-          return theme.fill;
+          return match.cluster_color || match.color || getClusterTheme(match.cluster_id).fill;
         }
         // Unassigned districts stay neutral white/slate
         return '#f8fafc';
@@ -412,8 +415,7 @@ export default function IndiaChoroplethMap({
 
       if (mapViewMode === 'clusters') {
         if (match?.cluster_id) {
-          const theme = getClusterTheme(match.cluster_id);
-          return theme.border;
+          return match.cluster_color || getClusterTheme(match.cluster_id).border;
         }
         return '#cbd5e1';
       }
@@ -561,12 +563,12 @@ export default function IndiaChoroplethMap({
                   isHovered
                     ? 2.5 / zoom
                     : selectedCluster && match?.cluster_id && String(match.cluster_id) === String(selectedCluster)
-                    ? 2.5 / zoom
-                    : mapViewMode === 'clusters' && match?.cluster_id
-                    ? 1.2 / zoom
-                    : match?.is_allotted
-                    ? 1.4 / zoom
-                    : 0.55 / zoom
+                      ? 2.5 / zoom
+                      : mapViewMode === 'clusters' && match?.cluster_id
+                        ? 1.2 / zoom
+                        : match?.is_allotted
+                          ? 1.4 / zoom
+                          : 0.55 / zoom
                 }
                 strokeDasharray={
                   mapViewMode === 'franchisees' && match?.status_key === 'available' && !match?.is_allotted

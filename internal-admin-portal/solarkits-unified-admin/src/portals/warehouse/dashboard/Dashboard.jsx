@@ -53,6 +53,7 @@ const ComboKitWeightMaster = lazy(() => import("../../admin/pages/solar-shop/del
 const DeliveryCostSettings = lazy(() => import("../../admin/pages/solar-shop/delivery-management/DeliveryCostSettings"));
 const UnifiedFleetManagement = lazy(() => import("../pages/warehouse-management/UnifiedFleetManagement"));
 const UnifiedCustomerOutward = lazy(() => import("../pages/warehouse-management/UnifiedCustomerOutward"));
+const WarehouseTrialKitPage = lazy(() => import("../pages/trial-kits/WarehouseTrialKitPage"));
 
 /* ===================== MENU CONFIG ===================== */
 
@@ -157,6 +158,12 @@ const getMenusForMode = (mode, prefix = "/warehouse-management-panel", badgeCoun
         icon: <FaSyncAlt />,
         path: `${prefix}/stock-adjustment`,
         unique_id: "WH_STOCK_ADJ"
+      },
+      {
+        name: "Trial Kit Fulfillment",
+        icon: <FaBoxes />,
+        path: `${prefix}/trial-kits`,
+        unique_id: "WH_TRIAL_KITS"
       }
     ]
   ];
@@ -564,6 +571,16 @@ export default function Dashboard() {
                       <PermissionGuard requiredUniqueId="WH_STOCK_ADJ">
                         <Suspense fallback={<Loader text="Loading adjustments..." />}>
                           <StockAdjustment />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="trial-kits/*"
+                    element={
+                      <PermissionGuard requiredUniqueId="WH_TRIAL_KITS">
+                        <Suspense fallback={<Loader text="Loading Trial Kit Fulfillment..." />}>
+                          <WarehouseTrialKitPage />
                         </Suspense>
                       </PermissionGuard>
                     }
