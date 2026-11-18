@@ -19,6 +19,8 @@ const {
   ResellerPlanSubscription,
   ResellerTerritory,
   ResellerAgreement,
+  FranchiseeAgreement,
+  FranchiseeCluster,
   FranchiseLead,
   GstVerificationLog,
   FranchiseePlanPoSetting,
@@ -1457,7 +1459,7 @@ const subscribe_plan = async (req, res) => {
  */
 const get_reseller_my_territories = async (req, res) => {
   try {
-    const { ResellerTerritory } = require('../../admin-panel/models/india_solarshop_db');
+    const { ResellerTerritory, FranchiseeCluster } = require('../../admin-panel/models/india_solarshop_db');
     const territories = await ResellerTerritory.find({
       reseller_id: req.reseller._id,
       status: 'active',
@@ -1466,6 +1468,16 @@ const get_reseller_my_territories = async (req, res) => {
       .populate('state_id', 'name state_code')
       .populate('district_id', 'name')
       .lean();
+
+    // Fetch assigned or matching clusters for this reseller
+    const assignedClusters = await FranchiseeCluster.find({
+      $or: [
+        { assigned_franchisee_id: req.reseller._id },
+        { district_ids: { $in: territories.map((t) => t.district_id?._id).filter(Boolean) } },
+      ],
+      deleted_at: null,
+      is_active: true,
+    }).lean();
 
     return res.json({
       status: 'success',
@@ -1479,11 +1491,21 @@ const get_reseller_my_territories = async (req, res) => {
           locationName = t.country_id.name;
         }
 
+        // Find matching cluster for this territory entry
+        const matchingCluster = assignedClusters.find(
+          (c) =>
+            (t.district_id?._id && (c.district_ids || []).some((d) => String(d) === String(t.district_id._id))) ||
+            String(c.assigned_franchisee_id) === String(req.reseller._id)
+        );
+
         return {
           id: t._id,
           scope_level: t.territory_level,
           territory_level: t.territory_level,
           location_name: locationName,
+          cluster_name: matchingCluster?.cluster_name || null,
+          cluster_code: matchingCluster?.cluster_code || null,
+          cluster_id: matchingCluster?._id || null,
           country: t.country_id,
           state: t.state_id,
           district: t.district_id,
@@ -4084,14 +4106,22 @@ const get_current_agreement = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Valid reseller ID is required' });
     }
 
-    let agreement = await ResellerAgreement.findOne({ reseller_id: resellerId })
-      .sort({ created_at: -1 })
-      .lean();
-
     const reseller = await Reseller.findById(resellerId).lean();
     if (!reseller) {
       return res.status(404).json({ status: 'error', message: 'Reseller not found' });
     }
+
+    // 1. Primary Lookup: FranchiseeAgreement created and uploaded by Admin
+    let franchiseeAg = await FranchiseeAgreement.findOne({ franchisee_id: resellerId, deleted_at: null })
+      .populate('cluster_id')
+      .populate('assigned_bde_id')
+      .sort({ created_at: -1 })
+      .lean();
+
+    // 2. Secondary Lookup: ResellerAgreement
+    let agreement = await ResellerAgreement.findOne({ reseller_id: resellerId })
+      .sort({ created_at: -1 })
+      .lean();
 
     const settings = await SolarShopSettings.findOne().lean();
     const masterTemplate = settings?.franchise_agreement_template || `SOLARKITS AUTHORIZED FRANCHISE PARTNER AGREEMENT
@@ -4137,14 +4167,27 @@ CLAUSE 6 — GOVERNING LAW & JURISDICTION
 [DIGITAL EXECUTION DECLARATION]
 By digitally signing below, the Franchise Partner certifies that they have read, understood, and accept all terms and conditions of this Franchise Agreement.`;
 
-    const agreementNumber = agreement?.agreement_number || `SK-FRN-AGR-${new Date().getFullYear()}-${String(resellerId).slice(-6).toUpperCase()}`;
-    const formattedDate = new Date(agreement?.created_at || Date.now()).toLocaleDateString('en-IN', {
+    const agreementNumber =
+      franchiseeAg?.agreement_number ||
+      agreement?.agreement_number ||
+      `SK-FRN-AGR-${new Date().getFullYear()}-${String(resellerId).slice(-6).toUpperCase()}`;
+
+    const formattedDate = new Date(
+      franchiseeAg?.start_date || franchiseeAg?.created_at || agreement?.created_at || Date.now()
+    ).toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
     });
-    const territory = `${reseller.address?.city ? reseller.address.city + ', ' : ''}${reseller.address?.state || 'India'}`;
-    const commMode = (reseller.commercial_mode === 'upfront_discount' ? 'Upfront Wholesale Margin Discount Mode' : 'Commission Settlement Mode');
+
+    const territory = franchiseeAg?.cluster_id
+      ? `${franchiseeAg.cluster_id.cluster_name} (${(franchiseeAg.cluster_id.district_names || []).join(', ')})`
+      : `${reseller.address?.city ? reseller.address.city + ', ' : ''}${reseller.address?.state || 'India'}`;
+
+    const commMode =
+      reseller.commercial_mode === 'upfront_discount'
+        ? 'Upfront Wholesale Margin Discount Mode'
+        : 'Commission Settlement Mode';
 
     const renderTemplate = (rawText) => {
       return (rawText || masterTemplate)
@@ -4159,9 +4202,56 @@ By digitally signing below, the Franchise Partner certifies that they have read,
         .replace(/\{\{MOBILE\}\}/g, reseller.mobile || '');
     };
 
-    if (!agreement) {
-      const termsContent = renderTemplate(masterTemplate);
+    let resolvedAgreement = null;
 
+    if (franchiseeAg) {
+      const isSigned = Boolean(
+        franchiseeAg.is_digitally_signed ||
+        reseller.agreement_status === 'signed' ||
+        agreement?.status === 'signed'
+      );
+
+      resolvedAgreement = {
+        _id: franchiseeAg._id,
+        agreement_number: franchiseeAg.agreement_number,
+        title: franchiseeAg.title || 'SolarKits Authorized Franchise Partner Agreement',
+        version: franchiseeAg.version || '2.0',
+        document_url: franchiseeAg.document_url || agreement?.document_url || agreement?.pdf_storage_key || null,
+        document_name: franchiseeAg.document_name || 'Franchise_Partner_Agreement.pdf',
+        start_date: franchiseeAg.start_date,
+        end_date: franchiseeAg.end_date,
+        duration_months: franchiseeAg.duration_months || 24,
+        setup_fee: franchiseeAg.setup_fee || 100000,
+        renewal_fee: franchiseeAg.renewal_fee || 10000,
+        renewal_conditions: franchiseeAg.renewal_conditions,
+        status: isSigned ? 'signed' : (franchiseeAg.status || 'pending'),
+        is_digitally_signed: isSigned,
+        signed_at: franchiseeAg.signed_at || reseller.agreement_signed_at || agreement?.signed_at || null,
+        signer_name: franchiseeAg.signer_name || reseller.agreement_signer_name || agreement?.signer_name || null,
+        cluster: franchiseeAg.cluster_id ? {
+          _id: franchiseeAg.cluster_id._id,
+          cluster_name: franchiseeAg.cluster_id.cluster_name,
+          cluster_code: franchiseeAg.cluster_id.cluster_code,
+          state_name: franchiseeAg.cluster_id.state_name,
+          district_names: franchiseeAg.cluster_id.district_names || [],
+        } : null,
+        territory_scope: territory,
+        agreement_content: renderTemplate(masterTemplate),
+      };
+    } else if (agreement) {
+      if (agreement.agreement_content && agreement.agreement_content.includes('{{')) {
+        agreement.agreement_content = renderTemplate(agreement.agreement_content);
+      }
+      resolvedAgreement = {
+        ...agreement,
+        document_url: agreement.document_url || agreement.pdf_storage_key || null,
+        document_name: agreement.document_name || (agreement.document_url ? 'Franchise_Partner_Agreement.pdf' : null),
+        setup_fee: agreement.setup_fee || 100000,
+        renewal_fee: agreement.renewal_fee || 10000,
+        territory_scope: territory,
+      };
+    } else {
+      const termsContent = renderTemplate(masterTemplate);
       const created = await ResellerAgreement.create({
         reseller_id: resellerId,
         agreement_number: agreementNumber,
@@ -4171,15 +4261,13 @@ By digitally signing below, the Franchise Partner certifies that they have read,
         agreement_content: termsContent,
         status: 'pending',
       });
-      agreement = created.toObject();
-    } else if (agreement.agreement_content && agreement.agreement_content.includes('{{')) {
-      agreement.agreement_content = renderTemplate(agreement.agreement_content);
+      resolvedAgreement = created.toObject();
     }
 
     return res.json({
       status: 'success',
       data: {
-        agreement,
+        agreement: resolvedAgreement,
         reseller: {
           id: reseller._id,
           business_name: reseller.business_name,
@@ -4257,6 +4345,20 @@ const sign_agreement = async (req, res) => {
     }
     await agreement.save();
 
+    // Also synchronize FranchiseeAgreement for admin oversight
+    await FranchiseeAgreement.findOneAndUpdate(
+      { franchisee_id: resellerId, deleted_at: null },
+      {
+        is_digitally_signed: true,
+        signed_at: new Date(),
+        signer_name: name,
+        signer_designation: (signer_designation || 'Authorized Signatory / Proprietor').trim(),
+        signer_ip: req.ip || req.headers['x-forwarded-for'] || null,
+        status: 'active',
+        ...(finalFileUrl ? { document_url: finalFileUrl } : {}),
+      }
+    );
+
     const reseller = await Reseller.findById(resellerId);
     if (reseller) {
       reseller.agreement_status = 'signed';
@@ -4325,6 +4427,24 @@ const get_fee_payment_info = async (req, res) => {
       plan = await ResellerPlan.findOne({ is_active: true, deleted_at: null }).sort({ one_time_fee: 1 }).lean();
     }
 
+    // Check FranchiseeAgreement for exact admin-configured setup & renewal fees
+    let franchiseeAg = await FranchiseeAgreement.findOne({ franchisee_id: resellerId, deleted_at: null })
+      .populate('cluster_id')
+      .sort({ created_at: -1 })
+      .lean();
+
+    let clusterDoc = franchiseeAg?.cluster_id;
+    if (!clusterDoc && reseller.cluster_id) {
+      clusterDoc = await FranchiseeCluster.findById(reseller.cluster_id).lean();
+    }
+    if (!clusterDoc) {
+      clusterDoc = await FranchiseeCluster.findOne({ assigned_franchisee_id: resellerId, deleted_at: null }).lean();
+    }
+
+    const setupFee = franchiseeAg?.setup_fee || clusterDoc?.setup_fee_config?.setup_fee || plan?.one_time_fee || 100000;
+    const renewalFee = franchiseeAg?.renewal_fee || clusterDoc?.setup_fee_config?.renewal_fee || 10000;
+    const feeAmount = setupFee;
+
     const companyBankInfoNotice = {
       bank_details_shared_via_system: false,
       message: 'Company bank account details are not shared through the system. All payment details are discussed verbally with your assigned Account Manager.',
@@ -4332,17 +4452,28 @@ const get_fee_payment_info = async (req, res) => {
       support_phone: '+91 98765 43210',
     };
 
-    const feeAmount = plan?.one_time_fee || subscription?.amount_paid || 50000;
-
     return res.json({
       status: 'success',
       data: {
         company_bank_info_notice: companyBankInfoNotice,
+        setup_fee: setupFee,
+        renewal_fee: renewalFee,
+        fee_amount: feeAmount,
+        agreement_number: franchiseeAg?.agreement_number || null,
+        cluster: clusterDoc
+          ? {
+              _id: clusterDoc._id,
+              cluster_name: clusterDoc.cluster_name,
+              cluster_code: clusterDoc.cluster_code,
+            }
+          : null,
         plan: {
           id: plan?._id,
           name: plan?.name || 'Authorized Franchise Partner Plan',
           territory_level: plan?.territory_level || 'District',
           fee_amount: feeAmount,
+          setup_fee: setupFee,
+          renewal_fee: renewalFee,
           currency: plan?.currency || 'INR',
           description: plan?.description || 'Exclusive territory allocation & wholesale ordering rights',
         },
@@ -4399,7 +4530,8 @@ const upload_manual_payment_receipt = async (req, res) => {
     }
 
     const cleanUtr = utr_number.trim().toUpperCase();
-    const cleanAmount = Number(amount_paid) || 50000;
+    const officialAg = await FranchiseeAgreement.findOne({ franchisee_id: resellerId, deleted_at: null }).sort({ created_at: -1 });
+    const cleanAmount = officialAg?.setup_fee || Number(amount_paid) || 100000;
     const payDate = payment_date ? new Date(payment_date) : new Date();
 
     // 1. Update or create subscription

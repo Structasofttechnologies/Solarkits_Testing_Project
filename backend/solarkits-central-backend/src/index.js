@@ -125,6 +125,8 @@ adminRouter.use('/reseller-mgmt/pricing-rules', require('./modules/admin-panel/r
 adminRouter.use('/reseller-mgmt/analytics', require('./modules/admin-panel/routes/reseller.analytics.route'));
 // Phase R1: Platform-wide settings (exclusivity policy, settlement config, activation requirements)
 adminRouter.use('/reseller-mgmt/settings', require('./modules/admin-panel/routes/reseller.settings.route'));
+adminRouter.use('/reseller-mgmt/franchise-form-fields', require('./modules/admin-panel/routes/franchise.form.fields.route'));
+adminRouter.use('/franchise-form-fields', require('./modules/admin-panel/routes/franchise.form.fields.route'));
 // Industry Content Management System
 adminRouter.use('/industry-content', require('./modules/admin-panel/routes/industry.content.route'));
 adminRouter.use('/industry-themes', require('./modules/admin-panel/routes/industry.theme.route'));
@@ -210,6 +212,7 @@ adminRouter.use('/payment-milestones', require('./modules/admin-panel/routes/pro
 // ─── Centralized Order & Stage Approval Workflow Engine ───────────────────────
 adminRouter.use('/order-approvals', require('./modules/admin-panel/routes/order.approval.route'));
 adminRouter.use('/epc-types', require('./modules/admin-panel/routes/epc.types.route'));
+adminRouter.use('/business-profiles', require('./modules/admin-panel/routes/business.profiles.route'));
 adminRouter.use('/operations-dashboard', require('./modules/admin-panel/routes/operations.dashboard.route'));
 adminRouter.use('/store-dashboard', require('./modules/admin-panel/routes/store.dashboard.route'));
 adminRouter.use('/epc-analytics', require('./modules/admin-panel/routes/epc.analytics.route'));
@@ -254,6 +257,10 @@ accountRouter.use('/', require('./modules/account-panel/routes/root.route'));
 app.use('/account-api', accountRouter);
 
 // 7. Solarshop India routes
+app.use('/api/india/v1/business-profiles', require('./modules/admin-panel/routes/business.profiles.route'));
+app.use('/india/v1/business-profiles', require('./modules/admin-panel/routes/business.profiles.route'));
+app.use('/api/india/v1/reseller/leads/form-config', require('./modules/admin-panel/controller/franchise.form.fields.handler').get_public_franchise_form_fields);
+app.use('/india/v1/reseller/leads/form-config', require('./modules/admin-panel/controller/franchise.form.fields.handler').get_public_franchise_form_fields);
 app.use('/api/india/v1/website-leads', require('./modules/admin-panel/routes/website.epc.lead.route'));
 app.use('/india/v1/website-leads', require('./modules/admin-panel/routes/website.epc.lead.route'));
 app.use('/api/website-leads', require('./modules/admin-panel/routes/website.epc.lead.route'));

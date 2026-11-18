@@ -36,7 +36,7 @@ exports.get_delivery_orders = async (req, res) => {
           delivery_status: 'new_order'
         }
       }
-    ).catch(() => {});
+    ).catch(() => { });
 
     const now = new Date();
     const slaThresholdDate = new Date(now.getTime() - 2 * 24 * 3600 * 1000);
@@ -181,12 +181,12 @@ exports.get_delivery_orders = async (req, res) => {
       }
 
       let totalKits = Number(ordObj.num_kits) ||
-                      Number(ordObj.total_kits) ||
-                      (rawBos ? rawBos.ordered_qty : 0) ||
-                      epcBosKits ||
-                      epcKits ||
-                      itemKits ||
-                      1;
+        Number(ordObj.total_kits) ||
+        (rawBos ? rawBos.ordered_qty : 0) ||
+        epcBosKits ||
+        epcKits ||
+        itemKits ||
+        1;
 
       let detectedCap = ordObj.system_capacity || '';
       if (!detectedCap && ordObj.epcs && ordObj.epcs.length > 0) {
@@ -223,9 +223,9 @@ exports.get_delivery_orders = async (req, res) => {
       });
 
       // Ensure BOS Kit line item exists in items if order requires kit preparation
-      const hasBosItem = enrichedItems.some(it => 
-        it.sku?.startsWith('BOS-KIT-') || 
-        it.category === 'BOS Kit' || 
+      const hasBosItem = enrichedItems.some(it =>
+        it.sku?.startsWith('BOS-KIT-') ||
+        it.category === 'BOS Kit' ||
         (it.product_name && it.product_name.toLowerCase().includes('bos kit'))
       );
       if (!hasBosItem && ordObj.kit_preparation_status && ordObj.kit_preparation_status !== 'not_required') {
@@ -260,45 +260,45 @@ exports.get_delivery_orders = async (req, res) => {
 
       const epcsList = (ordObj.epcs && ordObj.epcs.length > 0)
         ? ordObj.epcs.map(epc => {
-            const isSecondDone = isOrderFullySettledInAccounts || epc.payment_second_half?.status === 'done';
-            return {
-              ...epc,
-              boskit_qty: epc.boskit_qty && epc.boskit_qty !== '1 Kits' ? epc.boskit_qty : `${totalKits} Kits`,
-              inverter_qty: epc.inverter_qty || `${totalKits} Inverters`,
-              system_capacity: epc.system_capacity || detectedCap,
-              solarkit_model: epc.solarkit_model || detectedModel,
-              payment_second_half: {
-                ...epc.payment_second_half,
-                status: isSecondDone ? 'done' : (epc.payment_second_half?.status || 'pending'),
-                paid_at: isSecondDone ? (epc.payment_second_half?.paid_at || new Date()) : null,
-                verified_by: isSecondDone ? (epc.payment_second_half?.verified_by || 'Accounts (Balance UTR Recorded)') : ''
-              }
-            };
-          })
-        : [{
-            epc_id: 'EPC-01',
-            epc_name: ordObj.customer_name || 'Primary EPC',
-            contact_person: ordObj.customer_name,
-            phone: ordObj.customer_phone,
-            email: ordObj.customer_email,
-            destination: ordObj.destination,
-            solarkit_model: detectedModel,
-            system_capacity: detectedCap,
-            boskit_qty: `${totalKits} Kits`,
-            inverter_qty: `${totalKits} Inverters`,
-            payment_first_half: { status: 'done', percentage: 50, amount: 150000, paid_at: new Date(Date.now() - 48*3600*1000) },
+          const isSecondDone = isOrderFullySettledInAccounts || epc.payment_second_half?.status === 'done';
+          return {
+            ...epc,
+            boskit_qty: epc.boskit_qty && epc.boskit_qty !== '1 Kits' ? epc.boskit_qty : `${totalKits} Kits`,
+            inverter_qty: epc.inverter_qty || `${totalKits} Inverters`,
+            system_capacity: epc.system_capacity || detectedCap,
+            solarkit_model: epc.solarkit_model || detectedModel,
             payment_second_half: {
-              status: (isOrderFullySettledInAccounts || ['in_transit', 'delivered'].includes(ordObj.delivery_status)) ? 'done' : 'pending',
-              percentage: 50,
-              amount: 150000,
-              paid_at: (isOrderFullySettledInAccounts || ['in_transit', 'delivered'].includes(ordObj.delivery_status)) ? new Date() : null,
-              verified_by: isOrderFullySettledInAccounts ? 'Accounts (Balance UTR Recorded)' : ''
-            },
-            items: ordObj.items || [],
-            is_removed_by_account: false,
-            dispatch_status: ordObj.delivery_status,
-            tracking_consignment_id: `TRK-${ordObj.order_number}-EPC1`
-          }];
+              ...epc.payment_second_half,
+              status: isSecondDone ? 'done' : (epc.payment_second_half?.status || 'pending'),
+              paid_at: isSecondDone ? (epc.payment_second_half?.paid_at || new Date()) : null,
+              verified_by: isSecondDone ? (epc.payment_second_half?.verified_by || 'Accounts (Balance UTR Recorded)') : ''
+            }
+          };
+        })
+        : [{
+          epc_id: 'EPC-01',
+          epc_name: ordObj.customer_name || 'Primary EPC',
+          contact_person: ordObj.customer_name,
+          phone: ordObj.customer_phone,
+          email: ordObj.customer_email,
+          destination: ordObj.destination,
+          solarkit_model: detectedModel,
+          system_capacity: detectedCap,
+          boskit_qty: `${totalKits} Kits`,
+          inverter_qty: `${totalKits} Inverters`,
+          payment_first_half: { status: 'done', percentage: 50, amount: 150000, paid_at: new Date(Date.now() - 48 * 3600 * 1000) },
+          payment_second_half: {
+            status: (isOrderFullySettledInAccounts || ['in_transit', 'delivered'].includes(ordObj.delivery_status)) ? 'done' : 'pending',
+            percentage: 50,
+            amount: 150000,
+            paid_at: (isOrderFullySettledInAccounts || ['in_transit', 'delivered'].includes(ordObj.delivery_status)) ? new Date() : null,
+            verified_by: isOrderFullySettledInAccounts ? 'Accounts (Balance UTR Recorded)' : ''
+          },
+          items: ordObj.items || [],
+          is_removed_by_account: false,
+          dispatch_status: ordObj.delivery_status,
+          tracking_consignment_id: `TRK-${ordObj.order_number}-EPC1`
+        }];
 
       if (isOrderFullySettledInAccounts && ordObj.epcs?.some(e => e.payment_second_half?.status !== 'done')) {
         DeliveryOrder.updateOne(
@@ -310,7 +310,7 @@ exports.get_delivery_orders = async (req, res) => {
               'epcs.$[].payment_second_half.verified_by': 'Accounts (Balance UTR Recorded)'
             }
           }
-        ).catch(() => {});
+        ).catch(() => { });
       }
 
       // If 100% components are fulfilled (either inwarded or allocated from warehouse stock)
@@ -439,12 +439,12 @@ exports.get_delivery_order_by_id = async (req, res) => {
     }
 
     let totalKits = Number(ordObj.num_kits) ||
-                    Number(ordObj.total_kits) ||
-                    (rawBos ? rawBos.ordered_qty : 0) ||
-                    epcBosKits ||
-                    epcKits ||
-                    itemKits ||
-                    1;
+      Number(ordObj.total_kits) ||
+      (rawBos ? rawBos.ordered_qty : 0) ||
+      epcBosKits ||
+      epcKits ||
+      itemKits ||
+      1;
 
     let detectedCap = ordObj.system_capacity || '';
     if (!detectedCap && ordObj.epcs && ordObj.epcs.length > 0) {
@@ -474,21 +474,21 @@ exports.get_delivery_order_by_id = async (req, res) => {
 
     const epcsList = (ordObj.epcs && ordObj.epcs.length > 0)
       ? ordObj.epcs.map(epc => {
-          const isSecondDone = isOrderFullySettledInAccounts || epc.payment_second_half?.status === 'done';
-          return {
-            ...epc,
-            boskit_qty: epc.boskit_qty && epc.boskit_qty !== '1 Kits' ? epc.boskit_qty : `${totalKits} Kits`,
-            inverter_qty: epc.inverter_qty || `${totalKits} Inverters`,
-            system_capacity: epc.system_capacity || detectedCap,
-            solarkit_model: epc.solarkit_model || detectedModel,
-            payment_second_half: {
-              ...epc.payment_second_half,
-              status: isSecondDone ? 'done' : (epc.payment_second_half?.status || 'pending'),
-              paid_at: isSecondDone ? (epc.payment_second_half?.paid_at || new Date()) : null,
-              verified_by: isSecondDone ? (epc.payment_second_half?.verified_by || 'Accounts (Balance UTR Recorded)') : ''
-            }
-          };
-        })
+        const isSecondDone = isOrderFullySettledInAccounts || epc.payment_second_half?.status === 'done';
+        return {
+          ...epc,
+          boskit_qty: epc.boskit_qty && epc.boskit_qty !== '1 Kits' ? epc.boskit_qty : `${totalKits} Kits`,
+          inverter_qty: epc.inverter_qty || `${totalKits} Inverters`,
+          system_capacity: epc.system_capacity || detectedCap,
+          solarkit_model: epc.solarkit_model || detectedModel,
+          payment_second_half: {
+            ...epc.payment_second_half,
+            status: isSecondDone ? 'done' : (epc.payment_second_half?.status || 'pending'),
+            paid_at: isSecondDone ? (epc.payment_second_half?.paid_at || new Date()) : null,
+            verified_by: isSecondDone ? (epc.payment_second_half?.verified_by || 'Accounts (Balance UTR Recorded)') : ''
+          }
+        };
+      })
       : ordObj.epcs;
 
     if (isOrderFullySettledInAccounts && ordObj.epcs?.some(e => e.payment_second_half?.status !== 'done')) {
@@ -501,13 +501,13 @@ exports.get_delivery_order_by_id = async (req, res) => {
             'epcs.$[].payment_second_half.verified_by': 'Accounts (Balance UTR Recorded)'
           }
         }
-      ).catch(() => {});
+      ).catch(() => { });
     }
 
     let itemsList = (ordObj.items || []).map(it => ({ ...it }));
-    const hasBos = itemsList.some(it => 
-      it.sku?.startsWith('BOS-KIT-') || 
-      it.category === 'BOS Kit' || 
+    const hasBos = itemsList.some(it =>
+      it.sku?.startsWith('BOS-KIT-') ||
+      it.category === 'BOS Kit' ||
       (it.product_name && it.product_name.toLowerCase().includes('bos kit'))
     );
     if (!hasBos && ordObj.kit_preparation_status && ordObj.kit_preparation_status !== 'not_required') {
@@ -1433,7 +1433,7 @@ exports.send_for_delivery = async (req, res) => {
 
     // Check: BOS Kit must be inwarded/ready if required for this order
     const isKitReady = order.kit_preparation_status === 'kit_ready' ||
-                       order.kit_preparation_status === 'not_required';
+      order.kit_preparation_status === 'not_required';
     if (!isKitReady) {
       return res.status(400).json({
         status: 'error',
@@ -2056,7 +2056,7 @@ exports.get_bos_kit_catalog = async (req, res) => {
           kits.forEach(k => {
             (k.bos_kits || []).forEach(b => {
               if (b.sku_id) {
-                try { allSkuIds.push(new mongoose.Types.ObjectId(b.sku_id)); } catch (_) {}
+                try { allSkuIds.push(new mongoose.Types.ObjectId(b.sku_id)); } catch (_) { }
               }
             });
           });
@@ -2307,27 +2307,6 @@ exports.get_vehicle_presets = async (req, res) => {
           source: 'Admin Vehicle Master'
         });
       });
-    } else {
-      // Fallback only if no admin vehicle masters configured
-      const defaultTypes = [
-        { name: 'Tata Ace (Chota Hathi)', label: 'Tata Ace (Chota Hathi) (750 Kg)', capacity_kg: 750 },
-        { name: 'Mahindra Bolero Pickup', label: 'Mahindra Bolero Pickup (1.3 Ton)', capacity_kg: 1300 },
-        { name: 'Ashok Leyland Dost+', label: 'Ashok Leyland Dost+ (1.5 Ton)', capacity_kg: 1500 },
-        { name: 'Tata 407 (10 Ft LCV)', label: 'Tata 407 (10 Ft LCV) (2.5 Ton)', capacity_kg: 2500 },
-        { name: 'Eicher Pro 2049 (12 Ft Canter)', label: 'Eicher Pro 2049 (12 Ft Canter) (3.5 Ton)', capacity_kg: 3500 },
-        { name: 'Tata 1109 (14 Ft Canter)', label: 'Tata 1109 (14 Ft Canter) (6 Ton)', capacity_kg: 6000 },
-        { name: 'Tata 1613 (19 Ft Open Truck)', label: 'Tata 1613 (19 Ft Open Truck) (10 Ton)', capacity_kg: 10000 },
-        { name: '1924 / BB1924', label: '1924 / BB1924 (20 Ton)', capacity_kg: 20000 }
-      ];
-      defaultTypes.forEach(dt => {
-        vehicleTypeMap.set(dt.name, {
-          value: dt.name,
-          label: dt.label,
-          name: dt.name,
-          capacity_kg: dt.capacity_kg,
-          source: 'Standard Preset'
-        });
-      });
     }
 
     // Deduplicate and sort vehicle types by capacity
@@ -2413,10 +2392,10 @@ exports.get_dashboard_overview = async (req, res) => {
     const EpcOrder = india_solarshop_db.models['epc_orders'] ||
       india_solarshop_db.model('epc_orders', new mongoose.Schema({}, { strict: false, collection: 'epc_orders' }));
 
-    const ServiceTicket = india_solarshop_db.models['solarkits_service_tickets'] || 
+    const ServiceTicket = india_solarshop_db.models['solarkits_service_tickets'] ||
       india_solarshop_db.model('solarkits_service_tickets', new mongoose.Schema({}, { strict: false, collection: 'solarkits_service_tickets' }));
 
-    const DeliveryCostBenchmark = india_solarshop_db.models['delivery_cost_benchmarks'] || 
+    const DeliveryCostBenchmark = india_solarshop_db.models['delivery_cost_benchmarks'] ||
       india_solarshop_db.model('delivery_cost_benchmarks', new mongoose.Schema({}, { strict: false, collection: 'delivery_cost_benchmarks' }));
 
     // Fetch live MongoDB documents across all fulfillment domains
@@ -2453,8 +2432,8 @@ exports.get_dashboard_overview = async (req, res) => {
     // Clone deliveryOrders and merge confirmed real EPC orders not yet in delivery_orders collection
     const deliveryOrders = [...deliveryOrdersRaw];
     epcOrders.forEach(epc => {
-      const alreadyInList = deliveryOrders.some(d => 
-        d.order_number === epc.order_number || 
+      const alreadyInList = deliveryOrders.some(d =>
+        d.order_number === epc.order_number ||
         (d.order_id && String(d.order_id) === String(epc._id))
       );
 
@@ -2795,7 +2774,7 @@ exports.get_dashboard_overview = async (req, res) => {
       const estWeightKg = numKits * 380; // Standard 380kg per 5kW Kit
 
       // Lookup real benchmark cost from database
-      const matchedBenchmark = benchmarks.find(b => 
+      const matchedBenchmark = benchmarks.find(b =>
         (b.district_id?.name || '').toLowerCase() === dist.toLowerCase() ||
         (ord.warehouse_code && b.warehouse_id?.code === ord.warehouse_code)
       );

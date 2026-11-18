@@ -62,8 +62,11 @@ const INITIAL_DEMO_LEADS = [
     state: "Maharashtra",
     district: "Pune",
     pincode: "411001",
+    cluster_name: "Pune Region",
+    cluster_code: "CLU-MA-004",
+    cluster_districts: ["Pune", "Kolhapur", "Sangli", "Satara", "Solapur"],
     businessProfile: "Solar EPC Contractor",
-    expectedOrderQty: "1 - 3 Kits / Month (Starter)",
+    expectedOrderQty: "1 - 3 Kits / Month",
     notes: "Looking for 550W Mono PERC DCR kits with 5kW-10kW On-grid inverters. Target MSEDCL rooftop scheme.",
     shop_photos: [
       "https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?w=900&auto=format&fit=crop&q=80",
@@ -89,6 +92,9 @@ const INITIAL_DEMO_LEADS = [
     state: "Gujarat",
     district: "Surat",
     pincode: "395007",
+    cluster_name: "Surat & South Gujarat",
+    cluster_code: "CLU-GJ-002",
+    cluster_districts: ["Surat", "Navsari", "Valsad", "Tapi", "Bharuch"],
     businessProfile: "Solar Retailer",
     expectedOrderQty: "4 - 10 Kits / Month (Growth)",
     notes: "Requires exclusive district distribution rights for Surat & Navsari. Ready with commercial warehouse.",
@@ -114,8 +120,11 @@ const INITIAL_DEMO_LEADS = [
     state: "Delhi",
     district: "New Delhi",
     pincode: "110001",
+    cluster_name: "Delhi-NCR Master Territory",
+    cluster_code: "CLU-DL-001",
+    cluster_districts: ["New Delhi", "North Delhi", "South Delhi", "West Delhi"],
     businessProfile: "Hardware & Electrical Distributor",
-    expectedOrderQty: "10+ Kits / Month (Enterprise)",
+    expectedOrderQty: "10+ Kits / Month",
     notes: "Interested in state master dealership and sub-dealer network deployment across Delhi-NCR.",
     shop_photos: [
       "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=900&auto=format&fit=crop&q=80",
@@ -139,8 +148,11 @@ const INITIAL_DEMO_LEADS = [
     state: "Telangana",
     district: "Hyderabad",
     pincode: "500034",
+    cluster_name: "Hyderabad Metropolitan",
+    cluster_code: "CLU-TS-001",
+    cluster_districts: ["Hyderabad", "Rangareddy", "Medchal-Malkajgiri"],
     businessProfile: "Rooftop Solar Installer",
-    expectedOrderQty: "1 - 3 Kits / Month (Starter)",
+    expectedOrderQty: "1 - 3 Kits / Month",
     notes: "Interested in residential 3kW/5kW hybrid kits with Lithium battery storage.",
     shop_photos: [
       "https://images.unsplash.com/photo-1541888946425-d0fbb18086f6?w=900&auto=format&fit=crop&q=80",
@@ -163,8 +175,11 @@ const INITIAL_DEMO_LEADS = [
     state: "Uttar Pradesh",
     district: "Lucknow",
     pincode: "226010",
+    cluster_name: "Central UP Cluster",
+    cluster_code: "CLU-UP-001",
+    cluster_districts: ["Lucknow", "Kanpur Nagar", "Unnao", "Barabanki"],
     businessProfile: "Electrical Trader",
-    expectedOrderQty: "1 - 3 Kits / Month (Starter)",
+    expectedOrderQty: "1 - 3 Kits / Month",
     notes: "Looking to expand retail shop with complete Solar Kits inventory.",
     shop_photos: [],
     consent: true,
@@ -288,7 +303,32 @@ export default function ResellerLeads() {
   const [sourceFilter, setSourceFilter] = useState("ALL"); // 'ALL' | 'bde' | 'website' | 'manual'
   const [bdeFilter, setBdeFilter] = useState("ALL");
   const [stateFilter, setStateFilter] = useState("ALL");
+  const [clusterFilter, setClusterFilter] = useState("ALL");
   const [profileFilter, setProfileFilter] = useState("ALL");
+
+  // Derive available franchise clusters dynamically from inquiries (optionally filtered by selected state)
+  const availableClusters = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+    leads.forEach((l) => {
+      const cName = l.cluster_name || l.clusterName;
+      const cCode = l.cluster_code || l.clusterCode;
+      if (cName && !seen.has(cName)) {
+        if (stateFilter === "ALL" || (l.state && l.state.toLowerCase() === stateFilter.toLowerCase())) {
+          seen.add(cName);
+          list.push({ name: cName, code: cCode, state: l.state });
+        }
+      }
+    });
+    return list;
+  }, [leads, stateFilter]);
+
+  // When state filter changes, ensure cluster filter remains valid
+  useEffect(() => {
+    if (clusterFilter !== "ALL" && !availableClusters.some((c) => c.name === clusterFilter || c.code === clusterFilter)) {
+      setClusterFilter("ALL");
+    }
+  }, [stateFilter, availableClusters, clusterFilter]);
 
   // Selected lead for detail view modal
   const [selectedLead, setSelectedLead] = useState(null);
@@ -306,8 +346,10 @@ export default function ResellerLeads() {
     state: "Maharashtra",
     district: "",
     pincode: "",
+    cluster_name: "",
+    cluster_code: "",
     businessProfile: "Solar EPC Contractor",
-    expectedOrderQty: "1 - 3 Kits / Month (Starter)",
+    expectedOrderQty: "",
     selectedSolution: "Header Fast Application",
     notes: "",
     consent: true,
@@ -564,9 +606,12 @@ export default function ResellerLeads() {
       email: "",
       gstin: "",
       state: "Maharashtra",
+      district: "",
       pincode: "",
+      cluster_name: "",
+      cluster_code: "",
       businessProfile: "Solar EPC Contractor",
-      expectedOrderQty: "1 - 3 Kits / Month (Starter)",
+      expectedOrderQty: "",
       selectedSolution: "Header Fast Application",
       notes: "",
       consent: true,
@@ -591,6 +636,9 @@ export default function ResellerLeads() {
       "GSTIN",
       "State",
       "District",
+      "Franchise Cluster",
+      "Cluster Code",
+      "Covered Districts",
       "Pincode",
       "Business Profile",
       "Expected Volume",
@@ -611,6 +659,9 @@ export default function ResellerLeads() {
       l.gstin || "",
       l.state || "",
       l.district || "",
+      `"${(l.cluster_name || l.clusterName || "").replace(/"/g, '""')}"`,
+      `"${(l.cluster_code || l.clusterCode || "").replace(/"/g, '""')}"`,
+      `"${(Array.isArray(l.cluster_districts) ? l.cluster_districts.join("; ") : Array.isArray(l.clusterDistricts) ? l.clusterDistricts.join("; ") : "").replace(/"/g, '""')}"`,
       l.pincode || "",
       `"${(l.businessProfile || "").replace(/"/g, '""')}"`,
       `"${(l.expectedOrderQty || "").replace(/"/g, '""')}"`,
@@ -685,12 +736,22 @@ export default function ResellerLeads() {
         (item.whatsappNumber || "").includes(search) ||
         (item.email || "").toLowerCase().includes(search.toLowerCase()) ||
         (item.district || "").toLowerCase().includes(search.toLowerCase()) ||
+        (item.state || "").toLowerCase().includes(search.toLowerCase()) ||
+        (item.cluster_name || item.clusterName || "").toLowerCase().includes(search.toLowerCase()) ||
+        (item.cluster_code || item.clusterCode || "").toLowerCase().includes(search.toLowerCase()) ||
         (item.gstin || "").toLowerCase().includes(search.toLowerCase()) ||
         (item.bde?.fullName || "").toLowerCase().includes(search.toLowerCase()) ||
         (item.bde?.bdeId || "").toLowerCase().includes(search.toLowerCase());
 
+      const itemClusterName = item.cluster_name || item.clusterName || "";
+      const itemClusterCode = item.cluster_code || item.clusterCode || "";
+
       const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
       const matchesState = stateFilter === "ALL" || item.state === stateFilter;
+      const matchesCluster =
+        clusterFilter === "ALL" ||
+        itemClusterName === clusterFilter ||
+        itemClusterCode === clusterFilter;
       const matchesProfile = profileFilter === "ALL" || item.businessProfile === profileFilter;
 
       const matchesSource =
@@ -706,9 +767,9 @@ export default function ResellerLeads() {
         item.bde?.id === bdeFilter ||
         item.bde?.bdeId === bdeFilter;
 
-      return matchesSearch && matchesStatus && matchesState && matchesProfile && matchesSource && matchesBde;
+      return matchesSearch && matchesStatus && matchesState && matchesCluster && matchesProfile && matchesSource && matchesBde;
     });
-  }, [leads, search, statusFilter, stateFilter, profileFilter, sourceFilter, bdeFilter]);
+  }, [leads, search, statusFilter, stateFilter, clusterFilter, profileFilter, sourceFilter, bdeFilter]);
 
   return (
     <div className="space-y-6">
@@ -826,8 +887,8 @@ export default function ResellerLeads() {
                 key={key}
                 onClick={() => setStatusFilter(key)}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${isSel
-                    ? "bg-primary text-white shadow-sm"
-                    : "bg-bg text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-border"
+                  ? "bg-primary text-white shadow-sm"
+                  : "bg-bg text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-border"
                   }`}
               >
                 <span>{cfg.label}</span>
@@ -866,12 +927,12 @@ export default function ResellerLeads() {
                 }
               }}
               className={`px-3 py-2 rounded-xl border text-xs font-bold focus:outline-none focus:border-primary transition-all min-w-[180px] ${sourceFilter === "callback"
-                  ? "bg-amber-50 border-amber-300 text-amber-950"
-                  : sourceFilter === "bde"
-                    ? "bg-indigo-50 border-indigo-300 text-indigo-900"
-                    : sourceFilter === "website"
-                      ? "bg-teal-50 border-teal-300 text-teal-900"
-                      : "bg-bg border-border text-text-primary"
+                ? "bg-amber-50 border-amber-300 text-amber-950"
+                : sourceFilter === "bde"
+                  ? "bg-indigo-50 border-indigo-300 text-indigo-900"
+                  : sourceFilter === "website"
+                    ? "bg-teal-50 border-teal-300 text-teal-900"
+                    : "bg-bg border-border text-text-primary"
                 }`}
             >
               <option value="ALL">🌐 All Channels ({leads.length})</option>
@@ -915,6 +976,25 @@ export default function ResellerLeads() {
               ))}
             </select>
 
+            {/* Franchise Cluster Filter */}
+            <select
+              value={clusterFilter}
+              onChange={(e) => setClusterFilter(e.target.value)}
+              className={`px-3 py-2 rounded-xl border text-xs font-semibold focus:outline-none focus:border-primary transition-all min-w-[170px] ${clusterFilter !== "ALL"
+                  ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-800 dark:text-emerald-200"
+                  : "bg-bg border-border text-text-primary"
+                }`}
+            >
+              <option value="ALL">
+                🏷️ {stateFilter === "ALL" ? "All Franchise Clusters" : `Clusters (${stateFilter})`} ({availableClusters.length})
+              </option>
+              {availableClusters.map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.name} {c.code ? `(${c.code})` : ""}
+                </option>
+              ))}
+            </select>
+
             <select
               value={profileFilter}
               onChange={(e) => setProfileFilter(e.target.value)}
@@ -928,7 +1008,7 @@ export default function ResellerLeads() {
               ))}
             </select>
 
-            {(search || statusFilter !== "ALL" || sourceFilter !== "ALL" || bdeFilter !== "ALL" || stateFilter !== "ALL" || profileFilter !== "ALL") && (
+            {(search || statusFilter !== "ALL" || sourceFilter !== "ALL" || bdeFilter !== "ALL" || stateFilter !== "ALL" || clusterFilter !== "ALL" || profileFilter !== "ALL") && (
               <button
                 type="button"
                 onClick={() => {
@@ -937,6 +1017,7 @@ export default function ResellerLeads() {
                   setSourceFilter("ALL");
                   setBdeFilter("ALL");
                   setStateFilter("ALL");
+                  setClusterFilter("ALL");
                   setProfileFilter("ALL");
                 }}
                 className="px-3 py-2 rounded-xl border border-border text-xs text-text-muted hover:text-danger hover:bg-danger-soft transition-all"
@@ -970,8 +1051,8 @@ export default function ResellerLeads() {
                 <tr className="border-b border-border bg-bg text-xs">
                   <th className="text-left text-text-muted font-semibold px-5 py-3.5">Applicant & Business</th>
                   <th className="text-left text-text-muted font-semibold px-5 py-3.5">Contact Details</th>
-                  <th className="text-left text-text-muted font-semibold px-5 py-3.5">Target Territory</th>
-                  <th className="text-left text-text-muted font-semibold px-5 py-3.5">Profile & Volume</th>
+                  <th className="text-left text-text-muted font-semibold px-5 py-3.5">Target Territory & Cluster</th>
+                  <th className="text-left text-text-muted font-semibold px-5 py-3.5">Profile & Details</th>
                   <th className="text-center text-text-muted font-semibold px-4 py-3.5">Status</th>
                   <th className="text-left text-text-muted font-semibold px-4 py-3.5">Date</th>
                   <th className="text-right text-text-muted font-semibold px-5 py-3.5">Actions</th>
@@ -1016,8 +1097,8 @@ export default function ResellerLeads() {
                                 {lead.selectedSolution && (
                                   <span
                                     className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${lead.is_callback_request || lead.actionType === "callback_request" || lead.action_type === "callback_request"
-                                        ? "bg-amber-100 text-amber-900 border border-amber-300"
-                                        : "bg-info-soft text-primary"
+                                      ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                      : "bg-info-soft text-primary"
                                       }`}
                                   >
                                     {lead.selectedSolution}
@@ -1142,9 +1223,38 @@ export default function ResellerLeads() {
                           </div>
                         </td>
 
-                        {/* Target Territory */}
+                        {/* Target Territory & Cluster */}
                         <td className="px-5 py-4">
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
+                            {/* Franchise Cluster Badge */}
+                            {(lead.cluster_name || lead.clusterName) ? (
+                              <div className="flex flex-col gap-1 items-start">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 font-bold text-xs shadow-xs">
+                                  <span>🏷️</span>
+                                  <span>{lead.cluster_name || lead.clusterName}</span>
+                                  {(lead.cluster_code || lead.clusterCode) && (
+                                    <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 pl-1 border-l border-emerald-500/30">
+                                      {lead.cluster_code || lead.clusterCode}
+                                    </span>
+                                  )}
+                                </span>
+                                {(Array.isArray(lead.cluster_districts) && lead.cluster_districts.length > 0) ? (
+                                  <span className="text-[10px] text-text-muted font-medium bg-bg px-1.5 py-0.5 rounded border border-border" title={lead.cluster_districts.join(", ")}>
+                                    📍 {lead.cluster_districts.length} Covered Districts
+                                  </span>
+                                ) : (Array.isArray(lead.clusterDistricts) && lead.clusterDistricts.length > 0) ? (
+                                  <span className="text-[10px] text-text-muted font-medium bg-bg px-1.5 py-0.5 rounded border border-border" title={lead.clusterDistricts.join(", ")}>
+                                    📍 {lead.clusterDistricts.length} Covered Districts
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-hover text-text-muted text-[10px] font-medium border border-border">
+                                <span>🌐</span> Open Territory / Expansion
+                              </span>
+                            )}
+
+                            {/* District & State */}
                             <div className="font-semibold text-text-primary flex items-center gap-1.5 text-xs">
                               <FiMapPin className="text-danger shrink-0" size={13} />
                               <span>{lead.district ? `${lead.district}, ${lead.state}` : lead.state}</span>
@@ -1157,15 +1267,33 @@ export default function ResellerLeads() {
                           </div>
                         </td>
 
-                        {/* Profile & Volume */}
+                        {/* Profile & Requirement Details */}
                         <td className="px-5 py-4">
-                          <div className="space-y-1">
+                          <div className="space-y-1.5 max-w-[220px]">
                             <span className="inline-block px-2.5 py-0.5 rounded-lg bg-bg border border-border text-xs font-semibold text-text-secondary">
                               {lead.businessProfile || "Solar Partner"}
                             </span>
-                            {lead.expectedOrderQty && (
+
+                            {/* Preferred Franchise Model / Solution */}
+                            {(lead.preferredFranchiseModel || lead.preferred_franchise_model || (lead.selectedSolution && !lead.selectedSolution.includes("Header Fast"))) && (
+                              <p className="text-[11px] text-primary font-medium flex items-center gap-1 truncate" title={lead.preferredFranchiseModel || lead.preferred_franchise_model || lead.selectedSolution}>
+                                <span className="shrink-0">📋</span>
+                                <span className="truncate">{lead.preferredFranchiseModel || lead.preferred_franchise_model || lead.selectedSolution}</span>
+                              </p>
+                            )}
+
+                            {/* Actual user volume if explicitly filled and not dummy default */}
+                            {lead.expectedOrderQty && lead.expectedOrderQty.trim() !== "" && !lead.expectedOrderQty.includes("Starter") && (
                               <p className="text-[11px] text-text-muted font-medium">
                                 Vol: <strong className="text-text-primary">{lead.expectedOrderQty}</strong>
+                              </p>
+                            )}
+
+                            {/* Real notes / requirements entered by applicant */}
+                            {lead.notes && lead.notes.trim() !== "" && (
+                              <p className="text-[11px] text-text-muted italic truncate flex items-center gap-1" title={lead.notes}>
+                                <span className="shrink-0">💬</span>
+                                <span className="truncate">"{lead.notes}"</span>
                               </p>
                             )}
                           </div>
@@ -1229,8 +1357,8 @@ export default function ResellerLeads() {
                               onClick={() => handleOpenAssignModal(lead)}
                               title={lead.bde || lead.bde_id ? `Assigned to: ${lead.bde?.fullName || 'BDE'}. Click to Reassign` : "Assign Lead to BDE Executive"}
                               className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 ${lead.bde || lead.bde_id
-                                  ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
-                                  : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm"
+                                ? "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+                                : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm"
                                 }`}
                             >
                               <FiUserCheck size={13} />
@@ -1482,10 +1610,64 @@ export default function ResellerLeads() {
 
                 {/* Territory & Procurement Scope */}
                 <div className="p-4 rounded-2xl bg-bg border border-border space-y-3">
-                  <p className="text-xs font-bold uppercase tracking-wider text-text-muted">
-                    Territory & Deployment Intent
-                  </p>
-                  <div className="grid grid-cols-3 gap-3 text-xs">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
+                      <FiMapPin size={14} className="text-danger" />
+                      <span>Territory & Deployment Intent</span>
+                    </p>
+                    {(selectedLead.cluster_name || selectedLead.clusterName) && (
+                      <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        Franchise Cluster Applied
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Franchise Cluster Details Card */}
+                  {(selectedLead.cluster_name || selectedLead.clusterName) ? (
+                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-bold text-emerald-900 dark:text-emerald-100 flex items-center gap-1.5">
+                            <span>🏷️</span>
+                            <span>{selectedLead.cluster_name || selectedLead.clusterName}</span>
+                          </p>
+                          {(selectedLead.cluster_code || selectedLead.clusterCode) && (
+                            <p className="text-[11px] font-mono text-emerald-700 dark:text-emerald-300 mt-0.5">
+                              Cluster Code: {selectedLead.cluster_code || selectedLead.clusterCode}
+                            </p>
+                          )}
+                        </div>
+                        <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-600 text-white">
+                          CLUSTER TERRITORY
+                        </span>
+                      </div>
+
+                      {((Array.isArray(selectedLead.cluster_districts) && selectedLead.cluster_districts.length > 0) ||
+                        (Array.isArray(selectedLead.clusterDistricts) && selectedLead.clusterDistricts.length > 0)) && (
+                          <div className="pt-2 border-t border-emerald-500/20">
+                            <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-200 mb-1">
+                              Assigned Districts in this Cluster:
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {(selectedLead.cluster_districts || selectedLead.clusterDistricts).map((d) => (
+                                <span
+                                  key={d}
+                                  className="px-2 py-0.5 bg-surface text-text-primary text-[11px] font-medium rounded-lg border border-border shadow-xs"
+                                >
+                                  {d}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-surface border border-border text-xs text-text-muted">
+                      <span>🌐 Applicant did not select a pre-defined cluster (Open / Expansion Territory Request).</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-3 gap-3 text-xs pt-1">
                     <div>
                       <p className="text-text-muted text-[11px]">Target State</p>
                       <p className="font-bold text-text-primary mt-0.5">{selectedLead.state}</p>
@@ -1495,10 +1677,18 @@ export default function ResellerLeads() {
                       <p className="font-bold text-text-primary mt-0.5">{selectedLead.district || "All / District Center"}</p>
                     </div>
                     <div>
-                      <p className="text-text-muted text-[11px]">Expected Volume</p>
-                      <p className="font-bold text-primary mt-0.5">{selectedLead.expectedOrderQty}</p>
+                      <p className="text-text-muted text-[11px]">Selected Model / Solution</p>
+                      <p className="font-bold text-primary mt-0.5">
+                        {selectedLead.preferredFranchiseModel || selectedLead.preferred_franchise_model || selectedLead.selectedSolution || "General Inbound"}
+                      </p>
                     </div>
                   </div>
+                  {selectedLead.expectedOrderQty && selectedLead.expectedOrderQty.trim() !== "" && (
+                    <div className="pt-2 border-t border-border text-xs">
+                      <span className="text-text-muted text-[11px]">Expected Monthly Volume: </span>
+                      <strong className="text-text-primary">{selectedLead.expectedOrderQty}</strong>
+                    </div>
+                  )}
                 </div>
 
                 {/* Specific Requirements / Remarks from Applicant */}
@@ -1861,6 +2051,29 @@ export default function ResellerLeads() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">Franchise Cluster (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Pune Region"
+                      value={formData.cluster_name}
+                      onChange={(e) => setFormData({ ...formData, cluster_name: e.target.value })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-bg text-text-primary text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">Cluster Code (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. CLU-MA-004"
+                      value={formData.cluster_code}
+                      onChange={(e) => setFormData({ ...formData, cluster_code: e.target.value.toUpperCase() })}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-bg text-text-primary text-xs uppercase font-mono focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-xs font-semibold text-text-secondary mb-1">Business Profile</label>
                     <select
                       value={formData.businessProfile}
@@ -1882,6 +2095,7 @@ export default function ResellerLeads() {
                       onChange={(e) => setFormData({ ...formData, expectedOrderQty: e.target.value })}
                       className="w-full px-3 py-2.5 rounded-xl border border-border bg-bg text-text-primary text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
                     >
+                      <option value="">-- Not Specified / General Inquiry --</option>
                       {ORDER_VOLUMES.map((vol) => (
                         <option key={vol} value={vol}>
                           {vol}

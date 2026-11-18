@@ -37,6 +37,7 @@ router.get('/territory/availability', handler.check_territory_availability);
 router.post('/leads/submit', require('../../../admin-panel/controller/reseller.leads.handler').submit_lead);
 router.get('/leads/excluded-districts', require('../../../admin-panel/controller/reseller.leads.handler').get_excluded_districts);
 router.get('/territory/excluded-districts', require('../../../admin-panel/controller/reseller.leads.handler').get_excluded_districts);
+router.get('/leads/form-config', require('../../../admin-panel/controller/franchise.form.fields.handler').get_public_franchise_form_fields);
 
 // ── GST Verification (Public QuickeKYC corporate/gstin check) ────────────────
 router.post('/gst/verify', gstRateLimiter, handler.verify_gstin);

@@ -51,6 +51,33 @@ const schema = new mongoose.Schema({
     }
   },
 
+  // ── Dynamic Business Profiles Configuration (Stored in existing settings to avoid Atlas collection quota) ──
+  business_profiles: [
+    {
+      name: { type: String, required: true, trim: true },
+      code: { type: String, required: true, trim: true, lowercase: true },
+      is_active: { type: Boolean, default: true },
+      created_at: { type: Date, default: Date.now },
+      updated_at: { type: Date, default: Date.now },
+    }
+  ],
+
+  // ── Dynamic Apply Franchise Form Fields Configuration ──
+  franchise_form_fields: [
+    {
+      field_key:    { type: String, required: true, trim: true },
+      label:        { type: String, required: true, trim: true },
+      placeholder:  { type: String, default: '', trim: true },
+      help_text:    { type: String, default: '', trim: true },
+      field_type:   { type: String, default: 'text' }, // text | tel | email | select | textarea | checkbox
+      is_required:  { type: Boolean, default: false },
+      is_active:    { type: Boolean, default: true },
+      sort_order:   { type: Number, default: 0 },
+      options:      [{ label: String, value: String }],
+      updated_at:   { type: Date, default: Date.now },
+    }
+  ],
+
   // ── Phase R1: Territory Exclusivity Policy ──────────────────────────────────
   /**
    * territory_exclusivity_mode:

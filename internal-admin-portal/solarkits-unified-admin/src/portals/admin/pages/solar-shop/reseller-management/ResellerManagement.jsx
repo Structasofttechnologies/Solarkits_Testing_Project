@@ -21,6 +21,7 @@ const ResellerSettings = lazy(() => import("./ResellerSettings"));
 
 // ── Phase FPO: Franchisee PO Ordering, Commission, Goal & Performance ─────────
 const FranchiseeSettings             = lazy(() => import("./FranchiseeSettings"));
+const FranchiseFormSettings         = lazy(() => import("./FranchiseFormSettings"));
 const FranchiseePOSettings           = lazy(() => import("./FranchiseePOSettings"));
 const FranchiseeMoqRules             = lazy(() => import("./FranchiseeMoqRules"));
 const FranchiseeKitTargets           = lazy(() => import("./FranchiseeKitTargets"));
@@ -263,6 +264,28 @@ function ResellerManagement() {
           <PermissionGuard requiredUniqueId="FPO_SETTINGS">
             <Suspense fallback={<Loader text="Loading Franchisee Settings..." />}>
               <FranchiseeSettings />
+            </Suspense>
+          </PermissionGuard>
+        }
+      />
+
+      {/* ── Dynamic Apply Franchise Form Settings (Standalone Page) ── */}
+      <Route
+        path="/franchise-form-settings"
+        element={
+          <PermissionGuard requiredUniqueId="FPO_SETTINGS">
+            <Suspense fallback={<Loader text="Loading Franchise Form Settings..." />}>
+              <FranchiseFormSettings />
+            </Suspense>
+          </PermissionGuard>
+        }
+      />
+      <Route
+        path="franchise-form-settings"
+        element={
+          <PermissionGuard requiredUniqueId="FPO_SETTINGS">
+            <Suspense fallback={<Loader text="Loading Franchise Form Settings..." />}>
+              <FranchiseFormSettings />
             </Suspense>
           </PermissionGuard>
         }

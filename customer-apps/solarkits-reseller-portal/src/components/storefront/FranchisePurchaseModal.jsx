@@ -35,7 +35,7 @@ import {
   FiPlus,
 } from "react-icons/fi";
 import api from "../../services/api";
-import { INDIAN_STATES_DISTRICTS } from "../../data/territoryData";
+import { INDIAN_STATES_DISTRICTS, getClustersForState } from "../../data/territoryData";
 
 const SAMPLE_SHOP_PHOTOS = [
   {
@@ -429,6 +429,9 @@ export default function FranchisePurchaseModal({
     setSubmitting(true);
     setFormErrors({});
 
+    const clusters = getClustersForState(selectedState);
+    const matchedCluster = clusters.find((c) => (c.district_names || []).includes(selectedDistrict)) || clusters[0] || null;
+
     const payload = {
       fullName: form.contact_person.trim(),
       businessName: form.business_name.trim(),
@@ -437,6 +440,10 @@ export default function FranchisePurchaseModal({
       gstin: gstInput.trim().toUpperCase() || null,
       state: selectedState,
       district: territoryLevel === "district" ? selectedDistrict : `${selectedState} Territory`,
+      cluster_id: matchedCluster?._id || matchedCluster?.id || null,
+      cluster_name: matchedCluster?.cluster_name || null,
+      cluster_code: matchedCluster?.cluster_code || null,
+      cluster_districts: matchedCluster?.district_names || null,
       businessProfile: territoryLevel === "state" ? "State Master Distributor" : "District Solar Franchisee",
       expectedOrderQty: "4 - 10 Kits / Month (Growth)",
       selectedSolution: plan?.name || `${territoryLevel.toUpperCase()} Franchisee`,
@@ -524,22 +531,20 @@ export default function FranchisePurchaseModal({
             ].map((stg) => (
               <div
                 key={stg.num}
-                className={`px-3 py-2 rounded-xl border flex items-center gap-2 transition-all ${
-                  stg.active
+                className={`px-3 py-2 rounded-xl border flex items-center gap-2 transition-all ${stg.active
                     ? "bg-[#253880] text-white border-[#253880] shadow-sm ring-2 ring-blue-500/20"
                     : stg.done
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                    : "bg-white text-slate-500 border-slate-200"
-                }`}
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                      : "bg-white text-slate-500 border-slate-200"
+                  }`}
               >
                 <div
-                  className={`w-5 h-5 rounded-full text-xs font-black flex items-center justify-center shrink-0 ${
-                    stg.active
+                  className={`w-5 h-5 rounded-full text-xs font-black flex items-center justify-center shrink-0 ${stg.active
                       ? "bg-white text-[#253880]"
                       : stg.done
-                      ? "bg-emerald-600 text-white"
-                      : "bg-slate-200 text-slate-700"
-                  }`}
+                        ? "bg-emerald-600 text-white"
+                        : "bg-slate-200 text-slate-700"
+                    }`}
                 >
                   {stg.done ? "✓" : stg.num}
                 </div>
@@ -589,11 +594,10 @@ export default function FranchisePurchaseModal({
                         key={lvl.key}
                         type="button"
                         onClick={() => setTerritoryLevel(lvl.key)}
-                        className={`p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
-                          isSelected
+                        className={`p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${isSelected
                             ? "border-[#253880] bg-blue-50/60 shadow-md ring-2 ring-[#253880]/20"
                             : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center justify-between mb-2">
                           <Icon size={20} className={isSelected ? "text-[#253880]" : "text-slate-400"} />
@@ -635,18 +639,30 @@ export default function FranchisePurchaseModal({
                 {territoryLevel === "district" && (
                   <div>
                     <label className="block text-sm font-bold text-slate-800 mb-2">
-                      Target District <span className="text-red-500">*</span>
+                      Target District / Franchise Cluster <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={selectedDistrict}
                       onChange={(e) => setSelectedDistrict(e.target.value)}
                       className="w-full px-4 py-3.5 rounded-xl border border-slate-300 bg-slate-50 text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#253880] shadow-xs"
                     >
-                      {(INDIAN_STATES_DISTRICTS[selectedState] || []).map((dst) => (
-                        <option key={dst} value={dst}>
-                          {dst}
-                        </option>
-                      ))}
+                      {getClustersForState(selectedState).length > 0 ? (
+                        getClustersForState(selectedState).map((clu) => (
+                          <optgroup key={clu.cluster_code} label={`${clu.cluster_name} (${clu.cluster_code})`}>
+                            {clu.district_names.map((dst) => (
+                              <option key={dst} value={dst}>
+                                {dst}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))
+                      ) : (
+                        (INDIAN_STATES_DISTRICTS[selectedState] || []).map((dst) => (
+                          <option key={dst} value={dst}>
+                            {dst}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
                 )}

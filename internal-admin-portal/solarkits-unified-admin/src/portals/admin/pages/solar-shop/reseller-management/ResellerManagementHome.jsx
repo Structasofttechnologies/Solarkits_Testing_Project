@@ -1,4 +1,4 @@
-import { FiUsers, FiTag, FiFileText, FiMapPin, FiPackage, FiDollarSign, FiInbox, FiSliders } from "react-icons/fi";
+import { FiUsers, FiTag, FiFileText, FiMapPin, FiPackage, FiDollarSign, FiInbox, FiSliders, FiCheckSquare } from "react-icons/fi";
 import { FaStore, FaAward } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -39,9 +39,17 @@ const QUICK_LINKS = [
   },
   {
     label: "Franchisee Settings",
-    description: "Manage product MOQ rules, Commission models, PO parameters & Monthly Kit Targets per plan",
+    description: "Manage product MOQ rules, PO parameters, PO Contracts & Plan settings",
     icon: FiSliders,
     path: "/admin-panel/solar-shop/reseller-management/franchise-settings",
+    color: "text-primary",
+    bg: "bg-info-soft",
+  },
+  {
+    label: "Franchise Form Settings",
+    description: "Manage prospective partner application form fields, active visibility & compulsory requirements",
+    icon: FiCheckSquare,
+    path: "/admin-panel/solar-shop/reseller-management/franchise-form-settings",
     color: "text-primary",
     bg: "bg-info-soft",
   },

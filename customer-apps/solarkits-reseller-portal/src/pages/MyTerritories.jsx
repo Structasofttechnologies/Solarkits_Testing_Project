@@ -21,6 +21,7 @@ export default function MyTerritories() {
   const [territories, setTerritories] = useState([]);
   const [clusterInfo, setClusterInfo] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
 
   useEffect(() => {
     Promise.allSettled([
@@ -36,10 +37,11 @@ export default function MyTerritories() {
     }).finally(() => setLoading(false));
   }, []);
 
-  const cluster = clusterInfo?.cluster;
-  const agreement = clusterInfo?.agreement;
-  const primaryBde = cluster?.primary_bde_id;
-  const supportBdes = cluster?.support_bde_ids || [];
+  const clusters = clusterInfo?.clusters || (clusterInfo?.cluster ? [clusterInfo.cluster] : []);
+  const activeCluster = clusters[selectedClusterIndex] || clusters[0] || null;
+  const agreement = clusterInfo?.agreement || (clusterInfo?.agreements && clusterInfo.agreements[0]) || null;
+  const primaryBde = activeCluster?.primary_bde_id;
+  const supportBdes = activeCluster?.support_bde_ids || [];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -60,8 +62,34 @@ export default function MyTerritories() {
         </div>
       ) : (
         <>
+          {/* Cluster Selection Tabs if Multiple Clusters Assigned */}
+          {clusters.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <span className="text-xs font-black uppercase text-slate-400 tracking-wider mr-2">
+                Assigned Clusters ({clusters.length}):
+              </span>
+              {clusters.map((c, idx) => (
+                <button
+                  key={c._id || c.id || idx}
+                  onClick={() => setSelectedClusterIndex(idx)}
+                  className={`px-4 py-2 rounded-2xl text-xs font-black transition-all flex items-center gap-2 ${selectedClusterIndex === idx
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-[1.02]'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                >
+                  <FiLayers size={14} />
+                  <span>{c.cluster_name}</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${selectedClusterIndex === idx ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                    {c.cluster_code}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Cluster & Agreement Top Highlights */}
-          {cluster ? (
+          {activeCluster ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {/* Card 1: Cluster Identity */}
               <div className="bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
@@ -71,24 +99,24 @@ export default function MyTerritories() {
                 <div className="relative z-10 space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-black uppercase tracking-wider backdrop-blur-xs">
-                      {cluster.cluster_code || "CLUSTER"}
+                      {activeCluster.cluster_code || "CLUSTER"}
                     </span>
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-black">
-                      <FiCheckCircle size={13} /> {cluster.status?.toUpperCase() || "ACTIVE"}
+                      <FiCheckCircle size={13} /> {activeCluster.status?.toUpperCase() || "ACTIVE"}
                     </span>
                   </div>
 
                   <div>
-                    <h2 className="text-xl font-black">{cluster.cluster_name}</h2>
+                    <h2 className="text-xl font-black">{activeCluster.cluster_name}</h2>
                     <p className="text-xs text-white/70 font-semibold mt-1">
-                      {cluster.state_id?.name || "State"} • {cluster.district_ids?.length || 0} Districts Covered
+                      {activeCluster.state?.name || activeCluster.state_name || "State"} • {(activeCluster.districts || activeCluster.district_ids || []).length} Districts Covered
                     </p>
                   </div>
 
                   <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs font-medium text-white/80">
                     <span>Territory Exclusivity:</span>
                     <span className="font-black text-amber-300">
-                      {cluster.is_shared_territory_allowed ? "Shared Territory" : "Exclusive Territory"}
+                      {activeCluster.is_shared_territory_allowed ? "Shared Territory" : "Exclusive Territory"}
                     </span>
                   </div>
                 </div>
@@ -182,7 +210,7 @@ export default function MyTerritories() {
                     </div>
                   ) : (
                     <div className="py-6 text-center text-xs text-slate-500 font-medium">
-                      BDE assignment is being finalized by Admin. Support is available via central ticketing.
+                      BDE assignment is being finalized by Central Admin. Support is available via central ticketing.
                     </div>
                   )}
                 </div>
@@ -204,67 +232,74 @@ export default function MyTerritories() {
           )}
 
           {/* Allotted Districts in Cluster */}
-          {cluster?.district_ids && cluster.district_ids.length > 0 && (
+          {activeCluster && (activeCluster.districts || activeCluster.district_ids || activeCluster.district_names) && (
             <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
                     <FiMapPin className="text-blue-600" />
-                    Allotted Cluster Districts ({cluster.district_ids.length})
+                    Allotted Cluster Districts ({(activeCluster.districts || activeCluster.district_ids || activeCluster.district_names || []).length})
+                    <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-black">
+                      {activeCluster.cluster_name} ({activeCluster.cluster_code})
+                    </span>
                   </h3>
                   <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    Your franchise commands sales precedence and lead attribution in the following districts
+                    Your franchise commands exclusive sales precedence and lead attribution across all districts in this cluster
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2 pt-2">
-                {cluster.district_ids.map((dist) => (
-                  <div
-                    key={dist._id || dist.id || dist.name}
-                    className="px-3.5 py-2 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-black text-slate-800 flex items-center gap-2 shadow-2xs hover:border-blue-300 transition-colors"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>{dist.name}</span>
-                    {dist.code && <span className="text-[10px] text-slate-400 font-mono">({dist.code})</span>}
-                  </div>
-                ))}
+              <div className="flex flex-wrap gap-2.5 pt-2">
+                {(activeCluster.districts || activeCluster.district_ids || activeCluster.district_names || []).map((dist, dIdx) => {
+                  const distName = typeof dist === 'string' ? dist : dist.name;
+                  const distCode = typeof dist === 'object' ? dist.code : null;
+                  return (
+                    <div
+                      key={dist._id || dist.id || distName || dIdx}
+                      className="px-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-black text-slate-800 flex items-center gap-2 shadow-xs hover:border-blue-400 hover:bg-blue-50/40 transition-colors"
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-xs" />
+                      <span>{distName}</span>
+                      {distCode && <span className="text-[10px] text-slate-400 font-mono font-normal">({distCode})</span>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {/* Cluster Setup Fee Breakdown */}
-          {cluster?.fee_structure && (
+          {activeCluster?.fee_structure && (
             <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
               <h3 className="text-base font-black text-slate-900 flex items-center gap-2 pb-4 border-b border-slate-100">
                 <FiDollarSign className="text-emerald-600" />
-                Cluster Setup Fee Breakdown
+                Cluster Setup Fee Breakdown — {activeCluster.cluster_name}
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 pt-4">
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
                   <div className="text-[11px] font-bold text-slate-500">Franchisee Setup Fee</div>
-                  <div className="text-base font-black text-slate-900 mt-1">₹{cluster.fee_structure.franchisee_setup_fee?.toLocaleString('en-IN') || 0}</div>
+                  <div className="text-base font-black text-slate-900 mt-1">₹{activeCluster.fee_structure.franchisee_setup_fee?.toLocaleString('en-IN') || 0}</div>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
                   <div className="text-[11px] font-bold text-slate-500">Renewal Fee</div>
-                  <div className="text-base font-black text-slate-900 mt-1">₹{cluster.fee_structure.renewal_fee?.toLocaleString('en-IN') || 0}</div>
+                  <div className="text-base font-black text-slate-900 mt-1">₹{activeCluster.fee_structure.renewal_fee?.toLocaleString('en-IN') || 0}</div>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
                   <div className="text-[11px] font-bold text-slate-500">Security Deposit</div>
-                  <div className="text-base font-black text-slate-900 mt-1">₹{cluster.fee_structure.security_deposit?.toLocaleString('en-IN') || 0}</div>
+                  <div className="text-base font-black text-slate-900 mt-1">₹{activeCluster.fee_structure.security_deposit?.toLocaleString('en-IN') || 0}</div>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
                   <div className="text-[11px] font-bold text-slate-500">Total Payable</div>
-                  <div className="text-base font-black text-blue-600 mt-1">₹{cluster.fee_structure.total_payable?.toLocaleString('en-IN') || 0}</div>
+                  <div className="text-base font-black text-blue-600 mt-1">₹{activeCluster.fee_structure.total_payable?.toLocaleString('en-IN') || 0}</div>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
                   <div className="text-[11px] font-bold text-slate-500">Payment Status</div>
                   <div className="text-xs font-black uppercase mt-2">
-                    <span className={`px-2 py-0.5 rounded-full ${cluster.fee_structure.payment_status === 'paid'
+                    <span className={`px-2 py-0.5 rounded-full ${activeCluster.fee_structure.payment_status === 'paid'
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-amber-100 text-amber-800'
                       }`}>
-                      {cluster.fee_structure.payment_status || 'Pending'}
+                      {activeCluster.fee_structure.payment_status || 'Pending'}
                     </span>
                   </div>
                 </div>
@@ -274,16 +309,23 @@ export default function MyTerritories() {
 
           {/* Detailed Geographic Scope Table */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100">
-              <h3 className="text-base font-black text-slate-900">
-                Detailed Territory Precedence Entries
-              </h3>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
-                Granular geographic authorization mapping registered under your franchisee account
-              </p>
+            <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  Detailed Territory Precedence Entries
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Granular geographic authorization mapping registered under your franchisee account
+                </p>
+              </div>
+              {clusters.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-black">
+                  <FiLayers size={13} /> {clusters.length} Cluster{clusters.length > 1 ? 's' : ''} Mapped
+                </span>
+              )}
             </div>
 
-            {territories.length === 0 ? (
+            {territories.length === 0 && clusters.length === 0 ? (
               <div className="py-12 text-center text-slate-500 text-xs font-semibold">
                 No custom precedence overrides configured. Standard cluster district coverage applies.
               </div>
@@ -292,6 +334,7 @@ export default function MyTerritories() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50">
+                      <th className="text-left text-slate-700 font-extrabold px-6 py-3 uppercase tracking-wider">Assigned Cluster</th>
                       <th className="text-left text-slate-700 font-extrabold px-6 py-3 uppercase tracking-wider">Scope Level</th>
                       <th className="text-left text-slate-700 font-extrabold px-6 py-3 uppercase tracking-wider">Geographic Entity</th>
                       <th className="text-center text-slate-700 font-extrabold px-6 py-3 uppercase tracking-wider">Precedence Source</th>
@@ -299,13 +342,52 @@ export default function MyTerritories() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
+                    {/* Render cluster rows first if clusters are present */}
+                    {clusters.map((c) => {
+                      const distList = (c.districts || c.district_ids || c.district_names || []).map(d => typeof d === 'string' ? d : d.name).join(', ');
+                      return (
+                        <tr key={`cluster-${c._id || c.cluster_code}`} className="hover:bg-blue-50/30 transition-colors bg-blue-50/10">
+                          <td className="px-6 py-3.5 font-black text-blue-700">
+                            <div>{c.cluster_name}</div>
+                            <div className="text-[10px] text-blue-500 font-mono font-normal">{c.cluster_code}</div>
+                          </td>
+                          <td className="px-6 py-3.5 font-bold text-slate-900 capitalize">
+                            <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[10px] font-black uppercase">
+                              Cluster Scope
+                            </span>
+                          </td>
+                          <td className="px-6 py-3.5 font-bold text-slate-800">
+                            <div className="text-slate-900 font-black">{c.state?.name || c.state_name} ({(c.districts || c.district_ids || c.district_names || []).length} Districts)</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5 font-medium leading-relaxed max-w-xl">
+                              {distList || 'All Districts in Cluster'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-3.5 text-center">
+                            <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-black capitalize">
+                              Cluster Allocation
+                            </span>
+                          </td>
+                          <td className="px-6 py-3.5 text-center">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-extrabold">
+                              <FiCheckCircle size={11} /> {c.status?.toUpperCase() || 'ACTIVE'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Render specific territory precedence entries */}
                     {territories.map((t) => {
                       const scopeLevel = t.scope_level || t.territory_level || 'district';
                       const locationName = t.location_name || (t.district?.name ? (t.state?.name ? `${t.district.name}, ${t.state.name}` : t.district.name) : t.state?.name || t.country?.name || 'All Locations');
                       const precedenceSource = (t.precedence_source || t.source || 'Admin Assigned').replace(/_/g, ' ');
+                      const clusterTag = t.cluster_name ? `${t.cluster_name} (${t.cluster_code || ''})` : (activeCluster ? `${activeCluster.cluster_name}` : 'Central Direct');
 
                       return (
                         <tr key={t.id || t._id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-6 py-3 font-extrabold text-slate-700 text-xs">
+                            {clusterTag}
+                          </td>
                           <td className="px-6 py-3 font-bold text-slate-900 capitalize">{scopeLevel}</td>
                           <td className="px-6 py-3 font-black text-blue-600">{locationName}</td>
                           <td className="px-6 py-3 text-center">

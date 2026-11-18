@@ -6,7 +6,7 @@ import {
   FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaPaperPlane,
   FaRedo, FaLayerGroup, FaMapMarkerAlt, FaFileInvoice, FaBuilding,
   FaArrowRight, FaClock, FaCheck, FaInfoCircle, FaChevronRight,
-  FaShieldAlt, FaExternalLinkAlt, FaTimes, FaMagic, FaSlidersH
+  FaShieldAlt, FaExternalLinkAlt, FaTimes, FaMagic, FaSlidersH, FaPlus
 } from "react-icons/fa";
 import {
   getEligibleNewOrders,
@@ -131,11 +131,14 @@ export default function NewOrdersProcurement() {
             setSelectedWarehouse((prev) => (prev && (prev === "all" || whs.some((w) => w._id === prev)) ? prev : "all"));
           }
         }
-        if (vehRes?.data && vehRes.data.length > 0) {
-          setVehicles(vehRes.data);
+        const vehicleList = Array.isArray(vehRes?.data) ? vehRes.data : [];
+        setVehicles(vehicleList);
+        if (vehicleList.length > 0) {
           // Default to 12MT or first suitable truck
-          const defTruck = vehRes.data.find((v) => (v.max_load_kg || 0) >= 15000) || vehRes.data[0];
+          const defTruck = vehicleList.find((v) => (v.max_load_kg || 0) >= 15000) || vehicleList[0];
           if (defTruck) setSelectedVehicleId(defTruck._id);
+        } else {
+          setSelectedVehicleId("");
         }
       } catch (err) {
         console.error("Error fetching initial filter metadata:", err);
@@ -469,7 +472,8 @@ export default function NewOrdersProcurement() {
 
   // Resolved active vehicle object from dynamic vehicles
   const activeVehicleObj = useMemo(() => {
-    return vehicles.find((v) => v._id === selectedVehicleId) || dynamicVehicleSuggestion?.vehicle || vehicles[0];
+    if (!vehicles || vehicles.length === 0) return null;
+    return vehicles.find((v) => v._id === selectedVehicleId) || dynamicVehicleSuggestion?.vehicle || vehicles[0] || null;
   }, [vehicles, selectedVehicleId, dynamicVehicleSuggestion]);
 
   // Dynamic Kit Type Breakdown derived from selected orders
@@ -1254,7 +1258,25 @@ export default function NewOrdersProcurement() {
           <div className="lg:col-span-5 space-y-4">
             {/* Vehicle Options & Strategy Unified Block */}
             <div className="bg-surface border border-orange-200/60 dark:border-orange-900/30 rounded-xl p-3.5 space-y-3">
-              {vehicleSelectionMode === "auto" ? (
+              {vehicles.length === 0 ? (
+                /* Empty State: No Vehicles in Master */
+                <div className="p-4 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-wider">
+                    <FaExclamationTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>No Vehicle Types Configured in Admin</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                    All vehicle masters have been deleted or none are active. Add vehicles in Admin to calculate load capacities and enable vehicle assignment.
+                  </p>
+                  <a
+                    href="/admin-panel/solar-shop/delivery-management/vehicle-master"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs transition-all shadow-xs cursor-pointer w-fit"
+                  >
+                    <FaPlus className="w-3 h-3" />
+                    <span>Go to Vehicle Master (Catalog)</span>
+                  </a>
+                </div>
+              ) : vehicleSelectionMode === "auto" ? (
                 /* Auto Selected Vehicle Highlight Card */
                 <div className="p-3.5 rounded-xl bg-gradient-to-br from-orange-50/70 via-surface to-amber-50/40 dark:from-orange-950/30 dark:via-surface dark:to-amber-950/20 border border-orange-300/80 dark:border-orange-800/60 shadow-xs space-y-2.5">
                   <div className="flex items-center justify-between">
@@ -1362,14 +1384,14 @@ export default function NewOrdersProcurement() {
                   >
                     {vehicles.map((v) => (
                       <option key={v._id} value={v._id}>
-                        {v.name} — Payload Cap: {(v.max_load_kg || 15000).toLocaleString()} kg [{v.brand_make || "Fleet"}]
+                        {v.name} — Payload Cap: {(Number(v.max_load_kg) || 0).toLocaleString()} kg [{v.brand_make || "Fleet"}]
                       </option>
                     ))}
                   </select>
 
                   <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] flex items-center justify-between gap-2">
                     <span className="text-amber-900 dark:text-amber-200">
-                      Recommended fit: <strong>{dynamicVehicleSuggestion?.vehicle?.name}</strong>
+                      Recommended fit: <strong>{dynamicVehicleSuggestion?.vehicle?.name || "None"}</strong>
                     </span>
                     <button
                       type="button"
@@ -1455,61 +1477,75 @@ export default function NewOrdersProcurement() {
               <div className="flex justify-between items-center text-xs">
                 <span className="text-text-secondary">Vehicle Capacity:</span>
                 <span className="font-bold text-text-primary font-mono">
-                  {((activeVehicleObj?.max_load_kg || 15000) * (vehicleStrategy === "multiple_same" ? (dynamicVehicleSuggestion?.vehicleCount || 1) : 1)).toLocaleString()} kg
+                  {vehicles.length === 0
+                    ? "0 kg (No Vehicle)"
+                    : `${((Number(activeVehicleObj?.max_load_kg) || 0) * (vehicleStrategy === "multiple_same" ? (dynamicVehicleSuggestion?.vehicleCount || 1) : 1)).toLocaleString()} kg`}
                 </span>
               </div>
 
               {/* Dynamic Utilization Calculation */}
               {(() => {
-                const totalCap = (activeVehicleObj?.max_load_kg || 15000) * (vehicleStrategy === "multiple_same" ? (dynamicVehicleSuggestion?.vehicleCount || 1) : 1);
-                const utilPct = totalCap > 0 ? Math.round((calculatedTotalWeight / totalCap) * 100) : 100;
+                const capPerVeh = Number(activeVehicleObj?.max_load_kg) || 0;
+                const totalCap = capPerVeh * (vehicleStrategy === "multiple_same" ? (dynamicVehicleSuggestion?.vehicleCount || 1) : 1);
+                const hasVehicle = vehicles.length > 0 && totalCap > 0;
+                const utilPct = hasVehicle
+                  ? Math.round((calculatedTotalWeight / totalCap) * 100)
+                  : (calculatedTotalWeight > 0 ? 100 : 0);
                 return (
                   <>
                     <div className="flex justify-between items-center text-xs pt-1 border-t border-border">
                       <span className="text-text-secondary font-bold">Utilization:</span>
                       <span
-                        className={`font-black font-mono text-sm ${utilPct > 100
-                            ? "text-red-600"
-                            : utilPct > 85
-                              ? "text-amber-600"
-                              : "text-emerald-600"
+                        className={`font-black font-mono text-sm ${!hasVehicle
+                            ? "text-slate-400"
+                            : utilPct > 100
+                              ? "text-red-600"
+                              : utilPct > 85
+                                ? "text-amber-600"
+                                : "text-emerald-600"
                           }`}
                       >
-                        {utilPct}%
+                        {hasVehicle ? `${utilPct}%` : "N/A"}
                       </span>
                     </div>
 
                     {/* Progress Bar */}
                     <div className="w-full bg-border rounded-full h-2.5 overflow-hidden">
                       <div
-                        className={`h-2.5 rounded-full transition-all duration-500 ${utilPct > 100
-                            ? "bg-red-500"
-                            : utilPct > 85
-                              ? "bg-amber-500"
-                              : "bg-emerald-500"
+                        className={`h-2.5 rounded-full transition-all duration-500 ${!hasVehicle
+                            ? "bg-slate-300 dark:bg-slate-700"
+                            : utilPct > 100
+                              ? "bg-red-500"
+                              : utilPct > 85
+                                ? "bg-amber-500"
+                                : "bg-emerald-500"
                           }`}
                         style={{
-                          width: `${Math.min(100, utilPct)}%`,
+                          width: `${hasVehicle ? Math.min(100, utilPct) : 0}%`,
                         }}
                       />
                     </div>
 
                     {/* Capacity Validation Notice */}
                     <div
-                      className={`mt-2 p-2.5 rounded-xl border text-[11px] flex items-start gap-2 ${utilPct > 100
-                          ? "bg-red-50 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300"
-                          : utilPct > 85
-                            ? "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300"
-                            : "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      className={`mt-2 p-2.5 rounded-xl border text-[11px] flex items-start gap-2 ${!hasVehicle
+                          ? "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300"
+                          : utilPct > 100
+                            ? "bg-red-50 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300"
+                            : utilPct > 85
+                              ? "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300"
+                              : "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300"
                         }`}
                     >
                       <FaInfoCircle className="w-4 h-4 shrink-0 mt-0.5" />
                       <span>
-                        {utilPct > 100
-                          ? `Over-capacity! Total cargo (${calculatedTotalWeight.toLocaleString()} kg) exceeds vehicle payload by ${(calculatedTotalWeight - totalCap).toLocaleString()} kg. Switch to multiple trucks or larger vehicle.`
-                          : utilPct > 85
-                            ? `Warning: Vehicle load is near max capacity (${utilPct}%). Headroom remaining: ${(totalCap - calculatedTotalWeight).toLocaleString()} kg.`
-                            : `Vehicle capacity validated. Cargo (${calculatedTotalWeight.toLocaleString()} kg) is within permissible limits with ${(totalCap - calculatedTotalWeight).toLocaleString()} kg safe headroom.`}
+                        {!hasVehicle
+                          ? "No fleet vehicle assigned. Configure or add vehicles in Admin to calculate load capacity and headroom."
+                          : utilPct > 100
+                            ? `Over-capacity! Total cargo (${calculatedTotalWeight.toLocaleString()} kg) exceeds vehicle payload by ${(calculatedTotalWeight - totalCap).toLocaleString()} kg. Switch to multiple trucks or larger vehicle.`
+                            : utilPct > 85
+                              ? `Warning: Vehicle load is near max capacity (${utilPct}%). Headroom remaining: ${(totalCap - calculatedTotalWeight).toLocaleString()} kg.`
+                              : `Vehicle capacity validated. Cargo (${calculatedTotalWeight.toLocaleString()} kg) is within permissible limits with ${(totalCap - calculatedTotalWeight).toLocaleString()} kg safe headroom.`}
                       </span>
                     </div>
                   </>

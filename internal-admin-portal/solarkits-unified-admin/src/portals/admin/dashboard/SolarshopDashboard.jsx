@@ -436,6 +436,12 @@ const menus = [
                     unique_id: "FPO_SETTINGS"
                 },
                 {
+                    name: "Franchise Form Settings",
+                    icon: <FiCheckSquare />,
+                    path: "/admin-panel/solar-shop/reseller-management/franchise-form-settings",
+                    unique_id: "FPO_SETTINGS"
+                },
+                {
                     name: "Franchisee Agreements",
                     icon: <FiFileText />,
                     path: "/admin-panel/solar-shop/reseller-management/settings",

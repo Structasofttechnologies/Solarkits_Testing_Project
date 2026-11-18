@@ -9,7 +9,7 @@ import Loader from "../components/Loader";
 import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
-import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck } from "react-icons/fa";
+import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck } from "react-icons/fa";
 import {
   MdAccountTree,
   MdEngineering,
@@ -275,6 +275,12 @@ const menus = [
           name: "EPC Types",
           icon: <FaUserCheck />,
           path: "/admin-panel/settings/epc-types",
+          unique_id: "00000000"
+        },
+        {
+          name: "Franchise Business Profiles",
+          icon: <FaBriefcase />,
+          path: "/admin-panel/settings/business-profiles",
           unique_id: "00000000"
         }
       ],

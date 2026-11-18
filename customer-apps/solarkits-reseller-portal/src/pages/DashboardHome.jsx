@@ -76,8 +76,8 @@ export default function DashboardHome() {
   }, []);
 
   // Goal Tracking metrics resolution (Cluster Goal Setting + Target Progress)
-  const epcTarget = goalData?.annual_epc_goal?.total_epc_target 
-    || (typeof clusterInfo?.goal?.annual_epc_goal === 'number' ? clusterInfo.goal.annual_epc_goal : clusterInfo?.goal?.annual_epc_goal?.total_epc_target) 
+  const epcTarget = goalData?.annual_epc_goal?.total_epc_target
+    || (typeof clusterInfo?.goal?.annual_epc_goal === 'number' ? clusterInfo.goal.annual_epc_goal : clusterInfo?.goal?.annual_epc_goal?.total_epc_target)
     || 100;
   const epcActual = goalData?.annual_epc_goal?.actual_epcs_onboarded || 0;
   const epcAchPct = goalData?.annual_epc_goal?.achievement_pct != null
@@ -85,8 +85,8 @@ export default function DashboardHome() {
     : (epcTarget > 0 ? Math.round((epcActual / epcTarget) * 100) : 0);
   const epcPending = Math.max(0, epcTarget - epcActual);
 
-  const liveTarget = goalData?.live_epc_goal?.live_epc_target 
-    || (typeof clusterInfo?.goal?.annual_live_epc_goal === 'number' ? clusterInfo.goal.annual_live_epc_goal : clusterInfo?.goal?.live_epc_goal?.live_epc_target) 
+  const liveTarget = goalData?.live_epc_goal?.live_epc_target
+    || (typeof clusterInfo?.goal?.annual_live_epc_goal === 'number' ? clusterInfo.goal.annual_live_epc_goal : clusterInfo?.goal?.live_epc_goal?.live_epc_target)
     || 60;
   const liveActual = goalData?.live_epc_goal?.actual_live_epcs || 0;
   const liveAchPct = goalData?.live_epc_goal?.achievement_pct != null
@@ -192,49 +192,67 @@ export default function DashboardHome() {
       </div>
 
       {/* ── Franchise Cluster & BDE Dedicated Banner ── */}
-      {clusterInfo?.cluster && (
-        <div className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black shrink-0 border border-indigo-100">
-              <FiLayers size={22} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-black uppercase text-indigo-700 tracking-wider">
-                  Cluster: {clusterInfo.cluster.cluster_name} ({clusterInfo.cluster.cluster_code})
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                  {clusterInfo.cluster.is_shared_territory_allowed ? "Shared Territory" : "Exclusive Territory"}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
-                {clusterInfo.cluster.district_ids?.length || 0} districts assigned • Agreement:{" "}
-                <span className="font-bold text-slate-800 capitalize">
-                  {clusterInfo.agreement?.agreement_status?.replace(/_/g, " ") || "Active"}
-                </span>
-                {clusterInfo.agreement?.agreement_end_date && (
-                  <span> (Valid until {new Date(clusterInfo.agreement.agreement_end_date).toLocaleDateString("en-IN")})</span>
-                )}
-              </p>
-            </div>
-          </div>
+      {(() => {
+        const clusters = clusterInfo?.clusters || (clusterInfo?.cluster ? [clusterInfo.cluster] : []);
+        if (clusters.length === 0) return null;
 
-          {clusterInfo.cluster.primary_bde_id && (
-            <div className="flex items-center gap-3 px-3.5 py-2 rounded-2xl bg-slate-50 border border-slate-200 shrink-0 text-xs">
-              <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold">
-                <FiUsers size={15} />
-              </div>
-              <div>
-                <div className="text-[10px] font-extrabold uppercase text-slate-400">Assigned BDE</div>
-                <div className="font-black text-slate-900">{clusterInfo.cluster.primary_bde_id.name}</div>
-                {clusterInfo.cluster.primary_bde_id.phone && (
-                  <div className="text-[11px] font-semibold text-blue-600">{clusterInfo.cluster.primary_bde_id.phone}</div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+        return (
+          <div className="space-y-3">
+            {clusters.map((clu, cluIdx) => {
+              const distCount = (clu.districts || clu.district_ids || clu.district_names || []).length;
+              const distNames = (clu.districts || clu.district_ids || clu.district_names || []).map((d) => (typeof d === 'string' ? d : d.name)).slice(0, 8);
+              return (
+                <div
+                  key={clu._id || clu.cluster_code || cluIdx}
+                  className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                >
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black shrink-0 border border-indigo-100 mt-0.5">
+                      <FiLayers size={22} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-black uppercase text-indigo-700 tracking-wider">
+                          Cluster: {clu.cluster_name} ({clu.cluster_code})
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                          {clu.is_shared_territory_allowed ? "Shared Territory" : "Exclusive Territory"}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {distCount} Districts Covered
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 font-medium mt-1">
+                        Districts: <span className="font-bold text-slate-800">{distNames.join(", ")}{distCount > 8 ? ` +${distCount - 8} more` : ""}</span>
+                        {clusterInfo.agreement?.agreement_end_date && (
+                          <span className="ml-2 text-slate-400">
+                            • Agreement Valid: {new Date(clusterInfo.agreement.agreement_end_date).toLocaleDateString("en-IN")}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {clu.primary_bde_id && (
+                    <div className="flex items-center gap-3 px-3.5 py-2 rounded-2xl bg-slate-50 border border-slate-200 shrink-0 text-xs">
+                      <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold">
+                        <FiUsers size={15} />
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-extrabold uppercase text-slate-400">Assigned BDE</div>
+                        <div className="font-black text-slate-900">{clu.primary_bde_id.name}</div>
+                        {clu.primary_bde_id.phone && (
+                          <div className="text-[11px] font-semibold text-blue-600">{clu.primary_bde_id.phone}</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* ── Annual EPC Onboarding & Live EPC Goals ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -252,13 +270,12 @@ export default function DashboardHome() {
                 <span className="text-[10px] text-slate-400 font-bold">{fyLabel} Target</span>
               </div>
             </div>
-            <span className={`px-2.5 py-1 rounded-full text-[11px] font-black ${
-              epcAchPct >= 100
+            <span className={`px-2.5 py-1 rounded-full text-[11px] font-black ${epcAchPct >= 100
                 ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
                 : epcAchPct >= 50
                   ? "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-300 dark:border-blue-800"
                   : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
-            }`}>
+              }`}>
               {epcAchPct}% Achieved
             </span>
           </div>
@@ -316,13 +333,12 @@ export default function DashboardHome() {
                 <span className="text-[10px] text-slate-400 font-bold">{liveCriteriaDays}-Day Active Threshold</span>
               </div>
             </div>
-            <span className={`px-2.5 py-1 rounded-full text-[11px] font-black ${
-              liveAchPct >= 100
+            <span className={`px-2.5 py-1 rounded-full text-[11px] font-black ${liveAchPct >= 100
                 ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
                 : liveAchPct >= 50
                   ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
                   : "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
-            }`}>
+              }`}>
               {liveAchPct}% Live
             </span>
           </div>
@@ -384,13 +400,12 @@ export default function DashboardHome() {
                     {clusterCode}
                   </span>
                 )}
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                  kitAchPct >= 100
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${kitAchPct >= 100
                     ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                     : kitAchPct >= 70
                       ? "bg-blue-100 text-blue-800 border border-blue-300"
                       : "bg-amber-100 text-amber-800 border border-amber-300"
-                }`}>
+                  }`}>
                   {goalData?.performance_status === "ACHIEVED" || goalData?.performance_status === "EXCEEDED"
                     ? "🎯 Goal Achieved"
                     : goalData?.performance_status === "ON_TRACK"
@@ -504,13 +519,12 @@ export default function DashboardHome() {
             </div>
             <div className="h-3 w-full bg-slate-200/70 dark:bg-slate-700 rounded-full overflow-hidden p-0.5">
               <div
-                className={`h-full rounded-full transition-all duration-700 ${
-                  kitAchPct >= 100
+                className={`h-full rounded-full transition-all duration-700 ${kitAchPct >= 100
                     ? "bg-gradient-to-r from-emerald-500 to-teal-400"
                     : kitAchPct >= 50
                       ? "bg-gradient-to-r from-blue-600 to-cyan-400"
                       : "bg-gradient-to-r from-amber-500 to-orange-400"
-                }`}
+                  }`}
                 style={{ width: `${Math.min(Math.max(kitAchPct, kitsFulfilled > 0 ? 4 : 0), 100)}%` }}
               />
             </div>
@@ -533,13 +547,12 @@ export default function DashboardHome() {
             </div>
             <div className="h-3 w-full bg-slate-200/70 dark:bg-slate-700 rounded-full overflow-hidden p-0.5">
               <div
-                className={`h-full rounded-full transition-all duration-700 ${
-                  revAchPct >= 100
+                className={`h-full rounded-full transition-all duration-700 ${revAchPct >= 100
                     ? "bg-gradient-to-r from-emerald-500 to-teal-400"
                     : revAchPct >= 50
                       ? "bg-gradient-to-r from-emerald-600 to-cyan-500"
                       : "bg-gradient-to-r from-teal-500 to-emerald-400"
-                }`}
+                  }`}
                 style={{ width: `${Math.min(Math.max(revAchPct, actualRevRealized > 0 ? 4 : 0), 100)}%` }}
               />
             </div>
