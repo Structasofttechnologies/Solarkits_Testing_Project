@@ -613,6 +613,29 @@ export default function RoleDetails({ moduleUniqueId }) {
           </div>
         </div>
 
+        {/* HELPFUL LEGEND GUIDE BAR */}
+        <div className="px-5 py-2.5 bg-surface-hover/30 border-b border-border flex flex-wrap items-center justify-between text-xs gap-3">
+          <div className="flex flex-wrap items-center gap-3 text-text-secondary">
+            <span className="font-black text-text-primary flex items-center gap-1.5">
+              <span>💡 Button Status Guide:</span>
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-600 text-white">✓ View</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-600 text-white">✓ Add</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-600 text-white">✓ Edit</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-600 text-white">✓ Delete</span>
+              <span className="text-text-primary font-bold ml-1 mr-2">= Colored & Checked (WORKING / ALLOWED)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border border-border bg-surface text-text-muted/60 opacity-60 line-through">✕ Off</span>
+              <span className="text-text-muted font-bold ml-1">= Grey & Crossed (OFF / BAND)</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-purple-600 dark:text-purple-400 font-bold bg-purple-500/10 px-2.5 py-1 rounded-lg border border-purple-500/20">
+            <span>🟣 "Custom Configuration" = Mixed buttons chosen manually</span>
+          </div>
+        </div>
+
         {/* Modules Table */}
         <div className="overflow-x-auto">
           {modulesLoading ? (
@@ -686,10 +709,10 @@ export default function RoleDetails({ moduleUniqueId }) {
                               : 'bg-surface border-border text-text-muted'
                           }`}
                         >
-                          <option value="full">Full Access (All)</option>
-                          <option value="manage">View & Modify</option>
-                          <option value="view_only">View Only</option>
-                          <option value="custom">Custom Configuration</option>
+                          <option value="full">Full Access (All 4 Allowed)</option>
+                          <option value="manage">View & Modify (No Delete)</option>
+                          <option value="view_only">View Only (Read Only)</option>
+                          <option value="custom">Custom (Mixed Buttons)</option>
                           <option value="disabled">Disabled (No Access)</option>
                         </select>
                       </td>
@@ -701,14 +724,14 @@ export default function RoleDetails({ moduleUniqueId }) {
                           <button
                             type="button"
                             onClick={() => handleTogglePill(mId, 'can_view')}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                            className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer border ${
                               perm.can_view
-                                ? 'bg-blue-500 text-white border-blue-600 shadow-xs'
-                                : 'bg-surface hover:bg-surface-hover text-text-muted border-border'
+                                ? 'bg-blue-600 text-white border-blue-700 shadow-xs hover:bg-blue-700'
+                                : 'bg-surface hover:bg-surface-hover text-text-muted/60 border-border opacity-50 line-through decoration-rose-500'
                             }`}
-                            title="Toggle View Permission (Show in sidebar)"
+                            title={perm.can_view ? "View: ALLOWED (Click to Turn OFF)" : "View: BLOCKED (Click to Turn ON)"}
                           >
-                            <FiEye size={12} />
+                            {perm.can_view ? <FiCheck size={11} strokeWidth={3} /> : <FiX size={11} />}
                             <span>View</span>
                           </button>
 
@@ -716,14 +739,14 @@ export default function RoleDetails({ moduleUniqueId }) {
                           <button
                             type="button"
                             onClick={() => handleTogglePill(mId, 'can_add')}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                            className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer border ${
                               perm.can_add
-                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-xs'
-                                : 'bg-surface hover:bg-surface-hover text-text-muted border-border'
+                                ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs hover:bg-emerald-700'
+                                : 'bg-surface hover:bg-surface-hover text-text-muted/60 border-border opacity-50 line-through decoration-rose-500'
                             }`}
-                            title="Toggle Create / Add Permission"
+                            title={perm.can_add ? "Add / Create: ALLOWED (Click to Turn OFF)" : "Add / Create: BLOCKED (Click to Turn ON)"}
                           >
-                            <FiPlus size={12} />
+                            {perm.can_add ? <FiCheck size={11} strokeWidth={3} /> : <FiX size={11} />}
                             <span>Add</span>
                           </button>
 
@@ -731,14 +754,14 @@ export default function RoleDetails({ moduleUniqueId }) {
                           <button
                             type="button"
                             onClick={() => handleTogglePill(mId, 'can_edit')}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                            className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer border ${
                               perm.can_edit
-                                ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                                : 'bg-surface hover:bg-surface-hover text-text-muted border-border'
+                                ? 'bg-amber-600 text-white border-amber-700 shadow-xs hover:bg-amber-700'
+                                : 'bg-surface hover:bg-surface-hover text-text-muted/60 border-border opacity-50 line-through decoration-rose-500'
                             }`}
-                            title="Toggle Modify / Edit Permission"
+                            title={perm.can_edit ? "Edit / Modify: ALLOWED (Click to Turn OFF)" : "Edit / Modify: BLOCKED (Click to Turn ON)"}
                           >
-                            <FiEdit3 size={12} />
+                            {perm.can_edit ? <FiCheck size={11} strokeWidth={3} /> : <FiX size={11} />}
                             <span>Edit</span>
                           </button>
 
@@ -746,14 +769,14 @@ export default function RoleDetails({ moduleUniqueId }) {
                           <button
                             type="button"
                             onClick={() => handleTogglePill(mId, 'can_delete')}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                            className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer border ${
                               perm.can_delete
-                                ? 'bg-rose-500 text-white border-rose-600 shadow-xs'
-                                : 'bg-surface hover:bg-surface-hover text-text-muted border-border'
+                                ? 'bg-rose-600 text-white border-rose-700 shadow-xs hover:bg-rose-700'
+                                : 'bg-surface hover:bg-surface-hover text-text-muted/60 border-border opacity-50 line-through decoration-rose-500'
                             }`}
-                            title="Toggle Delete Permission"
+                            title={perm.can_delete ? "Delete: ALLOWED (Click to Turn OFF)" : "Delete: BLOCKED (Click to Turn ON)"}
                           >
-                            <FiTrash2 size={12} />
+                            {perm.can_delete ? <FiCheck size={11} strokeWidth={3} /> : <FiX size={11} />}
                             <span>Delete</span>
                           </button>
                         </div>

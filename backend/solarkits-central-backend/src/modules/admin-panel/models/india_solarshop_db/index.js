@@ -273,4 +273,7 @@ module.exports = {
   FranchiseeAgreement: require('./franchisee_agreements.schema'),
   FranchiseeClusterGoal: require('./franchisee_cluster_goals.schema'),
   SolarKitsServiceTicket: require('../../../solarshop-india/models/india_solarshop_db/solarkits_service_tickets.schema'),
+
+  // --- Dynamic Invoice & Delivery Order (DO) Module ---
+  InvoiceAndDoSettings: require('./InvoiceAndDoSettings.schema'),
 };

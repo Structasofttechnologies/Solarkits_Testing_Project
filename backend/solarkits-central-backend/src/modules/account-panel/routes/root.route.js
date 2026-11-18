@@ -129,4 +129,9 @@ const executiveRoute = require('./executive.module.route');
 router.use('/accounts/executive-finance', executiveRoute);
 router.use('/executive-finance', executiveRoute);
 
+// Module 7: Master Statutory & Operational Registers Hub
+const registersRoute = require('./registers.route');
+router.use('/accounts/registers', registersRoute);
+router.use('/registers', registersRoute);
+
 module.exports = router;

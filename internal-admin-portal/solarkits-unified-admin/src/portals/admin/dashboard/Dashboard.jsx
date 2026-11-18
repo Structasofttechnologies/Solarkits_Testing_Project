@@ -56,6 +56,8 @@ const InvoiceValidationModule = lazy(() => import("../../accounts/pages/complian
 const ExpenseManagementModule = lazy(() => import("../../accounts/pages/expenses/ExpenseManagementModule"));
 const WarehouseFinanceModule = lazy(() => import("../../accounts/pages/warehouse-finance/WarehouseFinanceModule"));
 const ExecutiveFinanceDashboard = lazy(() => import("../../accounts/pages/executive/ExecutiveFinanceDashboard"));
+const AccountsModuleHub = lazy(() => import("../pages/accounting/AccountsModuleHub"));
+const InvoiceDoSettings = lazy(() => import("../pages/solar-shop/order-management-settings/InvoiceDoSettings"));
 
 /* ===================== MENU CONFIG ===================== */
 
@@ -63,10 +65,24 @@ const menus = [
   [
     { name: "Dashboard", icon: <FaHome />, path: "/admin-panel/home", unique_id: "00000000" },
     {
-      name: "Accounting Overview",
-      icon: <FaCoins />,
-      path: "/admin-panel/accounting-overview",
-      unique_id: "00000000"
+      name: "Invoice & DO Settings",
+      icon: <FaReceipt />,
+      path: "/admin-panel/invoice-do-settings",
+      unique_id: "00000000",
+    },
+    {
+      name: "Accounts Module",
+      icon: <FaFileInvoiceDollar />,
+      path: "/admin-panel/accounts-module",
+      unique_id: "00000000",
+      subMenu: [
+        {
+          name: "Accounting Overview",
+          icon: <FaCoins />,
+          path: "/admin-panel/accounts-module?tab=overview",
+          unique_id: "00000000",
+        },
+      ]
     },
     {
       name: "Warehouse Loan & Expansion",
@@ -250,6 +266,12 @@ const menus = [
           name: "EPC Types",
           icon: <FaUserCheck />,
           path: "/admin-panel/settings/epc-types",
+          unique_id: "00000000"
+        },
+        {
+          name: "Invoice & DO Settings",
+          icon: <FaReceipt />,
+          path: "/admin-panel/accounts-module?tab=invoice-do",
           unique_id: "00000000"
         }
       ],
@@ -502,6 +524,28 @@ export default function Dashboard() {
                 className="min-h-full"
               >
                 <Routes location={location}>
+
+                  <Route
+                    path="/invoice-do-settings/*"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Invoice & DO Settings..." />}>
+                          <InvoiceDoSettings />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+
+                  <Route
+                    path="/accounts-module/*"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Accounts Module..." />}>
+                          <AccountsModuleHub />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
 
                   <Route
                     path="/accounting-overview/*"

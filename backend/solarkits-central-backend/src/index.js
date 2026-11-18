@@ -218,6 +218,11 @@ adminRouter.use('/knowledge-center', require('./modules/solarshop-india/routes/v
 // ─── Franchisee Cluster & Business Model Module ───
 adminRouter.use('/franchise-clusters', require('./modules/admin-panel/routes/franchisee.cluster.route'));
 
+// ─── Dynamic Invoice & Delivery Order (DO) Settings ────────────────────────
+adminRouter.use('/invoice-do-settings', require('./modules/admin-panel/routes/invoice.do.settings.route'));
+adminRouter.use('/registers', require('./modules/account-panel/routes/registers.route'));
+
+
 app.use('/admin-api', adminRouter);
 app.use('/api', adminRouter);
 app.use('/api/admin-api', adminRouter);

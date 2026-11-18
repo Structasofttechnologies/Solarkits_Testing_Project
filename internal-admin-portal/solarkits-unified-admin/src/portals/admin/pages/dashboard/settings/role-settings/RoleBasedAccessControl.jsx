@@ -837,12 +837,12 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
               </div>
             )}
 
-            <div className="flex items-center gap-2 overflow-hidden">
-              {hasChildren && <FiFolder className="text-primary/70 shrink-0" size={16} />}
-              <span className={`truncate font-medium ${depth === 0 ? 'text-text-primary' : 'text-text-secondary text-sm'} flex items-center gap-2`}>
-                {node.name}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              {hasChildren && <FiFolder className="text-blue-600 shrink-0" size={16} />}
+              <span className={`font-bold ${depth === 0 ? 'text-slate-900 text-sm' : 'text-slate-700 text-xs'} inline-flex items-center gap-1.5`}>
+                {node.name || node.role_name || 'Unnamed Role'}
                 {node.is_protected && (
-                  <span className="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 rounded-md">
+                  <span className="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-md">
                     System
                   </span>
                 )}

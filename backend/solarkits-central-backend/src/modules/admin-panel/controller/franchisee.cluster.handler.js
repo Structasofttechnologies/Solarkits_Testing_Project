@@ -844,3 +844,32 @@ exports.unassign_staff_from_cluster = async (req, res) => {
     return res.status(500).json({ status: 'error', message: err.message || 'Internal server error.' });
   }
 };
+
+/**
+ * 10. Get Unstaffed Clusters (Clusters needing staff assignment)
+ */
+exports.get_unstaffed_clusters = async (req, res) => {
+  try {
+    const unstaffed = await FranchiseeCluster.find({
+      $or: [
+        { staffing_status: 'unassigned' },
+        { assigned_staff_users: { $size: 0 } },
+        { assigned_staff_users: { $exists: false } }
+      ],
+      is_active: true,
+      deleted_at: null
+    })
+    .select('cluster_name cluster_code state_name district_names created_at setup_fee_config status')
+    .sort({ created_at: -1 })
+    .lean();
+
+    return res.status(200).json({
+      status: 'success',
+      count: unstaffed.length,
+      data: unstaffed
+    });
+  } catch (err) {
+    console.error('Error in get_unstaffed_clusters:', err);
+    return res.status(500).json({ status: 'error', message: err.message || 'Internal server error.' });
+  }
+};

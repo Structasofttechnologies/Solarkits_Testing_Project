@@ -211,6 +211,16 @@ By digitally signing below, the Franchise Partner certifies that they have read,
     }
   ],
 
+  // ── Dynamic Invoice & Delivery Order (DO) Settings (Embedded to preserve Atlas collection limit) ──
+  invoice_and_do_settings: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null,
+  },
+  invoice_and_do_overrides: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: [],
+  },
+
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
 }, {

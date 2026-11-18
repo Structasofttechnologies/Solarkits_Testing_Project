@@ -21,6 +21,7 @@ router.get('/bdes', clusterHandler.get_bdes_list);
 router.get('/resellers', clusterHandler.get_resellers_list);
 router.get('/my-cluster-info', clusterHandler.get_my_cluster_info);
 router.get('/available-districts/:state_id', clusterHandler.get_state_districts_availability);
+router.get('/unstaffed', clusterHandler.get_unstaffed_clusters);
 router.get('/list', clusterHandler.get_clusters);
 router.get('/:id', clusterHandler.get_cluster_by_id);
 router.post('/create', clusterHandler.create_cluster);
