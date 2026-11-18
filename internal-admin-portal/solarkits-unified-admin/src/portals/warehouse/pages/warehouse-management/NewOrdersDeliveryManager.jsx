@@ -36,6 +36,49 @@ import Button from '../../components/Button';
 import Dialog from '../../components/Dialog';
 import CustomInput from '../../components/CustomInput';
 import DropdownWithSearchInput from '../../components/DropdownWithSearchInput';
+import axios from 'axios';
+import { authHeaderObj } from '../../app/authHeader';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+const INDIAN_STATES = [
+  'Andaman and Nicobar Islands',
+  'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chandigarh',
+  'Chhattisgarh',
+  'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi NCR',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jammu and Kashmir',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Ladakh',
+  'Lakshadweep',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Puducherry',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal'
+];
 
 export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNavigateToBosKit, defaultTab = 'orders', standaloneBoskit = false }) {
   const dispatch = useDispatch();
@@ -62,10 +105,16 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedQueueTab, setSelectedQueueTab] = useState('all'); // Boss Spec 14 Queue Filters
   const [selectedState, setSelectedState] = useState('all');
+  const [selectedCluster, setSelectedCluster] = useState('all');
   const [selectedDistrict, setSelectedDistrict] = useState('all');
   const [pincodeFilter, setPincodeFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [expandedCards, setExpandedCards] = useState({});
+
+  // Live Franchise Clusters & States
+  const [liveClusters, setLiveClusters] = useState([]);
+  const [loadingClusters, setLoadingClusters] = useState(false);
+  const [liveStates, setLiveStates] = useState([]);
 
   // View Tab: 'orders' (Delivery Orders Queue) vs 'boskit_station' (BOS Kit Preparation Workstation)
   const [mainSectionTab, setMainSectionTab] = useState(defaultTab);
@@ -1226,25 +1275,128 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
     fetchCatalog();
   }, []);
 
+  // Fetch dynamic Franchise Clusters and States from Admin Panel
+  useEffect(() => {
+    const fetchClusters = async () => {
+      try {
+        setLoadingClusters(true);
+        const res = await axios.get(`${API_BASE}/franchise-clusters/list`, {
+          headers: authHeaderObj()
+        });
+        if (res.data?.status === 'success' || Array.isArray(res.data?.data)) {
+          setLiveClusters(res.data.data || []);
+        }
+      } catch (err) {
+        console.warn('Could not load franchise clusters:', err);
+      } finally {
+        setLoadingClusters(false);
+      }
+    };
+
+    const fetchStates = async () => {
+      try {
+        const res = await axios.get(`${API_BASE}/franchise-clusters/states`, {
+          headers: authHeaderObj()
+        });
+        if (res.data?.status === 'success' && Array.isArray(res.data?.data)) {
+          const names = res.data.data.map(s => s.name).filter(Boolean);
+          setLiveStates(names);
+        }
+      } catch (err) {
+        console.warn('Could not load states list:', err);
+      }
+    };
+
+    fetchClusters();
+    fetchStates();
+  }, []);
+
+  // Helper to determine mapped Franchise Cluster for any order
+  const getOrderClusterName = (ord) => {
+    if (!ord) return null;
+    if (ord.cluster_name) return ord.cluster_name;
+    const destDistrict = (ord.destination?.district || '').trim().toLowerCase();
+    const destState = (ord.destination?.state || '').trim().toLowerCase();
+    if (!destDistrict && !destState) return null;
+    const found = liveClusters.find(c => {
+      const matchState = (c.state_name || '').toLowerCase() === destState;
+      const matchDist = (c.district_names || []).some(d => d.toLowerCase() === destDistrict);
+      return matchDist || (matchState && c.cluster_name?.toLowerCase().includes(destDistrict));
+    });
+    return found ? found.cluster_name : null;
+  };
+
   // Handle Search on Enter or debounce
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     fetchOrders();
   };
 
-  // Extract unique states and districts for filters
+  // Extract dynamic states for filters (combining API states, clusters, orders, and master Indian states)
   const stateOptions = useMemo(() => {
-    const states = new Set(orders.map(o => o.destination?.state).filter(Boolean));
-    return ['all', ...Array.from(states)];
-  }, [orders]);
+    const fromClusters = liveClusters.map(c => c.state_name || c.state_id?.name).filter(Boolean);
+    const fromOrders = orders.map(o => o.destination?.state).filter(Boolean);
+    const allUniqueStates = Array.from(new Set([...liveStates, ...fromClusters, ...fromOrders, ...INDIAN_STATES])).sort();
+    return ['all', ...allUniqueStates];
+  }, [liveStates, liveClusters, orders]);
 
+  // Cluster Options based on selectedState
+  const clusterOptions = useMemo(() => {
+    let list = liveClusters;
+    if (selectedState !== 'all') {
+      list = list.filter(c => 
+        (c.state_name || '').toLowerCase() === selectedState.toLowerCase() ||
+        (c.state_id?.name || '').toLowerCase() === selectedState.toLowerCase()
+      );
+    }
+    const names = list.map(c => c.cluster_name).filter(Boolean);
+    return ['all', ...Array.from(new Set(names)).sort()];
+  }, [liveClusters, selectedState]);
+
+  // Cascading Dynamic District Options based on user requirement:
+  // 1. If cluster is chosen -> Show ONLY that cluster's districts
+  // 2. If cluster is NOT chosen, but State is chosen -> Show all districts of that state
+  // 3. If neither is chosen -> Show all available districts
   const districtOptions = useMemo(() => {
-    const filteredByState = selectedState === 'all'
-      ? orders
-      : orders.filter(o => o.destination?.state?.toLowerCase() === selectedState.toLowerCase());
-    const districts = new Set(filteredByState.map(o => o.destination?.district).filter(Boolean));
-    return ['all', ...Array.from(districts)];
-  }, [orders, selectedState]);
+    // Rule 1: Cluster selected -> ONLY cluster's districts
+    if (selectedCluster !== 'all') {
+      const found = liveClusters.find(c => c.cluster_name === selectedCluster);
+      if (found) {
+        const clusterDists = [
+          ...(found.district_names || []),
+          ...((found.district_ids || []).map(d => (typeof d === 'string' ? d : d.name)))
+        ].filter(Boolean);
+        return ['all', ...Array.from(new Set(clusterDists)).sort()];
+      }
+    }
+
+    // Rule 2: State selected (no cluster) -> All districts belonging to this state
+    if (selectedState !== 'all') {
+      const stateClusters = liveClusters.filter(c => 
+        (c.state_name || '').toLowerCase() === selectedState.toLowerCase() ||
+        (c.state_id?.name || '').toLowerCase() === selectedState.toLowerCase()
+      );
+      const distsFromClusters = stateClusters.flatMap(c => [
+        ...(c.district_names || []),
+        ...((c.district_ids || []).map(d => (typeof d === 'string' ? d : d.name)))
+      ]).filter(Boolean);
+      const distsFromOrders = orders
+        .filter(o => (o.destination?.state || '').toLowerCase() === selectedState.toLowerCase())
+        .map(o => o.destination?.district)
+        .filter(Boolean);
+      const combined = Array.from(new Set([...distsFromClusters, ...distsFromOrders])).sort();
+      if (combined.length > 0) return ['all', ...combined];
+    }
+
+    // Rule 3: Neither State nor Cluster selected -> All districts from all clusters & orders
+    const allClusterDists = liveClusters.flatMap(c => [
+      ...(c.district_names || []),
+      ...((c.district_ids || []).map(d => (typeof d === 'string' ? d : d.name)))
+    ]).filter(Boolean);
+    const allOrderDists = orders.map(o => o.destination?.district).filter(Boolean);
+    const allCombined = Array.from(new Set([...allClusterDists, ...allOrderDists])).sort();
+    return ['all', ...allCombined];
+  }, [selectedCluster, selectedState, liveClusters, orders]);
 
   const toggleCardExpansion = (orderId) => {
     setExpandedCards(prev => ({
@@ -1300,9 +1452,34 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
     };
   }, [orders]);
 
-  // Displayed Orders filtered by the 4 boss-defined tabs (Sent orders disappear and move to Out for Delivery)
+  // Displayed Orders filtered by state, cluster, district and the 4 boss-defined tabs (Sent orders disappear and move to Out for Delivery)
   const displayedOrders = useMemo(() => {
-    const activeOrders = orders.filter(ord => !isOrderSentForDelivery(ord));
+    let activeOrders = orders.filter(ord => !isOrderSentForDelivery(ord));
+
+    if (selectedState !== 'all') {
+      activeOrders = activeOrders.filter(ord => {
+        const ordState = (ord.destination?.state || '').trim().toLowerCase();
+        const ordClu = getOrderClusterName(ord);
+        const cluObj = liveClusters.find(c => c.cluster_name === ordClu);
+        const cluState = (cluObj?.state_name || cluObj?.state_id?.name || '').trim().toLowerCase();
+        return ordState === selectedState.toLowerCase() || cluState === selectedState.toLowerCase();
+      });
+    }
+
+    if (selectedCluster !== 'all') {
+      activeOrders = activeOrders.filter(ord => {
+        const clu = getOrderClusterName(ord);
+        return clu === selectedCluster;
+      });
+    }
+
+    if (selectedDistrict !== 'all') {
+      activeOrders = activeOrders.filter(ord => {
+        const ordDist = (ord.destination?.district || '').trim().toLowerCase();
+        return ordDist === selectedDistrict.toLowerCase();
+      });
+    }
+
     if (selectedQueueTab === 'all') return activeOrders;
     return activeOrders.filter(ord => {
       const items = getOrderItemsWithKit(ord);
@@ -1317,7 +1494,7 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
       if (selectedQueueTab === 'inward_done') return totalPending === 0 && isKitReady;
       return true;
     });
-  }, [orders, selectedQueueTab]);
+  }, [orders, selectedQueueTab, selectedState, selectedCluster, selectedDistrict, liveClusters]);
 
   // Computes the comprehensive list of items for the Inward Verification modal
   const modalInwardItems = useMemo(() => {
@@ -1902,29 +2079,73 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
             <select
               value={selectedState}
               onChange={(e) => {
-                setSelectedState(e.target.value);
+                const newState = e.target.value;
+                setSelectedState(newState);
+                if (newState !== 'all' && selectedCluster !== 'all') {
+                  const currClu = liveClusters.find(c => c.cluster_name === selectedCluster);
+                  const cluState = (currClu?.state_name || currClu?.state_id?.name || '').toLowerCase();
+                  if (cluState !== newState.toLowerCase()) {
+                    setSelectedCluster('all');
+                  }
+                }
                 setSelectedDistrict('all');
               }}
               className="w-full py-1.5 px-2.5 text-xs bg-surface-hover border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-medium"
             >
-              <option value="all">All States</option>
+              <option value="all">All States ({stateOptions.filter(s => s !== 'all').length})</option>
               {stateOptions.filter(s => s !== 'all').map(s => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
           </div>
 
-          {/* District Filter */}
+          {/* Franchisee Cluster Filter (Dynamic live clusters) */}
           <div>
             <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
-              District
+              Franchisee Cluster {loadingClusters && <span className="text-primary font-normal text-[9px]">(Loading...)</span>}
+            </label>
+            <select
+              value={selectedCluster}
+              onChange={(e) => {
+                const clusterName = e.target.value;
+                setSelectedCluster(clusterName);
+                setSelectedDistrict('all');
+                if (clusterName !== 'all') {
+                  const foundClu = liveClusters.find(c => c.cluster_name === clusterName);
+                  const cluState = foundClu?.state_name || foundClu?.state_id?.name;
+                  if (cluState) {
+                    setSelectedState(cluState);
+                  }
+                }
+              }}
+              className="w-full py-1.5 px-2.5 text-xs bg-surface-hover border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-medium"
+            >
+              <option value="all">
+                {selectedState !== 'all' ? `All Clusters in ${selectedState} (${clusterOptions.filter(c => c !== 'all').length})` : `All Clusters (${clusterOptions.filter(c => c !== 'all').length})`}
+              </option>
+              {clusterOptions.filter(c => c !== 'all').map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* District Filter (Cascades: Cluster-only when cluster picked, State districts when state picked, All otherwise) */}
+          <div>
+            <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
+              District {selectedCluster !== 'all' ? <span className="text-primary font-bold text-[9px]">(Cluster-Only)</span> : selectedState !== 'all' ? <span className="text-info font-bold text-[9px]">({selectedState})</span> : ''}
             </label>
             <select
               value={selectedDistrict}
               onChange={(e) => setSelectedDistrict(e.target.value)}
               className="w-full py-1.5 px-2.5 text-xs bg-surface-hover border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-medium"
             >
-              <option value="all">All Districts</option>
+              <option value="all">
+                {selectedCluster !== 'all'
+                  ? `All Districts in Cluster (${districtOptions.filter(d => d !== 'all').length})`
+                  : selectedState !== 'all'
+                  ? `All Districts in ${selectedState} (${districtOptions.filter(d => d !== 'all').length})`
+                  : `All Districts (${districtOptions.filter(d => d !== 'all').length})`}
+              </option>
               {districtOptions.filter(d => d !== 'all').map(d => (
                 <option key={d} value={d}>{d}</option>
               ))}
@@ -2192,6 +2413,11 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
                         <span className="flex items-center gap-1 text-text-muted font-medium">
                           <HiOutlineLocationMarker className="text-xs text-primary" />
                           {ord.destination?.city || ord.destination?.district || ''}{ord.destination?.state ? `, ${ord.destination.state}` : ''}
+                        </span>
+                      )}
+                      {getOrderClusterName(ord) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200" title="Franchisee Territory Cluster">
+                          <FaMapMarkerAlt className="text-[9px]" /> Cluster: {getOrderClusterName(ord)}
                         </span>
                       )}
                     </div>

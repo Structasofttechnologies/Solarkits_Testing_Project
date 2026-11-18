@@ -109,6 +109,17 @@ const schema = new mongoose.Schema({
     ref: 'bde_profiles',
     default: [],
   }],
+  assigned_staff_users: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'cms_users',
+    default: [],
+  }],
+  staffing_status: {
+    type: String,
+    enum: ['unassigned', 'staffed'],
+    default: 'unassigned',
+    index: true,
+  },
 
   // ── Section 1.2: Cluster Setup Fee Configuration ───────────────────────────
   setup_fee_config: {

@@ -22,6 +22,12 @@ const schema = new mongoose.Schema({
   last_failed_login_at: { type: Date, default: null },
   country: { type: String, default: 'India', trim: true },
   country_id: { type: mongoose.Schema.Types.ObjectId, ref: 'geolocation_level_0', default: null },
+  warehouse_id: { type: mongoose.Schema.Types.ObjectId, default: null },
+  warehouse_name: { type: String, default: null, trim: true },
+  cluster_id: { type: mongoose.Schema.Types.ObjectId, default: null },
+  cluster_name: { type: String, default: null, trim: true },
+  state_name: { type: String, default: null, trim: true },
+  department_name: { type: String, default: null, trim: true },
 }, { 
   collection: 'cms_users', 
   timestamps: { createdAt: 'created_at', updatedAt: 'update_at' },

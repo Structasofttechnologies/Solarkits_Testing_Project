@@ -794,17 +794,36 @@ const update_module_permissions = async (req, res) => {
             const module_id = m.module_id || m.id;
             if (!module_id) continue;
 
-            await CmsRoleWiseModule.updateOne(
-                { role_id: id, module_id: module_id, deleted_at: null },
-                {
-                    $set: {
+            const isEnabled = m.can_view || m.isAssigned || m.can_add || m.can_edit || m.can_delete;
+
+            if (!isEnabled) {
+                // If module is disabled/unassigned, soft delete from role
+                await CmsRoleWiseModule.updateMany(
+                    { role_id: id, module_id: module_id, deleted_at: null },
+                    { $set: { deleted_at: new Date() } }
+                );
+            } else {
+                // Upsert active permission
+                const existing = await CmsRoleWiseModule.findOne({ role_id: id, module_id: module_id });
+                if (existing) {
+                    existing.deleted_at = null;
+                    existing.can_view = true;
+                    existing.can_add = !!m.can_add;
+                    existing.can_edit = !!m.can_edit;
+                    existing.can_delete = !!m.can_delete;
+                    await existing.save();
+                } else {
+                    await CmsRoleWiseModule.create({
+                        role_id: id,
+                        module_id: module_id,
                         can_view: true,
-                        can_add: m.can_add ? true : false,
-                        can_edit: m.can_edit ? true : false,
-                        can_delete: m.can_delete ? true : false
-                    }
+                        can_add: !!m.can_add,
+                        can_edit: !!m.can_edit,
+                        can_delete: !!m.can_delete,
+                        deleted_at: null
+                    });
                 }
-            );
+            }
         }
 
         return res.status(200).json({ status: 'success', message: 'Module permissions updated successfully' });
@@ -934,4 +953,84 @@ const get_country_saas_products = async (req, res) => {
     }
 }
 
-module.exports = { get_levels, get_roles, get_role, add_role, get_parent_roles, update_role, send_otp_for_update_role, send_otp_for_unassign_module, assign_module_to_role, update_module_permissions, unassign_module_from_role, get_country_saas_products }
+const delete_role = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const role = await CmsRole.findOne({ _id: id, deleted_at: null });
+        if (!role) {
+            return res.status(404).json({ status: 'error', message: 'Role not found' });
+        }
+        if (role.name === 'Super Admin') {
+            return res.status(403).json({ status: 'error', message: 'Root Super Admin role cannot be deleted.' });
+        }
+
+        // Check if active users are assigned to this role
+        const assignedUsersCount = await CmsUser.countDocuments({ role_id: id, is_active: true, deleted_at: null });
+        if (assignedUsersCount > 0) {
+            return res.status(400).json({
+                status: 'error',
+                message: `Cannot delete "${role.name}" because it is currently assigned to ${assignedUsersCount} active user(s). Please reassign or update those users first.`
+            });
+        }
+
+        // Check if child roles exist and unlink them
+        await CmsRole.updateMany({ parent_role_id: id }, { $set: { parent_role_id: null } });
+
+        // Soft delete the role
+        role.deleted_at = new Date();
+        role.is_active = false;
+        await role.save();
+
+        // Clean up role panels and role module links
+        await RolePanel.deleteMany({ role_id: id }).catch(() => {});
+        await CmsRoleWiseModule.deleteMany({ role_id: id }).catch(() => {});
+
+        return res.status(200).json({ status: 'success', message: `Role "${role.name}" deleted successfully.` });
+    } catch (error) {
+        return res.status(500).json({ status: 'error', message: error.message || 'Internal Server Error' });
+    }
+};
+
+const update_role_panels = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { panels } = req.body;
+
+        if (!Array.isArray(panels)) {
+            return res.status(400).json({ status: 'error', message: 'panels array is required' });
+        }
+
+        const role = await CmsRole.findOne({ _id: id, deleted_at: null });
+        if (!role) {
+            return res.status(404).json({ status: 'error', message: 'Role not found' });
+        }
+
+        const panelIds = panels.map(p => {
+            if (typeof p === 'string') return p;
+            return (p.panel_id || p.id || p._id || '').toString();
+        }).filter(Boolean);
+
+        // Replace RolePanel entries for this role
+        await RolePanel.deleteMany({ role_id: id });
+        for (const pId of panelIds) {
+            await RolePanel.create({
+                role_id: id,
+                panel_id: pId,
+                saas_product_ids: []
+            });
+        }
+
+        const updatedRolePanels = await RolePanel.find({ role_id: id }).populate('panel_id').lean();
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Role panels updated successfully',
+            data: updatedRolePanels
+        });
+    } catch (error) {
+        console.error("Error updating role panels:", error);
+        return res.status(500).json({ status: 'error', message: error.message || 'Internal Server Error' });
+    }
+};
+
+module.exports = { get_levels, get_roles, get_role, add_role, get_parent_roles, update_role, delete_role, update_role_panels, send_otp_for_update_role, send_otp_for_unassign_module, assign_module_to_role, update_module_permissions, unassign_module_from_role, get_country_saas_products }

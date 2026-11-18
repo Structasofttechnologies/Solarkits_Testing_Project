@@ -1,6 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaExchangeAlt, FaShieldAlt, FaPlus, FaCheck, FaTimes, FaShippingFast, FaCheckCircle, FaTrash } from "react-icons/fa";
+import axios from "axios";
+import { authHeaderObj } from "../../app/authHeader";
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 import Button from "../../components/Button";
 import CustomInput from "../../components/CustomInput";
@@ -120,10 +124,45 @@ export default function ProductReplacement() {
   const [warrantyChecked, setWarrantyChecked] = useState(false);
   const [warrantyValid, setWarrantyValid] = useState(null);
 
-  // Available clusters for selected state
-  const clusterOptions = TERRITORY_CLUSTER_MAP[selectedState] || [
-    { value: 'General-Cluster', text: `${selectedState} Central Cluster` }
-  ];
+  const [liveClusters, setLiveClusters] = useState([]);
+
+  // Live cluster fetch from Admin Franchisee Cluster module
+  useEffect(() => {
+    const fetchClusters = async () => {
+      try {
+        const res = await axios.get(`${API_BASE}/franchise-clusters/list`, {
+          headers: authHeaderObj()
+        });
+        if (res.data?.status === 'success' || Array.isArray(res.data?.data)) {
+          setLiveClusters(res.data.data || []);
+        }
+      } catch (e) {
+        console.warn('Could not load clusters in ProductReplacement:', e);
+      }
+    };
+    fetchClusters();
+  }, []);
+
+  // Available states dynamically computed combining live clusters and standard states
+  const allStateOptions = useMemo(() => {
+    const fromClusters = liveClusters.map(c => c.state_name || c.state_id?.name).filter(Boolean);
+    const combined = Array.from(new Set([...fromClusters, ...stateOptions.map(s => s.value)])).sort();
+    return combined.map(st => ({ value: st, text: st }));
+  }, [liveClusters]);
+
+  // Available clusters dynamically computed for selected state
+  const clusterOptions = useMemo(() => {
+    const liveForState = liveClusters.filter(c => 
+      (c.state_name || '').toLowerCase() === selectedState.toLowerCase()
+    ).map(c => ({ value: c.cluster_name, text: `${c.cluster_name} (${c.cluster_code || 'Live'})` }));
+
+    if (liveForState.length > 0) {
+      return liveForState;
+    }
+    return TERRITORY_CLUSTER_MAP[selectedState] || [
+      { value: 'General-Cluster', text: `${selectedState} Central Cluster` }
+    ];
+  }, [liveClusters, selectedState]);
 
   // Available orders for selected cluster
   const orderOptions = CLUSTER_ORDERS_MAP[selectedCluster] || [
@@ -319,16 +358,23 @@ export default function ProductReplacement() {
                     value={selectedState}
                     onChange={(val) => {
                       setSelectedState(val);
-                      const newClusters = TERRITORY_CLUSTER_MAP[val] || [];
-                      if (newClusters.length > 0) {
-                        setSelectedCluster(newClusters[0].value);
-                        const orders = CLUSTER_ORDERS_MAP[newClusters[0].value] || [];
-                        if (orders.length > 0) {
-                          setOrderId(orders[0].value);
+                      const liveForState = liveClusters.filter(c => 
+                        (c.state_name || '').toLowerCase() === val.toLowerCase()
+                      );
+                      if (liveForState.length > 0) {
+                        setSelectedCluster(liveForState[0].cluster_name);
+                      } else {
+                        const newClusters = TERRITORY_CLUSTER_MAP[val] || [];
+                        if (newClusters.length > 0) {
+                          setSelectedCluster(newClusters[0].value);
+                          const orders = CLUSTER_ORDERS_MAP[newClusters[0].value] || [];
+                          if (orders.length > 0) {
+                            setOrderId(orders[0].value);
+                          }
                         }
                       }
                     }}
-                    options={stateOptions}
+                    options={allStateOptions}
                     className="w-full"
                   />
                   <Dropdown

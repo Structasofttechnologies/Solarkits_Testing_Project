@@ -274,9 +274,14 @@ module.exports = {
   FranchiseeClusterGoal: require('./franchisee_cluster_goals.schema'),
   SolarKitsServiceTicket: require('../../../solarshop-india/models/india_solarshop_db/solarkits_service_tickets.schema'),
 
+<<<<<<< HEAD
+  // --- Dynamic Invoice & Delivery Order (DO) Module ---
+  InvoiceAndDoSettings: require('./InvoiceAndDoSettings.schema'),
+=======
 
   // --- SOLARKITS: Trial Kit Management Module ---
   TrialKitInventory: require('./trial_kit_inventories.schema'),
   TrialKitStockHistory: require('./trial_kit_stock_histories.schema'),
   TrialKitOrder: require('./trial_kit_orders.schema'),
+>>>>>>> 5f973cd0afa3e6fc96c71878e4a13a18589ea349
 };

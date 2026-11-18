@@ -13,6 +13,8 @@ async function ensureAdminUser(targetEmail = 'rahil.sunnovative@gmail.com') {
     const CmsLevel = mongoose.models.cms_levels || require('../modules/cms-auth/models/user_db/cms_levels.schema');
     const CmsPanel = mongoose.models.cms_panels || require('../modules/cms-auth/models/user_db/cms_panels.schema');
     const RolePanel = mongoose.models.role_panels || require('../modules/cms-auth/models/user_db/role_panels.schema');
+    const DepartmentPanel = mongoose.models.department_panels || require('../modules/admin-panel/models/user_db/department_panels.schema');
+    const GeoLevel0 = mongoose.models.geolocation_level_0 || require('../modules/admin-panel/models/geolocation_db/geolocation_level_0.schema');
 
     const normalizedEmail = (targetEmail || 'rahil.sunnovative@gmail.com').trim().toLowerCase();
 
@@ -68,51 +70,138 @@ async function ensureAdminUser(targetEmail = 'rahil.sunnovative@gmail.com') {
       if (panel) panelDocs.push(panel);
     }
 
-    // 3. Ensure Super Admin Department
-    let superAdminDept = await CmsDept.findOne({ name: { $regex: /^super admin$/i } });
-    if (!superAdminDept) {
-      try {
-        superAdminDept = await CmsDept.create({
-          name: 'Super Admin',
-          panel_id: panelDocs[0]?._id || null,
-          level: 'global',
-          is_system: true,
-          is_protected: true,
-          is_active: true
-        });
-      } catch (e) {
-        superAdminDept = await CmsDept.findOne({});
-      }
-    }
+    // 2.5. Find default country (India)
+    const indiaCountry = await GeoLevel0.findOne({ deleted_at: null }).lean();
+    const indiaCountryId = indiaCountry ? indiaCountry._id : null;
 
-    // 4. Ensure Super Admin Role
-    let superAdminRole = await CmsRole.findOne({ name: { $regex: /^super admin$/i } });
-    if (!superAdminRole) {
-      try {
-        superAdminRole = await CmsRole.create({
-          name: 'Super Admin',
-          department_id: superAdminDept?._id || null,
-          level_id: globalLevel?._id || null,
-          is_system: true,
-          is_protected: true,
-          is_active: true
-        });
-      } catch (e) {
-        superAdminRole = await CmsRole.findOne({});
-      }
-    }
+    // 3. Ensure Core Departments
+    const coreDepts = [
+      { name: 'Super Admin', slug: 'admin-panel', level: 'global' },
+      { name: 'Accounts & Finance', slug: 'account-panel', level: 'country' },
+      { name: 'Delivery Management', slug: 'warehouse-management-panel', level: 'country' },
+      { name: 'Warehouse Management', slug: 'warehouse-management-panel', level: 'country' },
+      { name: 'Operations', slug: 'operation-management-panel', level: 'country' },
+    ];
 
-    // 5. Link Super Admin role to panels
-    if (superAdminRole) {
-      for (const p of panelDocs) {
+    const deptMap = {};
+    for (const d of coreDepts) {
+      const panel = panelDocs.find(p => p.slug === d.slug) || panelDocs[0];
+      let deptDoc = await CmsDept.findOne({ name: { $regex: new RegExp(`^${d.name}$`, 'i') }, deleted_at: null });
+      if (!deptDoc) {
         try {
-          const rpExists = await RolePanel.findOne({ role_id: superAdminRole._id, panel_id: p._id });
-          if (!rpExists) {
-            await RolePanel.create({ role_id: superAdminRole._id, panel_id: p._id });
-          }
-        } catch (e) {}
+          deptDoc = await CmsDept.create({
+            name: d.name,
+            panel_id: panel?._id || null,
+            level: d.level,
+            country_ids: d.level === 'country' && indiaCountryId ? [indiaCountryId] : [],
+            country_id: d.level === 'country' ? indiaCountryId : null,
+            is_system: true,
+            is_protected: true,
+            is_active: true
+          });
+        } catch (e) {
+          deptDoc = await CmsDept.findOne({ name: { $regex: new RegExp(`^${d.name}$`, 'i') } });
+        }
+      }
+      if (deptDoc) {
+        deptMap[d.name] = deptDoc;
+        if (panel && DepartmentPanel) {
+          try {
+            const dpExists = await DepartmentPanel.findOne({ department_id: deptDoc._id, panel_id: panel._id });
+            if (!dpExists) {
+              await DepartmentPanel.create({ department_id: deptDoc._id, panel_id: panel._id });
+            }
+          } catch (e) {}
+        }
       }
     }
+    const superAdminDept = deptMap['Super Admin'] || (await CmsDept.findOne({}));
+
+    // 3.5. Ensure Country Level
+    let countryLevel = await CmsLevel.findOne({ name: { $regex: /^country$/i } });
+    if (!countryLevel) {
+      try {
+        countryLevel = await CmsLevel.create({
+          name: 'country',
+          scope_priority: 2,
+          is_active: true
+        });
+      } catch (e) {
+        countryLevel = globalLevel;
+      }
+    }
+
+    // 4. Ensure Core Roles
+    const coreRoles = [
+      { name: 'Super Admin', dept: 'Super Admin', level: globalLevel?._id, panelSlug: 'admin-panel' },
+      { name: 'Country Administrator', dept: 'Super Admin', level: countryLevel?._id, panelSlug: 'admin-panel' },
+      { name: 'Accounts Manager', dept: 'Accounts & Finance', level: countryLevel?._id, panelSlug: 'account-panel' },
+      { name: 'Accountant', dept: 'Accounts & Finance', level: countryLevel?._id, panelSlug: 'account-panel' },
+      { name: 'Delivery Manager', dept: 'Delivery Management', level: countryLevel?._id, panelSlug: 'warehouse-management-panel' },
+      { name: 'Logistics Lead', dept: 'Delivery Management', level: countryLevel?._id, panelSlug: 'warehouse-management-panel' },
+      { name: 'Warehouse Manager', dept: 'Warehouse Management', level: countryLevel?._id, panelSlug: 'warehouse-management-panel' },
+      { name: 'Inventory Supervisor', dept: 'Warehouse Management', level: countryLevel?._id, panelSlug: 'warehouse-management-panel' },
+      { name: 'Operations Manager', dept: 'Operations', level: countryLevel?._id, panelSlug: 'operation-management-panel' },
+      { name: 'Cluster Operations Lead', dept: 'Operations', level: countryLevel?._id, panelSlug: 'operation-management-panel' },
+    ];
+
+    let superAdminRole = null;
+    for (const r of coreRoles) {
+      const deptDoc = deptMap[r.dept] || superAdminDept;
+      if (!deptDoc) continue;
+      let roleDoc = await CmsRole.findOne({ name: r.name, deleted_at: null });
+      if (!roleDoc) {
+        try {
+          roleDoc = await CmsRole.create({
+            name: r.name,
+            department_id: deptDoc._id,
+            level_id: r.level || countryLevel?._id || globalLevel?._id,
+            country_id: r.level === countryLevel?._id ? indiaCountryId : null,
+            country_ids: r.level === countryLevel?._id && indiaCountryId ? [indiaCountryId] : [],
+            is_system: true,
+            is_protected: true,
+            is_active: true
+          });
+        } catch (e) {
+          roleDoc = await CmsRole.findOne({ name: r.name });
+        }
+      } else {
+        // Ensure proper department and country link
+        if (roleDoc.department_id?.toString() !== deptDoc._id.toString()) {
+          roleDoc.department_id = deptDoc._id;
+          roleDoc.level_id = r.level || countryLevel?._id || globalLevel?._id;
+          if (r.level === countryLevel?._id && indiaCountryId) {
+            roleDoc.country_id = indiaCountryId;
+          }
+          await roleDoc.save().catch(() => {});
+        }
+      }
+      if (r.name === 'Super Admin') superAdminRole = roleDoc;
+
+      if (roleDoc) {
+        const targetPanel = panelDocs.find(p => p.slug === r.panelSlug);
+        if (targetPanel) {
+          try {
+            const rpExists = await RolePanel.findOne({ role_id: roleDoc._id, panel_id: targetPanel._id });
+            if (!rpExists) {
+              await RolePanel.create({ role_id: roleDoc._id, panel_id: targetPanel._id });
+            }
+          } catch (e) {}
+        }
+        // Also link super admin and country admin to all panels
+        if (r.dept === 'Super Admin') {
+          for (const p of panelDocs) {
+            try {
+              const rpExists = await RolePanel.findOne({ role_id: roleDoc._id, panel_id: p._id });
+              if (!rpExists) {
+                await RolePanel.create({ role_id: roleDoc._id, panel_id: p._id });
+              }
+            } catch (e) {}
+          }
+        }
+      }
+    }
+    if (!superAdminRole) superAdminRole = await CmsRole.findOne({ name: { $regex: /^super admin$/i } });
 
     // 6. Ensure Super Admin User with Passcode '1234'
     const defaultPasscodeHash = await bcrypt.hash('1234', 10);

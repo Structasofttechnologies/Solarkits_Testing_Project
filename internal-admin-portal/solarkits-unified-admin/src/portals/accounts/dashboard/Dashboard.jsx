@@ -1,7 +1,7 @@
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import Header from "../components/Header"
 import Drawer from "../components/Drawer";
-import { FaHome, FaFileInvoice, FaCreditCard, FaCheckCircle, FaHandshake, FaBoxes, FaLayerGroup, FaBalanceScale, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine } from "react-icons/fa"
+import { FaHome, FaBuilding, FaFileInvoice, FaCreditCard, FaCheckCircle, FaHandshake, FaBoxes, FaLayerGroup, FaBalanceScale, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine } from "react-icons/fa"
 import { lazy, Suspense, useEffect, useState, useMemo, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import { PermissionGuard } from "../components/PermissionGuard";
@@ -30,7 +30,12 @@ const InvoiceValidationModule = lazy(() => import("../pages/compliance/InvoiceVa
 const ExpenseManagementModule = lazy(() => import("../pages/expenses/ExpenseManagementModule"));
 const WarehouseFinanceModule = lazy(() => import("../pages/warehouse-finance/WarehouseFinanceModule"));
 const ExecutiveFinanceDashboard = lazy(() => import("../pages/executive/ExecutiveFinanceDashboard"));
+<<<<<<< HEAD
+const CompanyProfileAndFy = lazy(() => import("../pages/company-profile/CompanyProfileAndFy"));
+const StatutoryRegistersHub = lazy(() => import("../pages/registers/StatutoryRegistersHub"));
+=======
 const AccountsTrialKitStockPage = lazy(() => import("../pages/trial-kits/AccountsTrialKitStockPage"));
+>>>>>>> 5f973cd0afa3e6fc96c71878e4a13a18589ea349
 
 const getMenusWithBadges = (badgeCounts = {}) => [
   [
@@ -39,6 +44,18 @@ const getMenusWithBadges = (badgeCounts = {}) => [
       icon: <FaHome />,
       path: "/account-panel/home",
       unique_id: "ACC_HOME"
+    },
+    {
+      name: "Company Profile & FY",
+      icon: <FaBuilding />,
+      path: "/account-panel/company-profile",
+      unique_id: "ACC_COMPANY_PROFILE"
+    },
+    {
+      name: "Statutory Registers",
+      icon: <FaBook />,
+      path: "/account-panel/registers",
+      unique_id: "ACC_REGISTERS"
     },
     {
       name: "New Orders",
@@ -169,7 +186,9 @@ const isModuleAllowed = (menu, allowedUniqueIds) => {
     menu.unique_id === "ACC_ACCOUNTING" ||
     menu.unique_id === "ACC_GST" ||
     menu.unique_id === "ACC_INVOICE_VALIDATION" ||
-    menu.unique_id === "ACC_EXPENSES"
+    menu.unique_id === "ACC_EXPENSES" ||
+    menu.unique_id === "ACC_COMPANY_PROFILE" ||
+    menu.unique_id === "ACC_REGISTERS"
   ) return true;
   if ((menu.unique_id === "ACC_NEW_ORDERS" || menu.unique_id === "ACC_PROCUREMENT") && (allowedUniqueIds.includes("ACC_NEW_ORDERS") || allowedUniqueIds.includes("ACC_HOME") || allowedUniqueIds.includes("ACC_PO") || allowedUniqueIds.includes("ACC_PROCUREMENT"))) return true;
   if (menu.unique_id === "ACC_OEM_PO" && allowedUniqueIds.includes("ACC_PO")) return true;
@@ -333,6 +352,22 @@ export default function Dashboard() {
                           <Home />
                         </Suspense>
                       </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/company-profile/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Company Profile & FY..." />}>
+                        <CompanyProfileAndFy />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/registers/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Statutory Registers Hub..." />}>
+                        <StatutoryRegistersHub />
+                      </Suspense>
                     }
                   />
                   <Route

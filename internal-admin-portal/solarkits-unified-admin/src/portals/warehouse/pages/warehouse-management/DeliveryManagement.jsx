@@ -13,6 +13,8 @@ import Button from "../../components/Button";
 import CustomInput from "../../components/CustomInput";
 import PageHeader from "../../components/PageHeader";
 import DropdownWithSearchInput from "../../components/DropdownWithSearchInput";
+import axios from "axios";
+import { authHeaderObj } from "../../app/authHeader";
 import { getSalesOrders, deliverSalesOrder, updateSalesOrderTracking, createPoRequest } from "../../api/inward";
 import { compareVehicles } from "../../api/vehicles";
 import { loadGoogleMaps } from "../../components/LoadGoogleMaps";
@@ -24,6 +26,45 @@ const initialOrders = [
   { id: 'ORD-9845', partner: 'Go Green Power Ltd', region: 'West Zone', pincode: '400001', weight: 900, panels: 200, kws: 108, selected: false },
   { id: 'ORD-9846', partner: 'Solar Horizon India', region: 'North Zone', pincode: '302018', weight: 350, panels: 80, kws: 43.2, selected: false },
   { id: 'ORD-9847', partner: 'Western Solar Hub', region: 'West Zone', pincode: '400055', weight: 1200, panels: 250, kws: 137.5, selected: false },
+];
+
+const INDIAN_STATES = [
+  'Andaman and Nicobar Islands',
+  'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chandigarh',
+  'Chhattisgarh',
+  'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi NCR',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jammu and Kashmir',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Ladakh',
+  'Lakshadweep',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Puducherry',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal'
 ];
 
 
@@ -56,6 +97,87 @@ export default function DeliveryManagement() {
   const [selectedOrderType, setSelectedOrderType] = useState('All');
 
   const [selectedPincode, setSelectedPincode] = useState("All Pincodes");
+  const [selectedState, setSelectedState] = useState("All");
+  const [selectedCluster, setSelectedCluster] = useState("All");
+  const [selectedDistrict, setSelectedDistrict] = useState("All");
+  const [liveClusters, setLiveClusters] = useState([]);
+
+  // Fetch live clusters from Admin Panel
+  useEffect(() => {
+    const fetchClusters = async () => {
+      try {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/franchise-clusters/list`, {
+          headers: authHeaderObj()
+        });
+        if (res.data?.status === 'success' || Array.isArray(res.data?.data)) {
+          setLiveClusters(res.data.data || []);
+        }
+      } catch (e) {
+        console.warn('Could not load clusters in DeliveryManagement:', e);
+      }
+    };
+    fetchClusters();
+  }, []);
+
+  // Unique States from clusters, orders, and master Indian states
+  const uniqueStates = useMemo(() => {
+    const fromClusters = liveClusters.map(c => c.state_name || c.state_id?.name).filter(Boolean);
+    const fromOrders = orders.map(o => o.state || o.destination?.state).filter(Boolean);
+    const allStates = Array.from(new Set([...fromClusters, ...fromOrders, ...INDIAN_STATES])).sort();
+    return ['All', ...allStates];
+  }, [liveClusters, orders]);
+
+  // Cluster Options based on selectedState
+  const clusterOptions = useMemo(() => {
+    let list = liveClusters;
+    if (selectedState !== 'All') {
+      list = list.filter(c => (c.state_name || '').toLowerCase() === selectedState.toLowerCase());
+    }
+    const names = list.map(c => c.cluster_name).filter(Boolean);
+    return ['All', ...Array.from(new Set(names)).sort()];
+  }, [liveClusters, selectedState]);
+
+  // Cascading Dynamic District Options:
+  // 1. If cluster is chosen -> Show ONLY that cluster's districts
+  // 2. If cluster is NOT chosen, but State is chosen -> Show all districts of that state
+  // 3. If neither is chosen -> Show all available districts
+  const districtOptions = useMemo(() => {
+    if (selectedCluster !== 'All') {
+      const found = liveClusters.find(c => c.cluster_name === selectedCluster);
+      if (found) {
+        const clusterDists = [
+          ...(found.district_names || []),
+          ...((found.district_ids || []).map(d => (typeof d === 'string' ? d : d.name)))
+        ].filter(Boolean);
+        return ['All', ...Array.from(new Set(clusterDists)).sort()];
+      }
+    }
+
+    if (selectedState !== 'All') {
+      const stateClusters = liveClusters.filter(c => 
+        (c.state_name || '').toLowerCase() === selectedState.toLowerCase() ||
+        (c.state_id?.name || '').toLowerCase() === selectedState.toLowerCase()
+      );
+      const distsFromClusters = stateClusters.flatMap(c => [
+        ...(c.district_names || []),
+        ...((c.district_ids || []).map(d => (typeof d === 'string' ? d : d.name)))
+      ]).filter(Boolean);
+      const distsFromOrders = orders
+        .filter(o => (o.state || o.destination?.state || '').toLowerCase() === selectedState.toLowerCase())
+        .map(o => o.destination?.district || o.region)
+        .filter(Boolean);
+      const combined = Array.from(new Set([...distsFromClusters, ...distsFromOrders])).sort();
+      if (combined.length > 0) return ['All', ...combined];
+    }
+
+    const allClusterDists = liveClusters.flatMap(c => [
+      ...(c.district_names || []),
+      ...((c.district_ids || []).map(d => (typeof d === 'string' ? d : d.name)))
+    ]).filter(Boolean);
+    const allOrderDists = orders.map(o => o.destination?.district || o.region).filter(Boolean);
+    const allCombined = Array.from(new Set([...allClusterDists, ...allOrderDists])).sort();
+    return ['All', ...allCombined];
+  }, [selectedCluster, selectedState, liveClusters, orders]);
 
   // PO Request Modal States
   const [poRequestModalOpen, setPoRequestModalOpen] = useState(false);
@@ -681,6 +803,30 @@ export default function DeliveryManagement() {
     if (selectedPincode !== "All Pincodes") {
       list = list.filter(o => o.pincode === selectedPincode);
     }
+
+    // State filter
+    if (selectedState !== "All") {
+      list = list.filter(o => (o.state || o.destination?.state || '').toLowerCase() === selectedState.toLowerCase());
+    }
+
+    // Franchisee Cluster filter
+    if (selectedCluster !== "All") {
+      const foundClu = liveClusters.find(c => c.cluster_name === selectedCluster);
+      list = list.filter(o => {
+        if (o.cluster_name === selectedCluster) return true;
+        const oDist = (o.region || o.destination?.district || '').toLowerCase();
+        if (foundClu && (foundClu.district_names || []).some(d => d.toLowerCase() === oDist)) return true;
+        return false;
+      });
+    }
+
+    // District filter
+    if (selectedDistrict !== "All") {
+      list = list.filter(o => {
+        const oDist = (o.region || o.destination?.district || '').toLowerCase();
+        return oDist === selectedDistrict.toLowerCase();
+      });
+    }
     
     // Zone filter (only when master warehouse)
     if (warehouseType === 'master') {
@@ -694,7 +840,7 @@ export default function DeliveryManagement() {
     }
     
     return list;
-  }, [orders, selectedZone, selectedPincode, selectedEpc, selectedOrderType, warehouseType]);
+  }, [orders, selectedZone, selectedPincode, selectedState, selectedCluster, selectedDistrict, selectedEpc, selectedOrderType, warehouseType, liveClusters]);
 
   const groupedOrdersByBuyer = useMemo(() => {
     const groups = {};
@@ -1074,18 +1220,88 @@ export default function DeliveryManagement() {
               ))}
             </div>
 
-        {/* Pincode Select Filter */}
+        {/* State, Cluster, District & Pincode Select Filter */}
         {activeStep === 1 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-text-secondary whitespace-nowrap">Pincode:</span>
-            <DropdownWithSearchInput
-              value={selectedPincode}
-              onChange={setSelectedPincode}
-              options={pincodeDropdownOptions}
-              placeholder="Select Pincode"
-              searchPlaceholder="Search Pincode..."
-              className="w-48"
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-text-secondary whitespace-nowrap">State:</span>
+              <select
+                value={selectedState}
+                onChange={(e) => {
+                  const newState = e.target.value;
+                  setSelectedState(newState);
+                  if (newState !== 'All' && selectedCluster !== 'All') {
+                    const currClu = liveClusters.find(c => c.cluster_name === selectedCluster);
+                    const cluState = (currClu?.state_name || currClu?.state_id?.name || '').toLowerCase();
+                    if (cluState !== newState.toLowerCase()) {
+                      setSelectedCluster("All");
+                    }
+                  }
+                  setSelectedDistrict("All");
+                }}
+                className="py-1.5 px-2.5 text-xs bg-surface border border-border rounded-lg text-text-primary font-medium focus:border-primary"
+              >
+                {uniqueStates.map(st => (
+                  <option key={st} value={st}>{st === 'All' ? 'All States' : st}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-text-secondary whitespace-nowrap">Cluster:</span>
+              <select
+                value={selectedCluster}
+                onChange={(e) => {
+                  const cluName = e.target.value;
+                  setSelectedCluster(cluName);
+                  setSelectedDistrict("All");
+                  if (cluName !== 'All') {
+                    const foundClu = liveClusters.find(c => c.cluster_name === cluName);
+                    const cluState = foundClu?.state_name || foundClu?.state_id?.name;
+                    if (cluState) {
+                      setSelectedState(cluState);
+                    }
+                  }
+                }}
+                className="py-1.5 px-2.5 text-xs bg-surface border border-border rounded-lg text-text-primary font-medium max-w-[200px] focus:border-primary"
+              >
+                {clusterOptions.map(cl => (
+                  <option key={cl} value={cl}>{cl === 'All' ? 'All Clusters' : cl}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-text-secondary whitespace-nowrap">District:</span>
+              <select
+                value={selectedDistrict}
+                onChange={(e) => setSelectedDistrict(e.target.value)}
+                className="py-1.5 px-2.5 text-xs bg-surface border border-border rounded-lg text-text-primary font-medium max-w-[200px] focus:border-primary"
+              >
+                <option value="All">
+                  {selectedCluster !== 'All'
+                    ? `All in Cluster (${districtOptions.filter(d => d !== 'All').length})`
+                    : selectedState !== 'All'
+                    ? `All in ${selectedState} (${districtOptions.filter(d => d !== 'All').length})`
+                    : `All Districts (${districtOptions.filter(d => d !== 'All').length})`}
+                </option>
+                {districtOptions.filter(d => d !== 'All').map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-text-secondary whitespace-nowrap">Pincode:</span>
+              <DropdownWithSearchInput
+                value={selectedPincode}
+                onChange={setSelectedPincode}
+                options={pincodeDropdownOptions}
+                placeholder="Select Pincode"
+                searchPlaceholder="Search Pincode..."
+                className="w-40"
+              />
+            </div>
           </div>
         )}
       </div>

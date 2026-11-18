@@ -82,6 +82,7 @@ const AdminSupplierSettings = lazy(() => import("../pages/solar-shop/order-manag
 const KitDisplayChecklist = lazy(() => import("../pages/solar-shop/order-management-settings/KitDisplayChecklist"));
 const OrderOverdueSettings = lazy(() => import("../pages/solar-shop/order-management-settings/OrderOverdueSettings"));
 const OrderJourneyDashboard = lazy(() => import("../pages/solar-shop/order-management-settings/OrderJourneyDashboard"));
+const InvoiceDoSettings = lazy(() => import("../pages/solar-shop/order-management-settings/InvoiceDoSettings"));
 const AdminOrderApprovalDashboard = lazy(() => import("../pages/solar-shop/order-approvals/AdminOrderApprovalDashboard"));
 const AccountingOverview = lazy(() => import("../pages/accounting/AccountingOverview"));
 const AccountingModule = lazy(() => import("../../accounts/pages/accounting/AccountingModule"));
@@ -97,6 +98,39 @@ const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAna
 const menus = [
     [
         { step: "01", badgeKey: "01", name: "Dashboard", icon: <FaHome />, path: "/admin-panel/solar-shop/home", unique_id: "00000000" },
+
+        { 
+            step: "01B", 
+            badgeKey: "ACC_M", 
+            name: "Accounting Overview", 
+            icon: <FaFileInvoiceDollar />, 
+            path: "/admin-panel/solar-shop/accounting-overview", 
+            unique_id: "00000000"
+        },
+        {
+            step: "01C",
+            badgeKey: "WH_F",
+            name: "Warehouse Loan & Expansion",
+            icon: <FaWarehouse />,
+            path: "/admin-panel/solar-shop/warehouse-finance",
+            unique_id: "00000000"
+        },
+        {
+            step: "01D",
+            badgeKey: "EXEC_F",
+            name: "Executive Finance Dashboard",
+            icon: <FaChartLine />,
+            path: "/admin-panel/solar-shop/executive-finance",
+            unique_id: "00000000"
+        },
+        {
+            step: "01E",
+            badgeKey: "DELIV_DASH",
+            name: "Delivery & Logistics Dashboard",
+            icon: <FaTruck />,
+            path: "/admin-panel/solar-shop/delivery-management/dashboard",
+            unique_id: "00000000"
+        }
         // { 
         //     step: "01B", 
         //     badgeKey: "ACC_M", 
@@ -352,6 +386,12 @@ const menus = [
                     name: "Order Journey Dashboard",
                     icon: <FiBarChart2 />,
                     path: "/admin-panel/solar-shop/order-management-settings/journey-dashboard",
+                    unique_id: "ADM_ORDER_SETTINGS"
+                },
+                {
+                    name: "Invoice & DO Settings",
+                    icon: <FaFileInvoiceDollar />,
+                    path: "/admin-panel/solar-shop/order-management-settings/invoice-do-settings",
                     unique_id: "ADM_ORDER_SETTINGS"
                 }
             ]
@@ -1336,6 +1376,16 @@ export default function SolarShopDashboard() {
                                         }
                                     />
                                     <Route
+                                        path="/order-management-settings/invoice-do-settings"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="ADM_ORDER_SETTINGS">
+                                                <Suspense fallback={<Loader text="Loading Invoice & DO Settings..." />}>
+                                                    <InvoiceDoSettings />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
                                         path="/:countryName/order-management-settings"
                                         element={
                                             <PermissionGuard requiredUniqueId="ADM_ORDER_SETTINGS">
@@ -1421,6 +1471,16 @@ export default function SolarShopDashboard() {
                                             <PermissionGuard requiredUniqueId="ADM_ORDER_SETTINGS">
                                                 <Suspense fallback={<Loader text="Loading Order Journey Dashboard..." />}>
                                                     <OrderJourneyDashboard />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/order-management-settings/invoice-do-settings"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="ADM_ORDER_SETTINGS">
+                                                <Suspense fallback={<Loader text="Loading Invoice & DO Settings..." />}>
+                                                    <InvoiceDoSettings />
                                                 </Suspense>
                                             </PermissionGuard>
                                         }

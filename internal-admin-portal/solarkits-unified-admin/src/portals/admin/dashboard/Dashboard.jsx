@@ -9,7 +9,11 @@ import Loader from "../components/Loader";
 import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
+
+import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaTruck } from "react-icons/fa";
+
 import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck } from "react-icons/fa";
+
 import {
   MdAccountTree,
   MdEngineering,
@@ -57,9 +61,12 @@ const InvoiceValidationModule = lazy(() => import("../../accounts/pages/complian
 const ExpenseManagementModule = lazy(() => import("../../accounts/pages/expenses/ExpenseManagementModule"));
 const WarehouseFinanceModule = lazy(() => import("../../accounts/pages/warehouse-finance/WarehouseFinanceModule"));
 const ExecutiveFinanceDashboard = lazy(() => import("../../accounts/pages/executive/ExecutiveFinanceDashboard"));
+const AccountsModuleHub = lazy(() => import("../pages/accounting/AccountsModuleHub"));
+const InvoiceDoSettings = lazy(() => import("../pages/solar-shop/order-management-settings/InvoiceDoSettings"));
 const TrialKitInventoryPage = lazy(() => import("../pages/trial-kits/TrialKitInventoryPage"));
 const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrdersPage"));
 const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
+
 
 /* ===================== MENU CONFIG ===================== */
 
@@ -67,10 +74,24 @@ const menus = [
   [
     { name: "Dashboard", icon: <FaHome />, path: "/admin-panel/home", unique_id: "00000000" },
     {
-      name: "Accounting Overview",
-      icon: <FaCoins />,
-      path: "/admin-panel/accounting-overview",
-      unique_id: "00000000"
+      name: "Invoice & DO Settings",
+      icon: <FaReceipt />,
+      path: "/admin-panel/invoice-do-settings",
+      unique_id: "00000000",
+    },
+    {
+      name: "Accounts Module",
+      icon: <FaFileInvoiceDollar />,
+      path: "/admin-panel/accounts-module",
+      unique_id: "00000000",
+      subMenu: [
+        {
+          name: "Accounting Overview",
+          icon: <FaCoins />,
+          path: "/admin-panel/accounts-module?tab=overview",
+          unique_id: "00000000",
+        },
+      ]
     },
     {
       name: "Warehouse Loan & Expansion",
@@ -82,6 +103,12 @@ const menus = [
       name: "Executive Finance Dashboard",
       icon: <FaChartLine />,
       path: "/admin-panel/executive-finance",
+      unique_id: "00000000"
+    },
+    {
+      name: "Delivery & Logistics Dashboard",
+      icon: <FaTruck />,
+      path: "/admin-panel/solar-shop/delivery-management/dashboard",
       unique_id: "00000000"
     },
     { name: "Vision Dashboard", icon: <MdVisibility />, path: "/admin-panel/vision-dashboard", unique_id: "00000000" },
@@ -278,9 +305,15 @@ const menus = [
           unique_id: "00000000"
         },
         {
+
+          name: "Invoice & DO Settings",
+          icon: <FaReceipt />,
+          path: "/admin-panel/accounts-module?tab=invoice-do",
+
           name: "Franchise Business Profiles",
           icon: <FaBriefcase />,
           path: "/admin-panel/settings/business-profiles",
+
           unique_id: "00000000"
         }
       ],
@@ -291,6 +324,12 @@ const menus = [
       path: "/admin-panel/manage-users",
       unique_id: "ADM_USERS",
       subMenu: [
+        {
+          name: "Staff & User Management",
+          icon: <FaUserCheck />,
+          path: "/admin-panel/create-users",
+          unique_id: "ADM_USERS"
+        },
         {
           name: "EPCs",
           icon: <FaUsers />,
@@ -530,11 +569,29 @@ export default function Dashboard() {
                 <Routes location={location}>
 
                   <Route
+
+                    path="/invoice-do-settings/*"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Invoice & DO Settings..." />}>
+                          <InvoiceDoSettings />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+
+                  <Route
+                    path="/accounts-module/*"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Accounts Module..." />}>
+                          <AccountsModuleHub />
                     path="/franchisee-performance-dashboard"
                     element={
                       <PermissionGuard requiredUniqueId="00000000">
                         <Suspense fallback={<Loader text="Loading Franchisee Performance Dashboard..." />}>
                           <FranchiseePerformanceDashboard />
+
                         </Suspense>
                       </PermissionGuard>
                     }
