@@ -457,6 +457,7 @@ export default function FranchisePurchaseModal({
       shop_photos: shopPhotos,
       quickekyc_request_id: `QK-REQ-${Date.now()}`,
       territoryLevel,
+      plan_id: plan?._id || plan?.id || null,
       actionType: "franchise_apply",
     };
 

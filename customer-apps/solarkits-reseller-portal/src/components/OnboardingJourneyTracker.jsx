@@ -618,34 +618,105 @@ export default function OnboardingJourneyTracker({ reseller, onRefresh }) {
                   </p>
                 </div>
 
-                {/* Verbal Account Manager Consultation Notice (No System Bank Details Attached) */}
-                <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white space-y-3 shadow-md border border-amber-500/30">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
-                      <span className="text-xs font-black uppercase text-[#F49222]">
-                        Verbal Account Manager Payment Consultation
+                {/* Dynamic Company Bank Details (Configured by Admin) */}
+                {feeInfo?.company_bank_details?.account_number ? (
+                  <div className="p-5 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 space-y-3">
+                    <div className="flex items-center justify-between border-b border-amber-500/30 pb-2">
+                      <div className="flex items-center gap-2">
+                        <FiCreditCard className="text-amber-700" size={16} />
+                        <span className="text-xs font-black uppercase text-amber-900 tracking-wider">
+                          Official Company Bank Account Details
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded border border-amber-300">
+                        NEFT / RTGS / IMPS
                       </span>
                     </div>
-                    <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded border border-amber-400/30">
-                      Company Policy
-                    </span>
-                  </div>
 
-                  <div className="space-y-2 text-sm text-slate-200 leading-relaxed">
-                    <p className="font-medium">
-                      <strong>Important Security Policy:</strong> In accordance with standard company compliance, company bank account details are <strong>not attached or shared through the system</strong>.
+                    <p className="text-xs text-slate-600">
+                      Transfer exact setup fee of <strong>₹{Number(amountPaid).toLocaleString("en-IN")}</strong> to our verified company account below:
                     </p>
-                    <p className="text-slate-300">
-                      All payment details and offline bank transfer options are communicated directly through verbal discussion with your assigned Account Manager.
-                    </p>
-                  </div>
 
-                  <div className="flex items-center justify-between border-t border-white/10 pt-3 text-sm text-slate-300">
-                    <span>Enrollment Fee Reference:</span>
-                    <span className="font-black text-amber-400 text-base">₹{Number(amountPaid).toLocaleString("en-IN")} (+ GST as applicable)</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                      {/* Account Holder Name */}
+                      <div className="bg-white p-3 rounded-xl border border-amber-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide block">
+                          Account Holder Name
+                        </span>
+                        <span className="font-bold text-slate-900 mt-0.5 block truncate" title={feeInfo.company_bank_details.account_holder_name}>
+                          {feeInfo.company_bank_details.account_holder_name || "—"}
+                        </span>
+                      </div>
+
+                      {/* Account Number */}
+                      <div className="bg-white p-3 rounded-xl border border-amber-200 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide block">
+                            Account Number
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(feeInfo.company_bank_details.account_number, "tracker_acc")}
+                            className="text-amber-700 hover:text-amber-900 text-[10px] flex items-center gap-1 font-bold cursor-pointer"
+                            title="Copy Account Number"
+                          >
+                            {copiedField === "tracker_acc" ? <FiCheck size={11} className="text-emerald-600" /> : <FiCopy size={11} />}
+                            <span>{copiedField === "tracker_acc" ? "Copied" : "Copy"}</span>
+                          </button>
+                        </div>
+                        <span className="font-mono font-black text-slate-900 text-sm mt-0.5 block select-all tracking-wider">
+                          {feeInfo.company_bank_details.account_number || "—"}
+                        </span>
+                      </div>
+
+                      {/* IFSC Code */}
+                      <div className="bg-white p-3 rounded-xl border border-amber-200 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide block">
+                            IFSC Code
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(feeInfo.company_bank_details.ifsc_code, "tracker_ifsc")}
+                            className="text-amber-700 hover:text-amber-900 text-[10px] flex items-center gap-1 font-bold cursor-pointer"
+                            title="Copy IFSC Code"
+                          >
+                            {copiedField === "tracker_ifsc" ? <FiCheck size={11} className="text-emerald-600" /> : <FiCopy size={11} />}
+                            <span>{copiedField === "tracker_ifsc" ? "Copied" : "Copy"}</span>
+                          </button>
+                        </div>
+                        <span className="font-mono font-black text-slate-900 text-sm mt-0.5 block select-all uppercase tracking-wider">
+                          {feeInfo.company_bank_details.ifsc_code || "—"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white space-y-3 shadow-md border border-amber-500/30">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="text-xs font-black uppercase text-[#F49222]">
+                          Verbal Account Manager Payment Consultation
+                        </span>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded border border-amber-400/30">
+                        Company Policy
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-sm text-slate-200 leading-relaxed">
+                      <p className="font-medium">
+                        <strong>Important Security Policy:</strong> All payment details and offline bank transfer options are communicated directly through verbal discussion with your assigned Account Manager.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-white/10 pt-3 text-sm text-slate-300">
+                      <span>Enrollment Fee Reference:</span>
+                      <span className="font-black text-amber-400 text-base">₹{Number(amountPaid).toLocaleString("en-IN")} (+ GST as applicable)</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Receipt Upload & UTR Submission Form */}
                 <form onSubmit={handleUploadReceipt} className="space-y-4">

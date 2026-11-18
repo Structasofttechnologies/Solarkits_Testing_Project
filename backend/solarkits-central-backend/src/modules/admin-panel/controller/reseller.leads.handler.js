@@ -381,6 +381,20 @@ const submit_lead = async (req, res) => {
       selectedSolution?.toLowerCase().includes('callback')
     );
 
+    let resolvedPlanId = plan_id && mongoose.Types.ObjectId.isValid(plan_id) ? plan_id : null;
+    if (!resolvedPlanId) {
+      const targetLevel = (req.body.territoryLevel || req.body.territory_level || 'district').toLowerCase();
+      const defPlan = await ResellerPlan.findOne({
+        is_active: true,
+        deleted_at: null,
+        store_category: 'franchisee_store',
+        territory_level: targetLevel,
+      }).sort({ sort_order: 1, one_time_fee: 1 });
+      if (defPlan) {
+        resolvedPlanId = defPlan._id;
+      }
+    }
+
     const newLead = await FranchiseLead.create({
       full_name: name || 'Franchise Partner',
       business_name: company,
@@ -404,7 +418,7 @@ const submit_lead = async (req, res) => {
       expected_order_volume: (expectedOrderQty || expected_order_volume || '').toString().trim() || null,
       selected_solution: selectedSolution || selected_solution || (isCallbackReq ? 'Request Partner Callback' : 'Header Fast Application'),
       action_type: isCallbackReq ? 'callback_request' : (actionType || action_type || 'franchise_apply'),
-      plan_id: plan_id && mongoose.Types.ObjectId.isValid(plan_id) ? plan_id : null,
+      plan_id: resolvedPlanId,
       notes: isFieldActive('notes') ? ((notes || '').trim() || null) : null,
       shop_photos: photosList,
       consent_agreed: consent !== undefined ? Boolean(consent) : (consent_agreed !== undefined ? Boolean(consent_agreed) : true),
@@ -721,7 +735,21 @@ const approve_lead_as_franchisee = async (req, res) => {
       plan = await ResellerPlan.findById(targetPlanId);
     }
     if (!plan) {
-      plan = await ResellerPlan.findOne({ is_active: true, deleted_at: null }).sort({ one_time_fee: 1 });
+      const targetLevel = (lead.territory_level || 'district').toLowerCase();
+      plan = await ResellerPlan.findOne({
+        is_active: true,
+        deleted_at: null,
+        store_category: 'franchisee_store',
+        territory_level: targetLevel,
+      }).sort({ sort_order: 1, one_time_fee: 1 });
+
+      if (!plan) {
+        plan = await ResellerPlan.findOne({
+          is_active: true,
+          deleted_at: null,
+          store_category: 'franchisee_store',
+        }).sort({ sort_order: 1, one_time_fee: 1 });
+      }
     }
 
     // 2. Check if Reseller already exists

@@ -47,6 +47,7 @@ const FranchiseClusterHub = lazy(() => import("../pages/solar-shop/franchisee-cl
 const RegionPaymentConfig = lazy(() => import("../pages/solar-shop/payment-configuration/RegionPaymentConfig"));
 const OfflineApprovalQueue = lazy(() => import("../pages/solar-shop/payment-configuration/OfflineApprovalQueue"));
 const PaymentMilestoneSettings = lazy(() => import("../pages/solar-shop/payment-configuration/PaymentMilestoneSettings"));
+const OfflineBankAccountSettings = lazy(() => import("../pages/solar-shop/payment-configuration/OfflineBankAccountSettings"));
 
 const Home = lazy(() => import("../pages/solar-shop/Home"));
 const ApproveNewEPC = lazy(() => import("../pages/solar-shop/approve-new-epc/ApproveNewEPC"));
@@ -646,6 +647,12 @@ const menus = [
                     path: "/admin-panel/solar-shop/payment-configuration/offline-approvals",
                     unique_id: "00000000",
                     badgeKey: "offline-approvals"
+                },
+                {
+                    name: "Offline Bank Account Settings",
+                    icon: <FiCreditCard />,
+                    path: "/admin-panel/solar-shop/payment-configuration/bank-account",
+                    unique_id: "00000000"
                 },
             ]
         },
@@ -1938,6 +1945,22 @@ export default function SolarShopDashboard() {
                                         element={
                                             <Suspense fallback={<Loader text="Loading Offline Approval Queue..." />}>
                                                 <OfflineApprovalQueue />
+                                            </Suspense>
+                                        }
+                                    />
+                                    <Route
+                                        path="/payment-configuration/bank-account"
+                                        element={
+                                            <Suspense fallback={<Loader text="Loading Offline Bank Account Settings..." />}>
+                                                <OfflineBankAccountSettings />
+                                            </Suspense>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/payment-configuration/bank-account"
+                                        element={
+                                            <Suspense fallback={<Loader text="Loading Offline Bank Account Settings..." />}>
+                                                <OfflineBankAccountSettings />
                                             </Suspense>
                                         }
                                     />

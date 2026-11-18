@@ -757,7 +757,7 @@ const get_onboarding_queue = async (req, res) => {
         fee_payment_utr: r.fee_payment_utr,
         plan: plan ? {
           id: plan._id,
-          name: plan.name,
+          name: (plan.name === 'Company Store' && r.store_category !== 'company_store') ? 'District Franchise Store' : plan.name,
           store_category: plan.store_category,
           commission_enabled: plan.commission_enabled,
           setup_cost_enabled: plan.setup_cost_enabled,

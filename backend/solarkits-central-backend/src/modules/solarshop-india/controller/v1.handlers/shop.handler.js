@@ -3684,11 +3684,12 @@ const get_orders = async (req, res) => {
  */
 const get_company_bank_details = async (req, res) => {
   try {
-    const { COMPANY_BANK_DETAILS } = require("../../../admin-panel/services/epc.offline.checkout.service");
+    const { getDynamicCompanyBankDetails } = require("../../../admin-panel/services/epc.offline.checkout.service");
+    const bankDetails = await getDynamicCompanyBankDetails();
     return res.status(200).json({
       success: true,
       status: "success",
-      data: COMPANY_BANK_DETAILS,
+      data: bankDetails,
     });
   } catch (error) {
     console.error("get_company_bank_details error:", error);

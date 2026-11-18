@@ -375,7 +375,14 @@ const login_reseller = async (req, res) => {
               agreement_content: termsContent,
             });
 
-            let defPlan = await ResellerPlan.findOne({ is_active: true, deleted_at: null }).sort({ one_time_fee: 1 });
+            let defPlan = await ResellerPlan.findOne({
+              is_active: true,
+              deleted_at: null,
+              store_category: 'franchisee_store',
+            }).sort({ sort_order: 1, one_time_fee: 1 });
+            if (!defPlan) {
+              defPlan = await ResellerPlan.findOne({ is_active: true, deleted_at: null, store_category: 'franchisee_store' });
+            }
             if (defPlan) {
               await ResellerPlanSubscription.create({
                 reseller_id: reseller._id,
@@ -4423,8 +4430,25 @@ const get_fee_payment_info = async (req, res) => {
       .lean();
 
     let plan = subscription?.plan_id;
+    // Self-healing: If subscription's plan was accidentally pointing to company_store for a franchisee_store
+    if (plan && plan.store_category === 'company_store' && reseller.store_category !== 'company_store') {
+      const correctFranchisePlan = await ResellerPlan.findOne({
+        is_active: true,
+        deleted_at: null,
+        store_category: 'franchisee_store',
+      }).sort({ sort_order: 1, one_time_fee: 1 }).lean();
+      if (correctFranchisePlan) {
+        plan = correctFranchisePlan;
+        ResellerPlanSubscription.findByIdAndUpdate(subscription._id, { plan_id: correctFranchisePlan._id }).catch(() => { });
+      }
+    }
+
     if (!plan) {
-      plan = await ResellerPlan.findOne({ is_active: true, deleted_at: null }).sort({ one_time_fee: 1 }).lean();
+      plan = await ResellerPlan.findOne({
+        is_active: true,
+        deleted_at: null,
+        store_category: 'franchisee_store',
+      }).sort({ sort_order: 1, one_time_fee: 1 }).lean();
     }
 
     // Check FranchiseeAgreement for exact admin-configured setup & renewal fees
@@ -4445,9 +4469,18 @@ const get_fee_payment_info = async (req, res) => {
     const renewalFee = franchiseeAg?.renewal_fee || clusterDoc?.setup_fee_config?.renewal_fee || 10000;
     const feeAmount = setupFee;
 
+    const settings = await SolarShopSettings.findOne().lean();
+    const companyBankDetails = {
+      account_number: settings?.offline_bank_details?.account_number || '',
+      ifsc_code: settings?.offline_bank_details?.ifsc_code || '',
+      account_holder_name: settings?.offline_bank_details?.account_holder_name || '',
+    };
+
     const companyBankInfoNotice = {
-      bank_details_shared_via_system: false,
-      message: 'Company bank account details are not shared through the system. All payment details are discussed verbally with your assigned Account Manager.',
+      bank_details_shared_via_system: Boolean(companyBankDetails.account_number),
+      message: companyBankDetails.account_number
+        ? 'Please transfer the franchise setup fee to the official company bank account below via NEFT / RTGS / IMPS and submit your transfer receipt.'
+        : 'Company bank account details are being updated by Admin. Please contact accounts support.',
       support_email: 'accounts@solarkits.in',
       support_phone: '+91 98765 43210',
     };
@@ -4455,6 +4488,7 @@ const get_fee_payment_info = async (req, res) => {
     return res.json({
       status: 'success',
       data: {
+        company_bank_details: companyBankDetails,
         company_bank_info_notice: companyBankInfoNotice,
         setup_fee: setupFee,
         renewal_fee: renewalFee,
@@ -4462,10 +4496,10 @@ const get_fee_payment_info = async (req, res) => {
         agreement_number: franchiseeAg?.agreement_number || null,
         cluster: clusterDoc
           ? {
-              _id: clusterDoc._id,
-              cluster_name: clusterDoc.cluster_name,
-              cluster_code: clusterDoc.cluster_code,
-            }
+            _id: clusterDoc._id,
+            cluster_name: clusterDoc.cluster_name,
+            cluster_code: clusterDoc.cluster_code,
+          }
           : null,
         plan: {
           id: plan?._id,
@@ -4542,7 +4576,11 @@ const upload_manual_payment_receipt = async (req, res) => {
         plan = await ResellerPlan.findById(plan_id);
       }
       if (!plan) {
-        plan = await ResellerPlan.findOne({ is_active: true, deleted_at: null }).sort({ one_time_fee: 1 });
+        plan = await ResellerPlan.findOne({
+          is_active: true,
+          deleted_at: null,
+          store_category: 'franchisee_store',
+        }).sort({ sort_order: 1, one_time_fee: 1 });
       }
 
       const startDate = new Date();

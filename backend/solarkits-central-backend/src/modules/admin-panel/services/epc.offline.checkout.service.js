@@ -32,7 +32,7 @@ const { logAudit } = require('../utils/audit.service');
 const { creditResellerMargin, creditEpcMargin } = require('./wallet.settlement.service');
 const { resolveVariationCommission } = require('./franchisee.commission.service');
 
-// Company Escrow Bank Account Details
+// Company Escrow Bank Account Details (Default / Fallback)
 const COMPANY_BANK_DETAILS = {
   account_name: 'SolarKits Technologies Pvt Ltd',
   bank_name: 'HDFC Bank',
@@ -44,6 +44,27 @@ const COMPANY_BANK_DETAILS = {
   qr_code_url: '/assets/payments/solarkits_company_upi_qr.png',
   support_email: 'accounts@solarkits.com',
   support_phone: '+91 98765 43210',
+};
+
+/**
+ * Dynamically resolves configured Company Bank Details from SolarShopSettings.
+ * Falls back to COMPANY_BANK_DETAILS if unset.
+ */
+const getDynamicCompanyBankDetails = async () => {
+  try {
+    const settings = await SolarShopSettings.findOne().lean();
+    if (settings?.offline_bank_details?.account_number) {
+      return {
+        ...COMPANY_BANK_DETAILS,
+        account_name: settings.offline_bank_details.account_holder_name || COMPANY_BANK_DETAILS.account_name,
+        account_number: settings.offline_bank_details.account_number,
+        ifsc_code: settings.offline_bank_details.ifsc_code || COMPANY_BANK_DETAILS.ifsc_code,
+      };
+    }
+  } catch (err) {
+    console.warn('Could not read offline bank details from SolarShopSettings, using fallback:', err.message);
+  }
+  return COMPANY_BANK_DETAILS;
 };
 
 /**
@@ -1760,6 +1781,7 @@ async function updateOrderStage({ order_id, new_status, admin_user_id, dispatch_
 
 module.exports = {
   COMPANY_BANK_DETAILS,
+  getDynamicCompanyBankDetails,
   checkWarehouseStockAvailability,
   checkWarehouseCapacityForMode,
   createEpcOfflineOrder,

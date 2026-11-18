@@ -10,6 +10,7 @@ import {
   FiShoppingBag,
   FiArrowRight,
   FiCheck,
+  FiCopy,
   FiX,
   FiLoader,
   FiLogOut,
@@ -80,7 +81,15 @@ export default function OnboardingPortal() {
   const [receiptFile, setReceiptFile] = useState(null);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [copiedField, setCopiedField] = useState("");
   const [masterChecklist, setMasterChecklist] = useState([]);
+
+  const handleCopyText = (text, field) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(""), 2000);
+  };
 
   const fetchStoreSetup = useCallback(async () => {
     try {
@@ -1268,6 +1277,77 @@ export default function OnboardingPortal() {
                   </div>
                 )}
               </div>
+
+              {/* Dynamic Company Bank Account Details for Offline Fee Transfer */}
+              {feeInfo?.company_bank_details?.account_number ? (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+                      <FiCreditCard className="text-amber-700" size={15} /> Company Bank Account Details (Offline Transfer)
+                    </span>
+                    <span className="text-[10px] text-amber-900 font-bold bg-amber-200/80 px-2 py-0.5 rounded border border-amber-300">
+                      Verified Escrow Account
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    Transfer the franchise setup fee to the company bank account below via NEFT / RTGS / IMPS before submitting your transaction receipt:
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                    {/* Account Holder Name */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-200/80 shadow-2xs">
+                      <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide block">
+                        Account Holder Name
+                      </span>
+                      <span className="font-bold text-slate-900 mt-0.5 block truncate" title={feeInfo.company_bank_details.account_holder_name}>
+                        {feeInfo.company_bank_details.account_holder_name || "—"}
+                      </span>
+                    </div>
+
+                    {/* Account Number */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-200/80 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide block">
+                          Account Number
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(feeInfo.company_bank_details.account_number, "modal_acc_no")}
+                          className="text-amber-700 hover:text-amber-900 text-[10px] flex items-center gap-1 font-bold cursor-pointer transition"
+                          title="Copy Account Number"
+                        >
+                          {copiedField === "modal_acc_no" ? <FiCheck size={11} className="text-emerald-600" /> : <FiCopy size={11} />}
+                          <span>{copiedField === "modal_acc_no" ? "Copied" : "Copy"}</span>
+                        </button>
+                      </div>
+                      <span className="font-mono font-black text-slate-900 text-sm mt-0.5 block select-all tracking-wider">
+                        {feeInfo.company_bank_details.account_number || "—"}
+                      </span>
+                    </div>
+
+                    {/* IFSC Code */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-200/80 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide block">
+                          IFSC Code
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(feeInfo.company_bank_details.ifsc_code, "modal_ifsc")}
+                          className="text-amber-700 hover:text-amber-900 text-[10px] flex items-center gap-1 font-bold cursor-pointer transition"
+                          title="Copy IFSC Code"
+                        >
+                          {copiedField === "modal_ifsc" ? <FiCheck size={11} className="text-emerald-600" /> : <FiCopy size={11} />}
+                          <span>{copiedField === "modal_ifsc" ? "Copied" : "Copy"}</span>
+                        </button>
+                      </div>
+                      <span className="font-mono font-black text-slate-900 text-sm mt-0.5 block select-all uppercase tracking-wider">
+                        {feeInfo.company_bank_details.ifsc_code || "—"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               <form onSubmit={handleUploadReceipt} className="space-y-4 text-xs">
                 {uploadError && (
