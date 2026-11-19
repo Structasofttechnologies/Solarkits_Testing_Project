@@ -10,6 +10,7 @@ const {
 } = require('../models/india_solarshop_db');
 const { CmsUser } = require('../models/user_db');
 const { GeoLevel1, GeoLevel2, Level1, Level2 } = require('../models/geolocation_db');
+const { invalidateGoalCache } = require('../services/franchisee.goal.service');
 const StateLevel = GeoLevel1 || Level1;
 const DistrictLevel = GeoLevel2 || Level2;
 
@@ -113,10 +114,13 @@ const syncClusterGoalConfig = async (cluster, goalConfig, userId) => {
     : `${currentYear - 1}-${String(currentYear).slice(2)}`;
   const fy = goalConfig.financial_year || defaultFY;
 
-  const monthlyKitTarget = Number(goalConfig.monthly_kit_target || 0);
-  const monthlyRevenueTarget = Number(goalConfig.monthly_revenue_target || 0);
-  const targetPoKits = Number(goalConfig.target_po_kits || Math.round(monthlyKitTarget * 0.8));
-  const targetLooseOrders = Number(goalConfig.target_loose_orders || Math.round(monthlyKitTarget * 0.2));
+  const monthlyKitTarget = Number(goalConfig.monthly_kits_target ?? goalConfig.monthly_kit_target ?? 100);
+  const annualKitsTarget = Number(goalConfig.annual_kits_target ?? (monthlyKitTarget * 12));
+  const epcOnboardGoal = Number(goalConfig.annual_epc_goal ?? 50);
+  const epcOnboardDays = Number(goalConfig.epc_onboard_days ?? 90);
+  const liveEpcGoal = Number(goalConfig.annual_live_epc_goal ?? 60);
+  const liveEpcDays = Number(goalConfig.live_epc_criteria_days ?? 90);
+  const annualPoOrdersGoal = Number(goalConfig.annual_po_orders_goal ?? 50);
 
   let monthlyGoals = goalConfig.monthly_kit_goals;
   if (!Array.isArray(monthlyGoals) || monthlyGoals.length === 0) {
@@ -129,9 +133,9 @@ const syncClusterGoalConfig = async (cluster, goalConfig, userId) => {
         month: m,
         year: y,
         target_kits_quantity: monthlyKitTarget,
-        target_revenue: monthlyRevenueTarget,
-        target_po_kits: targetPoKits,
-        target_loose_orders: targetLooseOrders,
+        target_revenue: Number(goalConfig.monthly_revenue_target || 0),
+        target_po_kits: Number(goalConfig.target_po_kits || Math.round(monthlyKitTarget * 0.8)),
+        target_loose_orders: Number(goalConfig.target_loose_orders || 0),
       });
     }
   }
@@ -150,12 +154,20 @@ const syncClusterGoalConfig = async (cluster, goalConfig, userId) => {
       reason: goalConfig.reason || 'Updated during cluster update',
       previous_annual_epc_goal: existingGoal.annual_epc_goal,
       previous_annual_live_epc_goal: existingGoal.annual_live_epc_goal,
+      previous_epc_onboard_days: existingGoal.epc_onboard_days,
+      previous_monthly_kits_target: existingGoal.monthly_kits_target,
+      previous_annual_kits_target: existingGoal.annual_kits_target,
+      previous_annual_po_orders_goal: existingGoal.annual_po_orders_goal,
       previous_monthly_goals: existingGoal.monthly_kit_goals,
     });
 
-    if (goalConfig.annual_epc_goal !== undefined) existingGoal.annual_epc_goal = Number(goalConfig.annual_epc_goal);
-    if (goalConfig.annual_live_epc_goal !== undefined) existingGoal.annual_live_epc_goal = Number(goalConfig.annual_live_epc_goal);
-    if (goalConfig.live_epc_criteria_days !== undefined) existingGoal.live_epc_criteria_days = Number(goalConfig.live_epc_criteria_days);
+    existingGoal.monthly_kits_target = monthlyKitTarget;
+    existingGoal.annual_kits_target = annualKitsTarget;
+    existingGoal.annual_epc_goal = epcOnboardGoal;
+    existingGoal.epc_onboard_days = epcOnboardDays;
+    existingGoal.annual_live_epc_goal = liveEpcGoal;
+    existingGoal.live_epc_criteria_days = liveEpcDays;
+    existingGoal.annual_po_orders_goal = annualPoOrdersGoal;
     existingGoal.monthly_kit_goals = monthlyGoals;
     existingGoal.franchisee_id = cluster.assigned_franchisee_id || null;
     existingGoal.updated_by = userId || null;
@@ -165,13 +177,25 @@ const syncClusterGoalConfig = async (cluster, goalConfig, userId) => {
       cluster_id: cluster._id,
       franchisee_id: cluster.assigned_franchisee_id || null,
       financial_year: fy,
-      annual_epc_goal: Number(goalConfig.annual_epc_goal || 100),
-      annual_live_epc_goal: Number(goalConfig.annual_live_epc_goal || 60),
-      live_epc_criteria_days: Number(goalConfig.live_epc_criteria_days || 90),
+      monthly_kits_target: monthlyKitTarget,
+      annual_kits_target: annualKitsTarget,
+      annual_epc_goal: epcOnboardGoal,
+      epc_onboard_days: epcOnboardDays,
+      annual_live_epc_goal: liveEpcGoal,
+      live_epc_criteria_days: liveEpcDays,
+      annual_po_orders_goal: annualPoOrdersGoal,
       monthly_kit_goals: monthlyGoals,
       created_by: userId || null,
     });
     await newGoal.save();
+  }
+
+  if (cluster.assigned_franchisee_id) {
+    try {
+      invalidateGoalCache(cluster.assigned_franchisee_id);
+    } catch (e) {
+      console.warn('Cache invalidate warning:', e);
+    }
   }
 };
 

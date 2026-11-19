@@ -51,6 +51,7 @@ const {
   WarehouseComboKit,
   FranchiseeAlert,
   EpcSignupRequest,
+  TrialKitOrder,
 } = require('../../admin-panel/models/india_solarshop_db');
 const {
   createPoDraft,
@@ -534,7 +535,13 @@ exports.get_my_goals = async (req, res) => {
 
     const stateLeadFilter = stateNames.length > 0 ? [{ state_name: { $in: stateNames.map(s => new RegExp(`^${s}$`, 'i')) } }] : [];
 
-    const [epcLeadsCount, epcsOnboardedCount, fpoOrders] = await Promise.all([
+    const trialKitFilters = [
+      { bde_id: bdeId },
+      ...(stateNames.length > 0 ? [{ 'delivery_details.shipping_address.state': { $in: stateNames.map(s => new RegExp(`^${s}$`, 'i')) } }] : []),
+      ...(assignedDistricts.length > 0 ? [{ 'delivery_details.shipping_address.district': { $in: assignedDistricts } }] : []),
+    ];
+
+    const [epcLeadsCount, epcsOnboardedCount, fpoOrders, trialKitsCount] = await Promise.all([
       EPCLead.countDocuments({
         deleted_at: null,
         $or: [{ current_bde_id: bdeId }, ...stateLeadFilter],
@@ -548,6 +555,11 @@ exports.get_my_goals = async (req, res) => {
         reseller_id: { $in: franchiseeIds },
         status: { $nin: ['CANCELLED', 'EXPIRED'] },
       }).lean(),
+      TrialKitOrder.countDocuments({
+        order_status: { $ne: 'cancelled' },
+        'cancellation.is_cancelled': { $ne: true },
+        $or: trialKitFilters,
+      }).catch(() => 0),
     ]);
 
     let totalKitsOrdered = 0;
@@ -565,6 +577,7 @@ exports.get_my_goals = async (req, res) => {
       monthly_epc_leads_achieved: epcLeadsCount,
       monthly_epc_onboarded_achieved: epcsOnboardedCount,
       monthly_network_kits_achieved: totalKitsOrdered,
+      monthly_trial_kits_achieved: trialKitsCount,
     } : null;
 
     return res.status(200).json({
@@ -579,6 +592,7 @@ exports.get_my_goals = async (req, res) => {
           monthly_epc_leads_achieved: epcLeadsCount,
           monthly_epc_onboarded_achieved: epcsOnboardedCount,
           monthly_network_kits_achieved: totalKitsOrdered,
+          monthly_trial_kits_achieved: trialKitsCount,
         },
       },
     });
@@ -705,7 +719,13 @@ exports.get_bde_dashboard = async (req, res) => {
       dashboardFpoFilters.push({ 'delivery_address.state_name': { $in: stateNames.map((s) => new RegExp(`^${s}$`, 'i')) } });
     }
 
-    const [fpoOrders, epcOrders] = await Promise.all([
+    const trialKitFilters = [
+      { bde_id: bdeId },
+      ...(stateNames.length > 0 ? [{ 'delivery_details.shipping_address.state': { $in: stateNames.map((s) => new RegExp(`^${s}$`, 'i')) } }] : []),
+      ...(assignedDistricts.length > 0 ? [{ 'delivery_details.shipping_address.district': { $in: assignedDistricts } }] : []),
+    ];
+
+    const [fpoOrders, epcOrders, trialKitsCount] = await Promise.all([
       FpoOrder.find({
         $or: dashboardFpoFilters,
         status: { $nin: ['CANCELLED', 'EXPIRED'] },
@@ -716,7 +736,12 @@ exports.get_bde_dashboard = async (req, res) => {
           ...(stateNames.length > 0 ? [{ 'delivery_address.state_name': { $in: stateNames.map((s) => new RegExp(`^${s}$`, 'i')) } }] : [])
         ],
         order_status: { $nin: ['cancelled', 'rejected'] }
-      }).lean().catch(() => [])
+      }).lean().catch(() => []),
+      TrialKitOrder.countDocuments({
+        order_status: { $ne: 'cancelled' },
+        'cancellation.is_cancelled': { $ne: true },
+        $or: trialKitFilters,
+      }).catch(() => 0)
     ]);
 
     const totalOrdersCount = fpoOrders.length + epcOrders.length;
@@ -826,6 +851,10 @@ exports.get_bde_dashboard = async (req, res) => {
     const monthlyKitGoal = goal?.monthly_network_kit_goal !== undefined && goal?.monthly_network_kit_goal !== null
       ? Number(goal.monthly_network_kit_goal)
       : 200;
+    const monthlyTrialKitGoal = goal?.monthly_trial_kit_goal !== undefined && goal?.monthly_trial_kit_goal !== null
+      ? Number(goal.monthly_trial_kit_goal)
+      : 10;
+    const trial_kit_achievement_pct = monthlyTrialKitGoal > 0 ? Math.round((trialKitsCount / monthlyTrialKitGoal) * 100) : 0;
 
     const stateCount = assignedStates.length;
     const isAllIndia = stateCount >= 25;
@@ -899,6 +928,9 @@ exports.get_bde_dashboard = async (req, res) => {
           monthly_network_kit_goal: monthlyKitGoal,
           monthly_network_kits_achieved: totalKitsOrdered,
           network_kit_achievement_pct: monthlyKitGoal > 0 ? Math.round((totalKitsOrdered / monthlyKitGoal) * 100) : 0,
+          monthly_trial_kit_goal: monthlyTrialKitGoal,
+          monthly_trial_kits_achieved: trialKitsCount,
+          trial_kit_achievement_pct: trial_kit_achievement_pct,
         },
         notifications,
       },

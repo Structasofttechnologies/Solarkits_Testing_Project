@@ -108,13 +108,14 @@ async function resolveEffectiveTarget({ franchisee_id, month, year }) {
           cluster_id: cluster._id,
           cluster_code: cluster.cluster_code || cluster.code || 'CLU',
           cluster_name: cluster.cluster_name || cluster.name || 'Territory Cluster',
-          target_quantity: mGoal ? mGoal.target_kits_quantity : 100,
-          target_revenue: mGoal ? mGoal.target_revenue : 5000000,
-          po_split_kits: mGoal ? mGoal.target_po_kits : 80,
-          loose_split_kits: mGoal ? mGoal.target_loose_orders : 20,
-          annual_epc_goal: clusterGoal.annual_epc_goal || 100,
+          target_quantity: mGoal ? mGoal.target_kits_quantity : (clusterGoal.monthly_kits_target || 100),
+          monthly_kits_target: clusterGoal.monthly_kits_target || 100,
+          annual_kits_target: clusterGoal.annual_kits_target || 1200,
+          annual_epc_goal: clusterGoal.annual_epc_goal || 50,
+          epc_onboard_days: clusterGoal.epc_onboard_days || 90,
           annual_live_epc_goal: clusterGoal.annual_live_epc_goal || 60,
           live_epc_criteria_days: clusterGoal.live_epc_criteria_days || 90,
+          annual_po_orders_goal: clusterGoal.annual_po_orders_goal || 50,
           calculation_stage: 'DELIVERED_QUANTITY',
         };
       }
@@ -446,8 +447,9 @@ async function getGoalWidget(franchisee_id) {
     }).lean();
 
     const actualEpcs = approvedEpcs.length;
-    const targetEpcs = clusterGoal?.annual_epc_goal || 100;
+    const targetEpcs = clusterGoal?.annual_epc_goal || 50;
     const epcAchievedPct = targetEpcs > 0 ? Math.round((actualEpcs / targetEpcs) * 100) : 0;
+    const epcOnboardDays = clusterGoal?.epc_onboard_days || 90;
 
     const thresholdDays = clusterGoal?.live_epc_criteria_days || 90;
     const cutoffDate = new Date(Date.now() - thresholdDays * 24 * 60 * 60 * 1000);
@@ -459,6 +461,7 @@ async function getGoalWidget(franchisee_id) {
 
     annualEpcGoal = {
       total_epc_target: targetEpcs,
+      epc_onboard_days: epcOnboardDays,
       actual_epcs_onboarded: actualEpcs,
       achievement_pct: epcAchievedPct,
     };
@@ -478,6 +481,38 @@ async function getGoalWidget(franchisee_id) {
       districts_count: (cluster.district_ids || []).length,
     };
   }
+
+  // Calculate current Financial Year date range (April 1 to March 31)
+  const [startYrStr] = fy.split('-').map(Number);
+  const fyStart = new Date(startYrStr, 3, 1, 0, 0, 0); // 1st April
+  const fyEnd = new Date(startYrStr + 1, 2, 31, 23, 59, 59); // 31st March
+
+  // Calculate actual yearly kits sold and annual PO orders count in this FY
+  let yearlyKitsActual = 0;
+  let actualPoOrdersCount = 0;
+  if (fId) {
+    const validStatuses = ['CONFIRMED', 'PAID', 'PROCESSING', 'DISPATCHED', 'DELIVERED', 'COMPLETED'];
+    const fyOrders = await FpoOrder.find({
+      reseller_id: fId,
+      status: { $in: validStatuses },
+      created_at: { $gte: fyStart, $lte: fyEnd },
+      deleted_at: null,
+    }).lean();
+
+    for (const ord of fyOrders) {
+      yearlyKitsActual += Number(ord.total_kits_count || ord.total_quantity || 1);
+    }
+
+    actualPoOrdersCount = await FpoOrder.countDocuments({
+      reseller_id: fId,
+      created_at: { $gte: fyStart, $lte: fyEnd },
+      deleted_at: null,
+    });
+  }
+
+  const annualPoOrdersGoal = clusterGoal?.annual_po_orders_goal || 50;
+  const poOrdersAchPct = annualPoOrdersGoal > 0 ? Math.round((actualPoOrdersCount / annualPoOrdersGoal) * 100) : 0;
+  const poOrdersPending = Math.max(0, annualPoOrdersGoal - actualPoOrdersCount);
 
   // Recalculate dynamically to ensure fresh real-time data
   let progress = await recalculateProgress({ franchisee_id, month, year });
@@ -507,38 +542,91 @@ async function getGoalWidget(franchisee_id) {
   const monthName = new Date(year, month - 1, 1).toLocaleString('en-IN', { month: 'long' });
 
   const currentMonthGoal = (clusterGoal?.monthly_kit_goals || []).find((m) => m.month === month);
-  const monthlyGoalTarget = currentMonthGoal?.target_kits_quantity || progress.target_quantity || 100;
-  const targetRevenue = currentMonthGoal?.target_revenue || 5000000;
+  const monthlyGoalTarget = clusterGoal?.monthly_kits_target || currentMonthGoal?.target_kits_quantity || progress.target_quantity || 100;
   const eligibleKits = progress.eligible_quantity || 0;
-  const actualRevenue = progress.actual_revenue || 0;
   const balanceKits = Math.max(0, monthlyGoalTarget - eligibleKits);
-  const balanceRevenue = Math.max(0, targetRevenue - actualRevenue);
   const achievementPct = monthlyGoalTarget > 0 ? Math.round((eligibleKits / monthlyGoalTarget) * 100) : 0;
-  const revenueAchPct = targetRevenue > 0 ? Math.round((actualRevenue / targetRevenue) * 100) : 0;
+
+  const annualKitsTarget = clusterGoal?.annual_kits_target || annualKitsTargetTotal || (monthlyGoalTarget * 12);
+  const annualKitsAchPct = annualKitsTarget > 0 ? Math.round((yearlyKitsActual / annualKitsTarget) * 100) : 0;
+  const annualKitsPending = Math.max(0, annualKitsTarget - yearlyKitsActual);
 
   const widgetData = {
     period: `${monthName} ${year}`,
     financial_year: fy,
     target_month: month,
     target_year: year,
+
+    // ── 1. Monthly Sell Kit Target ──
     monthly_goal: monthlyGoalTarget,
-    target_revenue: targetRevenue,
     eligible_kits: eligibleKits,
-    actual_revenue: actualRevenue,
     balance_kits: balanceKits,
-    balance_revenue: balanceRevenue,
     achievement_pct: achievementPct,
-    revenue_achievement_pct: revenueAchPct,
-    annual_kits_target: annualKitsTargetTotal || (monthlyGoalTarget * 12),
-    annual_revenue_target: annualRevenueTargetTotal || (targetRevenue * 12),
-    po_split_kits: currentMonthGoal?.target_po_kits || Math.round(monthlyGoalTarget * 0.8),
-    loose_split_kits: currentMonthGoal?.target_loose_orders || Math.round(monthlyGoalTarget * 0.2),
+    monthly_kits: {
+      target: monthlyGoalTarget,
+      actual: eligibleKits,
+      pending: balanceKits,
+      achievement_pct: achievementPct,
+    },
+
+    // ── 2. Yearly Sell Kit Target ──
+    annual_kits_target: annualKitsTarget,
+    annual_kits_actual: yearlyKitsActual,
+    annual_kits_pending: annualKitsPending,
+    annual_kits_achievement_pct: annualKitsAchPct,
+    yearly_kits: {
+      target: annualKitsTarget,
+      actual: yearlyKitsActual,
+      pending: annualKitsPending,
+      achievement_pct: annualKitsAchPct,
+    },
+
+    // ── 3. EPC Onboarding Goal (Day 90 Target) ──
+    annual_epc_goal: annualEpcGoal || {
+      total_epc_target: clusterGoal?.annual_epc_goal || 50,
+      epc_onboard_days: clusterGoal?.epc_onboard_days || 90,
+      actual_epcs_onboarded: 0,
+      achievement_pct: 0,
+    },
+    epc_onboarding: {
+      target: clusterGoal?.annual_epc_goal || 50,
+      timeframe_days: clusterGoal?.epc_onboard_days || 90,
+      actual: annualEpcGoal?.actual_epcs_onboarded || 0,
+      pending: Math.max(0, (clusterGoal?.annual_epc_goal || 50) - (annualEpcGoal?.actual_epcs_onboarded || 0)),
+      achievement_pct: annualEpcGoal?.achievement_pct || 0,
+    },
+
+    // ── 4. EPC Active Goal - Yearly ──
+    live_epc_goal: liveEpcGoal || {
+      live_epc_target: clusterGoal?.annual_live_epc_goal || 60,
+      actual_live_epcs: 0,
+      achievement_pct: 0,
+      criteria_days: clusterGoal?.live_epc_criteria_days || 90,
+    },
+    epc_active: {
+      target: clusterGoal?.annual_live_epc_goal || 60,
+      criteria_days: clusterGoal?.live_epc_criteria_days || 90,
+      actual: liveEpcGoal?.actual_live_epcs || 0,
+      pending: Math.max(0, (clusterGoal?.annual_live_epc_goal || 60) - (liveEpcGoal?.actual_live_epcs || 0)),
+      achievement_pct: liveEpcGoal?.achievement_pct || 0,
+    },
+
+    // ── 5. PO Orders -> Yearly ──
+    annual_po_orders_goal: annualPoOrdersGoal,
+    actual_po_orders_count: actualPoOrdersCount,
+    po_orders_pending: poOrdersPending,
+    po_orders_achievement_pct: poOrdersAchPct,
+    po_orders: {
+      target: annualPoOrdersGoal,
+      actual: actualPoOrdersCount,
+      pending: poOrdersPending,
+      achievement_pct: poOrdersAchPct,
+    },
+
     performance_status: classifyPerformance(achievementPct, monthlyGoalTarget),
     days_remaining: Math.max(0, daysRemaining),
     has_target: true,
     cluster: clusterInfo,
-    annual_epc_goal: annualEpcGoal,
-    live_epc_goal: liveEpcGoal,
     previous_month: prevProgress ? {
       month: prevMonth,
       year: prevYear,

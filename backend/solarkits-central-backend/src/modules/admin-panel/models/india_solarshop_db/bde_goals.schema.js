@@ -65,6 +65,11 @@ const schema = new mongoose.Schema({
     min: 0,
     default: 0,
   },
+  monthly_trial_kit_goal: {
+    type: Number,
+    min: 0,
+    default: 0,
+  },
   // Onboarding Permissions / Decision controls
   can_onboard_epc: {
     type: Boolean,
@@ -100,6 +105,11 @@ const schema = new mongoose.Schema({
     default: 0,
   },
   monthly_network_kits_achieved: {
+    type: Number,
+    min: 0,
+    default: 0,
+  },
+  monthly_trial_kits_achieved: {
     type: Number,
     min: 0,
     default: 0,

@@ -100,30 +100,7 @@ const menus = [
         { step: "01", badgeKey: "01", name: "Dashboard", icon: <FaHome />, path: "/admin-panel/solar-shop/home", unique_id: "00000000" },
 
 
-        // { 
-        //     step: "01B", 
-        //     badgeKey: "ACC_M", 
-        //     name: "Accounting Overview", 
-        //     icon: <FaFileInvoiceDollar />, 
-        //     path: "/admin-panel/solar-shop/accounting-overview", 
-        //     unique_id: "00000000"
-        // },
-        // {
-        //     step: "01C",
-        //     badgeKey: "WH_F",
-        //     name: "Warehouse Loan & Expansion",
-        //     icon: <FaWarehouse />,
-        //     path: "/admin-panel/solar-shop/warehouse-finance",
-        //     unique_id: "00000000"
-        // },
-        // {
-        //     step: "01D",
-        //     badgeKey: "EXEC_F",
-        //     name: "Executive Finance Dashboard",
-        //     icon: <FaChartLine />,
-        //     path: "/admin-panel/solar-shop/executive-finance",
-        //     unique_id: "00000000"
-        // }
+
     ],
     [
         { step: "02", badgeKey: "02", name: "Approve New EPC", icon: <FaUsers />, path: "/admin-panel/solar-shop/approve-new-epc", unique_id: "ADM_APPROVE_EPC" },
@@ -302,12 +279,7 @@ const menus = [
             path: "/admin-panel/solar-shop/order-management-settings",
             unique_id: "ADM_ORDER_SETTINGS",
             subMenu: [
-                // {
-                //     name: "Order Settings",
-                //     icon: <HiCube />,
-                //     path: "/admin-panel/solar-shop/order-management-settings",
-                //     unique_id: "ADM_ORDER_SETTINGS"
-                // },
+
                 {
                     name: "Offers Management",
                     icon: <HiCube />,
@@ -421,12 +393,12 @@ const menus = [
                     path: "/admin-panel/solar-shop/reseller-management/plans",
                     unique_id: "RSL_PLAN"
                 },
-                {
-                    name: "Territories",
-                    icon: <FiMapPin />,
-                    path: "/admin-panel/solar-shop/reseller-management/territories",
-                    unique_id: "RSL_TERRITORY"
-                },
+                // {
+                //     name: "Territories",
+                //     icon: <FiMapPin />,
+                //     path: "/admin-panel/solar-shop/reseller-management/territories",
+                //     unique_id: "RSL_TERRITORY"
+                // },
                 {
                     name: "Product Authorization",
                     icon: <FiPackage />,

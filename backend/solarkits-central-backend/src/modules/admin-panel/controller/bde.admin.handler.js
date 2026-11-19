@@ -1284,6 +1284,7 @@ exports.assign_goals = async (req, res) => {
       monthly_epc_lead_goal = 0,
       monthly_epc_onboard_goal = 0,
       monthly_network_kit_goal = 0,
+      monthly_trial_kit_goal = 0,
       can_onboard_epc,
       can_onboard_franchise,
       start_date,
@@ -1327,6 +1328,7 @@ exports.assign_goals = async (req, res) => {
 
     const finalMonthlyEpcLead = isEpcEnabled ? Number(monthly_epc_lead_goal || 0) : 0;
     const finalMonthlyEpcOnboard = isEpcEnabled ? Number(monthly_epc_onboard_goal || 0) : 0;
+    const finalMonthlyTrialKit = isEpcEnabled ? Number(monthly_trial_kit_goal || 0) : 0;
 
     const currentMonth = month || (new Date().getMonth() + 1);
     const currentQuarter = quarter || (Math.floor(new Date().getMonth() / 3) + 1);
@@ -1349,6 +1351,7 @@ exports.assign_goals = async (req, res) => {
       monthly_epc_lead_goal: finalMonthlyEpcLead,
       monthly_epc_onboard_goal: finalMonthlyEpcOnboard,
       monthly_network_kit_goal: finalNetworkKit,
+      monthly_trial_kit_goal: finalMonthlyTrialKit,
       can_onboard_epc: isEpcEnabled,
       can_onboard_franchise: isFranchiseEnabled,
       start_date: start_date ? new Date(start_date) : new Date(),
@@ -1363,7 +1366,7 @@ exports.assign_goals = async (req, res) => {
       activeTargetsMsg.push(`Monthly Signups: ${finalMonthlyFranchiseeSignup}, Stores: ${finalOperationalStore}, Kits: ${finalNetworkKit}`);
     }
     if (isEpcEnabled) {
-      activeTargetsMsg.push(`EPC Leads: ${finalMonthlyEpcLead}, EPC Onboardings: ${finalMonthlyEpcOnboard}`);
+      activeTargetsMsg.push(`EPC Leads: ${finalMonthlyEpcLead}, EPC Onboardings: ${finalMonthlyEpcOnboard}, Trial Kits: ${finalMonthlyTrialKit}`);
     }
     const messageDetail = activeTargetsMsg.length > 0 ? activeTargetsMsg.join(' | ') : 'Targets updated';
 
@@ -1387,6 +1390,7 @@ exports.assign_goals = async (req, res) => {
         monthly_epc_lead_goal,
         monthly_epc_onboard_goal,
         monthly_network_kit_goal,
+        monthly_trial_kit_goal,
         year,
         notes,
       },

@@ -583,7 +583,7 @@ export const CONFIG_MODULES = [
     title: 'Franchisee Agreements',
     category: 'franchisee',
     categoryLabel: 'Franchisee Mgmt',
-    description: 'Track franchisee agreements, validity lifecycles, renewal chains, contract templates, and flagship exclusions.',
+    description: 'Track franchisee agreements, validity lifecycles, renewal chains, and contract templates.',
     route: '/admin-panel/solar-shop/reseller-management/settings',
     primaryAction: 'Franchisee Agreements',
     icon: 'FiFileText',

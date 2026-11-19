@@ -173,12 +173,12 @@ const menus = [
           path: "/admin-panel/bde-management/franchisees",
           unique_id: "ADM_BDE_MGMT",
         },
-        {
-          name: "Territory Exceptions",
-          icon: <FaMapLocationDot />,
-          path: "/admin-panel/bde-management/territory-exceptions",
-          unique_id: "ADM_BDE_MGMT",
-        },
+        // {
+        //   name: "Territory Exceptions",
+        //   icon: <FaMapLocationDot />,
+        //   path: "/admin-panel/bde-management/territory-exceptions",
+        //   unique_id: "ADM_BDE_MGMT",
+        // },
         {
           name: "Conversion Funnel",
           icon: <FaCoins />,

@@ -1239,17 +1239,15 @@ const assign_lead_to_bde = async (req, res) => {
 };
 
 
-// ── GET EXCLUDED FLAGSHIP STORE DISTRICTS ────────────────────────────────────
+// ── GET EXCLUDED FLAGSHIP STORE DISTRICTS (DEPRECATED - Excluded districts module removed) ─
 const get_excluded_districts = async (req, res) => {
   try {
-    const settings = await SolarShopSettings.findOne().lean();
     return res.status(200).json({
       status: 'success',
-      data: settings?.flagship_excluded_districts || [],
+      data: [],
     });
   } catch (error) {
-    console.error('[reseller.leads] get_excluded_districts error:', error);
-    return res.status(500).json({ status: 'error', message: 'Failed to retrieve excluded districts' });
+    return res.status(200).json({ status: 'success', data: [] });
   }
 };
 

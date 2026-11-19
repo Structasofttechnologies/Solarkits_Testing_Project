@@ -349,7 +349,7 @@ const get_warehouse_activations = async (req, res) => {
         const MarginModel = isIndia ? CompanyMarginIndia : CompanyMarginCore;
 
         // Parallel batch fetch all dependent collections
-        const [solarKitDocs, pricedSkuDocs, allSkuDocs, marginDocs, activations] = await Promise.all([
+        const [solarKitDocs, pricedSkuDocs, allSkuDocs, marginDocs, activations, clusterMapping] = await Promise.all([
             solarKitIds.length > 0 ? SolarKit.find({ _id: { $in: solarKitIds } })
                 .populate('category_id')
                 .populate('subcategory_id')

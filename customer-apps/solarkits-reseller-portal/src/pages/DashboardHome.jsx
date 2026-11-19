@@ -76,45 +76,59 @@ export default function DashboardHome() {
   }, []);
 
   // Goal Tracking metrics resolution (Cluster Goal Setting + Target Progress)
-  const epcTarget = goalData?.annual_epc_goal?.total_epc_target
+  // 3. EPC Onboarding Goal (Day 90 Target: 50 Approved EPCs)
+  const epcTarget = goalData?.epc_onboarding?.target
+    || goalData?.annual_epc_goal?.total_epc_target
     || (typeof clusterInfo?.goal?.annual_epc_goal === 'number' ? clusterInfo.goal.annual_epc_goal : clusterInfo?.goal?.annual_epc_goal?.total_epc_target)
-    || 100;
-  const epcActual = goalData?.annual_epc_goal?.actual_epcs_onboarded || 0;
-  const epcAchPct = goalData?.annual_epc_goal?.achievement_pct != null
-    ? goalData.annual_epc_goal.achievement_pct
-    : (epcTarget > 0 ? Math.round((epcActual / epcTarget) * 100) : 0);
+    || 50;
+  const epcOnboardDays = goalData?.epc_onboarding?.timeframe_days
+    || goalData?.annual_epc_goal?.epc_onboard_days
+    || clusterInfo?.goal?.epc_onboard_days
+    || 90;
+  const epcActual = goalData?.epc_onboarding?.actual
+    ?? goalData?.annual_epc_goal?.actual_epcs_onboarded
+    ?? 0;
+  const epcAchPct = goalData?.epc_onboarding?.achievement_pct
+    ?? goalData?.annual_epc_goal?.achievement_pct
+    ?? (epcTarget > 0 ? Math.round((epcActual / epcTarget) * 100) : 0);
   const epcPending = Math.max(0, epcTarget - epcActual);
 
-  const liveTarget = goalData?.live_epc_goal?.live_epc_target
+  // 4. EPC Active Goal - Yearly
+  const liveTarget = goalData?.epc_active?.target
+    || goalData?.live_epc_goal?.live_epc_target
     || (typeof clusterInfo?.goal?.annual_live_epc_goal === 'number' ? clusterInfo.goal.annual_live_epc_goal : clusterInfo?.goal?.live_epc_goal?.live_epc_target)
     || 60;
-  const liveActual = goalData?.live_epc_goal?.actual_live_epcs || 0;
-  const liveAchPct = goalData?.live_epc_goal?.achievement_pct != null
-    ? goalData.live_epc_goal.achievement_pct
-    : (liveTarget > 0 ? Math.round((liveActual / liveTarget) * 100) : 0);
+  const liveActual = goalData?.epc_active?.actual
+    ?? goalData?.live_epc_goal?.actual_live_epcs
+    ?? 0;
+  const liveAchPct = goalData?.epc_active?.achievement_pct
+    ?? goalData?.live_epc_goal?.achievement_pct
+    ?? (liveTarget > 0 ? Math.round((liveActual / liveTarget) * 100) : 0);
   const livePending = Math.max(0, liveTarget - liveActual);
-  const liveCriteriaDays = goalData?.live_epc_goal?.criteria_days || clusterInfo?.goal?.live_epc_criteria_days || 90;
+  const liveCriteriaDays = goalData?.epc_active?.criteria_days || goalData?.live_epc_goal?.criteria_days || clusterInfo?.goal?.live_epc_criteria_days || 90;
 
   const fyLabel = goalData?.financial_year || clusterInfo?.goal?.financial_year || "FY 2026-27";
   const clusterCode = goalData?.cluster?.code || clusterInfo?.cluster?.cluster_code || clusterInfo?.cluster?.code || null;
   const clusterName = goalData?.cluster?.name || clusterInfo?.cluster?.cluster_name || clusterInfo?.cluster?.name || territory?.location_name || null;
 
-  const monthlyKitTarget = goalData?.monthly_goal || 100;
-  const kitsFulfilled = goalData?.eligible_kits || 0;
-  const kitsPending = goalData?.balance_kits != null ? goalData.balance_kits : Math.max(0, monthlyKitTarget - kitsFulfilled);
-  const kitAchPct = goalData?.achievement_pct || (monthlyKitTarget > 0 ? Math.round((kitsFulfilled / monthlyKitTarget) * 100) : 0);
+  // 1. Monthly Sell Kit Target
+  const monthlyKitTarget = goalData?.monthly_kits?.target || goalData?.monthly_goal || 100;
+  const kitsFulfilled = goalData?.monthly_kits?.actual ?? goalData?.eligible_kits ?? 0;
+  const kitsPending = goalData?.monthly_kits?.pending ?? (goalData?.balance_kits != null ? goalData.balance_kits : Math.max(0, monthlyKitTarget - kitsFulfilled));
+  const kitAchPct = goalData?.monthly_kits?.achievement_pct ?? goalData?.achievement_pct ?? (monthlyKitTarget > 0 ? Math.round((kitsFulfilled / monthlyKitTarget) * 100) : 0);
 
-  const monthlyRevTarget = goalData?.target_revenue || 5000000;
-  const actualRevRealized = goalData?.actual_revenue || 0;
-  const revPending = goalData?.balance_revenue != null ? goalData.balance_revenue : Math.max(0, monthlyRevTarget - actualRevRealized);
-  const revAchPct = goalData?.revenue_achievement_pct != null
-    ? goalData.revenue_achievement_pct
-    : (monthlyRevTarget > 0 ? Math.round((actualRevRealized / monthlyRevTarget) * 100) : 0);
+  // 2. Yearly Sell Kit Target
+  const annualKitsTargetTotal = goalData?.yearly_kits?.target || goalData?.annual_kits_target || (monthlyKitTarget * 12);
+  const annualKitsActual = goalData?.yearly_kits?.actual ?? goalData?.annual_kits_actual ?? 0;
+  const annualKitsPending = goalData?.yearly_kits?.pending ?? Math.max(0, annualKitsTargetTotal - annualKitsActual);
+  const annualKitsAchPct = goalData?.yearly_kits?.achievement_pct ?? goalData?.annual_kits_achievement_pct ?? (annualKitsTargetTotal > 0 ? Math.round((annualKitsActual / annualKitsTargetTotal) * 100) : 0);
 
-  const annualKitsTargetTotal = goalData?.annual_kits_target || (monthlyKitTarget * 12);
-  const annualRevTargetTotal = goalData?.annual_revenue_target || (monthlyRevTarget * 12);
-  const poSplitKits = goalData?.po_split_kits || Math.round(monthlyKitTarget * 0.8);
-  const looseSplitKits = goalData?.loose_split_kits || Math.round(monthlyKitTarget * 0.2);
+  // 5. Yearly PO Orders Goal (e.g. Year me 50 PO orders create karna hai)
+  const poOrdersTarget = goalData?.po_orders?.target || goalData?.annual_po_orders_goal || clusterInfo?.goal?.annual_po_orders_goal || 50;
+  const poOrdersActual = goalData?.po_orders?.actual ?? goalData?.actual_po_orders_count ?? 0;
+  const poOrdersPending = goalData?.po_orders?.pending ?? Math.max(0, poOrdersTarget - poOrdersActual);
+  const poOrdersAchPct = goalData?.po_orders?.achievement_pct ?? goalData?.po_orders_achievement_pct ?? (poOrdersTarget > 0 ? Math.round((poOrdersActual / poOrdersTarget) * 100) : 0);
+
   const daysRemaining = goalData?.days_remaining != null ? goalData.days_remaining : 15;
 
   return (
@@ -254,9 +268,9 @@ export default function DashboardHome() {
         );
       })()}
 
-      {/* ── Annual EPC Onboarding & Live EPC Goals ── */}
+      {/* ── 3. EPC Onboarding & 4. EPC Active Yearly Goals ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Card 1: Annual EPC Onboarding Goal */}
+        {/* Card 1: 3. EPC Onboarding Goal (Day 90 Target) */}
         <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
@@ -265,9 +279,9 @@ export default function DashboardHome() {
               </div>
               <div>
                 <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                  Annual EPC Onboarding Goal
+                  3. EPC Onboarding Goal ({epcOnboardDays} Days)
                 </h3>
-                <span className="text-[10px] text-slate-400 font-bold">{fyLabel} Target</span>
+                <span className="text-[10px] text-slate-400 font-bold">Target: {epcTarget} EPCs in {epcOnboardDays} Days</span>
               </div>
             </div>
             <span className={`px-2.5 py-1 rounded-full text-[11px] font-black ${epcAchPct >= 100
@@ -282,7 +296,7 @@ export default function DashboardHome() {
 
           <div className="grid grid-cols-3 gap-2.5 text-center">
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Target Goal</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Onboarding Target</div>
               <div className="text-xl font-black text-slate-900 dark:text-white mt-1">
                 {epcTarget}
               </div>
@@ -307,7 +321,7 @@ export default function DashboardHome() {
           {/* Progress bar */}
           <div className="space-y-1.5 pt-1">
             <div className="flex justify-between text-[11px] font-bold text-slate-500">
-              <span>Progress towards annual target</span>
+              <span>Day {epcOnboardDays} Onboarding Progress</span>
               <span>{epcActual} / {epcTarget} EPCs</span>
             </div>
             <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-0.5">
@@ -319,7 +333,7 @@ export default function DashboardHome() {
           </div>
         </div>
 
-        {/* Card 2: Annual Live EPC Goal */}
+        {/* Card 2: 4. EPC Active - Yearly Goal */}
         <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
@@ -328,7 +342,7 @@ export default function DashboardHome() {
               </div>
               <div>
                 <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                  Annual Live EPC Goal
+                  4. EPC Active - Yearly
                 </h3>
                 <span className="text-[10px] text-slate-400 font-bold">{liveCriteriaDays}-Day Active Threshold</span>
               </div>
@@ -383,7 +397,7 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* ── Franchise Monthly Kit Sales & Revenue Target Widget ── */}
+      {/* ── Franchise Cluster Kit Sales & PO Orders Performance Widget ── */}
       <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border-2 border-blue-100 dark:border-blue-900/40 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-3.5">
@@ -393,7 +407,7 @@ export default function DashboardHome() {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-lg font-black text-slate-900 dark:text-white">
-                  Monthly Kit Sales & Revenue Target
+                  Cluster Kit Sales & PO Orders Goal Performance
                 </h2>
                 {clusterCode && (
                   <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
@@ -406,19 +420,17 @@ export default function DashboardHome() {
                       ? "bg-blue-100 text-blue-800 border border-blue-300"
                       : "bg-amber-100 text-amber-800 border border-amber-300"
                   }`}>
-                  {goalData?.performance_status === "ACHIEVED" || goalData?.performance_status === "EXCEEDED"
-                    ? "🎯 Goal Achieved"
-                    : goalData?.performance_status === "ON_TRACK"
+                  {kitAchPct >= 100
+                    ? "🎯 Kit Goal Achieved"
+                    : kitAchPct >= 70
                       ? "⚡ On Track"
-                      : goalData?.performance_status === "BEHIND"
-                        ? "⏳ In Progress"
-                        : "🎯 Active Target"}
+                      : "🎯 Active Quota"}
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                {goalData?.period || "Current Calendar Month"} territory commitment
+                {goalData?.period || "Current Calendar Month"} territory targets
                 {clusterName ? ` • Cluster: ${clusterName}` : ""}
-                {poSplitKits ? ` • Split: PO ${poSplitKits} Kits / Loose ${looseSplitKits} Kits` : ""}
+                {` • Annual Commitment: ${annualKitsTargetTotal.toLocaleString('en-IN')} Kits / Year & ${poOrdersTarget} PO Orders`}
               </p>
             </div>
           </div>
@@ -433,7 +445,7 @@ export default function DashboardHome() {
           </Link>
         </div>
 
-        {/* 6 Metric Tiles (Kit Quota + Revenue Target) */}
+        {/* 6 Metric Tiles: Kit Quotas (Monthly & Yearly) + PO Orders Goal */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-3.5">
           {/* Tile 1: Monthly Target */}
           <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
@@ -443,10 +455,10 @@ export default function DashboardHome() {
             <div className="text-xl font-black text-slate-900 dark:text-white mt-1.5">
               {monthlyKitTarget} <span className="text-[10px] font-bold text-slate-400">Kits</span>
             </div>
-            <div className="text-[10px] font-semibold text-slate-400 mt-0.5">Cluster Kit Quota</div>
+            <div className="text-[10px] font-semibold text-slate-400 mt-0.5">1. Monthly Quota</div>
           </div>
 
-          {/* Tile 2: Kits Achieved */}
+          {/* Tile 2: Monthly Kits Sold */}
           <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40">
             <div className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
               <FiCheckCircle className="text-emerald-600" size={12} /> Kits Sold
@@ -459,7 +471,7 @@ export default function DashboardHome() {
             </div>
           </div>
 
-          {/* Tile 3: Remaining Kits */}
+          {/* Tile 3: Monthly Kits Left */}
           <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40">
             <div className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
               <FiBox className="text-amber-600" size={12} /> Kits Left
@@ -467,53 +479,53 @@ export default function DashboardHome() {
             <div className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1.5">
               {kitsPending} <span className="text-[10px] font-bold text-amber-700/60">Kits</span>
             </div>
-            <div className="text-[10px] font-bold text-amber-600 mt-0.5">Kits Left to Goal</div>
+            <div className="text-[10px] font-bold text-amber-600 mt-0.5">To Monthly Goal</div>
           </div>
 
-          {/* Tile 4: Monthly Revenue Target */}
+          {/* Tile 4: Yearly Kit Target */}
           <div className="p-3.5 sm:p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/40">
             <div className="text-[10px] font-black text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1">
-              <FiDollarSign className="text-indigo-600" size={12} /> Revenue Target
+              <FiLayers className="text-indigo-600" size={12} /> Yearly Kits
             </div>
             <div className="text-xl font-black text-indigo-900 dark:text-indigo-200 mt-1.5 truncate">
-              ₹{(monthlyRevTarget).toLocaleString('en-IN')}
+              {annualKitsTargetTotal.toLocaleString('en-IN')} <span className="text-[10px] font-bold text-indigo-400">Kits</span>
             </div>
-            <div className="text-[10px] font-semibold text-indigo-600/80 mt-0.5">Monthly Billing Target</div>
+            <div className="text-[10px] font-semibold text-indigo-600/80 mt-0.5">2. Annual Quota</div>
           </div>
 
-          {/* Tile 5: Revenue Realized */}
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-teal-50/70 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900/40">
-            <div className="text-[10px] font-black text-teal-700 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1">
-              <FiTrendingUp className="text-teal-600" size={12} /> Realized Rev
-            </div>
-            <div className="text-xl font-black text-teal-700 dark:text-teal-300 mt-1.5 truncate">
-              ₹{(actualRevRealized).toLocaleString('en-IN')}
-            </div>
-            <div className="text-[10px] font-bold text-teal-600 mt-0.5">
-              {revAchPct}% Realized
-            </div>
-          </div>
-
-          {/* Tile 6: Timeline */}
+          {/* Tile 5: Yearly PO Orders Target */}
           <div className="p-3.5 sm:p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/40">
             <div className="text-[10px] font-black text-purple-700 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1">
-              <FiClock className="text-purple-600" size={12} /> Cycle Timeline
+              <FiShoppingBag className="text-purple-600" size={12} /> Yearly PO Goal
             </div>
-            <div className="text-xl font-black text-purple-600 dark:text-purple-400 mt-1.5">
-              {daysRemaining} <span className="text-[10px] font-bold text-purple-700/60">Days</span>
+            <div className="text-xl font-black text-purple-700 dark:text-purple-300 mt-1.5 truncate">
+              {poOrdersTarget} <span className="text-[10px] font-bold text-purple-400">POs</span>
             </div>
-            <div className="text-[10px] font-bold text-purple-600 mt-0.5">Remaining in Month</div>
+            <div className="text-[10px] font-bold text-purple-600 mt-0.5">
+              5. Yearly Target
+            </div>
+          </div>
+
+          {/* Tile 6: Actual PO Orders Created */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-teal-50/70 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900/40">
+            <div className="text-[10px] font-black text-teal-700 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1">
+              <FiCheckCircle className="text-teal-600" size={12} /> POs Created
+            </div>
+            <div className="text-xl font-black text-teal-700 dark:text-teal-300 mt-1.5">
+              {poOrdersActual} <span className="text-[10px] font-bold text-teal-700/60">Orders</span>
+            </div>
+            <div className="text-[10px] font-bold text-teal-600 mt-0.5">{poOrdersAchPct}% of Goal</div>
           </div>
         </div>
 
-        {/* Dual Progress Bars: Kit Volume & Revenue Realization */}
+        {/* Dual Progress Bars: Monthly Kit Volume & Yearly PO Orders Goal */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
-          {/* Kit Volume Progress */}
+          {/* Monthly Kit Volume Progress */}
           <div className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800">
             <div className="flex justify-between items-center text-xs font-black text-slate-700 dark:text-slate-300">
               <span className="flex items-center gap-1.5">
                 <FiPackage className="text-blue-600" size={13} />
-                Kit Volume Progress: {kitAchPct}% Complete
+                1. Monthly Kit Sales Progress: {kitAchPct}% Complete
               </span>
               <span>{kitsFulfilled} / {monthlyKitTarget} Kits</span>
             </div>
@@ -529,37 +541,37 @@ export default function DashboardHome() {
               />
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between font-medium">
-              <span>🚀 PO & loose deliveries fulfill this quota</span>
+              <span>🚀 Net confirmed kit orders this cycle</span>
               <span className="font-bold text-blue-600 dark:text-blue-400">
-                {kitsPending} kits to reach 100%
+                {kitsPending > 0 ? `${kitsPending} kits to reach 100%` : "Monthly Target Achieved!"}
               </span>
             </div>
           </div>
 
-          {/* Revenue Realization Progress */}
+          {/* Yearly PO Orders Goal Progress */}
           <div className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800">
             <div className="flex justify-between items-center text-xs font-black text-slate-700 dark:text-slate-300">
               <span className="flex items-center gap-1.5">
-                <FiDollarSign className="text-emerald-600" size={13} />
-                Revenue Target Progress: {revAchPct}% Complete
+                <FiShoppingBag className="text-purple-600" size={13} />
+                5. Yearly PO Orders Goal: {poOrdersAchPct}% Complete
               </span>
-              <span>₹{(actualRevRealized).toLocaleString('en-IN')} / ₹{(monthlyRevTarget).toLocaleString('en-IN')}</span>
+              <span>{poOrdersActual} / {poOrdersTarget} PO Orders</span>
             </div>
             <div className="h-3 w-full bg-slate-200/70 dark:bg-slate-700 rounded-full overflow-hidden p-0.5">
               <div
-                className={`h-full rounded-full transition-all duration-700 ${revAchPct >= 100
+                className={`h-full rounded-full transition-all duration-700 ${poOrdersAchPct >= 100
                     ? "bg-gradient-to-r from-emerald-500 to-teal-400"
-                    : revAchPct >= 50
-                      ? "bg-gradient-to-r from-emerald-600 to-cyan-500"
-                      : "bg-gradient-to-r from-teal-500 to-emerald-400"
+                    : poOrdersAchPct >= 50
+                      ? "bg-gradient-to-r from-purple-600 to-indigo-500"
+                      : "bg-gradient-to-r from-amber-500 to-orange-400"
                   }`}
-                style={{ width: `${Math.min(Math.max(revAchPct, actualRevRealized > 0 ? 4 : 0), 100)}%` }}
+                style={{ width: `${Math.min(Math.max(poOrdersAchPct, poOrdersActual > 0 ? 4 : 0), 100)}%` }}
               />
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between font-medium">
-              <span>💰 Net confirmed order billing this cycle</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                {revPending > 0 ? `₹${(revPending).toLocaleString('en-IN')} remaining` : 'Target Exceeded!'}
+              <span>📦 Year me {poOrdersTarget} PO orders create karna hai</span>
+              <span className="font-bold text-purple-600 dark:text-purple-400">
+                {poOrdersPending > 0 ? `${poOrdersPending} PO orders remaining` : "Annual PO Goal Achieved!"}
               </span>
             </div>
           </div>
@@ -573,25 +585,35 @@ export default function DashboardHome() {
             </div>
             <div>
               <div className="text-xs font-black tracking-wide text-white flex items-center gap-2">
-                <span>Annual Cluster Target Commitment ({fyLabel})</span>
+                <span>Annual Cluster Performance Commitments ({fyLabel})</span>
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-blue-500/30 text-blue-200 border border-blue-400/30">
-                  Uniform 12-Month Rollup
+                  All 5 Core Goals Configured
                 </span>
               </div>
               <p className="text-[11px] text-slate-300 font-medium mt-0.5">
-                Cluster goal benchmark configured during territory cluster setup, applicable across all 12 operating months.
+                Cluster benchmarks configured during territory setup, synchronized across all franchisee dashboards.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-4 shrink-0 text-right">
             <div>
-              <div className="text-[10px] font-bold text-slate-400 uppercase">Annual Kits Goal</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Yearly Kits</div>
               <div className="text-sm font-black text-white">{annualKitsTargetTotal.toLocaleString('en-IN')} Kits</div>
             </div>
             <div className="w-px h-8 bg-slate-700" />
             <div>
-              <div className="text-[10px] font-bold text-slate-400 uppercase">Annual Turnover Goal</div>
-              <div className="text-sm font-black text-emerald-400">₹{(annualRevTargetTotal).toLocaleString('en-IN')}</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Yearly PO Orders</div>
+              <div className="text-sm font-black text-purple-300">{poOrdersTarget} Orders</div>
+            </div>
+            <div className="w-px h-8 bg-slate-700" />
+            <div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase">EPC Onboarding</div>
+              <div className="text-sm font-black text-blue-300">{epcTarget} in {epcOnboardDays}d</div>
+            </div>
+            <div className="w-px h-8 bg-slate-700" />
+            <div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Active EPCs</div>
+              <div className="text-sm font-black text-emerald-400">{liveTarget} Active</div>
             </div>
           </div>
         </div>

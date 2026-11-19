@@ -46,15 +46,17 @@ export default function FranchiseeGoalSettings() {
   const [goalData, setGoalData] = useState(null);
 
   // Form editable states
-  const [annualEpcGoal, setAnnualEpcGoal] = useState(100);
+  const [annualEpcGoal, setAnnualEpcGoal] = useState(50);
+  const [epcOnboardDays, setEpcOnboardDays] = useState(90);
   const [annualLiveEpcGoal, setAnnualLiveEpcGoal] = useState(60);
   const [liveEpcCriteriaDays, setLiveEpcCriteriaDays] = useState(90);
+  const [annualPoOrdersGoal, setAnnualPoOrdersGoal] = useState(50);
   const [monthlyGoals, setMonthlyGoals] = useState([]);
   const [revisionReason, setRevisionReason] = useState('');
 
   // Bulk / Uniform monthly setting state
   const [bulkMonthlyKits, setBulkMonthlyKits] = useState(100);
-  const [bulkMonthlyRev, setBulkMonthlyRev] = useState(5000000);
+  const [bulkMonthlyRev, setBulkMonthlyRev] = useState(0);
 
   // Revisions Modal
   const [isRevisionsOpen, setIsRevisionsOpen] = useState(false);
@@ -109,14 +111,16 @@ export default function FranchiseeGoalSettings() {
       if (res.data?.status === 'success') {
         const d = res.data.data;
         setGoalData(d);
-        setAnnualEpcGoal(d.annual_epc_goal || 100);
+        setAnnualEpcGoal(d.annual_epc_goal || 50);
+        setEpcOnboardDays(d.epc_onboard_days || 90);
         setAnnualLiveEpcGoal(d.annual_live_epc_goal || 60);
         setLiveEpcCriteriaDays(d.live_epc_criteria_days || 90);
+        setAnnualPoOrdersGoal(d.annual_po_orders_goal || 50);
         setMonthlyGoals(d.monthly_kit_goals || []);
 
         if (d.monthly_kit_goals && d.monthly_kit_goals.length > 0) {
-          setBulkMonthlyKits(d.monthly_kit_goals[0].target_kits_quantity || 100);
-          setBulkMonthlyRev(d.monthly_kit_goals[0].target_revenue || 5000000);
+          setBulkMonthlyKits(d.monthly_kits_target || d.monthly_kit_goals[0].target_kits_quantity || 100);
+          setBulkMonthlyRev(d.monthly_kit_goals[0].target_revenue || 0);
         }
       }
     } catch (err) {
@@ -138,24 +142,22 @@ export default function FranchiseeGoalSettings() {
   };
 
   // Quick Distribute Quantity to all 12 months equally
-  const handleApplyUniformMonthly = (kits, rev) => {
+  const handleApplyUniformMonthly = (kits) => {
     const k = Number(kits !== undefined ? kits : bulkMonthlyKits || 0);
-    const r = Number(rev !== undefined ? rev : bulkMonthlyRev || 0);
     setBulkMonthlyKits(k);
-    setBulkMonthlyRev(r);
 
     const updated = monthlyGoals.map((m) => ({
       ...m,
       target_kits_quantity: k,
-      target_revenue: r,
-      target_po_kits: Math.round(k * 0.8),
-      target_loose_orders: Math.round(k * 0.2),
+      target_revenue: 0,
+      target_po_kits: 0,
+      target_loose_orders: 0,
     }));
     setMonthlyGoals(updated);
     dispatch(
       setAlert({
         title: 'Uniform Quota Applied',
-        message: `${k} Kits & ₹${r.toLocaleString('en-IN')} applied across all 12 months. Remember to click Save.`,
+        message: `${k} Kits/month (${(k * 12).toLocaleString('en-IN')} Kits/year) applied across all 12 months. Remember to click Save.`,
         type: 'info',
       })
     );
@@ -198,9 +200,13 @@ export default function FranchiseeGoalSettings() {
       const payload = {
         cluster_id: selectedClusterId,
         financial_year: financialYear,
+        monthly_kits_target: Number(bulkMonthlyKits || 100),
+        annual_kits_target: Number(totals.targetKits || (bulkMonthlyKits * 12)),
         annual_epc_goal: Number(annualEpcGoal),
+        epc_onboard_days: Number(epcOnboardDays || 90),
         annual_live_epc_goal: Number(annualLiveEpcGoal),
         live_epc_criteria_days: Number(liveEpcCriteriaDays),
+        annual_po_orders_goal: Number(annualPoOrdersGoal || 50),
         monthly_kit_goals: monthlyGoals,
         reason: revisionReason.trim() || 'Admin updated target goals from Goal Tracking',
       };
@@ -330,7 +336,7 @@ export default function FranchiseeGoalSettings() {
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black uppercase text-slate-500">1. Annual EPC Onboarding</span>
+                  <span className="text-[11px] font-black uppercase text-slate-500">1. EPC Onboarding Goal ({epcOnboardDays} Days)</span>
                   <span
                     className={`text-[10px] font-black px-2 py-0.5 rounded-full ${(goalData?.epc_achievement_pct || 0) >= 100
                         ? 'bg-emerald-100 text-emerald-800'
@@ -352,6 +358,9 @@ export default function FranchiseeGoalSettings() {
                     className="w-24 px-2.5 py-1 text-lg font-black bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white"
                   />
                   <span className="text-xs font-bold text-slate-500">Target EPCs</span>
+                </div>
+                <div className="text-[10px] text-slate-400 font-semibold mt-1">
+                  Timeframe: {epcOnboardDays} Days (Day 90 me 50 EPC)
                 </div>
               </div>
 
@@ -457,45 +466,50 @@ export default function FranchiseeGoalSettings() {
               </div>
             </div>
 
-            {/* 4. Annual Revenue Progress */}
+            {/* 4. Yearly PO Orders Goal */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-2 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black uppercase text-slate-500">4. Annual Revenue Target</span>
+                  <span className="text-[11px] font-black uppercase text-slate-500">4. Yearly PO Orders Goal</span>
                   <span
-                    className={`text-[10px] font-black px-2 py-0.5 rounded-full ${totals.revAchPct >= 100
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full ${(goalData?.po_orders_achievement_pct || 0) >= 100
                         ? 'bg-emerald-100 text-emerald-800'
-                        : totals.revAchPct >= 70
+                        : (goalData?.po_orders_achievement_pct || 0) >= 70
                           ? 'bg-amber-100 text-amber-800'
                           : 'bg-purple-100 text-purple-800'
                       }`}
                   >
-                    {totals.revAchPct}% Achieved
+                    {goalData?.po_orders_achievement_pct || 0}% Achieved
                   </span>
                 </div>
 
-                <div className="mt-2">
-                  <div className="text-xl font-black text-slate-900">
-                    ₹{totals.targetRevenue.toLocaleString('en-IN')}
-                  </div>
-                  <div className="text-[11px] font-semibold text-slate-500">
-                    Pending: <span className="font-bold text-slate-700">₹{totals.pendingRevenue.toLocaleString('en-IN')}</span>
-                  </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={annualPoOrdersGoal}
+                    onChange={(e) => setAnnualPoOrdersGoal(e.target.value)}
+                    className="w-24 px-2.5 py-1 text-lg font-black bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white"
+                  />
+                  <span className="text-xs font-bold text-slate-500">Target PO Orders</span>
+                </div>
+                <div className="text-[10px] text-slate-400 font-semibold mt-1">
+                  Year me {annualPoOrdersGoal} PO orders create karna hai
                 </div>
               </div>
 
               <div>
                 <div className="text-xs font-semibold text-slate-600 flex justify-between items-center">
-                  <span>Actual Revenue:</span>
-                  <span className="font-black text-emerald-700 text-sm">
-                    ₹{totals.actualRevenue.toLocaleString('en-IN')}
+                  <span>Actual POs Created:</span>
+                  <span className="font-black text-purple-700 text-sm">
+                    {goalData?.actual_po_orders_count || 0} Orders
                   </span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2 mt-2 overflow-hidden">
                   <div
-                    className={`h-2 rounded-full transition-all duration-500 ${totals.revAchPct >= 100 ? 'bg-emerald-500' : totals.revAchPct >= 70 ? 'bg-amber-500' : 'bg-purple-500'
+                    className={`h-2 rounded-full transition-all duration-500 ${(goalData?.po_orders_achievement_pct || 0) >= 100 ? 'bg-emerald-500' : (goalData?.po_orders_achievement_pct || 0) >= 70 ? 'bg-amber-500' : 'bg-purple-500'
                       }`}
-                    style={{ width: `${Math.min(100, totals.revAchPct)}%` }}
+                    style={{ width: `${Math.min(100, goalData?.po_orders_achievement_pct || 0)}%` }}
                   />
                 </div>
               </div>
@@ -524,24 +538,24 @@ export default function FranchiseeGoalSettings() {
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Quick Presets:</span>
                 <button
                   type="button"
-                  onClick={() => handleApplyUniformMonthly(100, 5000000)}
+                  onClick={() => handleApplyUniformMonthly(100)}
                   className="px-2.5 py-1 bg-white hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 shadow-2xs transition-colors"
                 >
-                  100 Kits / ₹50L/mo
+                  100 Kits/mo (1,200/yr)
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleApplyUniformMonthly(150, 7500000)}
+                  onClick={() => handleApplyUniformMonthly(150)}
                   className="px-2.5 py-1 bg-white hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 shadow-2xs transition-colors"
                 >
-                  150 Kits / ₹75L/mo
+                  150 Kits/mo (1,800/yr)
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleApplyUniformMonthly(200, 10000000)}
+                  onClick={() => handleApplyUniformMonthly(200)}
                   className="px-2.5 py-1 bg-white hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 shadow-2xs transition-colors"
                 >
-                  200 Kits / ₹1 Cr/mo
+                  200 Kits/mo (2,400/yr)
                 </button>
               </div>
             </div>
@@ -555,32 +569,20 @@ export default function FranchiseeGoalSettings() {
                   min="0"
                   value={bulkMonthlyKits}
                   onChange={(e) => setBulkMonthlyKits(Number(e.target.value))}
-                  className="w-24 px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-black text-xs text-slate-900"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-bold text-slate-600">Monthly Revenue (₹):</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="10000"
-                  value={bulkMonthlyRev}
-                  onChange={(e) => setBulkMonthlyRev(Number(e.target.value))}
-                  className="w-32 px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-black text-xs text-slate-900"
+                  className="w-28 px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-black text-xs text-slate-900"
                 />
               </div>
 
               <button
                 type="button"
-                onClick={() => handleApplyUniformMonthly(bulkMonthlyKits, bulkMonthlyRev)}
+                onClick={() => handleApplyUniformMonthly(bulkMonthlyKits)}
                 className="px-3.5 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-all"
               >
                 Apply to All 12 Months
               </button>
 
               <div className="ml-auto text-[11px] font-semibold text-slate-500 bg-white px-3 py-1 rounded-lg border border-slate-200">
-                Annual Target Impact: <span className="font-black text-slate-800">{(bulkMonthlyKits * 12).toLocaleString('en-IN')} Kits</span> • <span className="font-black text-emerald-700">₹{(bulkMonthlyRev * 12).toLocaleString('en-IN')}</span>
+                Annual Kit Target: <span className="font-black text-slate-800">{(bulkMonthlyKits * 12).toLocaleString('en-IN')} Kits / Year</span>
               </div>
             </div>
           </div>

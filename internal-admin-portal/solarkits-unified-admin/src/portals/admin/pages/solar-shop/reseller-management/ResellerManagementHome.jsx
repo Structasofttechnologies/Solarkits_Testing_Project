@@ -55,7 +55,7 @@ const QUICK_LINKS = [
   },
   {
     label: "Franchisee Agreements & Policy",
-    description: "Manage franchisee agreement lifecycles, contract renewals, master legal templates & flagship store exclusions",
+    description: "Manage franchisee agreement lifecycles, contract renewals & master legal templates",
     icon: FiFileText,
     path: "/admin-panel/solar-shop/reseller-management/settings",
     color: "text-primary",

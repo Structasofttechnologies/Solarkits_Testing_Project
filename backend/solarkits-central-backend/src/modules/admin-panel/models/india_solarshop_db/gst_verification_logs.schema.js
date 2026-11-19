@@ -39,21 +39,21 @@ const schema = new mongoose.Schema({
     type: String,
     default: 'mock',
   },
-  request_payload:   { type: Object, default: {} },
+  request_payload: { type: Object, default: {} },
   response_snapshot: { type: Object, default: {} },
 
   // ── Core verified data ──────────────────────────────────────────────────
-  legal_name:         { type: String, default: null },
-  trade_name:         { type: String, default: null },
-  business_status:    { type: String, default: null },
+  legal_name: { type: String, default: null },
+  trade_name: { type: String, default: null },
+  business_status: { type: String, default: null },
   registration_state: { type: String, default: null },
-  derived_state_id:   { type: mongoose.Schema.Types.ObjectId, ref: 'geolocation_level_1', default: null },
+  derived_state_id: { type: mongoose.Schema.Types.ObjectId, ref: 'geolocation_level_1', default: null },
 
-  is_valid:      { type: Boolean, required: true },
-  error_message: { type: String,  default: null },
+  is_valid: { type: Boolean, required: true },
+  error_message: { type: String, default: null },
 
   verified_by: { type: String, default: 'system' }, // 'system' or cms_user id
-  verified_at: { type: Date,   default: Date.now },
+  verified_at: { type: Date, default: Date.now },
 
   // ── Phase R2: Extended provider fields ──────────────────────────────────
   // provider_reference_id: Reference/transaction ID returned by Quick eKYC provider.
@@ -80,10 +80,10 @@ const schema = new mongoose.Schema({
   taxpayer_type: { type: String, default: null, trim: true },
 
   // normalized_status: Application-layer normalization of business_status.
-  // Values: 'active' | 'inactive' | 'unknown'
+  // Values: 'active' | 'inactive' | 'unknown' | 'error'
   normalized_status: {
     type: String,
-    enum: ['active', 'inactive', 'unknown'],
+    enum: ['active', 'inactive', 'unknown', 'error'],
     default: null,
   },
 }, {
