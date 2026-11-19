@@ -63,8 +63,20 @@ app.use(require('./modules/admin-panel/middlewares/mongo.sanitize'));
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/public/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
-// 1. CMS Auth routes
-app.use('/auth-api', require('./modules/cms-auth/routes/auth.route'));
+// Request Logger for Auth & Key System calls
+app.use((req, res, next) => {
+  if (req.originalUrl && (req.originalUrl.includes('login') || req.originalUrl.includes('auth') || req.originalUrl.includes('franchise-cluster'))) {
+    console.log(`[API REQUEST] ${req.method} ${req.originalUrl} from origin: ${req.headers.origin || 'direct'}`);
+  }
+  next();
+});
+
+// 1. CMS Auth routes (Mounted across all aliases to ensure 100% path coverage)
+const authRouter = require('./modules/cms-auth/routes/auth.route');
+app.use('/auth-api', authRouter);
+app.use('/api/auth-api', authRouter);
+app.use('/admin-api/auth', authRouter);
+app.use('/auth', authRouter);
 
 // 2. Admin Panel routes
 const adminRouter = express.Router();
@@ -221,15 +233,21 @@ adminRouter.use('/knowledge-center', require('./modules/solarshop-india/routes/v
 // ─── Franchisee Cluster & Business Model Module ───
 adminRouter.use('/franchise-clusters', require('./modules/admin-panel/routes/franchisee.cluster.route'));
 
-<<<<<<< HEAD
 // ─── Dynamic Invoice & Delivery Order (DO) Settings ────────────────────────
 adminRouter.use('/invoice-do-settings', require('./modules/admin-panel/routes/invoice.do.settings.route'));
 adminRouter.use('/registers', require('./modules/account-panel/routes/registers.route'));
 
-=======
 // ─── SOLARKITS: Trial Kit Management Module ───
 adminRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
->>>>>>> 5f973cd0afa3e6fc96c71878e4a13a18589ea349
+
+// ─── SOLARKITS: Email & WhatsApp Marketing & Campaign Automation Engine ───
+adminRouter.use('/marketing', require('./modules/admin-panel/marketing/routes/marketing.route'));
+try {
+  const { initScheduler } = require('./modules/admin-panel/marketing/services/scheduler.service');
+  initScheduler();
+} catch (schedErr) {
+  console.warn('⚠️ Marketing scheduler startup notice:', schedErr.message);
+}
 
 app.use('/admin-api', adminRouter);
 app.use('/api', adminRouter);

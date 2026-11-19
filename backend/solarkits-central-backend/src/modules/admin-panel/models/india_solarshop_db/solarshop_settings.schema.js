@@ -238,7 +238,6 @@ By digitally signing below, the Franchise Partner certifies that they have read,
     }
   ],
 
-<<<<<<< HEAD
   // ── Dynamic Invoice & Delivery Order (DO) Settings (Embedded to preserve Atlas collection limit) ──
   invoice_and_do_settings: {
     type: mongoose.Schema.Types.Mixed,
@@ -247,7 +246,8 @@ By digitally signing below, the Franchise Partner certifies that they have read,
   invoice_and_do_overrides: {
     type: [mongoose.Schema.Types.Mixed],
     default: [],
-=======
+  },
+
   // ── Company Offline Bank Account Details Configuration ─────────────────────
   offline_bank_details: {
     account_number:       { type: String, trim: true, default: '' },
@@ -255,7 +255,6 @@ By digitally signing below, the Franchise Partner certifies that they have read,
     account_holder_name:  { type: String, trim: true, default: '' },
     updated_at:           { type: Date, default: Date.now },
     updated_by:           { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
->>>>>>> 5f973cd0afa3e6fc96c71878e4a13a18589ea349
   },
 
   created_at: { type: Date, default: Date.now },
