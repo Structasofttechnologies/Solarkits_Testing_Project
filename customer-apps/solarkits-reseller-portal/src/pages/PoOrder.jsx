@@ -391,6 +391,10 @@ export default function PoOrder() {
           tax_pct: gstRate,
           gst_pct: gstRate,
           common_gst_rate: gstRate,
+          has_commission_configured: Boolean(k.has_commission_configured),
+          commission_status: k.commission_status || (k.has_commission_configured ? "DEFINED" : "NOT_DEFINED"),
+          po_commission_tiers_count: k.po_commission_tiers_count || 0,
+          loose_commission_tiers_count: k.loose_commission_tiers_count || 0,
         };
       });
     }
@@ -1057,6 +1061,11 @@ export default function PoOrder() {
   const handleCreateOrder = async (e) => {
     e.preventDefault();
     setFormError("");
+
+    if (!selectedKit || !selectedKit.has_commission_configured) {
+      setFormError(`Franchise Commission is not configured for product "${selectedKit?.name || "Selected ComboKit"}". Please configure commission settings in Franchise Commission Settings before creating a Purchase Order.`);
+      return;
+    }
 
     if (targetQuantity <= 0) {
       setFormError("Please select a valid PO Quota quantity.");
@@ -2584,9 +2593,10 @@ export default function PoOrder() {
                             const priceLabel = minPoPrice && minPoPrice !== Infinity
                               ? `₹${minPoPrice.toLocaleString("en-IN")}/kit`
                               : (priceINR > 0 ? `₹${priceINR.toLocaleString("en-IN")}/kit` : "");
+                            const commTag = kit.has_commission_configured ? "" : " ⚠️ [Commission Not Set]";
                             return (
                               <option key={kit._id} value={kit._id}>
-                                {kit.name} — {kit.capacity_kw} kW • {kit.system_type}{kit.category_name ? ` • ${kit.category_name}` : ""}{priceLabel ? ` (${priceLabel})` : ""}
+                                {kit.name} — {kit.capacity_kw} kW • {kit.system_type}{kit.category_name ? ` • ${kit.category_name}` : ""}{priceLabel ? ` (${priceLabel})` : ""}{commTag}
                               </option>
                             );
                           })}
@@ -2596,41 +2606,71 @@ export default function PoOrder() {
 
                       {/* Selected Kit Detailed Overview Card */}
                       {selectedKit && (
-                        <div className="p-4 rounded-2xl border-2 border-primary/40 bg-primary/5 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-                          <div className="space-y-1.5 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 bg-primary text-white">
-                                <FiCheck size={12} />
-                              </div>
-                              <span className="font-black text-xs text-text-primary">{selectedKit.name}</span>
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-500/10 text-blue-600 shrink-0">
-                                {selectedKit.capacity_kw} kW • {selectedKit.system_type}
-                              </span>
-                              {selectedKit.category_name && (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-surface text-text-muted border border-border/80 shrink-0">
-                                  {selectedKit.category_name}
+                        <div className="space-y-2">
+                          <div className={`p-4 rounded-2xl border-2 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs ${!selectedKit.has_commission_configured
+                            ? "border-amber-400/80 bg-amber-500/5 dark:bg-amber-950/20"
+                            : "border-primary/40 bg-primary/5"
+                            }`}>
+                            <div className="space-y-1.5 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 ${!selectedKit.has_commission_configured
+                                  ? "bg-amber-500 text-white"
+                                  : "bg-primary text-white"
+                                  }`}>
+                                  {!selectedKit.has_commission_configured ? <FiAlertTriangle size={12} /> : <FiCheck size={12} />}
+                                </div>
+                                <span className="font-black text-xs text-text-primary">{selectedKit.name}</span>
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-500/10 text-blue-600 shrink-0">
+                                  {selectedKit.capacity_kw} kW • {selectedKit.system_type}
                                 </span>
+                                {selectedKit.category_name && (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-surface text-text-muted border border-border/80 shrink-0">
+                                    {selectedKit.category_name}
+                                  </span>
+                                )}
+                                {selectedKit.has_commission_configured ? (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+                                    ✓ Commission Configured
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 shrink-0">
+                                    ⚠️ Commission Not Set
+                                  </span>
+                                )}
+                              </div>
+                              {selectedKit.specifications && (
+                                <p className="text-[11px] text-text-muted leading-tight pl-7">
+                                  {selectedKit.specifications}
+                                </p>
                               )}
                             </div>
-                            {selectedKit.specifications && (
-                              <p className="text-[11px] text-text-muted leading-tight pl-7">
-                                {selectedKit.specifications}
-                              </p>
-                            )}
+
+                            <div className="sm:text-right pl-7 sm:pl-0 shrink-0">
+                              <div className="text-sm font-black text-text-primary">
+                                {kitUnitPrice > 0 ? (
+                                  <>₹{kitUnitPrice.toLocaleString("en-IN")}<span className="text-[10px] font-normal text-text-muted">/kit</span></>
+                                ) : (
+                                  <span className="text-xs text-amber-600 font-semibold">Price Pending</span>
+                                )}
+                              </div>
+                              <div className="text-[10px] font-semibold text-text-muted mt-0.5">
+                                {matchedPoTier ? `Tier Price (${targetQuantity} Kits)` : "Dealer Unit Price"}
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="sm:text-right pl-7 sm:pl-0 shrink-0">
-                            <div className="text-sm font-black text-text-primary">
-                              {kitUnitPrice > 0 ? (
-                                <>₹{kitUnitPrice.toLocaleString("en-IN")}<span className="text-[10px] font-normal text-text-muted">/kit</span></>
-                              ) : (
-                                <span className="text-xs text-amber-600 font-semibold">Price Pending</span>
-                              )}
+                          {/* Warning Alert if Commission is Not Configured */}
+                          {!selectedKit.has_commission_configured && (
+                            <div className="p-3.5 rounded-xl border border-rose-300 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/30 flex items-start gap-2.5 text-xs text-rose-800 dark:text-rose-200">
+                              <FiAlertTriangle className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" size={16} />
+                              <div className="space-y-1">
+                                <div className="font-bold">Franchise Commission Setting Required</div>
+                                <p className="text-[11px] leading-relaxed text-rose-700 dark:text-rose-300">
+                                  Franchise commission is not configured for this combo kit (<strong>{selectedKit.name}</strong>). To create a Purchase Order, please contact Admin to configure the commission in Franchise Commission Settings first.
+                                </p>
+                              </div>
                             </div>
-                            <div className="text-[10px] font-semibold text-text-muted mt-0.5">
-                              {matchedPoTier ? `Tier Price (${targetQuantity} Kits)` : "Dealer Unit Price"}
-                            </div>
-                          </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2896,8 +2936,9 @@ export default function PoOrder() {
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting || targetQuantity <= 0}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-white text-xs font-black shadow-lg hover:opacity-90 transition-all cursor-pointer disabled:opacity-50"
+                    disabled={submitting || targetQuantity <= 0 || !selectedKit?.has_commission_configured}
+                    title={!selectedKit?.has_commission_configured ? "Franchise Commission is not configured for this ComboKit" : ""}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-white text-xs font-black shadow-lg hover:opacity-90 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {submitting ? (
                       <>
