@@ -375,12 +375,12 @@ const get_conversion_funnel = async (req, res) => {
     const allLeads = await BDELead.find(query).lean();
 
     const totalLeads = allLeads.length;
-    const contacted = allLeads.filter((l) => ['contacted', 'follow_up_scheduled', 'interested', 'signup_started', 'approved', 'fee_paid'].includes(l.lead_status)).length;
-    const interested = allLeads.filter((l) => ['interested', 'signup_started', 'approved', 'fee_paid'].includes(l.lead_status)).length;
-    const signupStarted = allLeads.filter((l) => ['signup_started', 'gst_verification_pending', 'admin_review_pending', 'approved', 'agreement_pending', 'agreement_signed', 'fee_payment_pending', 'fee_paid'].includes(l.lead_status)).length;
-    const approved = allLeads.filter((l) => ['approved', 'agreement_pending', 'agreement_signed', 'fee_payment_pending', 'fee_paid'].includes(l.lead_status)).length;
-    const agreementSigned = allLeads.filter((l) => ['agreement_signed', 'fee_payment_pending', 'fee_paid'].includes(l.lead_status)).length;
-    const feePaid = allLeads.filter((l) => l.lead_status === 'fee_paid').length;
+    const contacted = allLeads.filter((l) => ['contacted', 'follow_up_scheduled', 'interested', 'signup_started', 'approved', 'fee_paid', 'completed', 'converted', 'onboarded'].includes(l.lead_status)).length;
+    const interested = allLeads.filter((l) => ['interested', 'signup_started', 'approved', 'fee_paid', 'completed', 'converted', 'onboarded'].includes(l.lead_status)).length;
+    const signupStarted = allLeads.filter((l) => ['signup_started', 'gst_verification_pending', 'admin_review_pending', 'approved', 'agreement_pending', 'agreement_signed', 'fee_payment_pending', 'fee_paid', 'completed', 'converted', 'onboarded'].includes(l.lead_status)).length;
+    const approved = allLeads.filter((l) => ['approved', 'agreement_pending', 'agreement_signed', 'fee_payment_pending', 'fee_paid', 'completed', 'converted', 'onboarded'].includes(l.lead_status)).length;
+    const agreementSigned = allLeads.filter((l) => ['agreement_signed', 'fee_payment_pending', 'fee_paid', 'completed', 'converted', 'onboarded'].includes(l.lead_status)).length;
+    const feePaid = allLeads.filter((l) => ['fee_paid', 'completed', 'converted', 'onboarded'].includes(l.lead_status)).length;
     const rejected = allLeads.filter((l) => l.lead_status === 'rejected').length;
     const lost = allLeads.filter((l) => l.lead_status === 'lost').length;
 

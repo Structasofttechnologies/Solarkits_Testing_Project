@@ -99,38 +99,7 @@ const menus = [
     [
         { step: "01", badgeKey: "01", name: "Dashboard", icon: <FaHome />, path: "/admin-panel/solar-shop/home", unique_id: "00000000" },
 
-        { 
-            step: "01B", 
-            badgeKey: "ACC_M", 
-            name: "Accounting Overview", 
-            icon: <FaFileInvoiceDollar />, 
-            path: "/admin-panel/solar-shop/accounting-overview", 
-            unique_id: "00000000"
-        },
-        {
-            step: "01C",
-            badgeKey: "WH_F",
-            name: "Warehouse Loan & Expansion",
-            icon: <FaWarehouse />,
-            path: "/admin-panel/solar-shop/warehouse-finance",
-            unique_id: "00000000"
-        },
-        {
-            step: "01D",
-            badgeKey: "EXEC_F",
-            name: "Executive Finance Dashboard",
-            icon: <FaChartLine />,
-            path: "/admin-panel/solar-shop/executive-finance",
-            unique_id: "00000000"
-        },
-        {
-            step: "01E",
-            badgeKey: "DELIV_DASH",
-            name: "Delivery & Logistics Dashboard",
-            icon: <FaTruck />,
-            path: "/admin-panel/solar-shop/delivery-management/dashboard",
-            unique_id: "00000000"
-        }
+
         // { 
         //     step: "01B", 
         //     badgeKey: "ACC_M", 
@@ -333,12 +302,12 @@ const menus = [
             path: "/admin-panel/solar-shop/order-management-settings",
             unique_id: "ADM_ORDER_SETTINGS",
             subMenu: [
-                {
-                    name: "Order Settings",
-                    icon: <HiCube />,
-                    path: "/admin-panel/solar-shop/order-management-settings",
-                    unique_id: "ADM_ORDER_SETTINGS"
-                },
+                // {
+                //     name: "Order Settings",
+                //     icon: <HiCube />,
+                //     path: "/admin-panel/solar-shop/order-management-settings",
+                //     unique_id: "ADM_ORDER_SETTINGS"
+                // },
                 {
                     name: "Offers Management",
                     icon: <HiCube />,
@@ -369,12 +338,12 @@ const menus = [
                 //     path: "/admin-panel/solar-shop/order-management-settings/admin-supplier-settings?tab=oem-products",
                 //     unique_id: "ADM_ORDER_SETTINGS"
                 // },
-                {
-                    name: "Kit Display Checklist",
-                    icon: <FiCheckSquare />,
-                    path: "/admin-panel/solar-shop/order-management-settings/kit-checklist",
-                    unique_id: "ADM_ORDER_SETTINGS"
-                },
+                // {
+                //     name: "Kit Display Checklist",
+                //     icon: <FiCheckSquare />,
+                //     path: "/admin-panel/solar-shop/order-management-settings/kit-checklist",
+                //     unique_id: "ADM_ORDER_SETTINGS"
+                // },
                 {
                     name: "Order Stages & TAT Settings",
                     icon: <FiClock />,

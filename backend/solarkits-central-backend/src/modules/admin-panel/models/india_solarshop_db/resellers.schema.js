@@ -109,6 +109,7 @@ const schema = new mongoose.Schema({
       'payment_pending',
       'payment_verification_pending',
       'payment_verified',
+      'store_setup_pending',
       'setup_verification_pending',
       'kyc_pending',
       'kyc_submitted',

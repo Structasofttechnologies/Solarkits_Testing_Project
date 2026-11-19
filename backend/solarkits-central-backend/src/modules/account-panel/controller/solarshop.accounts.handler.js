@@ -565,9 +565,11 @@ const update_plan_payment_status = async (req, res) => {
           reseller.fee_payment_verified_at = now;
           if (actorId) reseller.fee_payment_verified_by = actorId;
           if (utrToSave) reseller.fee_payment_utr = utrToSave;
-          reseller.activation_status = 'active';
+          // Franchisee remains pending & non-operational until BDE uploads store proofs and Admin launches operations
+          reseller.activation_status = 'pending';
           reseller.is_active = true;
-          reseller.reseller_lifecycle_status = 'active';
+          reseller.is_operational = false;
+          reseller.reseller_lifecycle_status = 'store_setup_pending';
           await reseller.save();
           await ResellerTerritory.updateMany({ reseller_id: reseller._id }, { $set: { status: 'active' } });
 
@@ -596,28 +598,33 @@ const update_plan_payment_status = async (req, res) => {
             }
           ).catch(() => { });
 
-          // Synchronize StoreSetup if present
+          // Ensure StoreSetup & Checklist are created and synchronized
           let storeSetup = null;
           try {
-            if (StoreSetup) {
-              storeSetup = await StoreSetup.findOne({ franchisee_id: reseller._id });
-              if (storeSetup) {
-                storeSetup.payment_verified_by_accounts = true;
-                storeSetup.payment_accounts_verified_at = now;
-                if (actorId) storeSetup.payment_accounts_verified_by = actorId;
-                storeSetup.payment_confirmation_date = now;
-                await storeSetup.save();
+            const { createStoreSetupForFranchisee, ensureStoreSetupChecklist } = require('../../admin-panel/services/store.setup.service');
+            storeSetup = await StoreSetup.findOne({ franchisee_id: reseller._id });
+            if (!storeSetup && typeof createStoreSetupForFranchisee === 'function') {
+              storeSetup = await createStoreSetupForFranchisee(reseller._id, actorId);
+            }
+            if (storeSetup) {
+              storeSetup.payment_verified_by_accounts = true;
+              storeSetup.payment_accounts_verified_at = now;
+              if (actorId) storeSetup.payment_accounts_verified_by = actorId;
+              storeSetup.payment_confirmation_date = now;
+              await storeSetup.save();
+
+              if (!reseller.store_setup_id) {
+                reseller.store_setup_id = storeSetup._id;
+                await reseller.save();
+              }
+
+              if (typeof ensureStoreSetupChecklist === 'function') {
+                await ensureStoreSetupChecklist(storeSetup._id, reseller._id);
               }
             }
-          } catch (ssErr) { }
-
-          // Ensure Store Setup Checklist is initiated
-          try {
-            const { ensureStoreSetupChecklist } = require('../../admin-panel/services/store.setup.service');
-            if (typeof ensureStoreSetupChecklist === 'function') {
-              await ensureStoreSetupChecklist(reseller._id);
-            }
-          } catch (clErr) { }
+          } catch (ssErr) {
+            console.error('[solarshop.accounts] Error initializing store setup:', ssErr);
+          }
 
           // Record audit history
           try {
@@ -627,10 +634,10 @@ const update_plan_payment_status = async (req, res) => {
                 reseller_id: reseller._id,
                 store_setup_id: storeSetup?._id || null,
                 from_status: fromStatus || 'draft',
-                to_status: 'active',
+                to_status: 'store_setup_pending',
                 actor_type: 'accounts',
                 actor_id: actorId,
-                remarks: `Franchise plan payment verified by Accounts. UTR: ${utrToSave || 'N/A'}.`,
+                remarks: `Franchise plan payment verified by Accounts. Store setup initiated. UTR: ${utrToSave || 'N/A'}.`,
                 metadata: {
                   utr_number: utrToSave,
                   subscription_id: sub._id,

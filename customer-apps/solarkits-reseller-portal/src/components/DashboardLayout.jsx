@@ -190,8 +190,18 @@ export default function DashboardLayout() {
     navigate("/login");
   };
 
-  // Redirect unactivated partners out of the dashboard layout to the standalone Onboarding portal
-  if (reseller && reseller.activation_status !== "active") {
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Redirect unactivated or non-operational partners out of the dashboard layout to the standalone Onboarding portal
+  // Franchisee must have completed store setup and operations launched by Admin to access dashboard
+  const isOperational = Boolean(
+    reseller?.is_operational === true ||
+    (reseller?.activation_status === "active" && reseller?.reseller_lifecycle_status === "active")
+  );
+
+  if (reseller && (!isOperational || reseller.activation_status !== "active")) {
     return <Navigate to="/onboarding" replace />;
   }
 
