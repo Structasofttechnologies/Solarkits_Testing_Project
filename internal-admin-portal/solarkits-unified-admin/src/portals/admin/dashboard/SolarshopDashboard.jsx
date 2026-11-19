@@ -165,8 +165,7 @@ const menus = [
         },
         { step: "04", badgeKey: "04", name: "PO Orders", icon: <FaFileInvoiceDollar />, path: "/admin-panel/solar-shop/po-orders", unique_id: "00000000" },
         { step: "05", badgeKey: "05", name: "Loose Orders", icon: <FaBoxes />, path: "/admin-panel/solar-shop/loose-orders", unique_id: "00000000" },
-        { step: "06", badgeKey: "06", name: "EPC Orders & Approvals", icon: <FaUserShield />, path: "/admin-panel/solar-shop/epc-orders", unique_id: "00000000" },
-        { step: "07", badgeKey: "07", name: "Order & Stage Approvals", icon: <FiCheckSquare />, path: "/admin-panel/solar-shop/order-approvals", unique_id: "ADM_ORDER_APPROVALS" },
+        { step: "06", badgeKey: "06", name: "EPC Orders & Approvals", icon: <FaUserShield />, path: "/admin-panel/solar-shop/order-approvals", unique_id: "00000000" },
         {
             step: "08",
             badgeKey: "08",
@@ -922,20 +921,14 @@ export default function SolarShopDashboard() {
                                     />
                                     <Route
                                         path="/epc-orders"
-                                        element={
-                                            <Suspense fallback={<Loader text="Loading EPC Orders & Approvals..." />}>
-                                                <AdminEpcOrders />
-                                            </Suspense>
-                                        }
+                                        element={<Navigate to="../order-approvals" replace />}
                                     />
                                     <Route
                                         path="/order-approvals"
                                         element={
-                                            <PermissionGuard requiredUniqueId="ADM_ORDER_APPROVALS">
-                                                <Suspense fallback={<Loader text="Loading Order & Stage Approvals..." />}>
-                                                    <AdminOrderApprovalDashboard />
-                                                </Suspense>
-                                            </PermissionGuard>
+                                            <Suspense fallback={<Loader text="Loading EPC Orders & Approvals..." />}>
+                                                <AdminOrderApprovalDashboard />
+                                            </Suspense>
                                         }
                                     />
                                     <Route
@@ -1084,20 +1077,14 @@ export default function SolarShopDashboard() {
                                     />
                                     <Route
                                         path="/:countryName/epc-orders"
-                                        element={
-                                            <Suspense fallback={<Loader text="Loading EPC Orders & Approvals..." />}>
-                                                <AdminEpcOrders />
-                                            </Suspense>
-                                        }
+                                        element={<Navigate to="../order-approvals" replace />}
                                     />
                                     <Route
                                         path="/:countryName/order-approvals"
                                         element={
-                                            <PermissionGuard requiredUniqueId="ADM_ORDER_APPROVALS">
-                                                <Suspense fallback={<Loader text="Loading Order & Stage Approvals..." />}>
-                                                    <AdminOrderApprovalDashboard />
-                                                </Suspense>
-                                            </PermissionGuard>
+                                            <Suspense fallback={<Loader text="Loading EPC Orders & Approvals..." />}>
+                                                <AdminOrderApprovalDashboard />
+                                            </Suspense>
                                         }
                                     />
                                     <Route

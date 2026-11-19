@@ -212,11 +212,10 @@ export default function BdeTrialKitFunnel() {
           <button
             key={s.key}
             onClick={() => setSelectedStage(s.key)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-              selectedStage === s.key
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${selectedStage === s.key
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-            }`}
+              }`}
           >
             {s.label}
           </button>
@@ -358,11 +357,10 @@ export default function BdeTrialKitFunnel() {
                         type="button"
                         onClick={() => handleUpdateStage(stage.key)}
                         disabled={updatingStage}
-                        className={`p-2.5 rounded-xl text-left border font-bold transition flex flex-col justify-between ${
-                          isActive
+                        className={`p-2.5 rounded-xl text-left border font-bold transition flex flex-col justify-between ${isActive
                             ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
                             : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         <span className="text-[11px]">{stage.label}</span>
                         {isActive && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-1 self-end" />}
@@ -449,7 +447,15 @@ export default function BdeTrialKitFunnel() {
                     />
                   </div>
 
-                  <div className="flex gap-2 w-full sm:w-auto justify-end">
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/epc-quotes/create?epc_id=${activeLead.epc_id?._id || activeLead.epc_id}&quote_type=trial_kit&combo_kit_id=${activeLead.combo_kit_id || ''}`)}
+                      className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-bold text-xs flex items-center gap-1 shadow-2xs"
+                    >
+                      <Package className="w-3.5 h-3.5 text-purple-600" />
+                      Generate Trial Kit Quote
+                    </button>
                     <button
                       type="button"
                       onClick={() => navigate(`/epc-quotes/create?epc_id=${activeLead.epc_id?._id || activeLead.epc_id}`)}

@@ -125,6 +125,7 @@ export default function EpcQuotations() {
     const drafts = quotes.filter(q => q.status === 'draft');
     const active = quotes.filter(q => !['converted', 'expired', 'lost', 'revised', 'draft'].includes(q.status));
     const converted = quotes.filter(q => q.status === 'converted');
+    const trialKitsCount = quotes.filter(q => q.is_trial_kit || q.quote_type === 'trial_kit').length;
 
     const totalPipelineValue = quotes
       .filter(q => !['expired', 'lost', 'revised'].includes(q.status))
@@ -135,6 +136,7 @@ export default function EpcQuotations() {
       draftCount: drafts.length,
       activeCount: active.length,
       convertedCount: converted.length,
+      trialKitsCount,
       totalPipelineValue,
     };
   }, [quotes]);
@@ -146,6 +148,7 @@ export default function EpcQuotations() {
       if (statusTab === 'drafts' && q.status !== 'draft') return false;
       if (statusTab === 'active' && ['converted', 'expired', 'lost', 'revised', 'draft'].includes(q.status)) return false;
       if (statusTab === 'converted' && q.status !== 'converted') return false;
+      if (statusTab === 'trial' && !q.is_trial_kit && q.quote_type !== 'trial_kit') return false;
 
       // Text search
       if (search.trim()) {
@@ -154,7 +157,8 @@ export default function EpcQuotations() {
         const kitName = (q.combo_kit_snapshot?.name || '').toLowerCase();
         const bdeName = (q.bde_snapshot?.full_name || '').toLowerCase();
         const franchiseeName = (q.franchisee_snapshot?.business_name || '').toLowerCase();
-        return refNo.includes(query) || kitName.includes(query) || bdeName.includes(query) || franchiseeName.includes(query);
+        const isTrialMatch = (q.is_trial_kit || q.quote_type === 'trial_kit') && 'trial'.includes(query);
+        return refNo.includes(query) || kitName.includes(query) || bdeName.includes(query) || franchiseeName.includes(query) || isTrialMatch;
       }
       return true;
     });
@@ -253,6 +257,7 @@ export default function EpcQuotations() {
             { id: 'all', label: `All Quotes (${stats.total})` },
             { id: 'drafts', label: `Drafts (${stats.draftCount})` },
             { id: 'active', label: `Active (${stats.activeCount})` },
+            { id: 'trial', label: `Trial Kits (${stats.trialKitsCount})` },
             { id: 'converted', label: `Converted (${stats.convertedCount})` },
           ].map(tab => (
             <button
@@ -357,6 +362,12 @@ export default function EpcQuotations() {
                         <span className={`w-1.5 h-1.5 rounded-full ${stCfg.dot}`} />
                         {stCfg.label}
                       </span>
+                      {(q.is_trial_kit || q.quote_type === 'trial_kit') && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-800">
+                          <FiPackage className="w-3.5 h-3.5 text-purple-700" />
+                          Trial Kit Proposal ({q.trial_kit_quantity || q.quantity} Kits)
+                        </span>
+                      )}
                       {isDraft && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400">
                           BDE Draft Preview

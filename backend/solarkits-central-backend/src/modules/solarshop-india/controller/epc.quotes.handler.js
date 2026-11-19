@@ -47,6 +47,7 @@ const {
   FpoOrder,
   AuditLog,
   GstVerificationLog,
+  FranchiseeCluster,
 } = require('../../admin-panel/models/india_solarshop_db');
 
 const {
@@ -121,6 +122,46 @@ function _paiseToINR(paise) {
   if (!paise && paise !== 0) return 'Rs. 0.00';
   const rupees = paise / 100;
   return 'Rs. ' + rupees.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** Convert paise → Indian English Words */
+function _inrInWords(paise) {
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const n = Math.round((Number(paise) || 0) / 100);
+  if (n <= 0) return 'Zero Rupees Only';
+
+  function convertLessThanOneThousand(val) {
+    let str = '';
+    if (val >= 100) {
+      str += a[Math.floor(val / 100)] + ' Hundred ';
+      val %= 100;
+    }
+    if (val >= 20) {
+      str += b[Math.floor(val / 10)] + ' ';
+      val %= 10;
+    }
+    if (val > 0) {
+      str += a[val] + ' ';
+    }
+    return str.trim();
+  }
+
+  const crore = Math.floor(n / 10000000);
+  let rem = n % 10000000;
+  const lakh = Math.floor(rem / 100000);
+  rem %= 100000;
+  const thousand = Math.floor(rem / 1000);
+  rem %= 1000;
+  const hundreds = rem;
+
+  let words = '';
+  if (crore > 0) words += convertLessThanOneThousand(crore) + ' Crore ';
+  if (lakh > 0) words += convertLessThanOneThousand(lakh) + ' Lakh ';
+  if (thousand > 0) words += convertLessThanOneThousand(thousand) + ' Thousand ';
+  if (hundreds > 0) words += convertLessThanOneThousand(hundreds) + ' ';
+
+  return words.trim() + ' Rupees Only';
 }
 
 /** Format date → DD/MM/YYYY */
@@ -316,13 +357,31 @@ exports.get_eligible_epcs = async (req, res) => {
       }
       : {};
 
-    const [epcs, total] = await Promise.all([
+    const clusterFilter = {
+      deleted_at: null,
+      is_active: true,
+    };
+    if (actor.role === 'bde') {
+      const bdeObjId = mongoose.Types.ObjectId.isValid(actor.id)
+        ? new mongoose.Types.ObjectId(actor.id)
+        : null;
+      const bdeMatch = [{ primary_bde_id: actor.id }, { support_bde_ids: actor.id }];
+      if (bdeObjId) {
+        bdeMatch.push({ primary_bde_id: bdeObjId }, { support_bde_ids: bdeObjId });
+      }
+      clusterFilter.$or = bdeMatch;
+    }
+
+    const [epcs, total, activeClusters] = await Promise.all([
       EpcAccount.find({ _id: { $in: epcIds }, deleted_at: null, ...searchFilter })
         .select('name email whatsapp registered_whatsapp company_id gstin gstin_legal_name gstin_trade_name state_name district_name pincode address status states districts onboarding_gstin_log_id')
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
       EpcAccount.countDocuments({ _id: { $in: epcIds }, deleted_at: null, ...searchFilter }),
+      FranchiseeCluster.find(clusterFilter)
+        .select('_id cluster_code cluster_name state_name district_names')
+        .lean(),
     ]);
 
     const normalizedEpcs = await Promise.all(epcs.map(async e => {
@@ -338,6 +397,21 @@ exports.get_eligible_epcs = async (req, res) => {
           }
         }).exec().catch(() => { });
       }
+
+      // Match regional cluster by district and state
+      let matchedCluster = null;
+      if (loc.district_name) {
+        const dName = loc.district_name.trim().toLowerCase();
+        const sName = loc.state_name ? loc.state_name.trim().toLowerCase() : '';
+        matchedCluster = activeClusters.find(c => {
+          const matchState = !c.state_name || (sName && c.state_name.trim().toLowerCase() === sName);
+          const matchDistrict = Array.isArray(c.district_names) && c.district_names.some(d =>
+            (typeof d === 'string' ? d : d?.name || '').trim().toLowerCase() === dName
+          );
+          return matchState && matchDistrict;
+        });
+      }
+
       return {
         ...e,
         company_name: e.gstin_legal_name || e.gstin_trade_name || e.name || 'EPC Client',
@@ -349,6 +423,9 @@ exports.get_eligible_epcs = async (req, res) => {
         state_name: loc.state_name,
         district_name: loc.district_name,
         pincode: loc.pincode,
+        cluster_id: matchedCluster?._id || null,
+        cluster_name: matchedCluster?.cluster_name || null,
+        cluster_code: matchedCluster?.cluster_code || null,
       };
     }));
 
@@ -356,6 +433,13 @@ exports.get_eligible_epcs = async (req, res) => {
       status: 'success',
       data: normalizedEpcs,
       epcs: normalizedEpcs,
+      clusters: (activeClusters || []).map(c => ({
+        id: c._id,
+        cluster_code: c.cluster_code,
+        cluster_name: c.cluster_name,
+        state_name: c.state_name,
+        district_names: (c.district_names || []).map(d => typeof d === 'string' ? d : d?.name || ''),
+      })),
       total,
       page: parseInt(page),
       limit: parseInt(limit),
@@ -526,6 +610,8 @@ async function _resolveKitDetails(combo_kit_id) {
     project_type_name: project_type_snapshot.display_name || project_type_snapshot.name,
     base_price_cached: kit.base_price_cached,
     selling_price_cached: kit.selling_price_cached,
+    allow_trial_kit: Boolean(kit.allow_trial_kit),
+    trial_kit_quantity: kit.trial_kit_quantity !== undefined && kit.trial_kit_quantity !== null ? Math.max(1, Number(kit.trial_kit_quantity)) : 10,
   };
 
   return {
@@ -794,6 +880,9 @@ exports.get_eligible_kits = async (req, res) => {
         loose_order_quantities: Array.isArray(k.loose_order_quantities) && k.loose_order_quantities.length > 0
           ? k.loose_order_quantities.map(Number).filter(n => !isNaN(n) && n > 0).sort((a, b) => a - b)
           : [5, 10, 25, 50],
+        allow_trial_kit: Boolean(k.allow_trial_kit),
+        trial_kit_quantity: k.trial_kit_quantity !== undefined && k.trial_kit_quantity !== null ? Math.max(1, Number(k.trial_kit_quantity)) : 10,
+        trial_kit_max_orders_per_buyer: Number(k.trial_kit_max_orders_per_buyer || 1),
         price_paise: pricePaise,
         base_price_cached: k.base_price_cached,
         selling_price_cached: k.selling_price_cached,
@@ -858,6 +947,10 @@ exports.get_eligible_kits = async (req, res) => {
     }
     if (max_kw && !isNaN(Number(max_kw))) {
       normalizedKits = normalizedKits.filter(k => Number(k.capacity) <= Number(max_kw));
+    }
+
+    if (req.query.trial_only === 'true' || req.query.is_trial === 'true' || req.query.quote_type === 'trial_kit') {
+      normalizedKits = normalizedKits.filter(k => k.allow_trial_kit);
     }
 
     return res.json({ status: 'success', data: normalizedKits, kits: normalizedKits });
@@ -927,48 +1020,78 @@ exports.get_eligible_warehouses = async (req, res) => {
  *             delivery_charges_paise, discount_paise, taxable_amount_paise,
  *             gst_rate, gst_amount_paise, total_amount_paise }
  */
-async function _calculatePrice({ kit_id, warehouse_id, quantity, warranty_id, delivery_pincode, delivery_district_id, delivery_type, quote_settings, passed_delivery_charges_paise, passed_price_per_kit_paise }) {
-  // 1. Kit price from warehouse combo kit & company_margins
+/**
+ * _calculatePrice — Central Pricing & GST Engine
+ * Calculates base kit pricing, optional warranty, delivery charges, and single statutory GST.
+ *
+ * @returns { price_per_kit_paise, product_subtotal_paise, warranty_charges_paise,
+ *             delivery_charges_paise, discount_paise, taxable_amount_paise,
+ *             gst_rate, gst_amount_paise, total_amount_paise }
+ */
+async function _calculatePrice({
+  kit_id,
+  warehouse_id,
+  quantity,
+  warranty_id,
+  delivery_pincode,
+  delivery_district_id,
+  delivery_type,
+  quote_settings,
+  passed_delivery_charges_paise,
+  passed_price_per_kit_paise,
+  is_trial_kit,
+}) {
+  const finalQuantity = Number(quantity && quantity > 0 ? quantity : 1);
+
+  // 1. Kit price resolution
   let price_per_kit_paise = 0;
-  const kit = await WarehouseComboKit.findById(kit_id).select('selling_price_cached base_price_cached capacity name gst_rate tax_pct gst_pct').lean();
-
-  let basePrice = 0;
-  if (kit) {
-    const rawPrice = kit.selling_price_cached || kit.base_price_cached || (kit.capacity ? kit.capacity * 50000 : 165000);
-    basePrice = Math.round(rawPrice * 100);
+  if (passed_price_per_kit_paise && Number(passed_price_per_kit_paise) > 0) {
+    // Prioritize verified price selected/passed from the quotation wizard
+    price_per_kit_paise = Math.round(Number(passed_price_per_kit_paise));
   } else {
-    basePrice = 16500000;
+    const kit = await WarehouseComboKit.findById(kit_id)
+      .select('selling_price_cached base_price_cached capacity name gst_rate tax_pct gst_pct allow_trial_kit trial_kit_quantity')
+      .lean();
+
+    if (kit?.selling_price_cached && Number(kit.selling_price_cached) > 0) {
+      // selling_price_cached ALREADY includes the standard catalog margin
+      price_per_kit_paise = Math.round(Number(kit.selling_price_cached) * 100);
+    } else {
+      let basePrice = 0;
+      if (kit?.base_price_cached && Number(kit.base_price_cached) > 0) {
+        basePrice = Math.round(Number(kit.base_price_cached) * 100);
+      } else if (kit?.capacity) {
+        basePrice = Math.round(Number(kit.capacity) * 50000 * 100);
+      } else {
+        basePrice = 16500000;
+      }
+
+      let marginDoc = null;
+      if (warehouse_id) {
+        marginDoc = await CompanyMargin.findOne({
+          combo_kit_id: kit_id,
+          warehouse_id,
+          deleted_at: null,
+          is_active: true,
+        }).lean();
+      }
+      if (!marginDoc) {
+        marginDoc = await CompanyMargin.findOne({
+          combo_kit_id: kit_id,
+          deleted_at: null,
+          is_active: true,
+        }).lean();
+      }
+
+      if (marginDoc && marginDoc.standard_margin) {
+        price_per_kit_paise = Math.round(basePrice * (1 + Number(marginDoc.standard_margin) / 100));
+      } else {
+        price_per_kit_paise = basePrice;
+      }
+    }
   }
 
-  let marginDoc = null;
-  if (warehouse_id) {
-    marginDoc = await CompanyMargin.findOne({
-      combo_kit_id: kit_id,
-      warehouse_id,
-      deleted_at: null,
-      is_active: true,
-    }).lean();
-  }
-  if (!marginDoc) {
-    marginDoc = await CompanyMargin.findOne({
-      combo_kit_id: kit_id,
-      deleted_at: null,
-      is_active: true,
-    }).lean();
-  }
-
-  if (marginDoc && marginDoc.standard_margin) {
-    price_per_kit_paise = Math.round(basePrice * (1 + marginDoc.standard_margin / 100));
-  } else {
-    price_per_kit_paise = basePrice;
-  }
-
-  // Fallback to passed price if kit price not resolved
-  if ((!price_per_kit_paise || price_per_kit_paise <= 0) && passed_price_per_kit_paise) {
-    price_per_kit_paise = Number(passed_price_per_kit_paise);
-  }
-
-  const product_subtotal_paise = price_per_kit_paise * quantity;
+  const product_subtotal_paise = price_per_kit_paise * finalQuantity;
 
   // 2. Warranty charges
   let warranty_charges_paise = 0;
@@ -976,7 +1099,7 @@ async function _calculatePrice({ kit_id, warehouse_id, quantity, warranty_id, de
     const warranty = await QuoteWarrantyOption.findById(warranty_id).lean();
     if (warranty && warranty.is_active) {
       if (warranty.pricing_mode === 'fixed') {
-        warranty_charges_paise = warranty.price_per_kit_paise * quantity;
+        warranty_charges_paise = warranty.price_per_kit_paise * finalQuantity;
       } else if (warranty.pricing_mode === 'percentage') {
         warranty_charges_paise = Math.round(product_subtotal_paise * (warranty.price_pct / 100));
       }
@@ -986,28 +1109,36 @@ async function _calculatePrice({ kit_id, warehouse_id, quantity, warranty_id, de
   // 3. Delivery charges (Logistics / Freight)
   let delivery_charges_paise = 0;
   if (delivery_type !== 'franchisee_warehouse') {
-    if (delivery_pincode) {
-      const deliveryCost = await PincodeDeliveryCost.findOne({
-        pincode: delivery_pincode,
-        is_active: true,
-        $or: [{ combo_kit_id: kit_id }, { combo_kit_id: null }],
-      }).sort({ combo_kit_id: -1 }).lean();
-      if (deliveryCost && deliveryCost.delivery_cost > 0) {
-        delivery_charges_paise = Math.round(deliveryCost.delivery_cost * 100);
+    if (passed_delivery_charges_paise != null && Number(passed_delivery_charges_paise) >= 0) {
+      // Prioritize wizard agreed/passed delivery charges (e.g. ₹2,500/kit)
+      delivery_charges_paise = Math.round(Number(passed_delivery_charges_paise));
+    } else {
+      let deliveryCost = null;
+      if (delivery_pincode) {
+        deliveryCost = await PincodeDeliveryCost.findOne({
+          pincode: delivery_pincode,
+          is_active: true,
+          $or: [{ combo_kit_id: kit_id }, { combo_kit_id: null }],
+        }).sort({ combo_kit_id: -1 }).lean();
       }
-    }
-    // Standard freight fallback (2500 per kit = 250,000 paise) or preserve passed delivery charges
-    if (delivery_charges_paise === 0) {
-      if (passed_delivery_charges_paise != null && passed_delivery_charges_paise > 0) {
-        delivery_charges_paise = Number(passed_delivery_charges_paise);
+
+      if (is_trial_kit && deliveryCost?.trial_delivery_cost > 0) {
+        delivery_charges_paise = Math.round(deliveryCost.trial_delivery_cost * 100);
+      } else if (deliveryCost && deliveryCost.delivery_cost > 0) {
+        delivery_charges_paise = Math.round(deliveryCost.delivery_cost * 100);
       } else {
-        delivery_charges_paise = 250000 * quantity;
+        delivery_charges_paise = 250000 * finalQuantity; // Standard ₹2,500 per kit
       }
     }
   }
 
-  // 4. GST rate — directly from the selected kit (or kit warehouse margin/activation)
-  let gst_rate = kit?.gst_rate ?? kit?.tax_pct ?? kit?.gst_pct ?? marginDoc?.gst_rate;
+  // 4. GST rate — directly from kit or fallback to 5%
+  let gst_rate = null;
+  const kitForGst = await WarehouseComboKit.findById(kit_id)
+    .select('gst_rate tax_pct gst_pct')
+    .lean();
+  gst_rate = kitForGst?.gst_rate ?? kitForGst?.tax_pct ?? kitForGst?.gst_pct;
+
   if (gst_rate == null && warehouse_id) {
     try {
       const WarehouseKitActivation = require('../models/india_core_db/warehouse_kit_activations.schema');
@@ -1028,8 +1159,8 @@ async function _calculatePrice({ kit_id, warehouse_id, quantity, warranty_id, de
   }
   gst_rate = Number(gst_rate);
 
-  // 5. Calculate
-  const discount_paise = 0; // TODO: Admin discount rules in future phase
+  // 5. Clean Single GST Calculation
+  const discount_paise = 0; // Future admin discount rules
   const taxable_amount_paise = product_subtotal_paise + warranty_charges_paise + delivery_charges_paise - discount_paise;
   const gst_amount_paise = Math.round(taxable_amount_paise * (gst_rate / 100));
   const total_amount_paise = taxable_amount_paise + gst_amount_paise;
@@ -1158,6 +1289,11 @@ exports.create_draft = async (req, res) => {
     if (actor.role === 'bde' && !franchisee_id) quote_source = 'bde_direct';
     if (actor.role === 'bde' && franchisee_id) quote_source = 'bde_for_franchisee';
 
+    const is_trial_kit = body.is_trial_kit === true || body.is_trial_kit === 'true' || body.quote_type === 'trial_kit';
+    const quote_type = is_trial_kit ? 'trial_kit' : 'standard';
+    let trial_kit_quantity = null;
+    let finalQuantity = Math.max(1, parseInt(body.quantity, 10) || 1);
+
     let industry_type_id = body.industry_type_id || null;
     let industry_type_snapshot = body.industry_type_snapshot || null;
     let project_type_id = body.project_type_id || null;
@@ -1174,6 +1310,24 @@ exports.create_draft = async (req, res) => {
         if (!project_type_snapshot) project_type_snapshot = kitResolved.project_type_snapshot;
         if (!kit_capacity_kw) kit_capacity_kw = kitResolved.capacity_kw;
         if (!combo_kit_snapshot) combo_kit_snapshot = kitResolved.combo_kit_snapshot;
+
+        if (is_trial_kit) {
+          if (!kitResolved.kit?.allow_trial_kit) {
+            return res.status(400).json({
+              status: 'error',
+              message: 'The selected Combo Kit is not authorized for trial kit orders by Admin configuration.'
+            });
+          }
+          // Strictly lock trial kit quantity to what Admin configured
+          trial_kit_quantity = kitResolved.kit.trial_kit_quantity !== undefined && kitResolved.kit.trial_kit_quantity !== null
+            ? Math.max(1, Number(kitResolved.kit.trial_kit_quantity))
+            : 10;
+          finalQuantity = trial_kit_quantity;
+          if (combo_kit_snapshot) {
+            combo_kit_snapshot.is_trial_kit = true;
+            combo_kit_snapshot.trial_kit_quantity = trial_kit_quantity;
+          }
+        }
       }
     }
 
@@ -1218,13 +1372,14 @@ exports.create_draft = async (req, res) => {
         initialPrices = await _calculatePrice({
           kit_id: body.combo_kit_id,
           warehouse_id: body.warehouse_id,
-          quantity: body.quantity || 1,
+          quantity: finalQuantity,
           warranty_id: body.warranty_id,
           delivery_pincode: delivery_address_snapshot?.pincode,
           delivery_district_id: resolvedTerritory.district_id,
           delivery_type: body.delivery_type,
           passed_delivery_charges_paise: body.delivery_charges_paise,
           passed_price_per_kit_paise: body.price_per_kit_paise,
+          is_trial_kit: Boolean(is_trial_kit),
         });
       }
     } catch (e) {
@@ -1235,6 +1390,9 @@ exports.create_draft = async (req, res) => {
       status: 'draft',
       ...initialPrices,
       quote_source,
+      is_trial_kit: Boolean(is_trial_kit),
+      quote_type,
+      trial_kit_quantity,
       created_by: actor.id,
       created_by_role: actor.role,
       bde_id,
@@ -1254,8 +1412,8 @@ exports.create_draft = async (req, res) => {
       combo_kit_id: body.combo_kit_id,
       combo_kit_snapshot,
       kit_capacity_kw,
-      quantity: body.quantity || 1,
-      total_kw: (kit_capacity_kw || 0) * (body.quantity || 1),
+      quantity: finalQuantity,
+      total_kw: (kit_capacity_kw || 0) * finalQuantity,
       warranty_id: body.warranty_id || null,
       warranty_snapshot: body.warranty_snapshot || null,
     });
@@ -1315,7 +1473,31 @@ exports.update_draft = async (req, res) => {
       'combo_kit_id', 'combo_kit_snapshot', 'kit_capacity_kw', 'quantity', 'warranty_id',
       'warranty_snapshot', 'territory'];
     allowed.forEach(f => { if (req.body[f] !== undefined) quote[f] = req.body[f]; });
-    if (req.body.kit_capacity_kw || req.body.quantity) {
+
+    const is_trial_kit = req.body.is_trial_kit !== undefined
+      ? (req.body.is_trial_kit === true || req.body.is_trial_kit === 'true' || req.body.quote_type === 'trial_kit')
+      : Boolean(quote.is_trial_kit);
+
+    if (is_trial_kit) {
+      quote.is_trial_kit = true;
+      quote.quote_type = 'trial_kit';
+      const targetKitId = req.body.combo_kit_id || quote.combo_kit_id;
+      if (targetKitId) {
+        const kDoc = await WarehouseComboKit.findById(targetKitId).lean();
+        if (kDoc) {
+          if (!kDoc.allow_trial_kit) {
+            return res.status(400).json({ status: 'error', message: 'Selected combo kit is not authorized for trial kit orders by Admin configuration.' });
+          }
+          const tQty = kDoc.trial_kit_quantity !== undefined && kDoc.trial_kit_quantity !== null
+            ? Math.max(1, Number(kDoc.trial_kit_quantity))
+            : 10;
+          quote.trial_kit_quantity = tQty;
+          quote.quantity = tQty;
+        }
+      }
+    }
+
+    if (req.body.kit_capacity_kw || req.body.quantity || is_trial_kit) {
       quote.total_kw = (quote.kit_capacity_kw || 0) * (quote.quantity || 1);
     }
     quote.updated_by = actor.id;
@@ -1347,6 +1529,21 @@ exports.generate_quote = async (req, res) => {
 
     // Validate required fields
     if (!quote.combo_kit_id) return res.status(400).json({ status: 'error', message: 'ComboKit is required' });
+
+    // Strict Admin Trial Kit Quantity Enforcement
+    if (quote.is_trial_kit) {
+      const kDoc = await WarehouseComboKit.findById(quote.combo_kit_id).lean();
+      if (!kDoc?.allow_trial_kit) {
+        return res.status(400).json({ status: 'error', message: 'Selected combo kit is no longer authorized for trial kit orders by Admin.' });
+      }
+      const tQty = kDoc.trial_kit_quantity !== undefined && kDoc.trial_kit_quantity !== null
+        ? Math.max(1, Number(kDoc.trial_kit_quantity))
+        : 10;
+      quote.trial_kit_quantity = tQty;
+      quote.quantity = tQty;
+      quote.total_kw = (quote.kit_capacity_kw || 0) * tQty;
+    }
+
     if (!quote.quantity || quote.quantity < 1) return res.status(400).json({ status: 'error', message: 'Valid quantity is required' });
 
     const settings = await QuoteSettings.findOne().lean();
@@ -1363,6 +1560,7 @@ exports.generate_quote = async (req, res) => {
       quote_settings: settings,
       passed_delivery_charges_paise: quote.delivery_charges_paise,
       passed_price_per_kit_paise: quote.price_per_kit_paise,
+      is_trial_kit: Boolean(quote.is_trial_kit),
     });
 
     // Get terms
@@ -1452,9 +1650,17 @@ exports.list_quotes = async (req, res) => {
       page = 1, limit = 20, status, epc_id, bde_id, quote_source,
       industry_type_id, project_type_id, combo_kit_id, warehouse_id,
       date_from, date_to, search, sort_by = 'created_at', sort_dir = '-1',
+      is_trial_kit, quote_type,
     } = req.query;
 
     const filter = { deleted_at: null };
+
+    if (is_trial_kit !== undefined) {
+      filter.is_trial_kit = is_trial_kit === 'true' || is_trial_kit === true;
+    }
+    if (quote_type) {
+      filter.quote_type = quote_type;
+    }
 
     // Scope by actor
     if (actor.role === 'reseller') {
@@ -1911,7 +2117,10 @@ exports.get_pdf = async (req, res) => {
     // Right Header Area: Title & Reference
     const rightBoxW = 180;
     const rightBoxX = 36 + pageW - rightBoxW;
-    doc.fontSize(12).fillColor(SECONDARY).font('Helvetica-Bold').text(isDraft ? 'DRAFT ESTIMATE' : 'COMMERCIAL QUOTATION', rightBoxX, 18, { width: rightBoxW, align: 'right' });
+    const pdfQuoteTitle = isDraft
+      ? (quote.is_trial_kit ? 'TRIAL KIT DRAFT ESTIMATE' : 'DRAFT ESTIMATE')
+      : (quote.is_trial_kit ? 'TRIAL KIT PROPOSAL' : 'COMMERCIAL QUOTATION');
+    doc.fontSize(12).fillColor(SECONDARY).font('Helvetica-Bold').text(pdfQuoteTitle, rightBoxX, 18, { width: rightBoxW, align: 'right' });
 
     // Ref Badge
     doc.roundedRect(rightBoxX + rightBoxW - 130, 34, 130, 18, 3).fill(LIGHT_BG);
@@ -2063,83 +2272,109 @@ exports.get_pdf = async (req, res) => {
     doc.rect(36, y, pageW, row1H).stroke(BORDER_COLOR);
 
     doc.fontSize(8).fillColor(SECONDARY).font('Helvetica-Bold').text('1', 42, y + 6);
-    doc.fontSize(8).fillColor(SECONDARY).font('Helvetica-Bold').text(kit.name || 'Solar ComboKit Complete System', 60, y + 6, { width: 200, height: 12 });
-    doc.fontSize(7).fillColor(GREY).font('Helvetica').text('Complete On-Grid Solar System Package with Equipment & BOS', 60, y + 18, { width: 200 });
+    const pdfKitName = quote.is_trial_kit
+      ? `[TRIAL KIT] ${kit.name || 'Solar ComboKit Complete System'}`
+      : (kit.name || 'Solar ComboKit Complete System');
+    doc.fontSize(8).fillColor(SECONDARY).font('Helvetica-Bold').text(pdfKitName, 60, y + 6, { width: 200, height: 12 });
+    const pdfKitDesc = quote.is_trial_kit
+      ? `Authorized Trial Evaluation Pack (${quote.trial_kit_quantity || quantity} Kits) • Admin Configured`
+      : 'Complete On-Grid Solar System Package with Equipment & BOS';
+    doc.fontSize(7).fillColor(GREY).font('Helvetica').text(pdfKitDesc, 60, y + 18, { width: 200 });
     doc.fontSize(8).fillColor(SECONDARY).font('Helvetica').text(`${cap} kW`, 270, y + 10);
     doc.text(String(quantity), 345, y + 10);
     doc.text(_paiseToINR(pricePerKitPaise), 380, y + 10);
     doc.font('Helvetica-Bold').text(_paiseToINR(productSubtotalPaise), 450, y + 10, { width: 100, align: 'right' });
     y += row1H;
 
-    // Table Row 2 (Optional Warranty/Delivery)
+    // Table Row 2 (Optional Warranty only — Freight is shown strictly in the Financial Summary Box)
     if (warrantyChargesPaise > 0) {
-      doc.rect(36, y, pageW, 20).fill('#fefce8');
-      doc.rect(36, y, pageW, 20).stroke(BORDER_COLOR);
-      doc.fontSize(7.5).fillColor(SECONDARY).font('Helvetica').text('2', 42, y + 6);
-      doc.text(`Extended Warranty Protection: ${quote.warranty_snapshot?.name || 'Comprehensive Coverage'}`, 60, y + 6, { width: 250 });
+      doc.rect(36, y, pageW, 22).fill('#fefce8');
+      doc.rect(36, y, pageW, 22).stroke(BORDER_COLOR);
+      doc.fontSize(7.5).fillColor(SECONDARY).font('Helvetica-Bold').text('2', 42, y + 6);
+      doc.text(`Extended Warranty Protection: ${quote.warranty_snapshot?.name || 'Comprehensive Coverage'}`, 60, y + 6, { width: 200 });
+      doc.text('-', 270, y + 6);
       doc.text(String(quantity), 345, y + 6);
+      doc.text(_paiseToINR(Math.round(warrantyChargesPaise / quantity)), 380, y + 6);
       doc.font('Helvetica-Bold').text(_paiseToINR(warrantyChargesPaise), 450, y + 6, { width: 100, align: 'right' });
-      y += 20;
-    }
-
-    if (deliveryChargesPaise > 0) {
-      doc.rect(36, y, pageW, 20).fill(LIGHT_BG);
-      doc.rect(36, y, pageW, 20).stroke(BORDER_COLOR);
-      doc.fontSize(7.5).fillColor(SECONDARY).font('Helvetica').text('3', 42, y + 6);
-      doc.text(`Logistics & Freight Handling (${quote.delivery_type?.replace('_', ' ')})`, 60, y + 6, { width: 250 });
-      doc.text('1', 345, y + 6);
-      doc.font('Helvetica-Bold').text(_paiseToINR(deliveryChargesPaise), 450, y + 6, { width: 100, align: 'right' });
-      y += 20;
+      y += 22;
     }
 
     y += 10;
 
-    // Bottom Summary Box (Left: System summary & Notes, Right: Financial Totals)
-    const boxW = 230;
+    // Bottom Summary Section: Left = Commercial Terms & Policy; Right = Financial Schedule Breakdown
+    const boxW = 240;
     const boxX = 36 + pageW - boxW;
+    const leftW = pageW - boxW - 12;
+    const summaryBoxH = 124;
 
-    // Left Note (Customized Title & Dynamic Notes Bullets)
-    doc.roundedRect(36, y, pageW - boxW - 12, 100, 3).fill(LIGHT_BG);
-    doc.rect(36, y, pageW - boxW - 12, 100).stroke(BORDER_COLOR);
-    doc.fontSize(7.5).fillColor(PRIMARY).font('Helvetica-Bold').text(pdfTheme.commercial_notes_title || 'COMMERCIAL & STATUTORY NOTES', 44, y + 8);
+    // Left Box: Commercial Terms (Crisp, Low-Text, High Understandability)
+    doc.roundedRect(36, y, leftW, summaryBoxH, 4).fill(LIGHT_BG);
+    doc.rect(36, y, leftW, summaryBoxH).stroke(BORDER_COLOR);
+    doc.rect(36, y, leftW, 22).fill('#f1f5f9');
+    doc.fontSize(7.5).fillColor(PRIMARY).font('Helvetica-Bold').text('COMMERCIAL TERMS & DISPATCH POLICY', 44, y + 7);
 
-    let noteY = y + 22;
-    // 1st note: Dynamic GST Rate
-    doc.fontSize(7).fillColor(SLATE).font('Helvetica')
-      .text(`• GST Rate: ${gstRate}% kit-specific statutory tax rate applied.`, 44, noteY, { width: pageW - boxW - 28 });
-    noteY += 13;
+    let noteY = y + 28;
+    const commercialBullets = [
+      `• GST Rate: Single statutory ${gstRate}% tax rate applied on commercial total.`,
+      `• Quotation Validity: Valid up to ${_fmtDate(quote.valid_until)} as per company policy.`,
+      `• Direct Fulfillment: Dispatched via authorized distribution hub with transit cover.`,
+      `• Payment Terms: 100% advance payment required prior to warehouse dispatch.`,
+      `• Standard Warranties: Tier-1 Solar PV modules (25-30 Yrs) & Inverter (5 Yrs).`,
+    ];
 
-    // Configurable Commercial Notes
-    const customNotes = Array.isArray(pdfTheme.commercial_notes) && pdfTheme.commercial_notes.length > 0
-      ? pdfTheme.commercial_notes
-      : [
-        'Prices quoted are in Indian Rupees (INR) and valid up to the expiration date.',
-        'Dispatched directly through authorized distribution hubs with transit insurance.',
-        'Refer to Page 2 for Detailed Technical Bill of Materials (BOM) & Equipment Specifications.',
-      ];
-
-    customNotes.slice(0, 5).forEach((n) => {
-      doc.fontSize(7).fillColor(SLATE).font('Helvetica').text(`• ${n}`, 44, noteY, { width: pageW - boxW - 28 });
-      noteY += 14;
+    commercialBullets.forEach((bullet) => {
+      doc.fontSize(7).fillColor(SLATE).font('Helvetica').text(bullet, 44, noteY, { width: leftW - 16 });
+      noteY += 16;
     });
 
-    // Right Financial Totals
-    doc.roundedRect(boxX, y, boxW, 100, 3).fill(LIGHT_BG);
-    doc.rect(boxX, y, boxW, 100).stroke(BORDER_COLOR);
+    // Right Box: Financial Totals Schedule
+    doc.roundedRect(boxX, y, boxW, summaryBoxH, 4).fill(LIGHT_BG);
+    doc.rect(boxX, y, boxW, summaryBoxH).stroke(BORDER_COLOR);
 
     const finRow = (label, val, rY, isBold = false, color = SECONDARY) => {
       doc.fontSize(7.5).fillColor(GREY).font('Helvetica').text(label, boxX + 10, rY);
-      doc.fontSize(7.5).fillColor(color).font(isBold ? 'Helvetica-Bold' : 'Helvetica').text(val, boxX + 100, rY, { width: boxW - 110, align: 'right' });
+      doc.fontSize(7.5).fillColor(color).font(isBold ? 'Helvetica-Bold' : 'Helvetica').text(val, boxX + 110, rY, { width: boxW - 120, align: 'right' });
     };
 
-    finRow('Subtotal', _paiseToINR(productSubtotalPaise), y + 8);
-    finRow('Taxable Value', _paiseToINR(taxableAmountPaise), y + 24);
-    finRow(`GST (${gstRate}%)`, _paiseToINR(gstAmountPaise), y + 40);
+    finRow('Base Kit Subtotal', _paiseToINR(productSubtotalPaise), y + 8);
+    if (warrantyChargesPaise > 0) {
+      finRow('Warranty / Protection', _paiseToINR(warrantyChargesPaise), y + 20);
+    }
+    finRow('Logistics & Freight', deliveryChargesPaise > 0 ? _paiseToINR(deliveryChargesPaise) : 'Included / Free', y + (warrantyChargesPaise > 0 ? 32 : 22));
+    finRow('Total Taxable Value', _paiseToINR(taxableAmountPaise), y + (warrantyChargesPaise > 0 ? 44 : 36), true);
+    finRow(`Statutory GST (${gstRate}%)`, _paiseToINR(gstAmountPaise), y + (warrantyChargesPaise > 0 ? 56 : 50));
 
-    // Total Highlight Bar (Theme Primary Color)
-    doc.rect(boxX, y + 58, boxW, 42).fill(PRIMARY);
-    doc.fontSize(8).fillColor('#ffffff').font('Helvetica-Bold').text('TOTAL AMOUNT (INCL. GST)', boxX + 10, y + 68);
-    doc.fontSize(12).fillColor('#ffffff').font('Helvetica-Bold').text(_paiseToINR(totalAmountPaise), boxX + 10, y + 80, { width: boxW - 20, align: 'right' });
+    // Total Highlight Bar
+    const totalBarY = y + (warrantyChargesPaise > 0 ? 70 : 64);
+    const totalBarH = summaryBoxH - (totalBarY - y);
+    doc.rect(boxX, totalBarY, boxW, totalBarH).fill(PRIMARY);
+    doc.fontSize(8).fillColor('#ffffff').font('Helvetica-Bold').text('TOTAL AMOUNT (INCL. GST)', boxX + 10, totalBarY + 7);
+    doc.fontSize(12).fillColor('#ffffff').font('Helvetica-Bold').text(_paiseToINR(totalAmountPaise), boxX + 10, totalBarY + 18, { width: boxW - 20, align: 'right' });
+    doc.fontSize(6).fillColor('#fed7aa').font('Helvetica').text(_inrInWords(totalAmountPaise), boxX + 10, totalBarY + 34, { width: boxW - 20, align: 'right' });
+
+    y += summaryBoxH + 10;
+
+    // Signatures Directly on Page 1 (Legally Complete Commercial Document)
+    const sigW = (pageW - 12) / 2;
+    const sigH = 75;
+
+    // EPC Acceptance Box (Left)
+    doc.roundedRect(36, y, sigW, sigH, 4).fill(LIGHT_BG);
+    doc.rect(36, y, sigW, sigH).stroke(BORDER_COLOR);
+    doc.fontSize(7.5).fillColor(SECONDARY).font('Helvetica-Bold').text('CONFIRMED & ACCEPTED BY EPC BUYER', 44, y + 8);
+    doc.fontSize(6.5).fillColor(GREY).font('Helvetica').text(`Buyer: ${epc.company_name || epc.contact_person || 'EPC Client'}`, 44, y + 20);
+    doc.moveTo(44, y + 54).lineTo(36 + sigW - 16, y + 54).stroke('#cbd5e1');
+    doc.fontSize(6.5).fillColor(GREY).text('Authorized Signatory & Stamp                Date: _______________', 44, y + 59);
+
+    // SolarKits / BDE Issuer Box (Right)
+    const sigX2 = 36 + sigW + 12;
+    doc.roundedRect(sigX2, y, sigW, sigH, 4).fill(LIGHT_BG);
+    doc.rect(sigX2, y, sigW, sigH).stroke(BORDER_COLOR);
+    const sigIssuerTitle = isBdeDirect ? 'FOR SOLARKITS CENTRAL FULFILLMENT' : 'FOR AUTHORIZED SOLARKITS FRANCHISEE';
+    doc.fontSize(7.5).fillColor(SECONDARY).font('Helvetica-Bold').text(sigIssuerTitle, sigX2 + 8, y + 8);
+    doc.fontSize(6.5).fillColor(GREY).font('Helvetica').text(`Issued by: ${issuerName} (${isBdeDirect ? (quote.bde_snapshot?.bde_id_code || 'BDE') : (fr.gst_number || 'Franchisee')})`, sigX2 + 8, y + 20);
+    doc.moveTo(sigX2 + 8, y + 54).lineTo(sigX2 + sigW - 16, y + 54).stroke('#cbd5e1');
+    doc.fontSize(6.5).fillColor(GREY).text('Authorized Representative Signature        Date: _______________', sigX2 + 8, y + 59);
 
     // Page 1 Footer
     const prevBottom1 = doc.page.margins.bottom;
@@ -2148,9 +2383,9 @@ exports.get_pdf = async (req, res) => {
     doc.fontSize(7).fillColor('#cbd5e1').font('Helvetica')
       .text(pdfTheme.footer_text || 'SolarKits India • Confidential Commercial Proposal • All Rights Reserved', 36, 800, { width: pageW, align: 'center', lineBreak: false });
     doc.fontSize(6.5).fillColor('#94a3b8')
-      .text('This is a digitally generated document. Refer to Page 2 for Equipment Datasheet & Bill of Materials.', 36, 811, { width: pageW, align: 'center', lineBreak: false });
+      .text('This is a digitally generated commercial proposal. Refer to Page 2 for Detailed Equipment Specifications & BOM.', 36, 811, { width: pageW, align: 'center', lineBreak: false });
     doc.fontSize(7).fillColor(PRIMARY)
-      .text(`Quote Ref: ${displayQuoteNumber} | Page 1 of 2`, 36, 822, { width: pageW, align: 'center', lineBreak: false });
+      .text(`Quote Ref: ${displayQuoteNumber} | Page 1 of 2 (Commercial Proposal)`, 36, 822, { width: pageW, align: 'center', lineBreak: false });
     doc.page.margins.bottom = prevBottom1;
 
     // ==========================================
@@ -2337,26 +2572,28 @@ exports.get_pdf = async (req, res) => {
 
     p2Y += mmsH + 12;
 
-    // Signature / Acceptance Section
-    const sigH = 75;
-    const sigW = (pageW - 12) / 2;
+    // Technical Compliance & Quality Assurance Block (Page 2)
+    const p2CardW = (pageW - 12) / 2;
+    const p2CardH = 75;
 
-    // EPC Acceptance Box
-    doc.roundedRect(36, p2Y, sigW, sigH, 4).fill(LIGHT_BG);
-    doc.rect(36, p2Y, sigW, sigH).stroke(BORDER_COLOR);
-    doc.fontSize(7.5).fillColor(SECONDARY).font('Helvetica-Bold').text('ACCEPTED & CONFIRMED BY EPC BUYER', 44, p2Y + 8);
-    doc.fontSize(6.5).fillColor(GREY).font('Helvetica').text('Authorized Signatory & Official Stamp:', 44, p2Y + 20);
-    doc.moveTo(44, p2Y + 56).lineTo(36 + sigW - 16, p2Y + 56).stroke('#cbd5e1');
-    doc.fontSize(6.5).fillColor(GREY).text('Signature / Seal                                Date: _______________', 44, p2Y + 61);
+    // Quality Standards Box (Left)
+    doc.roundedRect(36, p2Y, p2CardW, p2CardH, 4).fill(LIGHT_BG);
+    doc.rect(36, p2Y, p2CardW, p2CardH).stroke(BORDER_COLOR);
+    doc.fontSize(7.5).fillColor(SECONDARY).font('Helvetica-Bold').text('TECHNICAL & STATUTORY COMPLIANCE', 44, p2Y + 8);
+    doc.fontSize(6.5).fillColor(GREY).font('Helvetica').text('Certified according to MNRE & CEA guidelines:', 44, p2Y + 20);
+    doc.fontSize(6.5).fillColor(SLATE).text('• BIS Certified Modules & Inverter (IS 14286 / IS 16221)', 44, p2Y + 34);
+    doc.fontSize(6.5).fillColor(SLATE).text('• DCR Compliant (Domestic Content Requirement)', 44, p2Y + 46);
+    doc.fontSize(6.5).fillColor(SLATE).text('• ALMM Listed (Approved List of Models & Manufacturers)', 44, p2Y + 58);
 
-    // Franchisee Issuer Box
-    const sigX2 = 36 + sigW + 12;
-    doc.roundedRect(sigX2, p2Y, sigW, sigH, 4).fill(LIGHT_BG);
-    doc.rect(sigX2, p2Y, sigW, sigH).stroke(BORDER_COLOR);
-    doc.fontSize(7.5).fillColor(SECONDARY).font('Helvetica-Bold').text('FOR SOLARKITS FRANCHISEE PARTNER', sigX2 + 8, p2Y + 8);
-    doc.fontSize(6.5).fillColor(GREY).font('Helvetica').text('Authorized Dispatch Representative:', sigX2 + 8, p2Y + 20);
-    doc.moveTo(sigX2 + 8, p2Y + 56).lineTo(sigX2 + sigW - 16, p2Y + 56).stroke('#cbd5e1');
-    doc.fontSize(6.5).fillColor(GREY).text('Authorized Signatory                            Date: _______________', sigX2 + 8, p2Y + 61);
+    // Dispatch & Engineering Support Box (Right)
+    const p2CardX2 = 36 + p2CardW + 12;
+    doc.roundedRect(p2CardX2, p2Y, p2CardW, p2CardH, 4).fill(LIGHT_BG);
+    doc.rect(p2CardX2, p2Y, p2CardW, p2CardH).stroke(BORDER_COLOR);
+    doc.fontSize(7.5).fillColor(SECONDARY).font('Helvetica-Bold').text('ENGINEERING & DISPATCH INSPECTION', p2CardX2 + 8, p2Y + 8);
+    doc.fontSize(6.5).fillColor(GREY).font('Helvetica').text('Pre-Dispatch Quality Inspection (PDI) Certified:', p2CardX2 + 8, p2Y + 20);
+    doc.fontSize(6.5).fillColor(SLATE).text('• Factory Flash Test & EL (Electroluminescence) Verified', p2CardX2 + 8, p2Y + 34);
+    doc.fontSize(6.5).fillColor(SLATE).text('• Tamper-proof Barcode / QR Coded Equipment Serial Numbers', p2CardX2 + 8, p2Y + 46);
+    doc.fontSize(6.5).fillColor(SLATE).text('• Technical Support Helpline: support@solarkits.in', p2CardX2 + 8, p2Y + 58);
 
     // Page 2 Footer (Theme Secondary Color)
     const prevBottom2 = doc.page.margins.bottom;
@@ -2741,6 +2978,14 @@ exports.convert_to_order = async (req, res) => {
           contact_phone: quote.delivery_address_snapshot?.mobile || null,
         },
       };
+
+      if (quote.is_trial_kit) {
+        orderDoc.is_trial_kit = true;
+        orderDoc.is_trial_order = true;
+        orderDoc.order_type = 'trial_order';
+        orderDoc.trial_kit_quantity = quote.trial_kit_quantity || quote.quantity;
+      }
+
       createdOrder = await EpcOrder.create(orderDoc);
 
     } else {

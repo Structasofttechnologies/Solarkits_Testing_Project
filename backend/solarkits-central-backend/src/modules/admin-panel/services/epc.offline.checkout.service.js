@@ -357,7 +357,7 @@ async function createEpcOfflineOrder({
     totals = await calculateCheckoutPrice(targetResellerId, items);
   } else {
     const settings = await SolarShopSettings.findOne().lean();
-    const gstRate = settings?.gst_rate || 13.8;
+    const platformDefaultGstRate = Number(settings?.gst_rate != null ? settings.gst_rate : 12);
 
     let subtotalPaise = 0;
     let taxTotalPaise = 0;
@@ -367,17 +367,31 @@ async function createEpcOfflineOrder({
       const qty = parseInt(item.quantity, 10) || parseInt(item.qty, 10) || 1;
       const rawKitId = item.kit_id || item.combo_kit_id || (!item.product_id ? (item.id || item._id) : null);
       let ourPriceRupees = parseFloat(item.ourPrice || item.unit_price_inr || 0);
+      let resolvedItemGstRate = null;
 
-      // Check tier pricing for kit if available
+      // Check tier pricing and GST rate for kit if available
       if (rawKitId) {
         try {
           const { CompanyMargin: IndiaMargin } = require('../models/india_solarshop_db');
-          const marginDoc = await IndiaMargin.findOne({
+          const { CompanyMargin: CoreMargin } = require('../models/core_db');
+          let marginDoc = await IndiaMargin.findOne({
             combo_kit_id: rawKitId,
             is_active: true,
             deleted_at: null,
           }).sort({ updated_at: -1 }).lean();
+
+          if (!marginDoc && CoreMargin) {
+            marginDoc = await CoreMargin.findOne({
+              combo_kit_id: rawKitId,
+              is_active: true,
+              deleted_at: null,
+            }).sort({ updated_at: -1 }).lean();
+          }
+
           if (marginDoc) {
+            if (marginDoc.gst_rate != null && !isNaN(marginDoc.gst_rate)) {
+              resolvedItemGstRate = Number(marginDoc.gst_rate);
+            }
             const allTiers = [
               ...(Array.isArray(marginDoc.loose_order_pricing) ? marginDoc.loose_order_pricing : []),
               ...(Array.isArray(marginDoc.po_order_pricing) ? marginDoc.po_order_pricing : []),
@@ -388,7 +402,18 @@ async function createEpcOfflineOrder({
             }
           }
         } catch (tierErr) {
-          console.warn('Error checking tier pricing in direct offline checkout:', tierErr.message);
+          console.warn('Error checking tier pricing and margin GST in direct offline checkout:', tierErr.message);
+        }
+      }
+
+      // Hierarchy: Margin GST > Payload item.gstRate > Payload item.gst_rate > Platform Default (12%)
+      if (resolvedItemGstRate == null) {
+        if (item.gstRate != null && !isNaN(item.gstRate)) {
+          resolvedItemGstRate = Number(item.gstRate);
+        } else if (item.gst_rate != null && !isNaN(item.gst_rate)) {
+          resolvedItemGstRate = Number(item.gst_rate);
+        } else {
+          resolvedItemGstRate = platformDefaultGstRate;
         }
       }
 
@@ -397,10 +422,10 @@ async function createEpcOfflineOrder({
       }
       // ── CRITICAL: ourPrice from the shop API is GST-INCLUSIVE ──
       // standardPrice = base × (1 + margin%) × (1 + gst%) — already incl. GST
-      // So: baseExclGst = ourPrice / (1 + gstRate/100)
+      // So: baseExclGst = ourPrice / (1 + resolvedItemGstRate/100)
       // grand_total = subtotal (base) + tax = ourPrice × qty  ✓
       const unitPriceInclGstPaise = Math.round(ourPriceRupees * 100); // what EPC pays per kit
-      const unitBaseExclGstPaise = Math.round(unitPriceInclGstPaise / (1 + gstRate / 100));
+      const unitBaseExclGstPaise = Math.round(unitPriceInclGstPaise / (1 + resolvedItemGstRate / 100));
       const unitTaxPaise = unitPriceInclGstPaise - unitBaseExclGstPaise;
 
       const itemBaseSubtotal = qty * unitBaseExclGstPaise;
@@ -423,11 +448,13 @@ async function createEpcOfflineOrder({
         cost_price_paise: Math.round(unitBaseExclGstPaise * 0.85),
         reseller_margin_paise: 0,
         platform_commission_paise: 0,
-        gst_rate: gstRate,
+        gst_rate: resolvedItemGstRate,
         tax_paise: itemTax,
         total_price_paise: itemBaseSubtotal + itemTax,    // = qty × ourPrice (incl. GST)
       });
     }
+
+    const effectiveGstRate = directItems.length > 0 ? directItems[0].gst_rate : platformDefaultGstRate;
 
     totals = {
       items: directItems,
@@ -435,7 +462,7 @@ async function createEpcOfflineOrder({
       tax_total_paise: taxTotalPaise,
       shipping_fee_paise: 0,
       grand_total_paise: subtotalPaise + taxTotalPaise,
-      gst_rate: gstRate,
+      gst_rate: effectiveGstRate,
     };
   }
 
@@ -516,7 +543,7 @@ async function createEpcOfflineOrder({
       cost_price_paise: costPrice,
       reseller_margin_paise: netMargin,
       platform_commission_paise: commission,
-      gst_rate: totals.gst_rate || 13.8,
+      gst_rate: item.gst_rate != null ? item.gst_rate : (totals.gst_rate != null ? totals.gst_rate : 12),
       tax_paise: item.tax_paise,
       total_price_paise: item.total_price_paise,
       is_trial_kit: isTrialItem,

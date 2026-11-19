@@ -158,7 +158,7 @@ async function createOrUpdateResellerListing({
  */
 async function calculateCheckoutPrice(resellerId, items = []) {
   let settings = await SolarShopSettings.findOne().lean();
-  const gstRate = settings?.gst_rate || 13.8;
+  const platformDefaultGstRate = Number(settings?.gst_rate != null ? settings.gst_rate : 12);
 
   let subtotalPaise = 0;
   let taxTotalPaise = 0;
@@ -181,6 +181,7 @@ async function calculateCheckoutPrice(resellerId, items = []) {
     let resolvedImage = listing?.image_url || item.image || item.kit_image || null;
     let resolvedCapacity = item.capacity || null;
     let resolvedDesc = listing?.description || item.description || null;
+    let resolvedItemGstRate = null;
 
     if (isKit && resolvedKitId && (!resolvedTitle || resolvedTitle === 'Solar Component' || !resolvedImage || !resolvedCapacity)) {
       try {
@@ -224,6 +225,9 @@ async function calculateCheckoutPrice(resellerId, items = []) {
         }
 
         if (marginDoc) {
+          if (marginDoc.gst_rate != null && !isNaN(marginDoc.gst_rate)) {
+            resolvedItemGstRate = Number(marginDoc.gst_rate);
+          }
           const allTiers = [
             ...(Array.isArray(marginDoc.loose_order_pricing) ? marginDoc.loose_order_pricing : []),
             ...(Array.isArray(marginDoc.po_order_pricing) ? marginDoc.po_order_pricing : []),
@@ -231,12 +235,24 @@ async function calculateCheckoutPrice(resellerId, items = []) {
           const matchedTier = allTiers.find((t) => Number(t.quantity) === Number(qty) && Number(t.price_per_kit) > 0);
           if (matchedTier) {
             // tier.price_per_kit is GST-inclusive per kit in INR
+            const effectiveRate = resolvedItemGstRate != null ? resolvedItemGstRate : platformDefaultGstRate;
             const tierPriceInclGstPaise = Math.round(Number(matchedTier.price_per_kit) * 100);
-            unitPricePaise = Math.round(tierPriceInclGstPaise / (1 + gstRate / 100));
+            unitPricePaise = Math.round(tierPriceInclGstPaise / (1 + effectiveRate / 100));
           }
         }
       } catch (tierErr) {
         console.warn('Error checking tier pricing in calculateCheckoutPrice:', tierErr.message);
+      }
+    }
+
+    // Resolve GST rate hierarchy: marginDoc.gst_rate > item.gstRate > item.gst_rate > platformDefaultGstRate
+    if (resolvedItemGstRate == null) {
+      if (item.gstRate != null && !isNaN(item.gstRate)) {
+        resolvedItemGstRate = Number(item.gstRate);
+      } else if (item.gst_rate != null && !isNaN(item.gst_rate)) {
+        resolvedItemGstRate = Number(item.gst_rate);
+      } else {
+        resolvedItemGstRate = platformDefaultGstRate;
       }
     }
 
@@ -248,7 +264,7 @@ async function calculateCheckoutPrice(resellerId, items = []) {
       const ourPriceRupees = parseFloat(item.ourPrice || item.unit_price_inr || item.price || item.selling_price || 0);
       if (ourPriceRupees > 0) {
         const unitPriceInclGstPaise = Math.round(ourPriceRupees * 100);
-        unitPricePaise = Math.round(unitPriceInclGstPaise / (1 + gstRate / 100));
+        unitPricePaise = Math.round(unitPriceInclGstPaise / (1 + resolvedItemGstRate / 100));
       } else if (resolvedKitId) {
         const kitDoc = await WarehouseComboKit.findById(resolvedKitId).lean();
         const rawKitPrice = kitDoc?.selling_price_cached || kitDoc?.base_price || 180000;
@@ -259,7 +275,7 @@ async function calculateCheckoutPrice(resellerId, items = []) {
     }
 
     const itemSubtotal = qty * unitPricePaise;
-    const itemTax = Math.round(itemSubtotal * (gstRate / 100));
+    const itemTax = Math.round(itemSubtotal * (resolvedItemGstRate / 100));
 
     subtotalPaise += itemSubtotal;
     taxTotalPaise += itemTax;
@@ -275,8 +291,9 @@ async function calculateCheckoutPrice(resellerId, items = []) {
       description: resolvedDesc || null,
       quantity: qty,
       unit_price_paise: unitPricePaise,
-      unit_price_incl_gst_paise: Math.round(unitPricePaise * (1 + gstRate / 100)),
+      unit_price_incl_gst_paise: Math.round(unitPricePaise * (1 + resolvedItemGstRate / 100)),
       cost_price_paise: listing?.cost_price_paise || Math.round(unitPricePaise * 0.85),
+      gst_rate: resolvedItemGstRate,
       tax_paise: itemTax,
       total_price_paise: itemSubtotal + itemTax,
       platform_commission_pct: platformCommPct,
@@ -293,7 +310,7 @@ async function calculateCheckoutPrice(resellerId, items = []) {
     tax_total_paise: taxTotalPaise,
     shipping_fee_paise: shippingFeePaise,
     grand_total_paise: grandTotalPaise,
-    gst_rate: gstRate,
+    gst_rate: processedItems[0]?.gst_rate || platformDefaultGstRate,
   };
 }
 

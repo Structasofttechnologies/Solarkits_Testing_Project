@@ -2313,7 +2313,7 @@ const get_checkout_settings = async (req, res) => {
           enable_checkout_timer: true,
           checkout_timer_duration: 10,
           combokit_bulk_panels_limit: 30,
-          gst_rate: 13.8
+          gst_rate: 12
         }
       });
     }
@@ -2323,7 +2323,7 @@ const get_checkout_settings = async (req, res) => {
         enable_checkout_timer: settings.enable_checkout_timer ?? true,
         checkout_timer_duration: settings.checkout_timer_duration ?? 10,
         combokit_bulk_panels_limit: settings.combokit_bulk_panels_limit ?? 30,
-        gst_rate: settings.gst_rate ?? 13.8
+        gst_rate: settings.gst_rate ?? 12
       }
     });
   } catch (error) {

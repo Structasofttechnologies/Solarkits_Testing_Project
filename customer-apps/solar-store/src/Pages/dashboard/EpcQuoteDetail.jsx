@@ -189,6 +189,23 @@ export default function EpcQuoteDetail() {
         </div>
       </div>
 
+      {/* Trial Kit Proposal Notice Banner if applicable */}
+      {(quote.is_trial_kit || quote.quote_type === 'trial_kit') && (
+        <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 dark:from-purple-950/40 dark:via-indigo-950/40 dark:to-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-2xl p-4 flex items-start gap-3 shadow-xs">
+          <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <FiPackage className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-bold text-purple-950 dark:text-purple-200">
+              Official SolarKits Trial Kit Evaluation Proposal
+            </h4>
+            <p className="text-xs text-purple-900/80 dark:text-purple-300/80 mt-0.5 leading-relaxed">
+              This quotation has been customized by your assigned BDE specifically for field testing & evaluation. The trial kit quantity (<strong>{quote.trial_kit_quantity || quote.quantity} Kits</strong>) is pre-configured according to SolarKits Admin Trial guidelines to allow your team to verify assembly, performance, and BOP integration.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Main Quote Title Card */}
       <div className="bg-surface rounded-2xl border border-border p-6 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-border">
@@ -197,6 +214,12 @@ export default function EpcQuoteDetail() {
               <span className="font-mono text-xl sm:text-2xl font-black text-text-primary tracking-wide">
                 {refNumber}
               </span>
+              {(quote.is_trial_kit || quote.quote_type === 'trial_kit') && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-800">
+                  <FiPackage className="w-3.5 h-3.5 text-purple-700" />
+                  Trial Kit Proposal ({quote.trial_kit_quantity || quote.quantity} Kits)
+                </span>
+              )}
               {quote.revision_number > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                   Revision {quote.revision_number}
@@ -331,8 +354,15 @@ export default function EpcQuoteDetail() {
                   <div className="font-black text-sm text-text-primary">{quote.kit_capacity_kw || 0} kW</div>
                 </div>
                 <div className="p-2 rounded-lg bg-surface border border-border/60">
-                  <span className="text-[10px] text-text-muted font-bold uppercase">Quantity</span>
-                  <div className="font-black text-sm text-text-primary">{quote.quantity || 1} Units</div>
+                  <span className="text-[10px] text-text-muted font-bold uppercase">
+                    {(quote.is_trial_kit || quote.quote_type === 'trial_kit') ? 'Trial Quantity' : 'Quantity'}
+                  </span>
+                  <div className="font-black text-sm text-text-primary">
+                    {quote.trial_kit_quantity || quote.quantity || 1} Units
+                    {(quote.is_trial_kit || quote.quote_type === 'trial_kit') && (
+                      <span className="block text-[10px] text-purple-600 font-bold">Admin Pack</span>
+                    )}
+                  </div>
                 </div>
                 <div className="p-2 rounded-lg bg-surface border border-border/60">
                   <span className="text-[10px] text-text-muted font-bold uppercase">Total Capacity</span>

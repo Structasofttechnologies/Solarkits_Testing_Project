@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   ArrowLeft,
@@ -19,6 +19,16 @@ import {
   Package,
   ChevronDown,
   Plus,
+  Building2,
+  MapPin,
+  Filter,
+  RotateCcw,
+  LayoutGrid,
+  List,
+  Phone,
+  Mail,
+  ChevronLeft,
+  X,
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -38,6 +48,12 @@ function formatINR(paise) {
 
 export default function BdeCreateEpcQuote() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialQuoteType = searchParams.get('quote_type') === 'trial_kit' || searchParams.get('is_trial') === 'true' ? 'trial_kit' : 'standard';
+  const paramEpcId = searchParams.get('epc_id');
+  const paramKitId = searchParams.get('combo_kit_id') || searchParams.get('kit_id');
+
+  const [quoteType, setQuoteType] = useState(initialQuoteType); // 'standard' | 'trial_kit'
   const [currentStep, setCurrentStep] = useState(1);
   const [error, setError] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -63,7 +79,14 @@ export default function BdeCreateEpcQuote() {
 
   // Data lists
   const [epcList, setEpcList] = useState([]);
+  const [clusterList, setClusterList] = useState([]);
   const [epcSearch, setEpcSearch] = useState('');
+  const [selectedClusterFilter, setSelectedClusterFilter] = useState('all');
+  const [selectedStateFilter, setSelectedStateFilter] = useState('all');
+  const [selectedDistrictFilter, setSelectedDistrictFilter] = useState('all');
+  const [epcViewMode, setEpcViewMode] = useState('table'); // 'table' | 'grid'
+  const [epcPage, setEpcPage] = useState(1);
+  const epcPageSize = 10;
   const [franchisees, setFranchisees] = useState([]);
   const [kitList, setKitList] = useState([]);
   const [loadingKits, setLoadingKits] = useState(false);
@@ -107,6 +130,10 @@ export default function BdeCreateEpcQuote() {
               ? res.data.epcs
               : [];
         setEpcList(list);
+
+        if (Array.isArray(res.data?.clusters)) {
+          setClusterList(res.data.clusters);
+        }
       } else {
         setEpcList([]);
       }
@@ -209,6 +236,27 @@ export default function BdeCreateEpcQuote() {
     fetchKits();
     fetchHierarchy();
   }, [fetchEpcs, fetchFranchisees, fetchKits, fetchHierarchy]);
+
+  // Auto-select EPC from URL query param if present
+  useEffect(() => {
+    if (paramEpcId && epcList.length > 0 && !selectedEpc) {
+      const found = epcList.find((e) => (e._id || e.id) === paramEpcId);
+      if (found) handleSelectEpc(found);
+    }
+  }, [paramEpcId, epcList, selectedEpc]);
+
+  // Auto-select ComboKit from URL query param if present
+  useEffect(() => {
+    if (paramKitId && kitList.length > 0 && !selectedKit) {
+      const found = kitList.find((k) => (k._id || k.id) === paramKitId);
+      if (found) {
+        setSelectedKit(found);
+        if (quoteType === 'trial_kit') {
+          setQuantity(Number(found.trial_kit_quantity) || 10);
+        }
+      }
+    }
+  }, [paramKitId, kitList, selectedKit, quoteType]);
 
   // Recalculate price
   useEffect(() => {
@@ -321,6 +369,9 @@ export default function BdeCreateEpcQuote() {
         epc_id: selectedEpc._id,
         franchisee_id: selectedFranchisee?._id || undefined,
         quote_source: selectedFranchisee ? 'bde_for_franchisee' : 'bde_direct',
+        is_trial_kit: quoteType === 'trial_kit',
+        quote_type: quoteType,
+        trial_kit_quantity: quoteType === 'trial_kit' ? Number(selectedKit?.trial_kit_quantity || quantity || 10) : undefined,
         delivery_type: deliveryType,
         delivery_address: deliveryDetails,
         delivery_address_snapshot: deliveryDetails,
@@ -362,20 +413,189 @@ export default function BdeCreateEpcQuote() {
   };
 
   const safeEpcList = Array.isArray(epcList) ? epcList : [];
-  const filteredEpcs = safeEpcList.filter((epc) => {
-    if (!epc) return false;
-    const q = (epcSearch || '').toLowerCase();
-    const company = epc.company_name || epc.name || epc.gstin_legal_name || epc.gstin_trade_name || '';
-    const contact = epc.contact_person || epc.name || '';
-    const gstin = epc.gstin || '';
-    const mobile = epc.mobile || epc.phone || epc.whatsapp || '';
-    return (
-      company.toLowerCase().includes(q) ||
-      contact.toLowerCase().includes(q) ||
-      gstin.toLowerCase().includes(q) ||
-      mobile.includes(q)
-    );
-  });
+
+  // 1. Available States strictly from Admin-assigned clusters (zero outside states)
+  const availableStates = useMemo(() => {
+    const set = new Set();
+    (clusterList || []).forEach((c) => {
+      if (c.state_name) set.add(c.state_name.trim());
+    });
+    // Fallback only if no clusters assigned
+    if (set.size === 0) {
+      safeEpcList.forEach((e) => {
+        if (e.state_name) set.add(e.state_name.trim());
+      });
+    }
+    return Array.from(set).filter(Boolean).sort();
+  }, [safeEpcList, clusterList]);
+
+  // 2. Available Clusters strictly assigned to this BDE by Admin
+  const availableClusters = useMemo(() => {
+    let list = clusterList || [];
+    if (selectedStateFilter !== 'all') {
+      list = list.filter((c) => c.state_name?.trim().toLowerCase() === selectedStateFilter.trim().toLowerCase());
+    }
+    return list;
+  }, [clusterList, selectedStateFilter]);
+
+  // 3. Available Districts strictly belonging to Admin-assigned clusters
+  const availableDistricts = useMemo(() => {
+    const set = new Set();
+
+    if (selectedClusterFilter !== 'all') {
+      const clu = (clusterList || []).find(
+        (c) => c.cluster_name === selectedClusterFilter || String(c.id) === String(selectedClusterFilter)
+      );
+      if (clu && Array.isArray(clu.district_names)) {
+        clu.district_names.forEach((d) => {
+          const val = typeof d === 'string' ? d : d?.name || '';
+          if (val) set.add(val.trim());
+        });
+      }
+    } else if (selectedStateFilter !== 'all') {
+      (clusterList || []).forEach((c) => {
+        if (c.state_name?.trim().toLowerCase() === selectedStateFilter.trim().toLowerCase() && Array.isArray(c.district_names)) {
+          c.district_names.forEach((d) => {
+            const val = typeof d === 'string' ? d : d?.name || '';
+            if (val) set.add(val.trim());
+          });
+        }
+      });
+    } else {
+      (clusterList || []).forEach((c) => {
+        if (Array.isArray(c.district_names)) {
+          c.district_names.forEach((d) => {
+            const val = typeof d === 'string' ? d : d?.name || '';
+            if (val) set.add(val.trim());
+          });
+        }
+      });
+      if (set.size === 0) {
+        safeEpcList.forEach((e) => {
+          if (e.district_name) set.add(e.district_name.trim());
+        });
+      }
+    }
+
+    return Array.from(set).filter(Boolean).sort();
+  }, [clusterList, safeEpcList, selectedClusterFilter, selectedStateFilter]);
+
+  // Handlers for filter cascading
+  const handleClusterFilterChange = (clusterVal) => {
+    setSelectedClusterFilter(clusterVal);
+    setEpcPage(1);
+    if (clusterVal !== 'all') {
+      const clu = (clusterList || []).find(
+        (c) => c.cluster_name === clusterVal || String(c.id) === String(clusterVal)
+      );
+      if (clu && clu.state_name) {
+        setSelectedStateFilter(clu.state_name);
+      }
+      setSelectedDistrictFilter('all');
+    }
+  };
+
+  const handleStateFilterChange = (stateVal) => {
+    setSelectedStateFilter(stateVal);
+    setEpcPage(1);
+    if (stateVal === 'all') {
+      setSelectedClusterFilter('all');
+    } else {
+      const currentClu = (clusterList || []).find(
+        (c) => c.cluster_name === selectedClusterFilter || String(c.id) === String(selectedClusterFilter)
+      );
+      if (currentClu && currentClu.state_name?.trim().toLowerCase() !== stateVal.trim().toLowerCase()) {
+        setSelectedClusterFilter('all');
+      }
+    }
+    setSelectedDistrictFilter('all');
+  };
+
+  const handleDistrictFilterChange = (districtVal) => {
+    setSelectedDistrictFilter(districtVal);
+    setEpcPage(1);
+  };
+
+  const handleResetEpcFilters = () => {
+    setEpcSearch('');
+    setSelectedClusterFilter('all');
+    setSelectedStateFilter('all');
+    setSelectedDistrictFilter('all');
+    setEpcPage(1);
+  };
+
+  // Filtered EPCs
+  const filteredEpcs = useMemo(() => {
+    return safeEpcList.filter((epc) => {
+      if (!epc) return false;
+
+      // 1. Search Query
+      const q = (epcSearch || '').trim().toLowerCase();
+      if (q) {
+        const company = (epc.company_name || epc.name || epc.gstin_legal_name || epc.gstin_trade_name || '').toLowerCase();
+        const contact = (epc.contact_person || epc.name || '').toLowerCase();
+        const gstin = (epc.gstin || '').toLowerCase();
+        const mobile = (epc.mobile || epc.phone || epc.whatsapp || '').toLowerCase();
+        const district = (epc.district_name || '').toLowerCase();
+        const state = (epc.state_name || '').toLowerCase();
+        const cluster = (epc.cluster_name || '').toLowerCase();
+
+        const matches =
+          company.includes(q) ||
+          contact.includes(q) ||
+          gstin.includes(q) ||
+          mobile.includes(q) ||
+          district.includes(q) ||
+          state.includes(q) ||
+          cluster.includes(q);
+
+        if (!matches) return false;
+      }
+
+      // 2. Cluster Filter
+      if (selectedClusterFilter !== 'all') {
+        const clu = (clusterList || []).find(
+          (c) => c.cluster_name === selectedClusterFilter || String(c.id) === String(selectedClusterFilter)
+        );
+        if (clu) {
+          const directMatch =
+            (epc.cluster_name && epc.cluster_name.toLowerCase() === clu.cluster_name.toLowerCase()) ||
+            String(epc.cluster_id) === String(clu.id);
+          const districtMatch =
+            Array.isArray(clu.district_names) &&
+            clu.district_names.some(
+              (d) =>
+                (typeof d === 'string' ? d : d?.name || '').trim().toLowerCase() ===
+                (epc.district_name || '').trim().toLowerCase()
+            );
+          if (!directMatch && !districtMatch) return false;
+        }
+      }
+
+      // 3. State Filter
+      if (selectedStateFilter !== 'all') {
+        if ((epc.state_name || '').trim().toLowerCase() !== selectedStateFilter.trim().toLowerCase()) {
+          return false;
+        }
+      }
+
+      // 4. District Filter
+      if (selectedDistrictFilter !== 'all') {
+        if ((epc.district_name || '').trim().toLowerCase() !== selectedDistrictFilter.trim().toLowerCase()) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [safeEpcList, epcSearch, selectedClusterFilter, selectedStateFilter, selectedDistrictFilter, clusterList]);
+
+  // Pagination for EPC table
+  const totalEpcPages = Math.ceil(filteredEpcs.length / epcPageSize) || 1;
+  const paginatedEpcs = useMemo(() => {
+    const start = (epcPage - 1) * epcPageSize;
+    return filteredEpcs.slice(start, start + epcPageSize);
+  }, [filteredEpcs, epcPage, epcPageSize]);
 
   const safeKitList = Array.isArray(kitList) ? kitList : [];
 
@@ -758,6 +978,11 @@ export default function BdeCreateEpcQuote() {
   const filteredKits = safeKitList.filter((k) => {
     if (!k) return false;
 
+    // Trial Kit Proposal mode: only show kits authorized by Admin for trial
+    if (quoteType === 'trial_kit' && !k.allow_trial_kit) {
+      return false;
+    }
+
     // 1. Industry filter
     if (quickFilters.industryType !== 'all') {
       const indVal = quickFilters.industryType.toLowerCase();
@@ -896,85 +1121,458 @@ export default function BdeCreateEpcQuote() {
         {currentStep === 1 && (
           <div className="space-y-6">
             <div>
+              {/* Header with Title & View Mode Toggle */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">Select Territory EPC Buyer</h2>
-                  <p className="text-xs text-slate-500">Choose the approved EPC client to receive this quotation</p>
+                  <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-indigo-600" />
+                    <span>Select Territory EPC Buyer</span>
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Choose the approved EPC client to receive this quotation. Filter by Cluster, State, or District.
+                  </p>
                 </div>
 
-                <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={epcSearch}
-                    onChange={(e) => setEpcSearch(e.target.value)}
-                    placeholder="Search EPC or GSTIN..."
-                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setEpcViewMode('table')}
+                      title="Table View"
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${epcViewMode === 'table'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span>Table</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEpcViewMode('grid')}
+                      title="Grid Cards View"
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${epcViewMode === 'grid'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>Cards</span>
+                    </button>
+                  </div>
+
+                  {/* Active Count Badge */}
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                    {filteredEpcs.length} of {safeEpcList.length} EPCs
+                  </span>
                 </div>
               </div>
 
-              {filteredEpcs.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
-                  {filteredEpcs.map((epc) => {
-                    const isSel = selectedEpc?._id === epc._id;
-                    return (
-                      <div
-                        key={epc._id}
-                        onClick={() => handleSelectEpc(epc)}
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition text-left flex flex-col justify-between ${isSel
-                          ? 'border-indigo-600 bg-indigo-50/40 shadow-sm'
-                          : 'border-slate-200 hover:border-slate-300'
-                          }`}
+              {/* Cascading Filter Bar */}
+              <div className="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  {/* 1. Keyword Search */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={epcSearch}
+                      onChange={(e) => {
+                        setEpcSearch(e.target.value);
+                        setEpcPage(1);
+                      }}
+                      placeholder="Search Company, GSTIN, Contact..."
+                      className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    />
+                    {epcSearch && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEpcSearch('');
+                          setEpcPage(1);
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       >
-                        <div>
-                          <div className="flex items-start justify-between gap-2">
-                            <h4 className="font-bold text-slate-900 text-sm line-clamp-1">
-                              {epc.company_name || epc.name}
-                            </h4>
-                            {isSel && (
-                              <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                                <Check className="w-3 h-3" />
-                              </div>
-                            )}
-                          </div>
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
 
-                          <div className="text-[11px] font-mono text-slate-500 mt-1">GSTIN: {epc.gstin || '—'}</div>
-                          <div className="mt-2 text-xs text-slate-600 space-y-0.5">
-                            <div>Contact: {epc.contact_person || epc.name || '—'}</div>
-                            <div>Phone: {epc.mobile || epc.phone || '—'}</div>
-                            <div className="text-slate-400 text-[11px]">
-                              {epc.district_name || epc.address?.district || 'District'}, {epc.state_name || epc.address?.state || 'State'}
-                            </div>
-                          </div>
-                        </div>
+                  {/* 2. Cluster Filter */}
+                  <div className="relative">
+                    <select
+                      value={selectedClusterFilter}
+                      onChange={(e) => handleClusterFilterChange(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    >
+                      <option value="all">🌐 All Clusters</option>
+                      {availableClusters.map((c) => (
+                        <option key={c.id || c.cluster_code || c.cluster_name} value={c.cluster_name}>
+                          📍 {c.cluster_name} {c.state_name ? `(${c.state_name})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                        <div className="mt-3 pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
-                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">
-                            Territory Verified
+                  {/* 3. State Filter */}
+                  <div className="relative">
+                    <select
+                      value={selectedStateFilter}
+                      onChange={(e) => handleStateFilterChange(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    >
+                      <option value="all">🗺️ All States</option>
+                      {availableStates.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 4. District Filter */}
+                  <div className="relative">
+                    <select
+                      value={selectedDistrictFilter}
+                      onChange={(e) => handleDistrictFilterChange(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    >
+                      <option value="all">🏙️ All Districts</option>
+                      {availableDistricts.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Filter Meta & Reset */}
+                <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/60 flex-wrap gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-slate-600">Active Filters:</span>
+                    {selectedClusterFilter !== 'all' && (
+                      <span className="px-2 py-0.5 rounded-md bg-purple-100/90 text-purple-700 font-bold flex items-center gap-1">
+                        <Layers className="w-3 h-3" /> {selectedClusterFilter}
+                      </span>
+                    )}
+                    {selectedStateFilter !== 'all' && (
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-100/90 text-emerald-700 font-bold flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {selectedStateFilter}
+                      </span>
+                    )}
+                    {selectedDistrictFilter !== 'all' && (
+                      <span className="px-2 py-0.5 rounded-md bg-blue-100/90 text-blue-700 font-bold flex items-center gap-1">
+                        🏙️ {selectedDistrictFilter}
+                      </span>
+                    )}
+                    {epcSearch && (
+                      <span className="px-2 py-0.5 rounded-md bg-amber-100/90 text-amber-800 font-bold flex items-center gap-1">
+                        🔍 "{epcSearch}"
+                      </span>
+                    )}
+                    {selectedClusterFilter === 'all' && selectedStateFilter === 'all' && selectedDistrictFilter === 'all' && !epcSearch && (
+                      <span className="text-slate-400 italic">None (showing all available territory EPCs)</span>
+                    )}
+                  </div>
+
+                  {(selectedClusterFilter !== 'all' || selectedStateFilter !== 'all' || selectedDistrictFilter !== 'all' || epcSearch) && (
+                    <button
+                      type="button"
+                      onClick={handleResetEpcFilters}
+                      className="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" /> Reset Filters
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Selected EPC Confirmation Preview Card */}
+              {selectedEpc && (
+                <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-indigo-50/90 via-blue-50/70 to-indigo-50/90 border-2 border-indigo-500/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
+                          ✓ Active Quotation Recipient
+                        </span>
+                        {selectedEpc.cluster_name && (
+                          <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded flex items-center gap-1">
+                            <Layers className="w-3 h-3" /> {selectedEpc.cluster_name}
                           </span>
-                          <span>Pin: {epc.pincode || epc.address?.pincode || '—'}</span>
+                        )}
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Territory Verified
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-slate-900 text-base mt-0.5">
+                        {selectedEpc.company_name || selectedEpc.name}
+                      </h3>
+                      <div className="flex items-center gap-3 text-xs text-slate-600 mt-1 flex-wrap">
+                        <span>GSTIN: <strong className="font-mono text-slate-800">{selectedEpc.gstin || '—'}</strong></span>
+                        <span>•</span>
+                        <span>Contact: <strong>{selectedEpc.contact_person || selectedEpc.name || '—'}</strong> ({selectedEpc.mobile || selectedEpc.phone || selectedEpc.whatsapp || '—'})</span>
+                        <span>•</span>
+                        <span>Location: <strong>{selectedEpc.district_name || 'District'}, {selectedEpc.state_name || 'State'} - {selectedEpc.pincode || '—'}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEpc(null)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition"
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Main Content: Table or Grid */}
+              {filteredEpcs.length > 0 ? (
+                epcViewMode === 'table' ? (
+                  /* ── TABLE VIEW (DEFAULT) ── */
+                  <div className="mt-4 space-y-3">
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-50/90 text-slate-700 font-bold uppercase text-[11px] tracking-wider border-b border-slate-200">
+                          <tr>
+                            <th className="py-3 px-3 w-12 text-center">Select</th>
+                            <th className="py-3 px-4">EPC Company & Trade Name</th>
+                            <th className="py-3 px-4">GSTIN</th>
+                            <th className="py-3 px-4">Cluster & State</th>
+                            <th className="py-3 px-4">District & Pin</th>
+                            <th className="py-3 px-4">Contact Person</th>
+                            <th className="py-3 px-4 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {paginatedEpcs.map((epc) => {
+                            const isSel = selectedEpc?._id === epc._id;
+                            return (
+                              <tr
+                                key={epc._id}
+                                onClick={() => handleSelectEpc(epc)}
+                                className={`cursor-pointer transition duration-150 ${isSel
+                                  ? 'bg-indigo-50/70 border-l-4 border-l-indigo-600 font-medium'
+                                  : 'hover:bg-slate-50/80 border-l-4 border-l-transparent'
+                                  }`}
+                              >
+                                {/* Radio Indicator */}
+                                <td className="py-3 px-3 text-center">
+                                  <div
+                                    className={`w-4 h-4 rounded-full border-2 mx-auto flex items-center justify-center transition ${isSel
+                                      ? 'border-indigo-600 bg-indigo-600 text-white'
+                                      : 'border-slate-300 bg-white'
+                                      }`}
+                                  >
+                                    {isSel && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                  </div>
+                                </td>
+
+                                {/* EPC Company */}
+                                <td className="py-3 px-4">
+                                  <div className="font-bold text-slate-900 text-sm">
+                                    {epc.company_name || epc.name}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500">
+                                    {epc.gstin_legal_name && epc.gstin_legal_name !== epc.company_name
+                                      ? epc.gstin_legal_name
+                                      : 'Registered EPC Contractor'}
+                                  </div>
+                                  <div className="mt-1">
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                                      <CheckCircle2 className="w-3 h-3" /> Territory Verified
+                                    </span>
+                                  </div>
+                                </td>
+
+                                {/* GSTIN */}
+                                <td className="py-3 px-4">
+                                  <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-2 py-1 rounded text-xs">
+                                    {epc.gstin || '—'}
+                                  </span>
+                                </td>
+
+                                {/* Cluster & State */}
+                                <td className="py-3 px-4">
+                                  <div className="space-y-1">
+                                    {epc.cluster_name ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
+                                        <Layers className="w-3 h-3" /> {epc.cluster_name}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400 italic">No Cluster</span>
+                                    )}
+                                    <div className="text-[11px] font-medium text-slate-700 flex items-center gap-1">
+                                      <MapPin className="w-3 h-3 text-emerald-600" />
+                                      <span>{epc.state_name || 'Gujarat'}</span>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* District & Pin */}
+                                <td className="py-3 px-4">
+                                  <div className="font-medium text-slate-900">{epc.district_name || '—'}</div>
+                                  <div className="text-[10px] text-slate-500">Pin: {epc.pincode || '—'}</div>
+                                </td>
+
+                                {/* Contact Person */}
+                                <td className="py-3 px-4">
+                                  <div className="font-medium text-slate-800 flex items-center gap-1.5">
+                                    <Users className="w-3 h-3 text-slate-400" />
+                                    <span>{epc.contact_person || epc.name || '—'}</span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                    <Phone className="w-3 h-3 text-slate-400" />
+                                    <span>{epc.mobile || epc.phone || epc.whatsapp || '—'}</span>
+                                  </div>
+                                </td>
+
+                                {/* Action */}
+                                <td className="py-3 px-4 text-right">
+                                  {isSel ? (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold text-xs shadow-xs">
+                                      <Check className="w-3.5 h-3.5" /> Selected
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="px-3 py-1.5 rounded-lg border border-slate-300 hover:border-indigo-600 hover:text-indigo-600 hover:bg-indigo-50/50 text-slate-700 font-semibold text-xs transition"
+                                    >
+                                      Select
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    {filteredEpcs.length > epcPageSize && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-2 text-xs text-slate-500 gap-2">
+                        <div>
+                          Showing <span className="font-bold text-slate-800">{(epcPage - 1) * epcPageSize + 1}</span> to{' '}
+                          <span className="font-bold text-slate-800">
+                            {Math.min(epcPage * epcPageSize, filteredEpcs.length)}
+                          </span>{' '}
+                          of <span className="font-bold text-slate-800">{filteredEpcs.length}</span> EPC buyers
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={epcPage === 1}
+                            onClick={() => setEpcPage((p) => Math.max(1, p - 1))}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" /> Prev
+                          </button>
+                          <span className="px-3 py-1 font-semibold text-slate-700">
+                            Page {epcPage} of {totalEpcPages}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={epcPage >= totalEpcPages}
+                            onClick={() => setEpcPage((p) => Math.min(totalEpcPages, p + 1))}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                          >
+                            Next <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    )}
+                  </div>
+                ) : (
+                  /* ── CARDS GRID VIEW ── */
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                    {filteredEpcs.map((epc) => {
+                      const isSel = selectedEpc?._id === epc._id;
+                      return (
+                        <div
+                          key={epc._id}
+                          onClick={() => handleSelectEpc(epc)}
+                          className={`p-4 rounded-xl border-2 cursor-pointer transition text-left flex flex-col justify-between ${isSel
+                            ? 'border-indigo-600 bg-indigo-50/40 shadow-sm'
+                            : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="font-bold text-slate-900 text-sm line-clamp-1">
+                                {epc.company_name || epc.name}
+                              </h4>
+                              {isSel && (
+                                <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                                  <Check className="w-3 h-3" />
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="text-[11px] font-mono text-slate-500 mt-1">GSTIN: {epc.gstin || '—'}</div>
+                            <div className="mt-2 text-xs text-slate-600 space-y-0.5">
+                              <div>Contact: {epc.contact_person || epc.name || '—'}</div>
+                              <div>Phone: {epc.mobile || epc.phone || epc.whatsapp || '—'}</div>
+                              <div className="text-slate-500 text-[11px] flex items-center gap-1 mt-1">
+                                <MapPin className="w-3 h-3 text-slate-400" />
+                                <span>{epc.district_name || 'District'}, {epc.state_name || 'State'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200/60">
+                              Territory Verified
+                            </span>
+                            {epc.cluster_name ? (
+                              <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-bold border border-purple-200/60 truncate max-w-[120px]">
+                                {epc.cluster_name}
+                              </span>
+                            ) : (
+                              <span>Pin: {epc.pincode || '—'}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
               ) : (
+                /* ── EMPTY STATE ── */
                 <div className="p-8 my-4 text-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 flex flex-col items-center justify-center space-y-3">
                   <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-xs">
                     <Users className="w-6 h-6" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-800">
-                      {epcSearch ? 'No matching EPC clients found' : 'No Onboarded EPC Clients Found'}
+                      {epcSearch || selectedClusterFilter !== 'all' || selectedStateFilter !== 'all' || selectedDistrictFilter !== 'all'
+                        ? 'No matching EPC clients found'
+                        : 'No Onboarded EPC Clients Found'}
                     </h3>
                     <p className="text-xs text-slate-500 max-w-md mt-1">
-                      {epcSearch
-                        ? `No approved EPC matched "${epcSearch}". Try a different name or GSTIN.`
+                      {epcSearch || selectedClusterFilter !== 'all' || selectedStateFilter !== 'all' || selectedDistrictFilter !== 'all'
+                        ? 'No approved EPC matched the selected filters. Try resetting the filters or modifying your search.'
                         : 'You can only generate quotations for EPC contractors you have onboarded. Please onboard an EPC partner first.'}
                     </p>
                   </div>
-                  {!epcSearch && (
+                  {(epcSearch || selectedClusterFilter !== 'all' || selectedStateFilter !== 'all' || selectedDistrictFilter !== 'all') ? (
+                    <button
+                      type="button"
+                      onClick={handleResetEpcFilters}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Clear All Filters
+                    </button>
+                  ) : (
                     <button
                       type="button"
                       onClick={() => navigate('/epc-onboarding')}
@@ -1139,6 +1737,69 @@ export default function BdeCreateEpcQuote() {
         {/* STEP 3: COMBOKIT (DIRECT DISPLAY WITH INDUSTRY & PROJECT TYPE) */}
         {currentStep === 3 && (
           <div className="space-y-4">
+            {/* Proposal Mode Switcher: Standard Commercial vs Trial Kit */}
+            <div className="p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-50 via-purple-50/50 to-indigo-50/50 border-slate-200">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-900 text-white">
+                    Quotation Mode
+                  </span>
+                  {quoteType === 'trial_kit' ? (
+                    <span className="text-xs font-bold text-purple-700 flex items-center gap-1">
+                      <Box className="w-3.5 h-3.5" /> Trial Kit Proposal (Admin Enforced)
+                    </span>
+                  ) : (
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      <DollarSign className="w-3.5 h-3.5" /> Commercial Proposal (Standard)
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-600 mt-1">
+                  {quoteType === 'trial_kit'
+                    ? 'Orders generated in Trial Mode are strictly locked to the quantity configured by Admin on the ComboKit.'
+                    : 'Standard commercial quotation allowing flexible loose-pack quantities.'}
+                </p>
+              </div>
+
+              <div className="inline-flex p-1 bg-white rounded-xl border border-slate-200 shadow-2xs shrink-0 self-start md:self-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuoteType('standard');
+                    if (selectedKit) {
+                      const loose = selectedKit.loose_order_quantities?.[0] || 1;
+                      setQuantity(Number(loose));
+                    }
+                  }}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                    quoteType === 'standard'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <DollarSign className="w-3.5 h-3.5" />
+                  <span>Commercial Quote</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuoteType('trial_kit');
+                    if (selectedKit) {
+                      setQuantity(Number(selectedKit.trial_kit_quantity) || 10);
+                    }
+                  }}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                    quoteType === 'trial_kit'
+                      ? 'bg-purple-700 text-white shadow-xs ring-2 ring-purple-600/30'
+                      : 'text-purple-700 hover:bg-purple-50'
+                  }`}
+                >
+                  <Box className="w-3.5 h-3.5" />
+                  <span>Trial Kit Quote</span>
+                </button>
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Choose Authorized ComboKit</h2>
@@ -1346,18 +2007,25 @@ export default function BdeCreateEpcQuote() {
                       key={kit._id}
                       onClick={() => {
                         setSelectedKit(kit);
-                        if (!selectedKit || selectedKit._id !== kit._id) {
+                        if (quoteType === 'trial_kit') {
+                          setQuantity(Number(kit.trial_kit_quantity) || 10);
+                        } else if (!selectedKit || selectedKit._id !== kit._id) {
                           setQuantity(Number(looseQtys[0]) || 1);
                         }
                       }}
                       className={`p-4 rounded-2xl border-2 cursor-pointer transition flex flex-col justify-between hover:shadow-md ${isSel
-                        ? 'border-indigo-600 bg-indigo-50/40 shadow-md ring-2 ring-indigo-500/20'
+                        ? (quoteType === 'trial_kit' ? 'border-purple-600 bg-purple-50/40 shadow-md ring-2 ring-purple-500/20' : 'border-indigo-600 bg-indigo-50/40 shadow-md ring-2 ring-indigo-500/20')
                         : 'border-slate-200 bg-white hover:border-slate-300'
                         }`}
                     >
                       <div>
                         {/* Tags: Industry Type & Project Type badges */}
                         <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+                          {quoteType === 'trial_kit' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                              <Box className="w-3 h-3 text-purple-600" /> Trial Authorized
+                            </span>
+                          )}
                           {kit.industry_type_name && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                               <Layers className="w-3 h-3 text-amber-600" /> {kit.industry_type_name}
@@ -1375,7 +2043,7 @@ export default function BdeCreateEpcQuote() {
                             {kit.capacity || kit.kit_capacity_kw || 3} kW System
                           </span>
                           {isSel ? (
-                            <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+                            <div className={`w-5 h-5 rounded-full text-white flex items-center justify-center shadow-sm ${quoteType === 'trial_kit' ? 'bg-purple-600' : 'bg-indigo-600'}`}>
                               <Check className="w-3 h-3" />
                             </div>
                           ) : (
@@ -1398,43 +2066,60 @@ export default function BdeCreateEpcQuote() {
                         </div>
                       </div>
 
-                      {/* Loose Order Quantities (Strictly loose quantities, PO quantities excluded) */}
-                      <div className="mt-3.5 pt-3 border-t border-slate-100">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-sky-700 flex items-center gap-1">
-                            <Package className="w-3 h-3 text-sky-600" /> Loose Qty:
-                          </span>
-                          {isSel && (
-                            <span className="text-[10px] font-bold text-indigo-600">
-                              Selected: {quantity} {quantity === 1 ? 'Kit' : 'Kits'}
+                      {/* Quantity Selection Area: Admin locked for Trial Kit, flexible loose for Commercial */}
+                      {quoteType === 'trial_kit' ? (
+                        <div className="mt-3.5 pt-3 border-t border-slate-100">
+                          <div className="bg-purple-50 border border-purple-200 rounded-xl p-2.5 flex items-center justify-between text-xs text-purple-950">
+                            <span className="font-bold flex items-center gap-1.5">
+                              <ShieldCheck className="w-4 h-4 text-purple-600 shrink-0" />
+                              Admin Trial Qty:
                             </span>
-                          )}
+                            <span className="font-black px-2.5 py-0.5 rounded-md bg-purple-700 text-white text-xs">
+                              {kit.trial_kit_quantity || 10} Kits (Locked)
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-purple-600 mt-1 pl-1">
+                            Pre-configured in Admin ComboKit Settings. Alteration disabled.
+                          </p>
                         </div>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {looseQtys.map((q) => {
-                            const isQtyActive = isSel && Number(quantity) === Number(q);
-                            return (
-                              <button
-                                key={q}
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedKit(kit);
-                                  setQuantity(Number(q));
-                                }}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${isQtyActive
-                                  ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-500/30 border border-indigo-700'
-                                  : 'bg-sky-500/10 text-sky-700 border border-sky-500/25 hover:bg-sky-600 hover:text-white'
-                                  }`}
-                                title={`Select ${q} Kits`}
-                              >
-                                {isQtyActive && <Check className="w-3 h-3 stroke-[3]" />}
-                                <span>{q} Kits</span>
-                              </button>
-                            );
-                          })}
+                      ) : (
+                        <div className="mt-3.5 pt-3 border-t border-slate-100">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-sky-700 flex items-center gap-1">
+                              <Package className="w-3 h-3 text-sky-600" /> Loose Qty:
+                            </span>
+                            {isSel && (
+                              <span className="text-[10px] font-bold text-indigo-600">
+                                Selected: {quantity} {quantity === 1 ? 'Kit' : 'Kits'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {looseQtys.map((q) => {
+                              const isQtyActive = isSel && Number(quantity) === Number(q);
+                              return (
+                                <button
+                                  key={q}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedKit(kit);
+                                    setQuantity(Number(q));
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${isQtyActive
+                                    ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-500/30 border border-indigo-700'
+                                    : 'bg-sky-500/10 text-sky-700 border border-sky-500/25 hover:bg-sky-600 hover:text-white'
+                                    }`}
+                                  title={`Select ${q} Kits`}
+                                >
+                                  {isQtyActive && <Check className="w-3 h-3 stroke-[3]" />}
+                                  <span>{q} Kits</span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Pricing and Selected Qty Controls */}
                       <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between">
@@ -1538,9 +2223,15 @@ export default function BdeCreateEpcQuote() {
         {/* STEP 5: REVIEW */}
         {currentStep === 5 && (
           <div className="space-y-6">
-            <div className="pb-4 border-b border-slate-100">
-              <h2 className="text-lg font-bold text-slate-900">Quotation Summary & Pricing</h2>
-              <p className="text-xs text-slate-500">Confirm commercial details before issuing formal quotation</p>
+            <div className="pb-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Quotation Summary & Pricing</h2>
+                <p className="text-xs text-slate-500">Confirm commercial details before issuing formal quotation</p>
+              </div>
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black ${quoteType === 'trial_kit' ? 'bg-purple-100 text-purple-900 border border-purple-200' : 'bg-slate-100 text-slate-800'}`}>
+                {quoteType === 'trial_kit' ? <Box className="w-3.5 h-3.5 text-purple-700" /> : <DollarSign className="w-3.5 h-3.5 text-slate-700" />}
+                {quoteType === 'trial_kit' ? `Trial Kit Proposal (${quantity} Kits Locked)` : 'Standard Commercial Proposal'}
+              </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

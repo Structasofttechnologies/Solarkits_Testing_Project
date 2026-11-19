@@ -108,9 +108,10 @@ async function processEpcCheckout({
   } else {
     // Direct fallback: no reseller. Compute real amounts using item prices
     // and the platform GST rate. NEVER use hardcoded placeholder paise.
-    const { SolarShopSettings } = require('../models/india_solarshop_db');
+    const { SolarShopSettings, CompanyMargin: IndiaMargin } = require('../models/india_solarshop_db');
+    const { CompanyMargin: CoreMargin } = require('../models/core_db');
     const settings = await SolarShopSettings.findOne().lean();
-    const gstRate = settings?.gst_rate || 13.8;
+    const platformDefaultGstRate = Number(settings?.gst_rate != null ? settings.gst_rate : 12);
 
     let subtotalPaise = 0;
     let taxTotalPaise = 0;
@@ -118,11 +119,48 @@ async function processEpcCheckout({
 
     for (const item of items) {
       const qty = parseInt(item.quantity, 10) || parseInt(item.qty, 10) || 1;
+      const rawKitId = item.kit_id || item.combo_kit_id || (!item.product_id ? (item.id || item._id) : null);
+      let resolvedItemGstRate = null;
+
+      // Look up CompanyMargin for kit GST rate if kit
+      if (rawKitId) {
+        try {
+          let marginDoc = await IndiaMargin.findOne({
+            combo_kit_id: rawKitId,
+            is_active: true,
+            deleted_at: null,
+          }).sort({ updated_at: -1 }).lean();
+
+          if (!marginDoc && CoreMargin) {
+            marginDoc = await CoreMargin.findOne({
+              combo_kit_id: rawKitId,
+              is_active: true,
+              deleted_at: null,
+            }).sort({ updated_at: -1 }).lean();
+          }
+
+          if (marginDoc && marginDoc.gst_rate != null && !isNaN(marginDoc.gst_rate)) {
+            resolvedItemGstRate = Number(marginDoc.gst_rate);
+          }
+        } catch (mErr) {
+          console.warn('Error fetching CompanyMargin in epc.order.service:', mErr.message);
+        }
+      }
+
+      // Hierarchy: marginDoc.gst_rate > item.gstRate > item.gst_rate > platformDefaultGstRate
+      if (resolvedItemGstRate == null) {
+        if (item.gstRate != null && !isNaN(item.gstRate)) {
+          resolvedItemGstRate = Number(item.gstRate);
+        } else if (item.gst_rate != null && !isNaN(item.gst_rate)) {
+          resolvedItemGstRate = Number(item.gst_rate);
+        } else {
+          resolvedItemGstRate = platformDefaultGstRate;
+        }
+      }
 
       // ourPrice is the frontend-displayed price in INR (rupees, not paise).
       // Convert to integer paise. We do NOT trust the value for final charging
       // but use it as the base when no reseller listing exists.
-      // TODO: Replace with a direct CompanyMargin lookup for production parity.
       const ourPriceRupees = parseFloat(item.ourPrice || item.unit_price_inr || 0);
       if (ourPriceRupees <= 0) {
         throw new Error(
@@ -133,12 +171,12 @@ async function processEpcCheckout({
 
       // ── CRITICAL: ourPrice from the shop API is GST-INCLUSIVE ──
       // Formula in shop.handler.js: standardPrice = base × (1 + margin%) × (1 + gst%)
-      // So: ourPrice = baseExclGst × (1 + gstRate/100)
-      // Therefore: baseExclGst = ourPrice / (1 + gstRate/100)
+      // So: ourPrice = baseExclGst × (1 + resolvedItemGstRate/100)
+      // Therefore: baseExclGst = ourPrice / (1 + resolvedItemGstRate/100)
       // We store subtotal as base (excl. GST) and tax separately.
       // grand_total = subtotal + tax = ourPrice × qty  ✓
       const unitPriceInclGstPaise = Math.round(ourPriceRupees * 100);  // what EPC pays per kit
-      const unitBaseExclGstPaise  = Math.round(unitPriceInclGstPaise / (1 + gstRate / 100));
+      const unitBaseExclGstPaise  = Math.round(unitPriceInclGstPaise / (1 + resolvedItemGstRate / 100));
       const unitTaxPaise          = unitPriceInclGstPaise - unitBaseExclGstPaise;
 
       const itemBaseSubtotal = qty * unitBaseExclGstPaise;
@@ -156,13 +194,14 @@ async function processEpcCheckout({
         unit_price_paise: unitBaseExclGstPaise,       // base excl. GST (stored for subtotal)
         unit_price_incl_gst_paise: unitPriceInclGstPaise, // what EPC actually pays per kit
         cost_price_paise: Math.round(unitBaseExclGstPaise * 0.85),
-        gst_rate: gstRate,
+        gst_rate: resolvedItemGstRate,
         tax_paise: itemTax,
         total_price_paise: itemBaseSubtotal + itemTax, // = qty × ourPrice (incl. GST)
         platform_commission_pct: 0,
       });
     }
 
+    const effectiveGstRate = directItems.length > 0 ? directItems[0].gst_rate : platformDefaultGstRate;
     const grandTotalPaise = subtotalPaise + taxTotalPaise;
     totals = {
       items: directItems,
@@ -170,7 +209,7 @@ async function processEpcCheckout({
       tax_total_paise: taxTotalPaise,
       shipping_fee_paise: 0,
       grand_total_paise: grandTotalPaise,
-      gst_rate: gstRate,
+      gst_rate: effectiveGstRate,
     };
   }
 
@@ -264,7 +303,7 @@ async function processEpcCheckout({
       cost_price_paise: costPrice,
       reseller_margin_paise: netMargin,
       platform_commission_paise: commission,
-      gst_rate: totals.gst_rate || 13.8,
+      gst_rate: item.gst_rate != null ? item.gst_rate : (totals.gst_rate != null ? totals.gst_rate : 12),
       tax_paise: item.tax_paise,
       total_price_paise: item.total_price_paise,
     });

@@ -72,6 +72,16 @@ const schema = new mongoose.Schema(
       default: 'franchisee_generated',
     },
 
+    // ── Trial Kit Proposal Flags ──────────────────────────────────────────────
+    is_trial_kit: { type: Boolean, default: false, index: true },
+    quote_type: {
+      type: String,
+      enum: ['standard', 'trial_kit'],
+      default: 'standard',
+      index: true,
+    },
+    trial_kit_quantity: { type: Number, default: null },
+
     // ── Creator ───────────────────────────────────────────────────────────────
     created_by:      { type: mongoose.Schema.Types.ObjectId, required: true },
     created_by_role: { type: String, enum: ['reseller', 'bde', 'cms_user', 'epc'], required: true },
@@ -207,6 +217,7 @@ const schema = new mongoose.Schema(
 schema.index({ franchisee_id: 1, status: 1, created_at: -1 });
 schema.index({ bde_id: 1, status: 1, created_at: -1 });
 schema.index({ epc_id: 1, created_at: -1 });
+schema.index({ epc_id: 1, is_trial_kit: 1, status: 1 });
 schema.index({ original_quote_id: 1 });
 schema.index({ idempotency_key: 1 }, { sparse: true });
 schema.index({ converted_order_id: 1 }, { sparse: true });

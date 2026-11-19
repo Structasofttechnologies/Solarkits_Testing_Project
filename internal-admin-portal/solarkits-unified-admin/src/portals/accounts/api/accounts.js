@@ -792,6 +792,39 @@ export const getExecutiveOverview = async (params = {}) => {
   return res.data;
 };
 
+// ================= MODULE 7: TRIAL KITS ORDERS (ACCOUNT & DISPATCH) =================
+export const getTrialKitsFilterOptions = async () => {
+  const res = await axios.get(`${API_URL}/trial-kits/filter-options`, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const getTrialKitsOrders = async (params = {}) => {
+  const query = new URLSearchParams(
+    Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== ''))
+  ).toString();
+  const res = await axios.get(`${API_URL}/trial-kits/orders${query ? `?${query}` : ''}`, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const groupAndSendTrialKits = async (payload) => {
+  const res = await axios.post(`${API_URL}/trial-kits/group-and-send`, payload, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const getTrialKitsBadgeCount = async () => {
+  const res = await axios.get(`${API_URL}/trial-kits/badge-count`, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+
 
 
 

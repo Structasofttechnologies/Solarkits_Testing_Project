@@ -445,7 +445,7 @@ const list_loose_orders = async (req, res) => {
           quantity: it.quantity || 1,
           unit_price_inr: Math.round(it.unit_price_paise || 0) / 100,
           total_price_inr: Math.round(it.total_price_paise || 0) / 100,
-          gst_rate: it.gst_rate || 13.8,
+          gst_rate: it.gst_rate != null ? it.gst_rate : 12,
           reseller_margin_inr: Math.round(it.reseller_margin_paise || 0) / 100,
         })),
         created_at: o.created_at,

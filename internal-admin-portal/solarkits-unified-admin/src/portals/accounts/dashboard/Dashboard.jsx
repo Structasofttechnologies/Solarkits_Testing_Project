@@ -8,7 +8,7 @@ import { PermissionGuard } from "../components/PermissionGuard";
 import { useSelector } from "react-redux";
 import Loader from "../components/Loader";
 import { selectAllowedUniqueIds, selectNoModulesForTier } from "../features/modules.slice";
-import { getSidebarBadgeCounts } from "../api/accounts";
+import { getSidebarBadgeCounts, getTrialKitsBadgeCount } from "../api/accounts";
 
 const Home = lazy(() => import("../pages/Home"));
 const Profile = lazy(() => import("../pages/Profile"));
@@ -33,6 +33,7 @@ const ExecutiveFinanceDashboard = lazy(() => import("../pages/executive/Executiv
 const CompanyProfileAndFy = lazy(() => import("../pages/company-profile/CompanyProfileAndFy"));
 const StatutoryRegistersHub = lazy(() => import("../pages/registers/StatutoryRegistersHub"));
 const AccountsTrialKitStockPage = lazy(() => import("../pages/trial-kits/AccountsTrialKitStockPage"));
+const TrialKitsOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitsOrdersPage"));
 
 const getMenusWithBadges = (badgeCounts = {}) => [
   [
@@ -62,11 +63,18 @@ const getMenusWithBadges = (badgeCounts = {}) => [
       badge: badgeCounts.new_orders || 0
     },
     {
-      name: "Trial Kit Stock",
+      name: "Trial Kits Orders",
       icon: <FaBoxes />,
-      path: "/account-panel/trial-kits",
-      unique_id: "ACC_TRIAL_KITS"
+      path: "/account-panel/trial-kits-orders",
+      unique_id: "ACC_TRIAL_KITS_ORDERS",
+      badge: badgeCounts.trial_kits_orders || 0
     },
+    // {
+    //   name: "Trial Kit Stock",
+    //   icon: <FaBoxes />,
+    //   path: "/account-panel/trial-kits",
+    //   unique_id: "ACC_TRIAL_KITS"
+    // },
     {
       name: "Procurement",
       icon: <FaLayerGroup />,
@@ -185,7 +193,9 @@ const isModuleAllowed = (menu, allowedUniqueIds) => {
     menu.unique_id === "ACC_INVOICE_VALIDATION" ||
     menu.unique_id === "ACC_EXPENSES" ||
     menu.unique_id === "ACC_COMPANY_PROFILE" ||
-    menu.unique_id === "ACC_REGISTERS"
+    menu.unique_id === "ACC_REGISTERS" ||
+    menu.unique_id === "ACC_TRIAL_KITS" ||
+    menu.unique_id === "ACC_TRIAL_KITS_ORDERS"
   ) return true;
   if ((menu.unique_id === "ACC_NEW_ORDERS" || menu.unique_id === "ACC_PROCUREMENT") && (allowedUniqueIds.includes("ACC_NEW_ORDERS") || allowedUniqueIds.includes("ACC_HOME") || allowedUniqueIds.includes("ACC_PO") || allowedUniqueIds.includes("ACC_PROCUREMENT"))) return true;
   if (menu.unique_id === "ACC_OEM_PO" && allowedUniqueIds.includes("ACC_PO")) return true;
@@ -247,6 +257,7 @@ export default function Dashboard() {
 
   const [sidebarBadges, setSidebarBadges] = useState({
     new_orders: 0,
+    trial_kits_orders: 0,
     procurement: 0,
     supplier_payments: 0,
     purchase_orders: 0,
@@ -254,10 +265,15 @@ export default function Dashboard() {
 
   const fetchBadges = useCallback(async () => {
     try {
-      const res = await getSidebarBadgeCounts();
-      if (res?.data) {
-        setSidebarBadges(res.data);
-      }
+      const [res, tkBadgeRes] = await Promise.all([
+        getSidebarBadgeCounts().catch(() => ({ data: {} })),
+        getTrialKitsBadgeCount().catch(() => ({ data: {} }))
+      ]);
+      setSidebarBadges(prev => ({
+        ...prev,
+        ...(res?.data || {}),
+        trial_kits_orders: tkBadgeRes?.data?.pending_account || 0
+      }));
     } catch (err) {
       console.warn("Failed to fetch accounts sidebar badges:", err);
     }
@@ -333,6 +349,14 @@ export default function Dashboard() {
                 className="min-h-full w-full max-w-full min-w-0"
               >
                 <Routes location={location}>
+                  <Route
+                    path="/trial-kits-orders/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Trial Kits Orders..." />}>
+                        <TrialKitsOrdersPage />
+                      </Suspense>
+                    }
+                  />
                   <Route
                     path="/trial-kits/*"
                     element={

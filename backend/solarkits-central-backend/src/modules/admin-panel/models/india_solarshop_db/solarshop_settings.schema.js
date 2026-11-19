@@ -25,7 +25,7 @@ const schema = new mongoose.Schema({
   enable_checkout_timer: { type: Boolean, default: true },
   checkout_timer_duration: { type: Number, default: 20 },    // minutes
   combokit_bulk_panels_limit: { type: Number, default: 30 },
-  gst_rate: { type: Number, default: 13.8 },
+  gst_rate: { type: Number, default: 12 },
 
   // ── Stage TATs & Procurement Settings ──────────────────────────────────────
   payment_stage_tats: { type: mongoose.Schema.Types.Mixed, default: {} },
