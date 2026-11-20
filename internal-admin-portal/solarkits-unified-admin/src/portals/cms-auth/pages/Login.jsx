@@ -60,9 +60,10 @@ export default function Login() {
       console.error("Failed to parse VITE_LOGIN_CREDENTIALS", e);
     }
     return [
-      { email: "ravi.s@sunnovative.com", password: "4404", role: "Super Admin" },
-      { email: "sushilpiprotar@gmail.com", password: "1234", role: "Accountant" },
-      { email: "rahil@solarkits.com", password: "1234", role: "Account Manager" }
+      { email: "rahil.sunnovative@gmail.com", password: "1111", role: "Super Admin" },
+      { email: "sushilpiprotar@gmail.com", password: "2222", role: "Accountant" },
+      { email: "rahil@solarkits.com", password: "3333", role: "Account Manager" },
+      { email: "ravi.s@sunnovative.com", password: "4404", role: "Super Admin" }
     ];
   })();
 

@@ -282,12 +282,24 @@ exports.list_website_leads = async (req, res) => {
       WebsiteEpcLead.countDocuments(query),
     ]);
 
-    const leads = rawLeads.map(l => ({
-      ...l,
-      name: l.name || l.contact_person || l.company_name || 'EPC Contractor',
-      phone: l.phone || l.mobile_number || 'N/A',
-      status: l.status || (l.assigned_bde_id ? 'assigned' : 'new'),
-    }));
+    const leads = rawLeads.map(l => {
+      const gstin = l.gst_number || l.gstin;
+      const orders = Number(l.lifetime_orders || l.orders_count || 0);
+      let calculatedType = 'Registered EPC';
+      if (orders > 0) {
+        calculatedType = 'Buyer EPC';
+      } else if (gstin && String(gstin).trim().length >= 10) {
+        calculatedType = 'Verified EPC';
+      }
+
+      return {
+        ...l,
+        name: l.name || l.contact_person || l.company_name || 'EPC Contractor',
+        phone: l.phone || l.mobile_number || 'N/A',
+        status: l.status || (l.assigned_bde_id ? 'assigned' : 'new'),
+        epc_type: l.epc_type || calculatedType,
+      };
+    });
 
     // Aggregate statistics across all active leads
     const [totalAll, unassignedCount, assignedCount, onboardedCount] = await Promise.all([
@@ -652,6 +664,98 @@ exports.update_lead = async (req, res) => {
   } catch (error) {
     console.error('Error updating lead:', error);
     return res.status(500).json({ success: false, message: 'Failed to update lead', error: error.message });
+  }
+};
+
+/**
+ * 6. ADMIN: Import Leads with Dynamic CSV Mapping & Classification (Buyer / Verified / Registered)
+ * POST /admin-api/website-leads/import
+ */
+exports.import_leads = async (req, res) => {
+  try {
+    const { leads = [] } = req.body;
+    if (!Array.isArray(leads) || leads.length === 0) {
+      return res.status(400).json({ success: false, message: 'No leads provided in payload.' });
+    }
+
+    let createdCount = 0;
+    const year = new Date().getFullYear();
+
+    for (const item of leads) {
+      const trimmedName = (item.name || item.company_name || 'Solar Partner').trim();
+      const rawPhone = String(item.phone || item.mobile || item.mobile_number || item.whatsapp || '').replace(/\D/g, '');
+      const finalPhone = rawPhone.length >= 10 ? rawPhone.slice(-10) : '9999999999';
+      const cleanGst = item.gst_number || item.gstin ? String(item.gst_number || item.gstin).trim().toUpperCase() : null;
+      const lifetimeOrders = Number(item.lifetime_orders || item.lifetimeOrders || item.orders || 0);
+
+      // Boss Rule: Classify EPC
+      let epcType = 'Registered EPC';
+      if (lifetimeOrders > 0) {
+        epcType = 'Buyer EPC';
+      } else if (cleanGst && cleanGst.length >= 10) {
+        epcType = 'Verified EPC';
+      }
+
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const leadId = `WEB-${year}-${Date.now().toString().slice(-4)}${randomSuffix}`;
+
+      await WebsiteEpcLead.create({
+        lead_id: leadId,
+        name: trimmedName,
+        company_name: trimmedName,
+        contact_person: item.contact_person || trimmedName,
+        phone: finalPhone,
+        mobile_number: finalPhone,
+        email: item.email ? String(item.email).trim().toLowerCase() : `${finalPhone}@lead.solarkits.in`,
+        state_name: item.state_name || item.state || 'Maharashtra',
+        district_name: item.district_name || item.district || item.cluster || 'Central',
+        pincode: item.pincode || null,
+        project_type: item.project_type || 'Bulk Solar Combo Kits',
+        estimated_quantity: item.estimated_quantity || (lifetimeOrders > 0 ? `${lifetimeOrders} Kits` : '5+ Kits'),
+        status: 'new',
+        lead_status: 'New',
+        lead_source: 'csv_dynamic_import',
+        gst_number: cleanGst,
+        gst_verification_status: cleanGst ? 'verified_admin' : 'unverified',
+        epc_type: epcType,
+      });
+
+      // Also ensure corresponding EpcAccount exists for marketing and store login
+      if (EpcAccount) {
+        try {
+          const existingAcc = await EpcAccount.findOne({
+            $or: [{ whatsapp: finalPhone }, { email: item.email ? item.email.toLowerCase() : null }]
+          });
+          if (!existingAcc) {
+            await EpcAccount.create({
+              name: trimmedName,
+              email: item.email ? item.email.toLowerCase() : `${finalPhone}@lead.solarkits.in`,
+              whatsapp: finalPhone,
+              password_hash: '$2b$10$w09u7t08eQ.yW...', // placeholder hash
+              status: cleanGst ? 'approved' : 'pending',
+              gstin: cleanGst,
+              state_name: item.state_name || item.state || 'Maharashtra',
+              district_name: item.district_name || item.district || item.cluster || 'Central',
+              epc_type: epcType,
+              onboarding_source: 'lead'
+            });
+          }
+        } catch (accErr) {
+          // ignore duplicate
+        }
+      }
+
+      createdCount++;
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: `Successfully imported ${createdCount} EPC leads.`,
+      count: createdCount,
+    });
+  } catch (error) {
+    console.error('Error importing leads in WebsiteEpcLead handler:', error);
+    return res.status(500).json({ success: false, message: 'Failed to import leads', error: error.message });
   }
 };
 

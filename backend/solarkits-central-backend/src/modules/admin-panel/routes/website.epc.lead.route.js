@@ -36,5 +36,6 @@ router.get('/bdes', admin_lead_auth, handler.get_active_bdes);
 router.get('/list', admin_lead_auth, handler.list_website_leads);
 router.post('/bulk-assign', admin_lead_auth, handler.bulk_assign_leads);
 router.patch('/:id', admin_lead_auth, handler.update_lead);
+router.post('/import', admin_lead_auth, handler.import_leads);
 
 module.exports = router;

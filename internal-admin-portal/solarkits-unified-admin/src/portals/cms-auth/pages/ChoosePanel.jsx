@@ -12,7 +12,8 @@ import {
   HiUserCircle,
   HiCpuChip,
   HiArrowRight,
-  HiSparkles
+  HiSparkles,
+  HiMegaphone
 } from 'react-icons/hi2';
 import useTheme from "../hooks/useTheme";
 import { logoutUser } from "../features/auth.slice";
@@ -64,6 +65,13 @@ export default function ChoosePanel() {
     };
 
     switch (slug) {
+      case 'marketing-panel':
+        return {
+          icon: <HiMegaphone className="w-8 h-8" />,
+          color: "from-indigo-500/10 to-violet-600/10 dark:from-indigo-500/20 dark:to-violet-600/20 border-indigo-500/20 dark:border-indigo-400/30 text-indigo-600 dark:text-indigo-400 hover:shadow-indigo-500/10",
+          btnColor: "bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 shadow-indigo-500/20",
+          desc: "Email & WhatsApp marketing campaigns, EPC audience segmentation, website form tracking, and MIS conversion analytics."
+        };
       case 'developer-panel':
         return {
           icon: <HiCpuChip className="w-8 h-8" />,
@@ -158,11 +166,26 @@ export default function ChoosePanel() {
 
         {/* Panel Options Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
-          {allowed_panels.map((panel) => {
+          {(() => {
+            const panels = [...(allowed_panels || [])];
+            if (!panels.some(p => p.slug === 'marketing-panel')) {
+              panels.push({
+                id: 'marketing-panel-gateway',
+                name: 'Marketing Management Panel',
+                slug: 'marketing-panel',
+                url_prefix: '/marketing-panel',
+                products: [
+                  { id: 'mk-prod-1', name: 'Email Campaigns' },
+                  { id: 'mk-prod-2', name: 'WhatsApp Business' },
+                  { id: 'mk-prod-3', name: 'MIS Conversions' }
+                ]
+              });
+            }
+            return panels.map((panel) => {
             const meta = getPanelMeta(panel.slug);
             return (
               <div
-                key={panel.id}
+                key={panel.id || panel.slug}
                 onClick={() => handleSelectPanel(panel.url_prefix)}
                 role="button"
                 tabIndex={0}
@@ -179,7 +202,7 @@ export default function ChoosePanel() {
                       {meta.icon}
                     </div>
                     <span className="text-[10px] font-black uppercase tracking-widest text-text-muted bg-surface-hover/80 px-2.5 py-1 rounded-md border border-border/50">
-                      {panel.slug.split('-').slice(0, -1).join(' ') || 'Portal'}
+                      {panel.slug.split('-').slice(0, -1).join(' ') || 'Marketing'}
                     </span>
                   </div>
 
@@ -223,7 +246,8 @@ export default function ChoosePanel() {
                 </div>
               </div>
             );
-          })}
+          });
+          })()}
         </div>
 
         {/* Footer Actions */}
