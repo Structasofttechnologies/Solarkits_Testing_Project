@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine } from "react-icons/fa";
+import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine, FaCreditCard } from "react-icons/fa";
 import { HiCube } from "react-icons/hi";
 import { useSelector, useDispatch } from "react-redux";
 import { setAlert } from "../features/alert.slice";
@@ -94,6 +94,7 @@ const ExecutiveFinanceDashboard = lazy(() => import("../../accounts/pages/execut
 const TrialKitInventoryPage = lazy(() => import("../pages/trial-kits/TrialKitInventoryPage"));
 const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrdersPage"));
 const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
+const TrialKitProcurementPage = lazy(() => import("../pages/trial-kits/TrialKitProcurementPage"));
 
 const menus = [
     [
@@ -349,6 +350,12 @@ const menus = [
                     name: "Stock & Allocations",
                     icon: <HiCube />,
                     path: "/admin-panel/solar-shop/trial-kits/inventory",
+                    unique_id: "00000000",
+                },
+                {
+                    name: "Procurement Approvals",
+                    icon: <FaCreditCard />,
+                    path: "/admin-panel/solar-shop/trial-kits/procurement",
                     unique_id: "00000000",
                 },
                 {
@@ -1956,6 +1963,8 @@ export default function SolarShopDashboard() {
                                     {/* ── Trial Kit Management Routes ──── */}
                                     <Route path="/trial-kits/inventory" element={<Suspense fallback={<Loader text="Loading Trial Kit Inventory..." />}><TrialKitInventoryPage /></Suspense>} />
                                     <Route path="/:countryName/trial-kits/inventory" element={<Suspense fallback={<Loader text="Loading Trial Kit Inventory..." />}><TrialKitInventoryPage /></Suspense>} />
+                                    <Route path="/trial-kits/procurement" element={<Suspense fallback={<Loader text="Loading Trial Kit Procurement Approvals..." />}><TrialKitProcurementPage /></Suspense>} />
+                                    <Route path="/:countryName/trial-kits/procurement" element={<Suspense fallback={<Loader text="Loading Trial Kit Procurement Approvals..." />}><TrialKitProcurementPage /></Suspense>} />
                                     <Route path="/trial-kits/orders" element={<Suspense fallback={<Loader text="Loading Trial Kit Orders..." />}><TrialKitOrdersPage /></Suspense>} />
                                     <Route path="/:countryName/trial-kits/orders" element={<Suspense fallback={<Loader text="Loading Trial Kit Orders..." />}><TrialKitOrdersPage /></Suspense>} />
                                     <Route path="/trial-kits/analytics" element={<Suspense fallback={<Loader text="Loading Trial Kit Analytics..." />}><TrialKitAnalyticsPage /></Suspense>} />

@@ -97,3 +97,55 @@ export const getHierarchyOptions = async () => {
   });
   return res.data;
 };
+
+// ── Multi-Stage Procurement & Inward Ecosystem (Warehouse ➔ Accounts ➔ Admin) ────
+export const requestTrialKitInward = async (data) => {
+  const res = await axios.post(`${BASE_URL}/procurement/request`, data, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const getTrialKitProcurements = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const res = await axios.get(`${BASE_URL}/procurement/list${query ? `?${query}` : ""}`, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const getTrialKitProcurementDetails = async (id) => {
+  const res = await axios.get(`${BASE_URL}/procurement/${id}`, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const recordTrialKitProcurementPayment = async (id, data) => {
+  const res = await axios.post(`${BASE_URL}/procurement/${id}/record-payment`, data, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const approveTrialKitProcurement = async (id, data = {}) => {
+  const res = await axios.post(`${BASE_URL}/procurement/${id}/approve`, data, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const rejectTrialKitProcurement = async (id, data) => {
+  const res = await axios.post(`${BASE_URL}/procurement/${id}/reject`, data, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const getTrialKitProcurementBadgeCounts = async () => {
+  const res = await axios.get(`${BASE_URL}/procurement/badge-counts`, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+

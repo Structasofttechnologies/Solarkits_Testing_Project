@@ -10,7 +10,7 @@ import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
 
-import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck } from "react-icons/fa";
+import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck, FaCreditCard } from "react-icons/fa";
 
 import {
   MdAccountTree,
@@ -64,6 +64,7 @@ const InvoiceDoSettings = lazy(() => import("../pages/solar-shop/order-managemen
 const TrialKitInventoryPage = lazy(() => import("../pages/trial-kits/TrialKitInventoryPage"));
 const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrdersPage"));
 const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
+const TrialKitProcurementPage = lazy(() => import("../pages/trial-kits/TrialKitProcurementPage"));
 
 
 /* ===================== MENU CONFIG ===================== */
@@ -115,32 +116,38 @@ const menus = [
     { name: "Operations Dashboard", icon: <MdEngineering />, path: "/admin-panel/operations-dashboard", unique_id: "00000000" },
     { name: "Store Dashboard", icon: <FaStore />, path: "/admin-panel/store-dashboard", unique_id: "00000000" },
     { name: "EPC Analytics", icon: <FaChartLine />, path: "/admin-panel/epc-analytics", unique_id: "00000000" },
-    // {
-    //   name: "Trial Kit Management",
-    //   icon: <FaBoxes />,
-    //   path: "/admin-panel/trial-kits",
-    //   unique_id: "00000000",
-    //   subMenu: [
-    //     {
-    //       name: "Trial Kit Inventory",
-    //       icon: <FaWarehouse />,
-    //       path: "/admin-panel/trial-kits/inventory",
-    //       unique_id: "00000000",
-    //     },
-    //     {
-    //       name: "Trial Orders & Tracking",
-    //       icon: <FaTruck />,
-    //       path: "/admin-panel/trial-kits/orders",
-    //       unique_id: "00000000",
-    //     },
-    //     {
-    //       name: "Conversion Analytics (BI)",
-    //       icon: <FaChartLine />,
-    //       path: "/admin-panel/trial-kits/analytics",
-    //       unique_id: "00000000",
-    //     },
-    //   ],
-    // },
+    {
+      name: "Trial Kit Management",
+      icon: <FaBoxes />,
+      path: "/admin-panel/trial-kits",
+      unique_id: "00000000",
+      subMenu: [
+        {
+          name: "Trial Kit Inventory",
+          icon: <FaWarehouse />,
+          path: "/admin-panel/trial-kits/inventory",
+          unique_id: "00000000",
+        },
+        {
+          name: "Procurement Approvals",
+          icon: <FaCreditCard />,
+          path: "/admin-panel/trial-kits/procurement",
+          unique_id: "00000000",
+        },
+        {
+          name: "Trial Orders & Tracking",
+          icon: <FaTruck />,
+          path: "/admin-panel/trial-kits/orders",
+          unique_id: "00000000",
+        },
+        {
+          name: "Conversion Analytics (BI)",
+          icon: <FaChartLine />,
+          path: "/admin-panel/trial-kits/analytics",
+          unique_id: "00000000",
+        },
+      ],
+    },
   ],
   [
     {
@@ -854,6 +861,14 @@ export default function Dashboard() {
                     element={
                       <Suspense fallback={<Loader text="Loading Trial Kit Orders..." />}>
                         <TrialKitOrdersPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/trial-kits/procurement"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Trial Kit Procurement Approvals..." />}>
+                        <TrialKitProcurementPage />
                       </Suspense>
                     }
                   />

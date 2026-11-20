@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { authHeaderObj } from "../../app/authHeader";
 import {
@@ -12,7 +13,11 @@ import {
   FaPhoneAlt,
   FaUserCheck,
   FaClock,
-  FaTimes
+  FaTimes,
+  FaFileInvoice,
+  FaInfoCircle,
+  FaCheck,
+  FaExternalLinkAlt
 } from "react-icons/fa";
 import { FiRefreshCw, FiX, FiCheck, FiSliders } from "react-icons/fi";
 
@@ -33,24 +38,30 @@ const KIT_TYPES = [
 ];
 
 export default function WarehouseTrialKitPage() {
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [stockList, setStockList] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [procurements, setProcurements] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("orders"); // 'orders' | 'stock'
+  const [activeTab, setActiveTab] = useState("orders"); // 'orders' | 'stock' | 'procurements'
   const [orderFilterTab, setOrderFilterTab] = useState("all"); // 'all' | 'ready' | 'out_for_delivery' | 'delivered'
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Inward Form
+  // Inward Form (Multi-Stage Procurement Request - Simplified)
   const [showInwardModal, setShowInwardModal] = useState(false);
+  const [inwardSubmitting, setInwardSubmitting] = useState(false);
   const [inwardForm, setInwardForm] = useState({
-    kit_type: "1 kW Trial Kit",
+    combo_kit_id: "",
     warehouse_id: "",
-    quantity_received: 10,
-    vendor_name: "",
-    remarks: ""
+    inward_quantity: 10
   });
+
+  // Selected Procurement for Inspection/Details Drawer
+  const [viewProcurement, setViewProcurement] = useState(null);
 
   // Direct Out for Delivery Modal
   const [showDispatchModal, setShowDispatchModal] = useState(false);
@@ -76,13 +87,18 @@ export default function WarehouseTrialKitPage() {
     try {
       setLoading(true);
       setError("");
-      const [stockRes, ordersRes] = await Promise.all([
+      const [stockRes, ordersRes, procRes] = await Promise.all([
         axios.get(`${BASE_URL}/stock`, { headers: authHeaderObj() }),
-        axios.get(`${BASE_URL}/orders?limit=100`, { headers: authHeaderObj() })
+        axios.get(`${BASE_URL}/orders?limit=100`, { headers: authHeaderObj() }),
+        axios.get(`${BASE_URL}/procurement/list?limit=100`, { headers: authHeaderObj() }).catch(() => ({ data: { success: false, data: [] } }))
       ]);
 
-      if (stockRes.data?.success) setStockList(stockRes.data.data || []);
+      if (stockRes.data?.success) {
+        setStockList(stockRes.data.data || []);
+        setWarehouses(stockRes.data.warehouses || []);
+      }
       if (ordersRes.data?.success) setOrders(ordersRes.data.data || []);
+      if (procRes.data?.success) setProcurements(procRes.data.data || []);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load warehouse trial kit data.");
     } finally {
@@ -94,19 +110,72 @@ export default function WarehouseTrialKitPage() {
     fetchData();
   }, [fetchData]);
 
-  // Submit Inward
+  // Pre-populate default IDs in inwardForm when lists load
+  useEffect(() => {
+    if (warehouses.length > 0 && !inwardForm.warehouse_id) {
+      setInwardForm((prev) => ({ ...prev, warehouse_id: warehouses[0]._id }));
+    }
+  }, [warehouses, inwardForm.warehouse_id]);
+
+  useEffect(() => {
+    if (stockList.length > 0 && !inwardForm.combo_kit_id) {
+      setInwardForm((prev) => ({
+        ...prev,
+        combo_kit_id: stockList[0]?.combo_kit_id || stockList[0]?._id || ""
+      }));
+    }
+  }, [stockList, inwardForm.combo_kit_id]);
+
+  // Synchronize tab with route or query param (e.g. /trial-kits/inward or ?tab=procurements)
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "procurements" || tabParam === "inward" || location.pathname.includes("/inward")) {
+      setActiveTab("procurements");
+      if (searchParams.get("action") === "new") {
+        setShowInwardModal(true);
+      }
+    } else if (tabParam === "stock" || location.pathname.includes("/stock")) {
+      setActiveTab("stock");
+    } else if (tabParam === "orders" || location.pathname.includes("/orders")) {
+      setActiveTab("orders");
+    }
+  }, [location.pathname, searchParams]);
+
+  // Open Simplified Inward Request Modal
+  const handleOpenInwardModal = () => {
+    const defaultWh = inwardForm.warehouse_id || warehouses[0]?._id || "";
+    const defaultKit = inwardForm.combo_kit_id || stockList[0]?.combo_kit_id || stockList[0]?._id || "";
+    setInwardForm({
+      combo_kit_id: defaultKit,
+      warehouse_id: defaultWh,
+      inward_quantity: 10
+    });
+    setShowInwardModal(true);
+  };
+
+  // Submit Inward Request (GRN) to Accounts & Admin
   const handleInwardSubmit = async (e) => {
     e.preventDefault();
     try {
+      setInwardSubmitting(true);
       setError("");
-      const res = await axios.post(`${BASE_URL}/stock/inward`, inwardForm, { headers: authHeaderObj() });
+      const payload = {
+        combo_kit_id: inwardForm.combo_kit_id,
+        warehouse_id: inwardForm.warehouse_id,
+        inward_quantity: parseInt(inwardForm.inward_quantity, 10)
+      };
+
+      const res = await axios.post(`${BASE_URL}/procurement/request`, payload, { headers: authHeaderObj() });
       if (res.data?.success) {
-        setSuccess(res.data.message || "Inward stock recorded.");
+        setSuccess(res.data.message || "Inward request raised successfully!");
         setShowInwardModal(false);
+        setActiveTab("procurements");
         fetchData();
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to record inward.");
+      setError(err.response?.data?.message || "Failed to raise inward request.");
+    } finally {
+      setInwardSubmitting(false);
     }
   };
 
@@ -250,33 +319,46 @@ export default function WarehouseTrialKitPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-gray-200 gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2">
-            <FaWarehouse className="text-blue-600" />
-            Warehouse Trial Kit Fulfillment Hub
+            {activeTab === "procurements" ? (
+              <>
+                <FaFileInvoice className="text-blue-600" />
+                Trial Kit Inward Indents & Procurement Requests
+              </>
+            ) : activeTab === "stock" ? (
+              <>
+                <FaBoxes className="text-blue-600" />
+                Warehouse Trial Kit Stock Summary
+              </>
+            ) : (
+              <>
+                <FaTruck className="text-blue-600" />
+                Warehouse Trial Kit Orders Fulfillment
+              </>
+            )}
           </h1>
           <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
-            <span>Inbound Trial Orders</span>
-            <span>•</span>
-            <span className="font-semibold text-emerald-600">Direct Out for Delivery (No Procurement Delay)</span>
-            <span>•</span>
-            <span>Site Delivery Confirmation</span>
+            {activeTab === "procurements" ? (
+              <span>Raise inward requests (GRN) to Accounts and track status through Admin approval</span>
+            ) : activeTab === "stock" ? (
+              <span>Real-time stock ledger of trial kits allocated to this warehouse</span>
+            ) : (
+              <>
+                <span>Inbound Trial Orders</span>
+                <span>•</span>
+                <span className="font-semibold text-emerald-600">Direct Out for Delivery (No Procurement Delay)</span>
+                <span>•</span>
+                <span>Site Delivery Confirmation</span>
+              </>
+            )}
           </p>
         </div>
 
         <div className="flex gap-2">
           <button
-            onClick={() => {
-              setInwardForm({
-                kit_type: "1 kW Trial Kit",
-                warehouse_id: stockList[0]?.warehouse_id?._id || stockList[0]?.warehouse_id || "",
-                quantity_received: 10,
-                vendor_name: "",
-                remarks: ""
-              });
-              setShowInwardModal(true);
-            }}
+            onClick={handleOpenInwardModal}
             className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
-            <FaTruckLoading /> Inward Stock
+            <FaTruckLoading /> Raise Inward Request
           </button>
           <button
             onClick={fetchData}
@@ -289,28 +371,6 @@ export default function WarehouseTrialKitPage() {
 
       {error && <div className="p-3 bg-red-50 text-red-700 rounded-xl text-xs border border-red-200">{error}</div>}
       {success && <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs border border-emerald-200">{success}</div>}
-
-      {/* Main Tabs */}
-      <div className="flex gap-4 border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab("orders")}
-          className={`pb-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
-            activeTab === "orders" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <FaTruck className="w-4 h-4" />
-          Trial Kit Orders Fulfillment ({orders.length})
-        </button>
-        <button
-          onClick={() => setActiveTab("stock")}
-          className={`pb-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
-            activeTab === "stock" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <FaBoxes className="w-4 h-4" />
-          Warehouse Stock Summary
-        </button>
-      </div>
 
       {/* ─────────────────────────────────────────────────────────────────────
           ORDERS FULFILLMENT TAB
@@ -534,11 +594,38 @@ export default function WarehouseTrialKitPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {stockList.map((item) => (
-                <tr key={item._id}>
-                  <td className="py-3 px-4 font-bold text-gray-900">{item.kit_type}</td>
-                  <td className="py-3 px-4 text-gray-700">{item.warehouse_id?.warehouse_name || item.warehouse_name}</td>
-                  <td className="py-3 px-4 text-center font-bold text-emerald-700">{item.available_stock}</td>
+              {stockList.flatMap((kit) =>
+                (kit.warehouse_allocations && kit.warehouse_allocations.length > 0)
+                  ? kit.warehouse_allocations.map((alloc) => ({
+                      ...alloc,
+                      kit_name: kit.name,
+                      capacity: kit.capacity
+                    }))
+                  : [{
+                      inventory_id: kit._id,
+                      combo_kit_id: kit.combo_kit_id || kit._id,
+                      kit_name: kit.name || kit.kit_type,
+                      capacity: kit.capacity,
+                      warehouse_name: kit.warehouse_id?.warehouse_name || kit.warehouse_name || "General",
+                      warehouse_code: kit.warehouse_id?.warehouse_code || kit.warehouse_code || "",
+                      available_stock: kit.available_stock || kit.total_available_stock || 0,
+                      reserved_stock: kit.reserved_stock || kit.total_reserved_stock || 0,
+                      ordered_quantity: kit.ordered_quantity || kit.total_ordered_quantity || 0,
+                      dispatched_quantity: kit.dispatched_quantity || 0,
+                      delivered_quantity: kit.delivered_quantity || kit.total_delivered_quantity || 0
+                    }]
+              ).map((item, idx) => (
+                <tr key={item.inventory_id || `${item.combo_kit_id}-${item.warehouse_id || idx}`}>
+                  <td className="py-3 px-4 font-bold text-gray-900">
+                    {item.kit_name} {item.capacity ? `(${item.capacity} kW System)` : ""}
+                  </td>
+                  <td className="py-3 px-4 text-gray-700 font-medium">
+                    {item.warehouse_name || item.warehouse_code || "Warehouse"}
+                    {item.warehouse_code && (
+                      <span className="text-[10px] text-gray-400 font-mono ml-1.5">({item.warehouse_code})</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-center font-bold text-emerald-700">{item.available_stock || 0}</td>
                   <td className="py-3 px-4 text-center text-amber-700">{item.reserved_stock || 0}</td>
                   <td className="py-3 px-4 text-center text-blue-700">{item.ordered_quantity || 0}</td>
                   <td className="py-3 px-4 text-center text-purple-700">{item.dispatched_quantity || 0}</td>
@@ -547,6 +634,128 @@ export default function WarehouseTrialKitPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────────
+          INWARD & PROCUREMENT REQUESTS TAB
+      ───────────────────────────────────────────────────────────────────── */}
+      {activeTab === "procurements" && (
+        <div className="space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-blue-50/60 p-4 rounded-2xl border border-blue-100">
+            <div>
+              <h2 className="text-sm font-bold text-blue-950 flex items-center gap-2">
+                <FaFileInvoice className="text-blue-600" />
+                Trial Kit Inward Indents & Procurement Requests
+              </h2>
+              <p className="text-xs text-blue-700 mt-0.5">
+                Track inward requests raised by warehouse, accounts vendor payments, and final admin stock approvals.
+              </p>
+            </div>
+            <button
+              onClick={handleOpenInwardModal}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <FaTruckLoading /> + Raise New Inward Request
+            </button>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold uppercase text-[10px]">
+                  <th className="py-3 px-4">PR / GRN No.</th>
+                  <th className="py-3 px-4">Combo Kit & Warehouse</th>
+                  <th className="py-3 px-4 text-center">Inward Qty</th>
+                  <th className="py-3 px-4">Vendor & Challan</th>
+                  <th className="py-3 px-4">Inspection</th>
+                  <th className="py-3 px-4 text-center">Lifecycle Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {procurements.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="text-center py-10 text-gray-400">
+                      No trial kit inward requests found. Click "Raise Inward Request" to initiate.
+                    </td>
+                  </tr>
+                ) : (
+                  procurements.map((proc) => {
+                    let statusBadge = (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                        Pending Accounts Payment
+                      </span>
+                    );
+                    if (proc.status === "payment_recorded") {
+                      statusBadge = (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                          Payment Recorded (Pending Admin)
+                        </span>
+                      );
+                    } else if (proc.status === "approved") {
+                      statusBadge = (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          Approved & Inwarded
+                        </span>
+                      );
+                    } else if (proc.status === "rejected") {
+                      statusBadge = (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-100 text-red-800 border border-red-300">
+                          Rejected
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <tr key={proc._id} className="hover:bg-gray-50/80 transition">
+                        <td className="py-3 px-4">
+                          <span className="font-mono font-bold text-blue-600 block">{proc.procurement_number}</span>
+                          <span className="text-[10px] text-gray-500 font-mono">{proc.grn_number}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-bold text-gray-900 block">{proc.kit_type}</span>
+                          <span className="text-[11px] text-gray-500 flex items-center gap-1">
+                            <FaWarehouse className="text-gray-400 text-[10px]" />
+                            {proc.warehouse_name || proc.warehouse_id?.warehouse_name}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-700 font-extrabold rounded-md text-xs border border-emerald-200">
+                            +{proc.inward_quantity} Kits
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-gray-800 block">{proc.vendor_name}</span>
+                          <span className="text-[11px] text-gray-500">
+                            Challan: <strong className="text-gray-700">{proc.invoice_challan_number}</strong>
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            proc.warehouse_inspection_status === "passed"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}>
+                            {proc.warehouse_inspection_status === "passed" ? "Passed" : "Damage / Partial"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">{statusBadge}</td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => setViewProcurement(proc)}
+                            className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <FaInfoCircle /> Details
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -754,82 +963,266 @@ export default function WarehouseTrialKitPage() {
       )}
 
       {/* ─────────────────────────────────────────────────────────────────────
-          INWARD MODAL
+          MULTI-STAGE INWARD & PROCUREMENT REQUEST MODAL (SIMPLIFIED)
       ───────────────────────────────────────────────────────────────────── */}
       {showInwardModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <h3 className="font-bold text-gray-900 text-sm">Record Material Inward</h3>
-              <button onClick={() => setShowInwardModal(false)}><FiX /></button>
-            </div>
-            <form onSubmit={handleInwardSubmit} className="mt-4 space-y-3 text-xs">
-              <div>
-                <label className="block text-gray-700 font-semibold mb-1">Kit Type</label>
-                <select
-                  value={inwardForm.kit_type}
-                  onChange={(e) => setInwardForm({ ...inwardForm, kit_type: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-300"
-                >
-                  {KIT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+              <div className="flex items-center gap-2.5">
+                <span className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-700">
+                  <FaTruckLoading className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base">Raise Trial Kit Inward Request</h3>
+                  <p className="text-[11px] text-gray-500">
+                    Creates GRN entry & forwards to Accounts for procurement payment & Admin approval.
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowInwardModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-xl hover:bg-gray-100 transition cursor-pointer"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleInwardSubmit} className="mt-5 space-y-4 text-xs">
               <div>
-                <label className="block text-gray-700 font-semibold mb-1">Warehouse</label>
+                <label className="block text-gray-700 font-bold mb-1.5">Target Warehouse *</label>
                 <select
                   required
                   value={inwardForm.warehouse_id}
                   onChange={(e) => setInwardForm({ ...inwardForm, warehouse_id: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-300"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-medium text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
                 >
-                  <option value="">Select Warehouse</option>
-                  {stockList.map((s) => (
-                    <option key={s.warehouse_id?._id || s.warehouse_id} value={s.warehouse_id?._id || s.warehouse_id}>
-                      {s.warehouse_id?.warehouse_name || s.warehouse_name}
+                  <option value="">Select Warehouse...</option>
+                  {warehouses.map((wh) => (
+                    <option key={wh._id} value={wh._id}>
+                      {wh.warehouse_name || wh.warehouse_code} {wh.district_name || wh.address ? `• ${wh.district_name || wh.address.split(',')[0]}` : ''}
                     </option>
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-1">Quantity</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={inwardForm.quantity_received}
-                    onChange={(e) => setInwardForm({ ...inwardForm, quantity_received: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-1">Vendor Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={inwardForm.vendor_name}
-                    onChange={(e) => setInwardForm({ ...inwardForm, vendor_name: e.target.value })}
-                    placeholder="e.g. Solarkits Inward"
-                    className="w-full px-3 py-2 rounded-xl border border-gray-300"
-                  />
-                </div>
+
+              <div>
+                <label className="block text-gray-700 font-bold mb-1.5">Configured Combo Kit Type *</label>
+                <select
+                  required
+                  value={inwardForm.combo_kit_id}
+                  onChange={(e) => setInwardForm({ ...inwardForm, combo_kit_id: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-medium text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                >
+                  <option value="">Select Combo Kit...</option>
+                  {stockList.map((k) => (
+                    <option key={k.combo_kit_id || k._id} value={k.combo_kit_id || k._id}>
+                      {k.name || k.kit_type} {k.capacity ? `(${k.capacity} kW System)` : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+
+              <div>
+                <label className="block text-gray-700 font-bold mb-1.5">Inward Quantity (Kits) *</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={inwardForm.inward_quantity}
+                  onChange={(e) => setInwardForm({ ...inwardForm, inward_quantity: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-bold text-emerald-700 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                  placeholder="e.g. 10"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setShowInwardModal(false)}
-                  className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50"
+                  className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                  disabled={inwardSubmitting || !inwardForm.warehouse_id || !inwardForm.combo_kit_id}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer transition"
                 >
-                  Save Inward
+                  {inwardSubmitting ? (
+                    <>
+                      <FiRefreshCw className="animate-spin" /> Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <FaCheck className="w-3.5 h-3.5" /> Submit Inward Request
+                    </>
+                  )}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────────
+          VIEW PROCUREMENT DOSSIER MODAL
+      ───────────────────────────────────────────────────────────────────── */}
+      {viewProcurement && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 my-8 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-blue-600 text-base">{viewProcurement.procurement_number}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-gray-100 text-gray-700 font-mono">
+                    {viewProcurement.grn_number}
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-500">Trial Kit Multi-Stage Inward & Procurement Dossier</p>
+              </div>
+              <button onClick={() => setViewProcurement(null)} className="text-gray-400 hover:text-gray-600">
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Stage 1 */}
+              <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 space-y-2 text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-gray-900 border-b border-gray-200 pb-1.5">
+                  <FaTruckLoading className="text-blue-600" />
+                  <span>Stage 1: Warehouse Inward</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-[10px] block">Combo Kit</span>
+                  <strong className="text-gray-900">{viewProcurement.kit_type}</strong>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-[10px] block">Warehouse</span>
+                  <span className="text-gray-800">{viewProcurement.warehouse_name}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-[10px] block">Quantity Inwarded</span>
+                  <strong className="text-emerald-700">+{viewProcurement.inward_quantity} Kits</strong>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-[10px] block">Vendor / Supplier</span>
+                  <span className="text-gray-800">{viewProcurement.vendor_name}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-[10px] block">Challan No. & Date</span>
+                  <span className="text-gray-800 font-mono">{viewProcurement.invoice_challan_number}</span>
+                  <span className="text-[10px] text-gray-500 block">
+                    {viewProcurement.invoice_challan_date ? new Date(viewProcurement.invoice_challan_date).toLocaleDateString() : ""}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-[10px] block">Inspection Condition</span>
+                  <span className="text-emerald-700 font-semibold">{viewProcurement.warehouse_inspection_status}</span>
+                </div>
+                {viewProcurement.warehouse_remarks && (
+                  <div>
+                    <span className="text-gray-500 text-[10px] block">Remarks</span>
+                    <span className="text-gray-600 text-[11px] italic">"{viewProcurement.warehouse_remarks}"</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Stage 2 */}
+              <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 space-y-2 text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-gray-900 border-b border-gray-200 pb-1.5">
+                  <FaFileInvoice className="text-purple-600" />
+                  <span>Stage 2: Accounts Payment</span>
+                </div>
+                {viewProcurement.payment_status === "unpaid" ? (
+                  <div className="py-6 text-center text-amber-700 bg-amber-50 rounded-xl p-2 font-medium">
+                    ⏳ Pending Accounts Payment Entry
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <span className="text-gray-500 text-[10px] block">Unit Cost (INR)</span>
+                      <strong className="text-gray-900">₹{viewProcurement.unit_cost_price_inr?.toLocaleString("en-IN")}</strong>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-[10px] block">Subtotal & GST</span>
+                      <span className="text-gray-800">
+                        ₹{viewProcurement.subtotal_amount_inr?.toLocaleString("en-IN")} + {viewProcurement.gst_rate_percent}% GST (₹{viewProcurement.gst_amount_inr?.toLocaleString("en-IN")})
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-[10px] block">Total Payable</span>
+                      <strong className="text-purple-700 text-sm">₹{viewProcurement.total_payable_amount_inr?.toLocaleString("en-IN")}</strong>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-[10px] block">Bank UTR / Txn No.</span>
+                      <strong className="text-gray-900 font-mono text-[11px]">{viewProcurement.payment_details?.transaction_utr_no || "N/A"}</strong>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-[10px] block">Payment Mode</span>
+                      <span className="text-gray-700 capitalize">{viewProcurement.payment_details?.payment_mode?.replace(/_/g, " ")}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-[10px] block">Paid By</span>
+                      <span className="text-gray-700">{viewProcurement.payment_details?.paid_by?.name || "Accounts"}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Stage 3 */}
+              <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 space-y-2 text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-gray-900 border-b border-gray-200 pb-1.5">
+                  <FaCheckCircle className="text-emerald-600" />
+                  <span>Stage 3: Admin Approval</span>
+                </div>
+                {viewProcurement.status === "inward_requested" ? (
+                  <div className="py-6 text-center text-gray-400 bg-gray-100 rounded-xl p-2 font-medium">
+                    Waiting for Accounts payment first
+                  </div>
+                ) : viewProcurement.status === "payment_recorded" ? (
+                  <div className="py-6 text-center text-blue-700 bg-blue-50 rounded-xl p-2 font-medium">
+                    🔔 Awaiting Admin Final Approval & Stock Release
+                  </div>
+                ) : viewProcurement.status === "approved" ? (
+                  <div className="space-y-2">
+                    <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 font-semibold text-center">
+                      ✅ Approved & Stock Inwarded!
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-[10px] block">Approved By</span>
+                      <strong className="text-gray-900">{viewProcurement.admin_decision?.approved_by?.name || "Super Admin"}</strong>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-[10px] block">Approved On</span>
+                      <span className="text-gray-700">
+                        {viewProcurement.admin_decision?.approved_at ? new Date(viewProcurement.admin_decision.approved_at).toLocaleString() : ""}
+                      </span>
+                    </div>
+                    {viewProcurement.admin_decision?.admin_notes && (
+                      <div>
+                        <span className="text-gray-500 text-[10px] block">Notes</span>
+                        <span className="text-gray-700 italic">"{viewProcurement.admin_decision.admin_notes}"</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-2 bg-red-50 rounded-xl border border-red-200 text-red-800">
+                    <strong>Rejected:</strong> {viewProcurement.admin_decision?.rejection_reason || "Requirements not met"}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-gray-100">
+              <button
+                onClick={() => setViewProcurement(null)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-xl text-xs"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
