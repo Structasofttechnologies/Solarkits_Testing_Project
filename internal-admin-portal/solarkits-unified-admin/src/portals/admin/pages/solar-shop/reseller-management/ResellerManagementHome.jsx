@@ -30,8 +30,8 @@ const QUICK_LINKS = [
     bg: "bg-info-soft",
   },
   {
-    label: "Product Authorization",
-    description: "Franchisee-product access matrix",
+    label: "Kit Cluster Authorizations",
+    description: "Manage state & franchise cluster kit visibility in Solar Store",
     icon: FiPackage,
     path: "/admin-panel/solar-shop/reseller-management/product-auth",
     color: "text-success",

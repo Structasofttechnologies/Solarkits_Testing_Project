@@ -30,6 +30,22 @@ const rawApiUrl = (
 const API_BASE = rawApiUrl.replace(/\/warehouse-api$|\/admin-api$|\/account-api$|\/api$/, "");
 const BASE_URL = `${API_BASE}/warehouse-api/trial-kits`;
 
+// Canonical Warehouse Name Resolver Helper
+const getWarehouseLabel = (item) => {
+  if (!item) return "Warehouse";
+  const code = item.warehouse_code || item.warehouse_id?.warehouse_code || "";
+  const name = item.warehouse_name || item.warehouse_id?.warehouse_name || "";
+  if (name && name !== code && !name.startsWith("IND_")) {
+    return name;
+  }
+  if (code === "IND_GUJ_001") return "Ahmedabad Central Warehouse";
+  if (code === "IND_GUJ_002") return "Surat Regional Warehouse";
+  if (item.warehouse_id?.city || item.warehouse_id?.state) {
+    return `${item.warehouse_id.city || item.warehouse_id.state} Warehouse`;
+  }
+  return name || code || "Warehouse";
+};
+
 const KIT_TYPES = [
   "1 kW Trial Kit",
   "2 kW Trial Kit",
@@ -50,15 +66,6 @@ export default function WarehouseTrialKitPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-
-  // Inward Form (Multi-Stage Procurement Request - Simplified)
-  const [showInwardModal, setShowInwardModal] = useState(false);
-  const [inwardSubmitting, setInwardSubmitting] = useState(false);
-  const [inwardForm, setInwardForm] = useState({
-    combo_kit_id: "",
-    warehouse_id: "",
-    inward_quantity: 10
-  });
 
   // Selected Procurement for Inspection/Details Drawer
   const [viewProcurement, setViewProcurement] = useState(null);
@@ -82,6 +89,498 @@ export default function WarehouseTrialKitPage() {
   const [deliveredTarget, setDeliveredTarget] = useState(null);
   const [deliveredNotes, setDeliveredNotes] = useState("Delivered successfully at site.");
   const [deliveredSubmitting, setDeliveredSubmitting] = useState(false);
+
+  // ── Quick Filters State (for Warehouse Trial Kit Stock Summary) ──
+  const [quickFilters, setQuickFilters] = useState({
+    industryType: "all",
+    category: "all",
+    subCategory: "all",
+    systemType: "all",
+    projectRange: "all",
+  });
+  const [warehouseFilter, setWarehouseFilter] = useState("all");
+  const [stockSearchTerm, setStockSearchTerm] = useState("");
+
+  const [hierarchy, setHierarchy] = useState({
+    shopHierarchy: [],
+    industries: [],
+    categories: [],
+    subcategories: [],
+    types: [],
+    ranges: [],
+  });
+
+  const fetchHierarchy = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/admin-api/estimator/project-boms/hierarchy-options`, {
+        headers: authHeaderObj(),
+      });
+      if (res.data?.status === "success" && res.data.data) {
+        setHierarchy(res.data.data);
+      }
+    } catch {
+      // Gracefully fall back to dynamic stockList extraction
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchHierarchy();
+  }, [fetchHierarchy]);
+
+  const shopHierarchy = useMemo(() => hierarchy?.shopHierarchy || [], [hierarchy?.shopHierarchy]);
+
+  // 1. Industry Type Options
+  const industryTypeOptions = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+    if (shopHierarchy && shopHierarchy.length > 0) {
+      shopHierarchy.forEach((ind) => {
+        if (ind.name && !seen.has(ind.name.toLowerCase())) {
+          seen.add(ind.name.toLowerCase());
+          list.push({ value: ind.name, text: ind.name });
+        }
+      });
+    } else if (hierarchy?.industries && hierarchy.industries.length > 0) {
+      hierarchy.industries.forEach((ind) => {
+        if (ind.name && !seen.has(ind.name.toLowerCase())) {
+          seen.add(ind.name.toLowerCase());
+          list.push({ value: ind.name, text: ind.name });
+        }
+      });
+    }
+    // Dynamic fallback: extract from loaded stockList
+    if (list.length === 0 && stockList.length > 0) {
+      stockList.forEach((kit) => {
+        if (kit.industryType && !seen.has(kit.industryType.toLowerCase())) {
+          seen.add(kit.industryType.toLowerCase());
+          list.push({ value: kit.industryType, text: kit.industryType });
+        }
+      });
+    }
+    return [{ value: "all", text: "All Industry Types" }, ...list];
+  }, [shopHierarchy, hierarchy, stockList]);
+
+  // 2. Category Options
+  const categoryOptions = useMemo(() => {
+    const catMap = new Map();
+    if (!quickFilters.industryType || quickFilters.industryType === "all") {
+      if (shopHierarchy && shopHierarchy.length > 0) {
+        shopHierarchy.forEach((ind) => {
+          ind.categories?.forEach((cat) => {
+            if (cat.name && !catMap.has(cat.name.toLowerCase())) {
+              catMap.set(cat.name.toLowerCase(), { value: cat.name, text: cat.name });
+            }
+          });
+        });
+      } else if (hierarchy?.categories) {
+        hierarchy.categories.forEach((cat) => {
+          if (cat.name && !catMap.has(cat.name.toLowerCase())) {
+            catMap.set(cat.name.toLowerCase(), { value: cat.name, text: cat.name });
+          }
+        });
+      }
+      if (catMap.size === 0 && stockList.length > 0) {
+        stockList.forEach((kit) => {
+          if (kit.category && !catMap.has(kit.category.toLowerCase())) {
+            catMap.set(kit.category.toLowerCase(), { value: kit.category, text: kit.category });
+          }
+        });
+      }
+      return [{ value: "all", text: "All Categories" }, ...Array.from(catMap.values())];
+    }
+
+    if (shopHierarchy && shopHierarchy.length > 0) {
+      const selectedInd = shopHierarchy.find(
+        (ind) =>
+          ind.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+          String(ind.id) === String(quickFilters.industryType)
+      );
+      if (selectedInd && selectedInd.categories) {
+        selectedInd.categories.forEach((cat) => {
+          if (cat.name && !catMap.has(cat.name.toLowerCase())) {
+            catMap.set(cat.name.toLowerCase(), { value: cat.name, text: cat.name });
+          }
+        });
+      }
+    } else if (hierarchy?.categories) {
+      const matchedInd = (hierarchy?.industries || []).find(
+        (i) =>
+          i.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+          String(i._id) === String(quickFilters.industryType)
+      );
+      if (matchedInd) {
+        hierarchy.categories.forEach((cat) => {
+          if (
+            String(cat.industry_type_id) === String(matchedInd._id) &&
+            cat.name &&
+            !catMap.has(cat.name.toLowerCase())
+          ) {
+            catMap.set(cat.name.toLowerCase(), { value: cat.name, text: cat.name });
+          }
+        });
+      }
+    }
+    if (catMap.size === 0 && stockList.length > 0) {
+      stockList.forEach((kit) => {
+        if (
+          kit.category &&
+          (!kit.industryType || kit.industryType.toLowerCase() === quickFilters.industryType.toLowerCase()) &&
+          !catMap.has(kit.category.toLowerCase())
+        ) {
+          catMap.set(kit.category.toLowerCase(), { value: kit.category, text: kit.category });
+        }
+      });
+    }
+    return [{ value: "all", text: "All Categories" }, ...Array.from(catMap.values())];
+  }, [shopHierarchy, hierarchy, quickFilters.industryType, stockList]);
+
+  // 3. Sub Category Options
+  const subCategoryOptions = useMemo(() => {
+    const subsMap = new Map();
+    if (
+      !quickFilters.industryType ||
+      quickFilters.industryType === "all" ||
+      !quickFilters.category ||
+      quickFilters.category === "all"
+    ) {
+      if (shopHierarchy && shopHierarchy.length > 0) {
+        shopHierarchy.forEach((ind) => {
+          ind.categories?.forEach((cat) => {
+            cat.subcategories?.forEach((sub) => {
+              if (sub.name && !subsMap.has(sub.name.toLowerCase())) {
+                subsMap.set(sub.name.toLowerCase(), { value: sub.name, text: sub.name });
+              }
+            });
+          });
+        });
+      } else if (hierarchy?.subcategories) {
+        hierarchy.subcategories.forEach((sub) => {
+          if (sub.name && !subsMap.has(sub.name.toLowerCase())) {
+            subsMap.set(sub.name.toLowerCase(), { value: sub.name, text: sub.name });
+          }
+        });
+      }
+      if (subsMap.size === 0 && stockList.length > 0) {
+        stockList.forEach((kit) => {
+          if (kit.subCategory && !subsMap.has(kit.subCategory.toLowerCase())) {
+            subsMap.set(kit.subCategory.toLowerCase(), { value: kit.subCategory, text: kit.subCategory });
+          }
+        });
+      }
+      return [{ value: "all", text: "All Sub-Categories" }, ...Array.from(subsMap.values())];
+    }
+
+    if (shopHierarchy && shopHierarchy.length > 0) {
+      const selectedInd = shopHierarchy.find(
+        (ind) =>
+          ind.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+          String(ind.id) === String(quickFilters.industryType)
+      );
+      if (selectedInd && selectedInd.categories) {
+        const selectedCat = selectedInd.categories.find(
+          (cat) =>
+            cat.name?.toLowerCase() === quickFilters.category.toLowerCase() ||
+            String(cat.id) === String(quickFilters.category)
+        );
+        if (selectedCat && selectedCat.subcategories) {
+          selectedCat.subcategories.forEach((sub) => {
+            if (sub.name && !subsMap.has(sub.name.toLowerCase())) {
+              subsMap.set(sub.name.toLowerCase(), { value: sub.name, text: sub.name });
+            }
+          });
+        }
+      }
+    } else if (hierarchy?.subcategories) {
+      const matchedCat = (hierarchy?.categories || []).find(
+        (c) =>
+          c.name?.toLowerCase() === quickFilters.category.toLowerCase() ||
+          String(c._id) === String(quickFilters.category)
+      );
+      if (matchedCat) {
+        hierarchy.subcategories.forEach((sub) => {
+          if (
+            String(sub.category) === String(matchedCat._id) &&
+            sub.name &&
+            !subsMap.has(sub.name.toLowerCase())
+          ) {
+            subsMap.set(sub.name.toLowerCase(), { value: sub.name, text: sub.name });
+          }
+        });
+      }
+    }
+    if (subsMap.size === 0 && stockList.length > 0) {
+      stockList.forEach((kit) => {
+        if (
+          kit.subCategory &&
+          (!kit.category || kit.category.toLowerCase() === quickFilters.category.toLowerCase()) &&
+          !subsMap.has(kit.subCategory.toLowerCase())
+        ) {
+          subsMap.set(kit.subCategory.toLowerCase(), { value: kit.subCategory, text: kit.subCategory });
+        }
+      });
+    }
+    return [{ value: "all", text: "All Sub-Categories" }, ...Array.from(subsMap.values())];
+  }, [shopHierarchy, hierarchy, quickFilters.industryType, quickFilters.category, stockList]);
+
+  // 4. System Type Options
+  const systemTypeOptions = useMemo(() => {
+    const typesMap = new Map();
+    if (
+      !quickFilters.category ||
+      quickFilters.category === "all" ||
+      !quickFilters.subCategory ||
+      quickFilters.subCategory === "all"
+    ) {
+      if (hierarchy?.types) {
+        hierarchy.types.forEach((t) => {
+          if (t.name && !typesMap.has(t.name.toLowerCase())) {
+            typesMap.set(t.name.toLowerCase(), { value: t.name, text: t.name });
+          }
+        });
+      }
+      if (typesMap.size === 0 && stockList.length > 0) {
+        stockList.forEach((kit) => {
+          if (kit.systemType && !typesMap.has(kit.systemType.toLowerCase())) {
+            typesMap.set(kit.systemType.toLowerCase(), { value: kit.systemType, text: kit.systemType });
+          }
+        });
+      }
+      return [{ value: "all", text: "All System Types" }, ...Array.from(typesMap.values())];
+    }
+
+    if (shopHierarchy && shopHierarchy.length > 0) {
+      const selectedInd = shopHierarchy.find(
+        (ind) =>
+          ind.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+          String(ind.id) === String(quickFilters.industryType)
+      );
+      if (selectedInd && selectedInd.categories) {
+        const selectedCat = selectedInd.categories.find(
+          (cat) =>
+            cat.name?.toLowerCase() === quickFilters.category.toLowerCase() ||
+            String(cat.id) === String(quickFilters.category)
+        );
+        if (selectedCat && selectedCat.subcategories) {
+          const selectedSub = selectedCat.subcategories.find(
+            (sub) =>
+              sub.name?.toLowerCase() === quickFilters.subCategory.toLowerCase() ||
+              String(sub.id) === String(quickFilters.subCategory)
+          );
+          if (selectedSub && selectedSub.mappedTypes) {
+            selectedSub.mappedTypes.forEach((mt) => {
+              if (mt.name && !typesMap.has(mt.name.toLowerCase())) {
+                typesMap.set(mt.name.toLowerCase(), { value: mt.name, text: mt.name });
+              }
+            });
+          }
+        }
+      }
+    } else if (hierarchy?.subcategories) {
+      const matchedSub = (hierarchy?.subcategories || []).find(
+        (s) =>
+          s.name?.toLowerCase() === quickFilters.subCategory.toLowerCase() ||
+          String(s._id) === String(quickFilters.subCategory)
+      );
+      if (matchedSub && hierarchy.types) {
+        hierarchy.types.forEach((t) => {
+          if (t.name && !typesMap.has(t.name.toLowerCase())) {
+            typesMap.set(t.name.toLowerCase(), { value: t.name, text: t.name });
+          }
+        });
+      }
+    }
+    if (typesMap.size === 0 && stockList.length > 0) {
+      stockList.forEach((kit) => {
+        if (
+          kit.systemType &&
+          (!kit.subCategory || kit.subCategory.toLowerCase() === quickFilters.subCategory.toLowerCase()) &&
+          !typesMap.has(kit.systemType.toLowerCase())
+        ) {
+          typesMap.set(kit.systemType.toLowerCase(), { value: kit.systemType, text: kit.systemType });
+        }
+      });
+    }
+    return [{ value: "all", text: "All System Types" }, ...Array.from(typesMap.values())];
+  }, [shopHierarchy, hierarchy, quickFilters.industryType, quickFilters.category, quickFilters.subCategory, stockList]);
+
+  // 5. Project Range Options
+  const projectRangeOptions = useMemo(() => {
+    const rangesMap = new Map();
+    if (
+      !quickFilters.subCategory ||
+      quickFilters.subCategory === "all" ||
+      !quickFilters.systemType ||
+      quickFilters.systemType === "all"
+    ) {
+      if (hierarchy?.ranges) {
+        hierarchy.ranges.forEach((r) => {
+          const idVal = String(r.range_label || `${r.min_value} - ${r.max_value} ${r.unit_symbol || "kW"}`);
+          if (idVal && !rangesMap.has(idVal.toLowerCase())) {
+            rangesMap.set(idVal.toLowerCase(), {
+              value: r.range_label || idVal,
+              text: r.range_label || `${r.min_value} - ${r.max_value} ${r.unit_symbol || "kW"}`
+            });
+          }
+        });
+      }
+      if (rangesMap.size === 0 && stockList.length > 0) {
+        stockList.forEach((kit) => {
+          if (kit.projectRange && !rangesMap.has(kit.projectRange.toLowerCase())) {
+            rangesMap.set(kit.projectRange.toLowerCase(), { value: kit.projectRange, text: kit.projectRange });
+          }
+        });
+      }
+      return [{ value: "all", text: "All Project Ranges" }, ...Array.from(rangesMap.values())];
+    }
+
+    if (shopHierarchy && shopHierarchy.length > 0) {
+      const selectedInd = shopHierarchy.find(
+        (ind) =>
+          ind.name?.toLowerCase() === quickFilters.industryType.toLowerCase() ||
+          String(ind.id) === String(quickFilters.industryType)
+      );
+      if (selectedInd && selectedInd.categories) {
+        const selectedCat = selectedInd.categories.find(
+          (cat) =>
+            cat.name?.toLowerCase() === quickFilters.category.toLowerCase() ||
+            String(cat.id) === String(quickFilters.category)
+        );
+        if (selectedCat && selectedCat.subcategories) {
+          const selectedSub = selectedCat.subcategories.find(
+            (sub) =>
+              sub.name?.toLowerCase() === quickFilters.subCategory.toLowerCase() ||
+              String(sub.id) === String(quickFilters.subCategory)
+          );
+          if (selectedSub && selectedSub.mappedTypes) {
+            const selectedMt = selectedSub.mappedTypes.find(
+              (mt) =>
+                mt.name?.toLowerCase() === quickFilters.systemType.toLowerCase() ||
+                String(mt.id || mt.type_id) === String(quickFilters.systemType)
+            );
+            if (selectedMt && selectedMt.ranges) {
+              selectedMt.ranges.forEach((r) => {
+                const idVal = String(r.range_label || `${r.min_value} - ${r.max_value} ${r.unit_symbol || "kW"}`);
+                if (idVal && !rangesMap.has(idVal.toLowerCase())) {
+                  rangesMap.set(idVal.toLowerCase(), {
+                    value: r.range_label || idVal,
+                    text: r.range_label || `${r.min_value} - ${r.max_value} ${r.unit_symbol || "kW"}`
+                  });
+                }
+              });
+            }
+          }
+        }
+      }
+    }
+    if (rangesMap.size === 0 && stockList.length > 0) {
+      stockList.forEach((kit) => {
+        if (
+          kit.projectRange &&
+          (!kit.systemType || kit.systemType.toLowerCase() === quickFilters.systemType.toLowerCase()) &&
+          !rangesMap.has(kit.projectRange.toLowerCase())
+        ) {
+          rangesMap.set(kit.projectRange.toLowerCase(), { value: kit.projectRange, text: kit.projectRange });
+        }
+      });
+    }
+    return [{ value: "all", text: "All Project Ranges" }, ...Array.from(rangesMap.values())];
+  }, [
+    shopHierarchy,
+    hierarchy,
+    quickFilters.industryType,
+    quickFilters.category,
+    quickFilters.subCategory,
+    quickFilters.systemType,
+    stockList
+  ]);
+
+  const hasActiveFilters =
+    quickFilters.industryType !== "all" ||
+    quickFilters.category !== "all" ||
+    quickFilters.subCategory !== "all" ||
+    quickFilters.systemType !== "all" ||
+    quickFilters.projectRange !== "all";
+
+  const clearFilters = () => {
+    setQuickFilters({
+      industryType: "all",
+      category: "all",
+      subCategory: "all",
+      systemType: "all",
+      projectRange: "all"
+    });
+    setWarehouseFilter("all");
+    setStockSearchTerm("");
+  };
+
+  const filteredStockList = useMemo(() => {
+    return stockList.filter((kit) => {
+      if (quickFilters.industryType !== "all") {
+        const ind = (kit.industryType || "").toLowerCase();
+        const sel = quickFilters.industryType.toLowerCase();
+        if (ind !== sel && !ind.includes(sel) && !sel.includes(ind)) return false;
+      }
+      if (quickFilters.category !== "all") {
+        const cat = (kit.category || "").toLowerCase();
+        const sel = quickFilters.category.toLowerCase();
+        if (cat !== sel && !cat.includes(sel) && !sel.includes(cat)) return false;
+      }
+      if (quickFilters.subCategory !== "all") {
+        const sub = (kit.subCategory || "").toLowerCase();
+        const sel = quickFilters.subCategory.toLowerCase();
+        if (sub !== sel && !sub.includes(sel) && !sel.includes(sub)) return false;
+      }
+      if (quickFilters.systemType !== "all") {
+        const sys = (kit.systemType || "").toLowerCase();
+        const sel = quickFilters.systemType.toLowerCase();
+        if (sys !== sel && !sys.includes(sel) && !sel.includes(sys)) return false;
+      }
+      if (quickFilters.projectRange !== "all") {
+        const rng = (kit.projectRange || "").toLowerCase();
+        const sel = quickFilters.projectRange.toLowerCase();
+        if (rng !== sel && !rng.includes(sel) && !sel.includes(rng)) return false;
+      }
+      if (stockSearchTerm.trim()) {
+        const q = stockSearchTerm.toLowerCase();
+        const name = (kit.name || kit.kit_type || "").toLowerCase();
+        if (!name.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [stockList, quickFilters, stockSearchTerm]);
+
+  const displayedStockRows = useMemo(() => {
+    return filteredStockList.flatMap((kit) => {
+      const allocations = (kit.warehouse_allocations && kit.warehouse_allocations.length > 0)
+        ? kit.warehouse_allocations.map((alloc) => ({
+            ...alloc,
+            kit_name: kit.name,
+            capacity: kit.capacity
+          }))
+        : [{
+            inventory_id: kit._id,
+            combo_kit_id: kit.combo_kit_id || kit._id,
+            kit_name: kit.name || kit.kit_type,
+            capacity: kit.capacity,
+            warehouse_name: kit.warehouse_id?.warehouse_name || kit.warehouse_name || "General",
+            warehouse_code: kit.warehouse_id?.warehouse_code || kit.warehouse_code || "",
+            available_stock: kit.available_stock || kit.total_available_stock || 0,
+            reserved_stock: kit.reserved_stock || kit.total_reserved_stock || 0,
+            ordered_quantity: kit.ordered_quantity || kit.total_ordered_quantity || 0,
+            dispatched_quantity: kit.dispatched_quantity || 0,
+            delivered_quantity: kit.delivered_quantity || kit.total_delivered_quantity || 0
+          }];
+
+      if (warehouseFilter !== "all") {
+        return allocations.filter((a) =>
+          String(a.warehouse_id) === String(warehouseFilter) ||
+          a.warehouse_code === warehouseFilter ||
+          (a.warehouse_name && a.warehouse_name.toLowerCase().includes(warehouseFilter.toLowerCase()))
+        );
+      }
+      return allocations;
+    });
+  }, [filteredStockList, warehouseFilter]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -111,73 +610,17 @@ export default function WarehouseTrialKitPage() {
   }, [fetchData]);
 
   // Pre-populate default IDs in inwardForm when lists load
-  useEffect(() => {
-    if (warehouses.length > 0 && !inwardForm.warehouse_id) {
-      setInwardForm((prev) => ({ ...prev, warehouse_id: warehouses[0]._id }));
-    }
-  }, [warehouses, inwardForm.warehouse_id]);
-
-  useEffect(() => {
-    if (stockList.length > 0 && !inwardForm.combo_kit_id) {
-      setInwardForm((prev) => ({
-        ...prev,
-        combo_kit_id: stockList[0]?.combo_kit_id || stockList[0]?._id || ""
-      }));
-    }
-  }, [stockList, inwardForm.combo_kit_id]);
-
   // Synchronize tab with route or query param (e.g. /trial-kits/inward or ?tab=procurements)
   useEffect(() => {
     const tabParam = searchParams.get("tab");
     if (tabParam === "procurements" || tabParam === "inward" || location.pathname.includes("/inward")) {
       setActiveTab("procurements");
-      if (searchParams.get("action") === "new") {
-        setShowInwardModal(true);
-      }
     } else if (tabParam === "stock" || location.pathname.includes("/stock")) {
       setActiveTab("stock");
     } else if (tabParam === "orders" || location.pathname.includes("/orders")) {
       setActiveTab("orders");
     }
   }, [location.pathname, searchParams]);
-
-  // Open Simplified Inward Request Modal
-  const handleOpenInwardModal = () => {
-    const defaultWh = inwardForm.warehouse_id || warehouses[0]?._id || "";
-    const defaultKit = inwardForm.combo_kit_id || stockList[0]?.combo_kit_id || stockList[0]?._id || "";
-    setInwardForm({
-      combo_kit_id: defaultKit,
-      warehouse_id: defaultWh,
-      inward_quantity: 10
-    });
-    setShowInwardModal(true);
-  };
-
-  // Submit Inward Request (GRN) to Accounts & Admin
-  const handleInwardSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      setInwardSubmitting(true);
-      setError("");
-      const payload = {
-        combo_kit_id: inwardForm.combo_kit_id,
-        warehouse_id: inwardForm.warehouse_id,
-        inward_quantity: parseInt(inwardForm.inward_quantity, 10)
-      };
-
-      const res = await axios.post(`${BASE_URL}/procurement/request`, payload, { headers: authHeaderObj() });
-      if (res.data?.success) {
-        setSuccess(res.data.message || "Inward request raised successfully!");
-        setShowInwardModal(false);
-        setActiveTab("procurements");
-        fetchData();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to raise inward request.");
-    } finally {
-      setInwardSubmitting(false);
-    }
-  };
 
   // Open Direct Out for Delivery Modal
   const handleOpenDispatch = (order, isGroup = false) => {
@@ -355,14 +798,8 @@ export default function WarehouseTrialKitPage() {
 
         <div className="flex gap-2">
           <button
-            onClick={handleOpenInwardModal}
-            className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-sm cursor-pointer"
-          >
-            <FaTruckLoading /> Raise Inward Request
-          </button>
-          <button
             onClick={fetchData}
-            className="px-3 py-2 text-xs font-semibold rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 flex items-center gap-1.5 shadow-sm cursor-pointer"
+            className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
             <FiRefreshCw className={loading ? "animate-spin" : ""} /> Refresh
           </button>
@@ -580,60 +1017,264 @@ export default function WarehouseTrialKitPage() {
           STOCK SUMMARY TAB
       ───────────────────────────────────────────────────────────────────── */}
       {activeTab === "stock" && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold uppercase text-[10px]">
-                <th className="py-3 px-4">Kit Type</th>
-                <th className="py-3 px-4">Warehouse</th>
-                <th className="py-3 px-4 text-center">Available Stock</th>
-                <th className="py-3 px-4 text-center">Reserved</th>
-                <th className="py-3 px-4 text-center">Ordered</th>
-                <th className="py-3 px-4 text-center">Dispatched</th>
-                <th className="py-3 px-4 text-center">Delivered</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {stockList.flatMap((kit) =>
-                (kit.warehouse_allocations && kit.warehouse_allocations.length > 0)
-                  ? kit.warehouse_allocations.map((alloc) => ({
-                      ...alloc,
-                      kit_name: kit.name,
-                      capacity: kit.capacity
+        <div className="space-y-4">
+          {/* ── Quick Filters Bar (Matching Screenshot 1) ── */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg
+                  className="w-4 h-4 text-slate-800"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                  <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                </svg>
+                <h3 className="font-bold text-sm text-slate-800">
+                  Quick Filters
+                </h3>
+              </div>
+
+              <button
+                onClick={clearFilters}
+                type="button"
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer hover:underline disabled:opacity-40 disabled:cursor-default disabled:no-underline"
+                disabled={!hasActiveFilters && warehouseFilter === "all" && !stockSearchTerm}
+              >
+                Clear Main
+              </button>
+            </div>
+
+            {/* 5 Cascading Dropdowns */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {/* Industry Type */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  Industry Type
+                </label>
+                <select
+                  value={quickFilters.industryType}
+                  onChange={(e) =>
+                    setQuickFilters({
+                      industryType: e.target.value,
+                      category: "all",
+                      subCategory: "all",
+                      systemType: "all",
+                      projectRange: "all",
+                    })
+                  }
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  {industryTypeOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.text}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  Category
+                </label>
+                <select
+                  value={quickFilters.category}
+                  disabled={quickFilters.industryType === "all"}
+                  onChange={(e) =>
+                    setQuickFilters((prev) => ({
+                      ...prev,
+                      category: e.target.value,
+                      subCategory: "all",
+                      systemType: "all",
+                      projectRange: "all",
                     }))
-                  : [{
-                      inventory_id: kit._id,
-                      combo_kit_id: kit.combo_kit_id || kit._id,
-                      kit_name: kit.name || kit.kit_type,
-                      capacity: kit.capacity,
-                      warehouse_name: kit.warehouse_id?.warehouse_name || kit.warehouse_name || "General",
-                      warehouse_code: kit.warehouse_id?.warehouse_code || kit.warehouse_code || "",
-                      available_stock: kit.available_stock || kit.total_available_stock || 0,
-                      reserved_stock: kit.reserved_stock || kit.total_reserved_stock || 0,
-                      ordered_quantity: kit.ordered_quantity || kit.total_ordered_quantity || 0,
-                      dispatched_quantity: kit.dispatched_quantity || 0,
-                      delivered_quantity: kit.delivered_quantity || kit.total_delivered_quantity || 0
-                    }]
-              ).map((item, idx) => (
-                <tr key={item.inventory_id || `${item.combo_kit_id}-${item.warehouse_id || idx}`}>
-                  <td className="py-3 px-4 font-bold text-gray-900">
-                    {item.kit_name} {item.capacity ? `(${item.capacity} kW System)` : ""}
-                  </td>
-                  <td className="py-3 px-4 text-gray-700 font-medium">
-                    {item.warehouse_name || item.warehouse_code || "Warehouse"}
-                    {item.warehouse_code && (
-                      <span className="text-[10px] text-gray-400 font-mono ml-1.5">({item.warehouse_code})</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-center font-bold text-emerald-700">{item.available_stock || 0}</td>
-                  <td className="py-3 px-4 text-center text-amber-700">{item.reserved_stock || 0}</td>
-                  <td className="py-3 px-4 text-center text-blue-700">{item.ordered_quantity || 0}</td>
-                  <td className="py-3 px-4 text-center text-purple-700">{item.dispatched_quantity || 0}</td>
-                  <td className="py-3 px-4 text-center text-emerald-700">{item.delivered_quantity || 0}</td>
+                  }
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-50"
+                >
+                  {categoryOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.text}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sub Category */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  Sub Category
+                </label>
+                <select
+                  value={quickFilters.subCategory}
+                  disabled={quickFilters.category === "all"}
+                  onChange={(e) =>
+                    setQuickFilters((prev) => ({
+                      ...prev,
+                      subCategory: e.target.value,
+                      systemType: "all",
+                      projectRange: "all",
+                    }))
+                  }
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-50"
+                >
+                  {subCategoryOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.text}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* System Type */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  System Type
+                </label>
+                <select
+                  value={quickFilters.systemType}
+                  disabled={quickFilters.subCategory === "all"}
+                  onChange={(e) =>
+                    setQuickFilters((prev) => ({
+                      ...prev,
+                      systemType: e.target.value,
+                      projectRange: "all",
+                    }))
+                  }
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-50"
+                >
+                  {systemTypeOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.text}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Project Range */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                  Project Range
+                </label>
+                <select
+                  value={quickFilters.projectRange}
+                  disabled={quickFilters.systemType === "all"}
+                  onChange={(e) =>
+                    setQuickFilters((prev) => ({
+                      ...prev,
+                      projectRange: e.target.value,
+                    }))
+                  }
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-50"
+                >
+                  {projectRangeOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.text}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Secondary Controls: Warehouse & Search Bar ── */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/80 p-3 rounded-xl border border-gray-200 text-xs">
+            <div className="flex items-center gap-2 text-gray-600 font-semibold">
+              <FaBoxes className="text-blue-600" />
+              <span>
+                Showing <strong className="text-gray-900">{filteredStockList.length}</strong> of <strong className="text-gray-900">{stockList.length}</strong> Trial Kits
+                <span className="text-gray-400 font-normal ml-1">({displayedStockRows.length} warehouse rows)</span>
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Warehouse Dropdown Filter */}
+              <div className="flex items-center gap-1.5">
+                <FaWarehouse className="text-gray-400" />
+                <select
+                  value={warehouseFilter}
+                  onChange={(e) => setWarehouseFilter(e.target.value)}
+                  className="px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="all">All Warehouses</option>
+                  {warehouses.map((wh) => (
+                    <option key={wh._id || wh.warehouse_code} value={wh._id || wh.warehouse_code}>
+                      {wh.warehouse_name || wh.warehouse_code} {wh.warehouse_code ? `(${wh.warehouse_code})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Quick Search Input */}
+              <div className="relative">
+                <FaSearch className="absolute left-2.5 top-2 text-gray-400 text-[10px]" />
+                <input
+                  type="text"
+                  placeholder="Search kit name..."
+                  value={stockSearchTerm}
+                  onChange={(e) => setStockSearchTerm(e.target.value)}
+                  className="pl-7 pr-3 py-1.5 text-xs rounded-lg border border-gray-300 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Table Container ── */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold uppercase text-[10px]">
+                  <th className="py-3 px-4">Kit Type</th>
+                  <th className="py-3 px-4">Warehouse</th>
+                  <th className="py-3 px-4 text-center">Available Stock</th>
+                  <th className="py-3 px-4 text-center">Reserved</th>
+                  <th className="py-3 px-4 text-center">Ordered</th>
+                  <th className="py-3 px-4 text-center">Dispatched</th>
+                  <th className="py-3 px-4 text-center">Delivered</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {displayedStockRows.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="text-center py-12 text-gray-400">
+                      <FaBoxes className="text-3xl text-gray-300 mx-auto mb-2" />
+                      <p className="font-semibold text-gray-600">No trial kits match the selected Quick Filters.</p>
+                      <button
+                        onClick={clearFilters}
+                        className="mt-3 px-3.5 py-1.5 bg-blue-50 text-blue-700 font-bold text-xs rounded-lg border border-blue-200 hover:bg-blue-100 cursor-pointer"
+                      >
+                        Clear Quick Filters
+                      </button>
+                    </td>
+                  </tr>
+                ) : (
+                  displayedStockRows.map((item, idx) => (
+                    <tr key={item.inventory_id || `${item.combo_kit_id}-${item.warehouse_id || idx}`} className="hover:bg-gray-50/80 transition">
+                      <td className="py-3 px-4 font-bold text-gray-900">
+                        {item.kit_name} {item.capacity ? `(${item.capacity} kW System)` : ""}
+                      </td>
+                      <td className="py-3 px-4 text-gray-700 font-medium">
+                        {item.warehouse_name || item.warehouse_code || "Warehouse"}
+                        {item.warehouse_code && (
+                          <span className="text-[10px] text-gray-400 font-mono ml-1.5">({item.warehouse_code})</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center font-bold text-emerald-700">{item.available_stock || 0}</td>
+                      <td className="py-3 px-4 text-center text-amber-700">{item.reserved_stock || 0}</td>
+                      <td className="py-3 px-4 text-center text-blue-700">{item.ordered_quantity || 0}</td>
+                      <td className="py-3 px-4 text-center text-purple-700">{item.dispatched_quantity || 0}</td>
+                      <td className="py-3 px-4 text-center text-emerald-700">{item.delivered_quantity || 0}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -649,15 +1290,9 @@ export default function WarehouseTrialKitPage() {
                 Trial Kit Inward Indents & Procurement Requests
               </h2>
               <p className="text-xs text-blue-700 mt-0.5">
-                Track inward requests raised by warehouse, accounts vendor payments, and final admin stock approvals.
+                Track trial kit inward indents, vendor payments, and final admin stock approvals.
               </p>
             </div>
-            <button
-              onClick={handleOpenInwardModal}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm inline-flex items-center gap-1.5 cursor-pointer"
-            >
-              <FaTruckLoading /> + Raise New Inward Request
-            </button>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -667,7 +1302,6 @@ export default function WarehouseTrialKitPage() {
                   <th className="py-3 px-4">PR / GRN No.</th>
                   <th className="py-3 px-4">Combo Kit & Warehouse</th>
                   <th className="py-3 px-4 text-center">Inward Qty</th>
-                  <th className="py-3 px-4">Vendor & Challan</th>
                   <th className="py-3 px-4">Inspection</th>
                   <th className="py-3 px-4 text-center">Lifecycle Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -676,7 +1310,7 @@ export default function WarehouseTrialKitPage() {
               <tbody className="divide-y divide-gray-100">
                 {procurements.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="text-center py-10 text-gray-400">
+                    <td colSpan="6" className="text-center py-10 text-gray-400">
                       No trial kit inward requests found. Click "Raise Inward Request" to initiate.
                     </td>
                   </tr>
@@ -714,21 +1348,20 @@ export default function WarehouseTrialKitPage() {
                           <span className="text-[10px] text-gray-500 font-mono">{proc.grn_number}</span>
                         </td>
                         <td className="py-3 px-4">
-                          <span className="font-bold text-gray-900 block">{proc.kit_type}</span>
-                          <span className="text-[11px] text-gray-500 flex items-center gap-1">
-                            <FaWarehouse className="text-gray-400 text-[10px]" />
-                            {proc.warehouse_name || proc.warehouse_id?.warehouse_name}
-                          </span>
+                          <span className="font-bold text-gray-900 block text-xs">{proc.kit_type}</span>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                            <FaWarehouse className="text-blue-600 text-[10px] shrink-0" />
+                            <strong className="text-gray-800">{getWarehouseLabel(proc)}</strong>
+                            {(proc.warehouse_code || proc.warehouse_id?.warehouse_code) && (
+                              <span className="text-[9px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded-md">
+                                {proc.warehouse_code || proc.warehouse_id?.warehouse_code}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-700 font-extrabold rounded-md text-xs border border-emerald-200">
                             +{proc.inward_quantity} Kits
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="font-semibold text-gray-800 block">{proc.vendor_name}</span>
-                          <span className="text-[11px] text-gray-500">
-                            Challan: <strong className="text-gray-700">{proc.invoice_challan_number}</strong>
                           </span>
                         </td>
                         <td className="py-3 px-4">
@@ -962,109 +1595,7 @@ export default function WarehouseTrialKitPage() {
         </div>
       )}
 
-      {/* ─────────────────────────────────────────────────────────────────────
-          MULTI-STAGE INWARD & PROCUREMENT REQUEST MODAL (SIMPLIFIED)
-      ───────────────────────────────────────────────────────────────────── */}
-      {showInwardModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-2.5">
-                <span className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-700">
-                  <FaTruckLoading className="w-5 h-5" />
-                </span>
-                <div>
-                  <h3 className="font-bold text-gray-900 text-base">Raise Trial Kit Inward Request</h3>
-                  <p className="text-[11px] text-gray-500">
-                    Creates GRN entry & forwards to Accounts for procurement payment & Admin approval.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowInwardModal(false)}
-                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-xl hover:bg-gray-100 transition cursor-pointer"
-              >
-                <FiX className="w-5 h-5" />
-              </button>
-            </div>
 
-            <form onSubmit={handleInwardSubmit} className="mt-5 space-y-4 text-xs">
-              <div>
-                <label className="block text-gray-700 font-bold mb-1.5">Target Warehouse *</label>
-                <select
-                  required
-                  value={inwardForm.warehouse_id}
-                  onChange={(e) => setInwardForm({ ...inwardForm, warehouse_id: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-medium text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
-                >
-                  <option value="">Select Warehouse...</option>
-                  {warehouses.map((wh) => (
-                    <option key={wh._id} value={wh._id}>
-                      {wh.warehouse_name || wh.warehouse_code} {wh.district_name || wh.address ? `• ${wh.district_name || wh.address.split(',')[0]}` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-bold mb-1.5">Configured Combo Kit Type *</label>
-                <select
-                  required
-                  value={inwardForm.combo_kit_id}
-                  onChange={(e) => setInwardForm({ ...inwardForm, combo_kit_id: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-medium text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
-                >
-                  <option value="">Select Combo Kit...</option>
-                  {stockList.map((k) => (
-                    <option key={k.combo_kit_id || k._id} value={k.combo_kit_id || k._id}>
-                      {k.name || k.kit_type} {k.capacity ? `(${k.capacity} kW System)` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-bold mb-1.5">Inward Quantity (Kits) *</label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={inwardForm.inward_quantity}
-                  onChange={(e) => setInwardForm({ ...inwardForm, inward_quantity: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 font-bold text-emerald-700 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-                  placeholder="e.g. 10"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setShowInwardModal(false)}
-                  className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={inwardSubmitting || !inwardForm.warehouse_id || !inwardForm.combo_kit_id}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer transition"
-                >
-                  {inwardSubmitting ? (
-                    <>
-                      <FiRefreshCw className="animate-spin" /> Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <FaCheck className="w-3.5 h-3.5" /> Submit Inward Request
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* ─────────────────────────────────────────────────────────────────────
           VIEW PROCUREMENT DOSSIER MODAL
@@ -1100,7 +1631,12 @@ export default function WarehouseTrialKitPage() {
                 </div>
                 <div>
                   <span className="text-gray-500 text-[10px] block">Warehouse</span>
-                  <span className="text-gray-800">{viewProcurement.warehouse_name}</span>
+                  <strong className="text-gray-900 block">{getWarehouseLabel(viewProcurement)}</strong>
+                  {viewProcurement.warehouse_code && (
+                    <span className="text-[10px] font-mono text-blue-700 bg-blue-50 px-1 rounded">
+                      {viewProcurement.warehouse_code}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-gray-500 text-[10px] block">Quantity Inwarded</span>

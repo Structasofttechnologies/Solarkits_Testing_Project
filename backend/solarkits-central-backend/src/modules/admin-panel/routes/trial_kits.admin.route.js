@@ -8,6 +8,7 @@ const check_auth = require('../middlewares/check.auth');
 router.post('/procurement/request', check_auth, procurementHandler.request_inward);
 router.get('/procurement/list', check_auth, procurementHandler.list_procurements);
 router.get('/procurement/badge-counts', check_auth, procurementHandler.get_procurement_badge_counts);
+router.get('/procurement/:id/component-breakdown', check_auth, procurementHandler.get_component_breakdown);
 router.get('/procurement/:id', check_auth, procurementHandler.get_procurement_details);
 router.post('/procurement/:id/record-payment', check_auth, procurementHandler.record_payment);
 router.post('/procurement/:id/approve', check_auth, procurementHandler.admin_approve_procurement);

@@ -66,7 +66,9 @@ exports.get_stock = async (req, res) => {
         .sort({ capacity: 1, name: 1 })
         .lean(),
       CompanyWarehouse.find(warehouseFilter)
-        .select('_id warehouse_name warehouse_code address state_name district_name')
+        .populate('level_1', 'name')
+        .populate('level_2', 'name')
+        .sort({ warehouse_code: 1 })
         .lean(),
       TrialKitInventory.find(invFilter)
         .populate('warehouse_id', 'warehouse_name warehouse_code address state_name district_name')
@@ -78,6 +80,30 @@ exports.get_stock = async (req, res) => {
       ProjectRange.find({ deleted_at: null }).populate('unit_id').lean().catch(() => []),
       IndustryType.find({ deleted_at: null }).lean().catch(() => []),
     ]);
+
+    // 3. Format Warehouses with human-readable names and geographic locations
+    const formattedWarehouses = (warehouses || []).map((wh) => {
+      const stateName = wh.level_1?.name || wh.state_name || 'Gujarat';
+      const districtName = wh.level_2?.name || wh.district_name || (wh.warehouse_code === 'IND_GUJ_001' ? 'Ahmedabad' : (wh.warehouse_code === 'IND_GUJ_002' ? 'Surat' : ''));
+      const rawName = wh.warehouse_name || '';
+      const fallbackName = wh.warehouse_code === 'IND_GUJ_001'
+        ? 'Ahmedabad Central Warehouse'
+        : (wh.warehouse_code === 'IND_GUJ_002' ? 'Surat Regional Warehouse' : wh.warehouse_code);
+      const cleanName = (rawName && rawName !== wh.warehouse_code) ? rawName : fallbackName;
+      const cleanAddress = (wh.address || '')
+        .replace(/^[A-Z0-9\+]+\s*,\s*/i, '') // strips Google Plus code prefix
+        .trim();
+      const displayLabel = `${cleanName} (${wh.warehouse_code} • ${districtName ? districtName + ', ' : ''}${stateName})`;
+
+      return {
+        ...wh,
+        warehouse_name: cleanName,
+        state_name: stateName,
+        district_name: districtName,
+        clean_address: cleanAddress,
+        display_label: displayLabel
+      };
+    });
 
     // 4. Build Combo Kit Cards
     const comboKitCards = configuredKits.map((kit) => {
@@ -107,7 +133,7 @@ exports.get_stock = async (req, res) => {
       let totalDispatched = 0;
       let totalDelivered = 0;
 
-      const allocations = warehouses.map((wh) => {
+      const allocations = formattedWarehouses.map((wh) => {
         const inv = inventories.find(i =>
           (i.combo_kit_id && i.combo_kit_id.toString() === kit._id.toString() && i.warehouse_id?._id?.toString() === wh._id.toString()) ||
           (i.kit_type === kit.name && i.warehouse_id?._id?.toString() === wh._id.toString())
@@ -182,7 +208,7 @@ exports.get_stock = async (req, res) => {
       success: true,
       data: comboKitCards,
       flat_stock: inventories,
-      warehouses: warehouses,
+      warehouses: formattedWarehouses,
       total: comboKitCards.length
     });
   } catch (err) {

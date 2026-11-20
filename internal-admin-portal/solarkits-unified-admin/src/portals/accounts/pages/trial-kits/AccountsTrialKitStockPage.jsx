@@ -314,9 +314,16 @@ export default function AccountsTrialKitStockPage() {
                       const isStockAvail = (alloc.available_stock || 0) > 0;
                       return (
                         <tr key={alloc.warehouse_id} className="hover:bg-gray-50/50">
-                          <td className="py-3 px-4 font-semibold text-gray-800 flex items-center gap-2">
-                            <FaWarehouse className="text-gray-400 shrink-0" />
-                            <span>{alloc.warehouse_name || alloc.warehouse_code}</span>
+                          <td className="py-3 px-4 font-semibold text-gray-800">
+                            <div className="flex items-center gap-1.5">
+                              <FaWarehouse className="text-purple-600 shrink-0" />
+                              <span>{alloc.warehouse_name || alloc.warehouse_code}</span>
+                              {alloc.warehouse_code && (
+                                <span className="text-[10px] font-mono text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                                  {alloc.warehouse_code}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3 px-4 text-center">
                             <span className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-xs ${isStockAvail ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}`}>

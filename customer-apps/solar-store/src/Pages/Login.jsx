@@ -228,9 +228,15 @@ export default function Login() {
       }
     } catch (err) {
       if (err.name === "CanceledError" || err.code === "ERR_CANCELED") return;
-      setError(
-        err.response?.data?.message || "Invalid credentials or account under verification."
-      );
+      if (err.code === "ECONNABORTED" || !err.response) {
+        setError(
+          "Backend server connection timeout or unreachable. Please verify backend is running on port 5000."
+        );
+      } else {
+        setError(
+          err.response?.data?.message || "Invalid credentials or account under verification."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -272,10 +278,16 @@ export default function Login() {
       }
     } catch (err) {
       if (err.name === "CanceledError" || err.code === "ERR_CANCELED") return;
-      setError(
-        err.response?.data?.message ||
-          "Incorrect 4-digit PIN. If you haven't configured your unique PIN yet, please sign in with password."
-      );
+      if (err.code === "ECONNABORTED" || !err.response) {
+        setError(
+          "Backend server connection timeout or unreachable. Please verify backend is running on port 5000."
+        );
+      } else {
+        setError(
+          err.response?.data?.message ||
+            "Incorrect 4-digit PIN. If you haven't configured your unique PIN yet, please sign in with password."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -340,7 +352,13 @@ export default function Login() {
         handleAuthSuccess(res.data);
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Direct Login failed.");
+      if (err.code === "ECONNABORTED" || !err.response) {
+        setError(
+          "Backend server connection timeout or unreachable. Please verify backend is running on port 5000."
+        );
+      } else {
+        setError(err.response?.data?.message || "Direct Login failed.");
+      }
     } finally {
       setLoading(false);
     }

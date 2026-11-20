@@ -33,6 +33,7 @@ const GeoLevel0 = require("../../models/geolocation_db/geo_level_0.schema");
 const GeoLevel1 = require("../../models/geolocation_db/geo_level_1.schema");
 const WarehouseClusterMapping = require("../../../admin-panel/models/core_db/warehouse_cluster_mapping.schema");
 const RegionalCluster = require("../../../admin-panel/models/core_db/regional_cluster.schema");
+const FranchiseeCluster = require("../../../admin-panel/models/india_solarshop_db/franchisee_clusters.schema");
 const { india_solarshop_db, core_db } = require("../../config/databases");
 
 // Register external referenced schemas on india_solarshop_db connection to allow populate()
@@ -344,38 +345,58 @@ const resolveWarehousesForLocation = async ({ targetDistrictId, clusterId, state
     } catch (e) { }
   }
 
-  // 2. State-wise Cluster & Warehouse Routing (New Logic)
-  if (stateName) {
-    try {
-      const clusterMappings = await WarehouseClusterMapping.find({
+  // 2. Franchise Cluster & State-wise Cluster & Warehouse Routing
+  try {
+    let targetFcDoc = null;
+    if (clusterId && mongoose.Types.ObjectId.isValid(clusterId)) {
+      targetFcDoc = await FranchiseeCluster.findById(clusterId).lean();
+    }
+    if (!targetFcDoc && targetDistrictId && mongoose.Types.ObjectId.isValid(targetDistrictId)) {
+      targetFcDoc = await FranchiseeCluster.findOne({
+        district_ids: new mongoose.Types.ObjectId(targetDistrictId),
+        deleted_at: null
+      }).lean();
+    }
+
+    let clusterMappings = [];
+    if (targetFcDoc) {
+      clusterMappings = await WarehouseClusterMapping.find({
+        franchise_cluster_ids: targetFcDoc._id,
+        status: 'Active',
+        deleted_at: null
+      }).lean();
+    }
+
+    if (clusterMappings.length === 0 && stateName) {
+      clusterMappings = await WarehouseClusterMapping.find({
         states: { $regex: new RegExp(`^${stateName.trim()}$`, 'i') },
         status: 'Active',
         deleted_at: null
       }).lean();
+    }
 
-      if (clusterMappings.length > 0) {
-        const mappedWhCodes = clusterMappings.map(m => m.warehouse_code).filter(Boolean);
-        const mappedWhIds = clusterMappings.map(m => m.warehouse_id).filter(id => id && mongoose.Types.ObjectId.isValid(id));
+    if (clusterMappings.length > 0) {
+      const mappedWhCodes = clusterMappings.map(m => m.warehouse_code).filter(Boolean);
+      const mappedWhIds = clusterMappings.map(m => m.warehouse_id).filter(id => id && mongoose.Types.ObjectId.isValid(id));
 
-        const whConditions = [];
-        if (mappedWhIds.length > 0) whConditions.push({ _id: { $in: mappedWhIds } });
-        if (mappedWhCodes.length > 0) whConditions.push({ warehouse_code: { $in: mappedWhCodes } });
+      const whConditions = [];
+      if (mappedWhIds.length > 0) whConditions.push({ _id: { $in: mappedWhIds } });
+      if (mappedWhCodes.length > 0) whConditions.push({ warehouse_code: { $in: mappedWhCodes } });
 
-        if (whConditions.length > 0) {
-          const mappedWarehouses = await CompanyWarehouse.find({
-            $or: whConditions,
-            is_active: true,
-            deleted_at: null
-          }).lean();
+      if (whConditions.length > 0) {
+        const mappedWarehouses = await CompanyWarehouse.find({
+          $or: whConditions,
+          is_active: true,
+          deleted_at: null
+        }).lean();
 
-          if (mappedWarehouses.length > 0) {
-            return { warehouses: mappedWarehouses, stateName, isClusterRouted: true, clusterMappings };
-          }
+        if (mappedWarehouses.length > 0) {
+          return { warehouses: mappedWarehouses, stateName, isClusterRouted: true, clusterMappings, matchedFranchiseCluster: targetFcDoc };
         }
       }
-    } catch (routeErr) {
-      console.warn("Error in resolveWarehousesForLocation cluster routing:", routeErr.message);
     }
+  } catch (routeErr) {
+    console.warn("Error in resolveWarehousesForLocation cluster routing:", routeErr.message);
   }
 
   // 3. Fallback: Find sub warehouses in this district
@@ -562,6 +583,47 @@ const get_combo_kits_by_district = async (req, res) => {
         }
       });
       kits = kits.filter(k => allowedKitIdSet.has(k._id.toString()));
+    }
+
+    // Filter out kits deauthorized/hidden under Kit Cluster Authorizations
+    try {
+      const { KitClusterAuthorization, FranchiseeCluster } = require('../../../admin-panel/models/india_solarshop_db');
+      if (KitClusterAuthorization && (clusterId || targetDistrictId || stateId)) {
+        let fcIds = [];
+        if (targetDistrictId && districtDoc?.name) {
+          const fcMatches = await FranchiseeCluster.find({
+            district_names: { $regex: new RegExp(`^${districtDoc.name.trim()}$`, 'i') },
+            deleted_at: null
+          }).select('_id').lean();
+          fcIds = fcMatches.map(f => f._id);
+        }
+        if (clusterId) fcIds.push(clusterId);
+
+        const orConditions = [];
+        if (fcIds.length > 0) orConditions.push({ cluster_id: { $in: fcIds } });
+        if (targetDistrictId && mongoose.Types.ObjectId.isValid(targetDistrictId)) {
+          orConditions.push({ district_id: new mongoose.Types.ObjectId(targetDistrictId) });
+        }
+        if (stateId && mongoose.Types.ObjectId.isValid(stateId)) {
+          orConditions.push({ state_id: new mongoose.Types.ObjectId(stateId), district_id: null });
+        }
+
+        if (orConditions.length > 0) {
+          const deauthorizedDocs = await KitClusterAuthorization.find({
+            combo_kit_id: { $in: kitIds },
+            is_authorized: false,
+            deleted_at: null,
+            $or: orConditions
+          }).select('combo_kit_id').lean();
+
+          if (deauthorizedDocs.length > 0) {
+            const deauthorizedKitIdSet = new Set(deauthorizedDocs.map(d => d.combo_kit_id?.toString()));
+            kits = kits.filter(k => !deauthorizedKitIdSet.has(k._id.toString()));
+          }
+        }
+      }
+    } catch (kcaErr) {
+      console.warn('[get_combo_kits_by_district] Error checking KitClusterAuthorization:', kcaErr.message);
     }
 
     if (kits.length === 0) {

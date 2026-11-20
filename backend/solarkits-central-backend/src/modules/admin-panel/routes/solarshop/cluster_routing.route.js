@@ -18,7 +18,8 @@ router.post('/clusters', check_auth, check_add_perms, handler.create_cluster);
 router.put('/clusters/:id', check_auth, check_edit_perms, handler.update_cluster);
 router.delete('/clusters/:id', check_auth, check_delete_perms, handler.delete_cluster);
 
-// 2. Warehouse Mappings
+// 2. Warehouse Mappings & Coverage Options
+router.get('/coverage-options', check_auth, check_view_perms, handler.get_coverage_options);
 router.get('/mappings', check_auth, check_view_perms, handler.get_mappings);
 router.post('/mappings', check_auth, check_add_perms, handler.create_mapping);
 router.put('/mappings/:id', check_auth, check_edit_perms, handler.update_mapping);

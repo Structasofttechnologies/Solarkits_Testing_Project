@@ -145,6 +145,59 @@ const schema = new mongoose.Schema({
     min: 0,
     default: 0
   },
+
+  // Component-wise Bill of Materials breakdown snapshot
+  component_breakdown: [{
+    group_type: { type: String, enum: ['panel', 'inverter', 'bos', 'other'], default: 'other' },
+    item_name: { type: String, trim: true },
+    sku_code: { type: String, trim: true },
+    sku_id: { type: mongoose.Schema.Types.ObjectId, ref: 'pc_product_skus' },
+    brand_name: { type: String, trim: true },
+    quantity_per_kit: { type: Number, default: 1 },
+    total_quantity: { type: Number, default: 1 },
+    unit_cost_price: { type: Number, default: 0 },
+    subtotal_amount: { type: Number, default: 0 },
+    supplier_id: { type: mongoose.Schema.Types.ObjectId, ref: 'suppliers' },
+    supplier_name: { type: String, trim: true }
+  }],
+
+  // Multi-Supplier Payment Breakdown (e.g. Panel Supplier, Inverter Supplier, BOS Supplier)
+  supplier_payments: [{
+    group_type: { type: String, enum: ['panel', 'inverter', 'bos', 'all'], default: 'all' },
+    group_title: { type: String, trim: true }, // e.g. "Solar PV Modules (20 Pcs)"
+    supplier_id: { type: mongoose.Schema.Types.ObjectId, ref: 'suppliers' },
+    supplier_name: { type: String, trim: true, required: true },
+    supplier_brand: { type: String, trim: true, default: '' },
+    supplier_gst: { type: String, trim: true, default: '' },
+    supplier_phone: { type: String, trim: true, default: '' },
+
+    // Financials per supplier
+    base_amount_inr: { type: Number, required: true, min: 0 },
+    gst_rate_percent: { type: Number, default: 13.8 },
+    gst_amount_inr: { type: Number, default: 0 },
+    total_payable_inr: { type: Number, required: true, min: 0 },
+
+    // Banking & Audit Trail
+    payment_mode: {
+      type: String,
+      enum: ['bank_transfer_neft_rtgs', 'cheque', 'upi', 'cash', 'corporate_card'],
+      default: 'bank_transfer_neft_rtgs'
+    },
+    transaction_utr_no: { type: String, trim: true, required: true },
+    payment_date: { type: Date, default: Date.now },
+    company_bank_account: { type: String, trim: true, default: 'HDFC Bank - Current A/C (Solarkits Corp)' },
+    vendor_bank_account: { type: String, trim: true, default: '' },
+    payment_receipt_url: { type: String, trim: true, default: '' },
+    remarks: { type: String, trim: true, default: '' },
+
+    paid_by: {
+      user_id: { type: mongoose.Schema.Types.ObjectId },
+      name: { type: String, trim: true, default: '' },
+      email: { type: String, trim: true, default: '' }
+    },
+    paid_at: { type: Date, default: Date.now }
+  }],
+
   payment_status: {
     type: String,
     enum: ['unpaid', 'payment_recorded', 'approved', 'rejected'],
@@ -251,7 +304,6 @@ const schema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-schema.index({ procurement_number: 1 }, { unique: true });
 schema.index({ warehouse_id: 1, status: 1 });
 schema.index({ combo_kit_id: 1, warehouse_id: 1 });
 schema.index({ status: 1, created_at: -1 });

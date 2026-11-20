@@ -6,6 +6,7 @@ const {
   WarehouseComboKit
 } = require('../models/india_solarshop_db');
 const { CompanyWarehouse } = require('../../warehouse-panel/models/company_warehouse_db');
+const Supplier = require('../../account-panel/models/supplier_db/supplier.schema');
 
 /**
  * Helper: Generate unique Procurement Number (TK-PR-YYYY-XXXXX)
@@ -35,6 +36,22 @@ async function generateGrnNumber() {
     grnNumber = `GRN-TK-${year}-${String(seq).padStart(5, '0')}`;
   }
   return grnNumber;
+}
+
+/**
+ * Helper: Resolve Canonical Human-Readable Warehouse Display Name
+ */
+function resolveWarehouseName(wh) {
+  if (!wh) return 'Warehouse';
+  const code = (typeof wh === 'string' ? wh : wh.warehouse_code) || '';
+  const rawName = (typeof wh === 'string' ? '' : wh.warehouse_name) || '';
+  if (rawName && rawName !== code && !rawName.startsWith('IND_')) {
+    return rawName;
+  }
+  if (code === 'IND_GUJ_001') return 'Ahmedabad Central Warehouse';
+  if (code === 'IND_GUJ_002') return 'Surat Regional Warehouse';
+  if (wh.district_name || wh.city) return `${wh.district_name || wh.city} Warehouse`;
+  return rawName || code || 'Warehouse';
 }
 
 /**
@@ -87,8 +104,8 @@ exports.request_inward = async (req, res) => {
     const procurement_number = await generateProcurementNumber();
     const grn_number = await generateGrnNumber();
 
-    const requesterName = req.user?.name || req.user?.email || 'Warehouse Manager';
-    const requesterRole = req.user?.is_warehouse_user ? 'warehouse' : (req.user?.role?.toLowerCase().includes('account') ? 'account' : 'admin');
+    const requesterName = req.user?.name || req.user?.email || 'Accounts Manager';
+    const requesterRole = req.user?.is_warehouse_user ? 'warehouse' : (req.user?.role?.toLowerCase().includes('account') ? 'account' : (req.user?.role?.toLowerCase().includes('admin') ? 'admin' : 'account'));
 
     const effectiveVendorName = vendor_name ? vendor_name.trim() : 'Pending Accounts Sourcing';
     const effectiveChallanNo = invoice_challan_number ? invoice_challan_number.trim() : grn_number;
@@ -101,7 +118,7 @@ exports.request_inward = async (req, res) => {
       blueprint_name: comboKit.blueprint_name || comboKit.name,
       capacity: comboKit.capacity || 0,
       warehouse_id,
-      warehouse_name: warehouse.warehouse_name || warehouse.warehouse_code,
+      warehouse_name: resolveWarehouseName(warehouse),
       warehouse_code: warehouse.warehouse_code || '',
       inward_quantity: qty,
       vendor_name: effectiveVendorName,
@@ -110,7 +127,7 @@ exports.request_inward = async (req, res) => {
       invoice_challan_date: invoice_challan_date ? new Date(invoice_challan_date) : new Date(),
       courier_transport_details: courier_transport_details || {},
       warehouse_inspection_status: warehouse_inspection_status || 'passed',
-      warehouse_remarks: warehouse_remarks || 'Warehouse inward indent raised.',
+      warehouse_remarks: warehouse_remarks || 'Trial kit inward indent initiated by Accounts.',
       warehouse_documents: Array.isArray(warehouse_documents) ? warehouse_documents : (warehouse_documents ? [warehouse_documents] : []),
       requested_by: {
         user_id: req.user?.id || req.user?._id || null,
@@ -193,9 +210,18 @@ exports.list_procurements = async (req, res) => {
       TrialKitProcurement.countDocuments(filter)
     ]);
 
+    const formattedItems = items.map(p => {
+      const canonicalName = resolveWarehouseName(p.warehouse_id || { warehouse_code: p.warehouse_code, warehouse_name: p.warehouse_name });
+      return {
+        ...p,
+        warehouse_name: canonicalName,
+        warehouse_display: `${canonicalName} (${p.warehouse_code || ''})`
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      data: items,
+      data: formattedItems,
       total,
       page: pageNum,
       pages: Math.ceil(total / limitNum)
@@ -223,7 +249,14 @@ exports.get_procurement_details = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Procurement record not found.' });
     }
 
-    return res.status(200).json({ success: true, data: item });
+    const canonicalName = resolveWarehouseName(item.warehouse_id || { warehouse_code: item.warehouse_code, warehouse_name: item.warehouse_name });
+    const formattedItem = {
+      ...item,
+      warehouse_name: canonicalName,
+      warehouse_display: `${canonicalName} (${item.warehouse_code || ''})`
+    };
+
+    return res.status(200).json({ success: true, data: formattedItem });
   } catch (err) {
     console.error('❌ Error getting trial kit procurement details:', err);
     return res.status(500).json({ success: false, message: err.message });
@@ -231,13 +264,214 @@ exports.get_procurement_details = async (req, res) => {
 };
 
 /**
- * 4. STAGE 2: Accounts Manager records procurement payment
+ * 4. Resolve Kit Component Breakdown & Approved Suppliers for Procurement Payment
+ * GET /trial-kits/procurement/:id/component-breakdown
+ */
+exports.get_component_breakdown = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const procurement = await TrialKitProcurement.findById(id).lean();
+    if (!procurement) {
+      return res.status(404).json({ success: false, message: 'Procurement record not found.' });
+    }
+
+    const rawDb = mongoose.connection.db;
+    const kit = await rawDb.collection('pc_comobo_kit').findOne({ _id: new mongoose.Types.ObjectId(procurement.combo_kit_id) })
+      || await rawDb.collection('pc_combo_kits').findOne({ _id: new mongoose.Types.ObjectId(procurement.combo_kit_id) });
+
+    if (!kit) {
+      return res.status(404).json({ success: false, message: 'Combo Kit blueprint not found.' });
+    }
+
+    // Warehouse cluster
+    let clusterId = null;
+    const warehouse = await rawDb.collection('company_warehouses').findOne({ _id: new mongoose.Types.ObjectId(procurement.warehouse_id) });
+    if (warehouse?.level_2) {
+      const dist = await rawDb.collection('geolocation_level_2').findOne({ _id: new mongoose.Types.ObjectId(warehouse.level_2) });
+      if (dist?.cluster) clusterId = dist.cluster;
+    }
+
+    const templateIds = (kit.base_components || []).map(b => new mongoose.Types.ObjectId(b.template_id)).filter(Boolean);
+    const skuIds = [
+      ...(kit.base_components || []).map(b => new mongoose.Types.ObjectId(b.sku_id)),
+      ...(kit.bos_kits || []).map(b => new mongoose.Types.ObjectId(b.sku_id))
+    ].filter(Boolean);
+    const brandIds = [
+      kit.brand_id ? new mongoose.Types.ObjectId(kit.brand_id) : null,
+      ...(kit.base_components || []).map(b => b.brand_id ? new mongoose.Types.ObjectId(b.brand_id) : null),
+      ...(kit.bos_kits || []).map(b => b.brand_id ? new mongoose.Types.ObjectId(b.brand_id) : null)
+    ].filter(Boolean);
+
+    const [templates, skus, brands, suppliers] = await Promise.all([
+      templateIds.length > 0 ? rawDb.collection('pc_product_templates').find({ _id: { $in: templateIds } }).toArray() : [],
+      skuIds.length > 0 ? rawDb.collection('pc_product_skus').find({ _id: { $in: skuIds } }).toArray() : [],
+      brandIds.length > 0 ? rawDb.collection('brands').find({ _id: { $in: brandIds } }).toArray() : [],
+      Supplier.find({ status: 'approved' }).select('_id company_name brand_name gst_number pan_number phone phone_code').lean()
+    ]);
+
+    const templateMap = Object.fromEntries(templates.map(t => [t._id.toString(), t.name]));
+    const skuMap = Object.fromEntries(skus.map(s => [s._id.toString(), s]));
+    const brandMap = Object.fromEntries(brands.map(b => [b._id.toString(), b.name || b.brand_name]));
+
+    // Query prices
+    const priceDocs = await rawDb.collection('pc_product_sku_prices').find({ sku_id: { $in: skuIds } }).toArray();
+    const priceMap = {};
+    for (const p of priceDocs) {
+      const sId = p.sku_id?.toString();
+      if (!priceMap[sId] || (clusterId && p.cluster_id?.toString() === clusterId?.toString())) {
+        priceMap[sId] = p.price;
+      }
+    }
+
+    const inwardQty = procurement.inward_quantity || 1;
+
+    let panels = null;
+    let inverters = null;
+    const bosItems = [];
+
+    for (const bc of kit.base_components || []) {
+      const tName = templateMap[bc.template_id?.toString()] || '';
+      const isPanel = tName.toLowerCase().includes('panel') || tName.toLowerCase().includes('module');
+      const isInverter = tName.toLowerCase().includes('inverter');
+      const skuObj = skuMap[bc.sku_id?.toString()] || {};
+      const brand = brandMap[bc.brand_id?.toString()] || 'SolarKits OEM';
+      const unitCost = priceMap[bc.sku_id?.toString()] || 0;
+      const qtyPerKit = bc.quantity || 1;
+      const totalQty = qtyPerKit * inwardQty;
+      const subtotal = Math.round(unitCost * totalQty * 100) / 100;
+
+      if (isPanel && !panels) {
+        const pGstRate = 12; // Statutory GST on Solar PV Panels (HSN 85414011)
+        const pGstAmount = Math.round(subtotal * (pGstRate / 100) * 100) / 100;
+        panels = {
+          group_type: 'panel',
+          group_title: `Solar PV Modules (${totalQty} Pcs)`,
+          sku_id: bc.sku_id,
+          sku_code: skuObj.sku_code || 'PV-MODULE',
+          brand_name: brand,
+          item_name: `${brand} 500W Bifacial Solar Panel`,
+          quantity_per_kit: qtyPerKit,
+          total_quantity: totalQty,
+          unit_cost_price: unitCost,
+          subtotal_amount: subtotal,
+          gst_rate_percent: pGstRate,
+          gst_amount: pGstAmount,
+          total_payable: Math.round((subtotal + pGstAmount) * 100) / 100
+        };
+      } else if (isInverter && !inverters) {
+        const iGstRate = 18; // Statutory GST on Solar Inverters (HSN 85044090)
+        const iGstAmount = Math.round(subtotal * (iGstRate / 100) * 100) / 100;
+        inverters = {
+          group_type: 'inverter',
+          group_title: `Solar Inverters (${totalQty} Pcs)`,
+          sku_id: bc.sku_id,
+          sku_code: skuObj.sku_code || 'INV-1KW',
+          brand_name: brand,
+          item_name: `${brand} 1kW Solar Inverter`,
+          quantity_per_kit: qtyPerKit,
+          total_quantity: totalQty,
+          unit_cost_price: unitCost,
+          subtotal_amount: subtotal,
+          gst_rate_percent: iGstRate,
+          gst_amount: iGstAmount,
+          total_payable: Math.round((subtotal + iGstAmount) * 100) / 100
+        };
+      }
+    }
+
+    let totalBosUnitCost = 0;
+    for (const bk of kit.bos_kits || []) {
+      const skuObj = skuMap[bk.sku_id?.toString()] || {};
+      const brand = brandMap[bk.brand_id?.toString()] || 'SolarKits OEM';
+      const unitCost = priceMap[bk.sku_id?.toString()] || 0;
+      const qtyPerKit = bk.quantity || 1;
+      const totalQty = qtyPerKit * inwardQty;
+      const lineUnitCost = Math.round(unitCost * qtyPerKit * 100) / 100;
+      const subtotal = Math.round(unitCost * totalQty * 100) / 100;
+      totalBosUnitCost += lineUnitCost;
+
+      bosItems.push({
+        group_type: 'bos',
+        item_name: bk.name || skuObj.sku_code || 'BOS Component',
+        sku_id: bk.sku_id,
+        sku_code: skuObj.sku_code || '',
+        brand_name: brand,
+        quantity_per_kit: qtyPerKit,
+        total_quantity: totalQty,
+        unit_cost_price: unitCost,
+        subtotal_amount: subtotal
+      });
+    }
+
+    const totalBosSubtotal = Math.round(totalBosUnitCost * inwardQty * 100) / 100;
+    const bosGstRate = 18; // Statutory GST on BOS Electrical / Cables / Switchgear / Hardware
+    const bosGstAmount = Math.round(totalBosSubtotal * (bosGstRate / 100) * 100) / 100;
+    const bosGroup = {
+      group_type: 'bos',
+      group_title: `BOS Balance of System (${bosItems.length} Electrical & Safety Items)`,
+      item_name: 'BOS Kits & Electrical Protection Bundle',
+      quantity_per_kit: 1,
+      total_quantity: inwardQty,
+      unit_cost_price: totalBosUnitCost,
+      subtotal_amount: totalBosSubtotal,
+      gst_rate_percent: bosGstRate,
+      gst_amount: bosGstAmount,
+      total_payable: Math.round((totalBosSubtotal + bosGstAmount) * 100) / 100,
+      items: bosItems
+    };
+
+    const totalBaseCost = (panels?.subtotal_amount || 0) + (inverters?.subtotal_amount || 0) + totalBosSubtotal;
+    const totalGstAmount = Math.round(((panels?.gst_amount || 0) + (inverters?.gst_amount || 0) + bosGstAmount) * 100) / 100;
+    const totalPayable = Math.round((totalBaseCost + totalGstAmount) * 100) / 100;
+    const effectiveGstRate = totalBaseCost > 0 ? Math.round((totalGstAmount / totalBaseCost) * 10000) / 100 : 14.22;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        procurement: {
+          _id: procurement._id,
+          procurement_number: procurement.procurement_number,
+          grn_number: procurement.grn_number,
+          kit_type: procurement.kit_type,
+          inward_quantity: inwardQty,
+          warehouse_name: resolveWarehouseName({ warehouse_code: procurement.warehouse_code, warehouse_name: procurement.warehouse_name }),
+          warehouse_code: procurement.warehouse_code,
+          vendor_name: procurement.vendor_name,
+          invoice_challan_number: procurement.invoice_challan_number,
+          supplier_payments: procurement.supplier_payments || []
+        },
+        breakdown: {
+          panels,
+          inverters,
+          bos: bosGroup
+        },
+        commercials: {
+          total_base_cost: totalBaseCost,
+          gst_rate_percent: effectiveGstRate,
+          gst_amount: totalGstAmount,
+          total_payable_amount: totalPayable,
+          unit_cost_per_kit: Math.round((totalBaseCost / inwardQty) * 100) / 100
+        },
+        approved_suppliers: suppliers
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error getting component breakdown:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * 5. STAGE 2: Accounts Manager records procurement payment (Multi-Supplier & Component-Wise)
  * POST /trial-kits/procurement/:id/record-payment
  */
 exports.record_payment = async (req, res) => {
   try {
     const { id } = req.params;
     const {
+      supplier_payments,
+      component_breakdown,
+      // Legacy fallback single payment fields:
       unit_cost_price_inr,
       gst_rate_percent = 13.8,
       payment_mode = 'bank_transfer_neft_rtgs',
@@ -258,53 +492,132 @@ exports.record_payment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Procurement is already approved and closed.' });
     }
 
-    const unitPrice = parseFloat(unit_cost_price_inr);
-    if (isNaN(unitPrice) || unitPrice <= 0) {
-      return res.status(400).json({ success: false, message: 'Valid unit cost price (INR) is required.' });
-    }
-
-    if (!transaction_utr_no || !transaction_utr_no.trim()) {
-      return res.status(400).json({ success: false, message: 'Bank Transaction UTR / Reference Number is required.' });
-    }
-
-    const gstRate = parseFloat(gst_rate_percent) || 0;
-    const subtotal = Math.round(procurement.inward_quantity * unitPrice * 100) / 100;
-    const gstAmount = Math.round(subtotal * (gstRate / 100) * 100) / 100;
-    const totalPayable = Math.round((subtotal + gstAmount) * 100) / 100;
-
     const payerName = req.user?.name || req.user?.email || 'Accounts Manager';
 
-    procurement.unit_cost_price_inr = unitPrice;
-    procurement.subtotal_amount_inr = subtotal;
-    procurement.gst_rate_percent = gstRate;
-    procurement.gst_amount_inr = gstAmount;
-    procurement.total_payable_amount_inr = totalPayable;
+    if (Array.isArray(supplier_payments) && supplier_payments.length > 0) {
+      // Multi-supplier payment processing
+      let aggSubtotal = 0;
+      let aggGst = 0;
+      let aggTotal = 0;
+      const utrList = [];
+
+      const sanitizedPayments = supplier_payments.map((sp) => {
+        const base = Math.round((Number(sp.base_amount_inr) || 0) * 100) / 100;
+        const gRate = Number(sp.gst_rate_percent) !== undefined ? Number(sp.gst_rate_percent) : 13.8;
+        const gst = Math.round(base * (gRate / 100) * 100) / 100;
+        const tot = Math.round((base + gst) * 100) / 100;
+        const utr = (sp.transaction_utr_no || '').trim();
+
+        if (utr) utrList.push(`${sp.group_type?.toUpperCase() || 'GRP'}: ${utr}`);
+
+        aggSubtotal += base;
+        aggGst += gst;
+        aggTotal += tot;
+
+        return {
+          group_type: sp.group_type || 'other',
+          group_title: sp.group_title || '',
+          supplier_id: sp.supplier_id && mongoose.Types.ObjectId.isValid(sp.supplier_id) ? sp.supplier_id : null,
+          supplier_name: sp.supplier_name ? sp.supplier_name.trim() : 'Approved Vendor',
+          supplier_brand: sp.supplier_brand ? sp.supplier_brand.trim() : '',
+          supplier_gst: sp.supplier_gst ? sp.supplier_gst.trim() : '',
+          supplier_phone: sp.supplier_phone ? sp.supplier_phone.trim() : '',
+          base_amount_inr: base,
+          gst_rate_percent: gRate,
+          gst_amount_inr: gst,
+          total_payable_inr: tot,
+          payment_mode: sp.payment_mode || 'bank_transfer_neft_rtgs',
+          transaction_utr_no: utr || `UTR-TK-${Date.now()}`,
+          payment_date: sp.payment_date ? new Date(sp.payment_date) : new Date(),
+          company_bank_account: sp.company_bank_account || 'HDFC Bank - Current A/C (Solarkits Corp)',
+          vendor_bank_account: sp.vendor_bank_account || '',
+          payment_receipt_url: sp.payment_receipt_url || '',
+          remarks: sp.remarks || '',
+          paid_by: {
+            user_id: req.user?.id || req.user?._id || null,
+            name: payerName,
+            email: req.user?.email || ''
+          },
+          paid_at: new Date()
+        };
+      });
+
+      procurement.supplier_payments = sanitizedPayments;
+      if (Array.isArray(component_breakdown) && component_breakdown.length > 0) {
+        procurement.component_breakdown = component_breakdown;
+      }
+
+      procurement.subtotal_amount_inr = aggSubtotal;
+      procurement.gst_amount_inr = aggGst;
+      procurement.total_payable_amount_inr = aggTotal;
+      procurement.gst_rate_percent = gst_rate_percent || 13.8;
+      procurement.unit_cost_price_inr = procurement.inward_quantity > 0
+        ? Math.round((aggSubtotal / procurement.inward_quantity) * 100) / 100
+        : aggSubtotal;
+
+      procurement.payment_details = {
+        payment_mode: sanitizedPayments[0]?.payment_mode || 'bank_transfer_neft_rtgs',
+        transaction_utr_no: utrList.join(' | ') || `UTR-TK-${Date.now()}`,
+        payment_date: sanitizedPayments[0]?.payment_date || new Date(),
+        company_bank_account: sanitizedPayments[0]?.company_bank_account || 'HDFC Bank - Current A/C (Solarkits Corp)',
+        vendor_bank_account: sanitizedPayments[0]?.vendor_bank_account || '',
+        payment_receipt_url: sanitizedPayments[0]?.payment_receipt_url || '',
+        accounts_remarks: accounts_remarks || `Multi-supplier payment recorded across ${sanitizedPayments.length} suppliers.`,
+        paid_by: {
+          user_id: req.user?.id || req.user?._id || null,
+          name: payerName,
+          email: req.user?.email || ''
+        },
+        paid_at: new Date()
+      };
+    } else {
+      // Legacy single payment fallback
+      const unitPrice = parseFloat(unit_cost_price_inr);
+      if (isNaN(unitPrice) || unitPrice <= 0) {
+        return res.status(400).json({ success: false, message: 'Valid unit cost price (INR) is required.' });
+      }
+
+      if (!transaction_utr_no || !transaction_utr_no.trim()) {
+        return res.status(400).json({ success: false, message: 'Bank Transaction UTR / Reference Number is required.' });
+      }
+
+      const gstRate = parseFloat(gst_rate_percent) || 0;
+      const subtotal = Math.round(procurement.inward_quantity * unitPrice * 100) / 100;
+      const gstAmount = Math.round(subtotal * (gstRate / 100) * 100) / 100;
+      const totalPayable = Math.round((subtotal + gstAmount) * 100) / 100;
+
+      procurement.unit_cost_price_inr = unitPrice;
+      procurement.subtotal_amount_inr = subtotal;
+      procurement.gst_rate_percent = gstRate;
+      procurement.gst_amount_inr = gstAmount;
+      procurement.total_payable_amount_inr = totalPayable;
+
+      procurement.payment_details = {
+        payment_mode: payment_mode || 'bank_transfer_neft_rtgs',
+        transaction_utr_no: transaction_utr_no.trim(),
+        payment_date: payment_date ? new Date(payment_date) : new Date(),
+        company_bank_account: company_bank_account || '',
+        vendor_bank_account: vendor_bank_account || '',
+        payment_receipt_url: payment_receipt_url || '',
+        accounts_remarks: accounts_remarks || '',
+        paid_by: {
+          user_id: req.user?.id || req.user?._id || null,
+          name: payerName,
+          email: req.user?.email || ''
+        },
+        paid_at: new Date()
+      };
+    }
 
     procurement.payment_status = 'payment_recorded';
     procurement.admin_approval_status = 'pending_approval';
     procurement.status = 'payment_recorded';
 
-    procurement.payment_details = {
-      payment_mode: payment_mode || 'bank_transfer_neft_rtgs',
-      transaction_utr_no: transaction_utr_no.trim(),
-      payment_date: payment_date ? new Date(payment_date) : new Date(),
-      company_bank_account: company_bank_account || '',
-      vendor_bank_account: vendor_bank_account || '',
-      payment_receipt_url: payment_receipt_url || '',
-      accounts_remarks: accounts_remarks || '',
-      paid_by: {
-        user_id: req.user?.id || req.user?._id || null,
-        name: payerName,
-        email: req.user?.email || ''
-      },
-      paid_at: new Date()
-    };
-
     await procurement.save();
 
     return res.status(200).json({
       success: true,
-      message: `Payment of ₹${totalPayable.toLocaleString('en-IN')} recorded successfully. Submitted for Admin Approval.`,
+      message: `Payment of ₹${procurement.total_payable_amount_inr.toLocaleString('en-IN')} recorded successfully. Submitted for Admin Approval.`,
       data: procurement
     });
   } catch (err) {

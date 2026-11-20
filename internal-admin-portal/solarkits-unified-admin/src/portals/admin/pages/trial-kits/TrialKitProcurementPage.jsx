@@ -26,6 +26,22 @@ import {
 } from "react-icons/fa";
 import { FiRefreshCw, FiX, FiCheck, FiAlertCircle } from "react-icons/fi";
 
+// Canonical Warehouse Name Resolver Helper
+const getWarehouseLabel = (item) => {
+  if (!item) return "Warehouse";
+  const code = item.warehouse_code || item.warehouse_id?.warehouse_code || "";
+  const name = item.warehouse_name || item.warehouse_id?.warehouse_name || "";
+  if (name && name !== code && !name.startsWith("IND_")) {
+    return name;
+  }
+  if (code === "IND_GUJ_001") return "Ahmedabad Central Warehouse";
+  if (code === "IND_GUJ_002") return "Surat Regional Warehouse";
+  if (item.warehouse_id?.city || item.warehouse_id?.state) {
+    return `${item.warehouse_id.city || item.warehouse_id.state} Warehouse`;
+  }
+  return name || code || "Warehouse";
+};
+
 export default function TrialKitProcurementPage() {
   const [procurements, setProcurements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -205,11 +221,10 @@ export default function TrialKitProcurementPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div
           onClick={() => setStatusFilter("payment_recorded")}
-          className={`p-4 rounded-2xl border transition cursor-pointer ${
-            statusFilter === "payment_recorded"
-              ? "bg-blue-100/70 border-blue-400 ring-2 ring-blue-500/30"
-              : "bg-blue-50/60 border-blue-200 hover:bg-blue-50"
-          }`}
+          className={`p-4 rounded-2xl border transition cursor-pointer ${statusFilter === "payment_recorded"
+            ? "bg-blue-100/70 border-blue-400 ring-2 ring-blue-500/30"
+            : "bg-blue-50/60 border-blue-200 hover:bg-blue-50"
+            }`}
         >
           <div className="flex items-center justify-between text-blue-900">
             <span className="text-xs font-bold uppercase tracking-wider">Awaiting Admin Approval</span>
@@ -226,11 +241,10 @@ export default function TrialKitProcurementPage() {
 
         <div
           onClick={() => setStatusFilter("inward_requested")}
-          className={`p-4 rounded-2xl border transition cursor-pointer ${
-            statusFilter === "inward_requested"
-              ? "bg-amber-100/70 border-amber-400 ring-2 ring-amber-500/30"
-              : "bg-amber-50/60 border-amber-200 hover:bg-amber-50"
-          }`}
+          className={`p-4 rounded-2xl border transition cursor-pointer ${statusFilter === "inward_requested"
+            ? "bg-amber-100/70 border-amber-400 ring-2 ring-amber-500/30"
+            : "bg-amber-50/60 border-amber-200 hover:bg-amber-50"
+            }`}
         >
           <div className="flex items-center justify-between text-amber-900">
             <span className="text-xs font-bold uppercase tracking-wider">Pending Accounts Payment</span>
@@ -245,11 +259,10 @@ export default function TrialKitProcurementPage() {
 
         <div
           onClick={() => setStatusFilter("approved")}
-          className={`p-4 rounded-2xl border transition cursor-pointer ${
-            statusFilter === "approved"
-              ? "bg-emerald-100/70 border-emerald-400 ring-2 ring-emerald-500/30"
-              : "bg-emerald-50/60 border-emerald-200 hover:bg-emerald-50"
-          }`}
+          className={`p-4 rounded-2xl border transition cursor-pointer ${statusFilter === "approved"
+            ? "bg-emerald-100/70 border-emerald-400 ring-2 ring-emerald-500/30"
+            : "bg-emerald-50/60 border-emerald-200 hover:bg-emerald-50"
+            }`}
         >
           <div className="flex items-center justify-between text-emerald-900">
             <span className="text-xs font-bold uppercase tracking-wider">Approved & Inwarded</span>
@@ -266,11 +279,10 @@ export default function TrialKitProcurementPage() {
 
         <div
           onClick={() => setStatusFilter("rejected")}
-          className={`p-4 rounded-2xl border transition cursor-pointer ${
-            statusFilter === "rejected"
-              ? "bg-red-100/70 border-red-400 ring-2 ring-red-500/30"
-              : "bg-red-50/60 border-red-200 hover:bg-red-50"
-          }`}
+          className={`p-4 rounded-2xl border transition cursor-pointer ${statusFilter === "rejected"
+            ? "bg-red-100/70 border-red-400 ring-2 ring-red-500/30"
+            : "bg-red-50/60 border-red-200 hover:bg-red-50"
+            }`}
         >
           <div className="flex items-center justify-between text-red-900">
             <span className="text-xs font-bold uppercase tracking-wider">Rejected Inwards</span>
@@ -299,16 +311,14 @@ export default function TrialKitProcurementPage() {
             <button
               key={tab.id}
               onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 ${
-                statusFilter === tab.id
-                  ? "bg-emerald-700 text-white shadow-xs"
-                  : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-              }`}
+              className={`px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 ${statusFilter === tab.id
+                ? "bg-emerald-700 text-white shadow-xs"
+                : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                }`}
             >
               <span>{tab.label}</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                statusFilter === tab.id ? "bg-white/20 text-white" : "bg-white text-gray-700"
-              }`}>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${statusFilter === tab.id ? "bg-white/20 text-white" : "bg-white text-gray-700"
+                }`}>
                 {tab.count}
               </span>
             </button>
@@ -338,7 +348,6 @@ export default function TrialKitProcurementPage() {
                 <th className="py-3 px-4">PR / GRN Tracking</th>
                 <th className="py-3 px-4">Combo Kit & Warehouse</th>
                 <th className="py-3 px-4 text-center">Inward Qty</th>
-                <th className="py-3 px-4">Vendor & Challan</th>
                 <th className="py-3 px-4">Accounts Payment & UTR</th>
                 <th className="py-3 px-4 text-center">Status</th>
                 <th className="py-3 px-4 text-right">Approval Actions</th>
@@ -347,7 +356,7 @@ export default function TrialKitProcurementPage() {
             <tbody className="divide-y divide-gray-100">
               {filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="text-center py-12 text-gray-400">
+                  <td colSpan="6" className="text-center py-12 text-gray-400">
                     No procurement records matching selected filters.
                   </td>
                 </tr>
@@ -375,25 +384,22 @@ export default function TrialKitProcurementPage() {
 
                       {/* Combo Kit & Warehouse */}
                       <td className="py-3 px-4">
-                        <span className="font-bold text-gray-900 block">{proc.kit_type}</span>
-                        <span className="text-[11px] text-gray-600 flex items-center gap-1 mt-0.5">
-                          <FaWarehouse className="text-gray-400 text-[10px]" />
-                          {proc.warehouse_name || proc.warehouse_id?.warehouse_name}
-                        </span>
+                        <span className="font-bold text-gray-900 block text-xs">{proc.kit_type}</span>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                          <FaWarehouse className="text-emerald-600 text-[10px] shrink-0" />
+                          <strong className="text-gray-800">{getWarehouseLabel(proc)}</strong>
+                          {(proc.warehouse_code || proc.warehouse_id?.warehouse_code) && (
+                            <span className="text-[9px] font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                              {proc.warehouse_code || proc.warehouse_id?.warehouse_code}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Inward Qty */}
                       <td className="py-3 px-4 text-center">
                         <span className="inline-block px-2.5 py-1 bg-emerald-50 text-emerald-800 font-extrabold rounded-lg text-xs border border-emerald-200">
                           +{proc.inward_quantity} Kits
-                        </span>
-                      </td>
-
-                      {/* Vendor & Challan */}
-                      <td className="py-3 px-4">
-                        <span className="font-semibold text-gray-900 block">{proc.vendor_name}</span>
-                        <span className="text-[11px] text-gray-500">
-                          Challan: <strong className="text-gray-700 font-mono">{proc.invoice_challan_number}</strong>
                         </span>
                       </td>
 
@@ -404,12 +410,34 @@ export default function TrialKitProcurementPage() {
                             <span className="font-extrabold text-gray-900 block text-xs">
                               ₹{proc.total_payable_amount_inr?.toLocaleString("en-IN")}
                             </span>
-                            <span className="text-[10px] text-purple-700 font-mono font-bold block">
-                              UTR: {proc.payment_details?.transaction_utr_no || "N/A"}
-                            </span>
-                            <span className="text-[10px] text-gray-500 capitalize">
-                              {proc.payment_details?.payment_mode?.replace(/_/g, " ")}
-                            </span>
+                            {proc.supplier_payments && proc.supplier_payments.length > 0 ? (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {proc.supplier_payments.map((sp, idx) => (
+                                  <span
+                                    key={idx}
+                                    className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ${sp.group_type === "panel"
+                                      ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                      : sp.group_type === "inverter"
+                                        ? "bg-blue-50 text-blue-800 border border-blue-200"
+                                        : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                      }`}
+                                    title={`${sp.supplier_name} • UTR: ${sp.transaction_utr_no}`}
+                                  >
+                                    {sp.group_type === "panel" ? "☀️" : sp.group_type === "inverter" ? "⚡" : "🛠️"}{" "}
+                                    {sp.supplier_name.split(" ")[0]}: ₹{sp.total_payable_inr?.toLocaleString("en-IN")}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <>
+                                <span className="text-[10px] text-purple-700 font-mono font-bold block">
+                                  UTR: {proc.payment_details?.transaction_utr_no || "N/A"}
+                                </span>
+                                <span className="text-[10px] text-gray-500 capitalize">
+                                  {proc.payment_details?.payment_mode?.replace(/_/g, " ")}
+                                </span>
+                              </>
+                            )}
                           </div>
                         ) : (
                           <span className="inline-block px-2 py-0.5 bg-amber-50 text-amber-800 rounded font-bold text-[10px] border border-amber-200">
@@ -509,10 +537,20 @@ export default function TrialKitProcurementPage() {
               </p>
               <ul className="list-disc pl-4 space-y-1 text-[11px]">
                 <li>
-                  <strong>+{approvalTarget.inward_quantity} units</strong> of <strong>{approvalTarget.kit_type}</strong> will be immediately credited to <strong>{approvalTarget.warehouse_name}</strong> available stock.
+                  <strong>+{approvalTarget.inward_quantity} units</strong> of <strong>{approvalTarget.kit_type}</strong> will be immediately credited to <strong>{getWarehouseLabel(approvalTarget)} ({approvalTarget.warehouse_code})</strong> available stock.
                 </li>
                 <li>
-                  Bank UTR <strong>{approvalTarget.payment_details?.transaction_utr_no}</strong> for <strong>₹{approvalTarget.total_payable_amount_inr?.toLocaleString("en-IN")}</strong> will be sealed as verified.
+                  {approvalTarget.supplier_payments && approvalTarget.supplier_payments.length > 0 ? (
+                    <span>
+                      Verified payments across <strong>{approvalTarget.supplier_payments.length} suppliers</strong> for total{" "}
+                      <strong>₹{approvalTarget.total_payable_amount_inr?.toLocaleString("en-IN")}</strong>.
+                    </span>
+                  ) : (
+                    <span>
+                      Bank UTR <strong>{approvalTarget.payment_details?.transaction_utr_no}</strong> for{" "}
+                      <strong>₹{approvalTarget.total_payable_amount_inr?.toLocaleString("en-IN")}</strong> will be sealed as verified.
+                    </span>
+                  )}
                 </li>
                 <li>An immutable audit log will be appended to Trial Kit Stock History.</li>
               </ul>
@@ -656,7 +694,12 @@ export default function TrialKitProcurementPage() {
                 </div>
                 <div>
                   <span className="text-gray-500 text-[10px] block">Destination Warehouse</span>
-                  <span className="text-gray-800">{reviewItem.warehouse_name}</span>
+                  <strong className="text-gray-900 block">{getWarehouseLabel(reviewItem)}</strong>
+                  {reviewItem.warehouse_code && (
+                    <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1 rounded">
+                      {reviewItem.warehouse_code}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-gray-500 text-[10px] block">Inward Quantity</span>
@@ -675,9 +718,8 @@ export default function TrialKitProcurementPage() {
                 </div>
                 <div>
                   <span className="text-gray-500 text-[10px] block">Physical Inspection</span>
-                  <span className={`font-semibold ${
-                    reviewItem.warehouse_inspection_status === "passed" ? "text-emerald-700" : "text-amber-700"
-                  }`}>
+                  <span className={`font-semibold ${reviewItem.warehouse_inspection_status === "passed" ? "text-emerald-700" : "text-amber-700"
+                    }`}>
                     {reviewItem.warehouse_inspection_status}
                   </span>
                 </div>
@@ -707,40 +749,81 @@ export default function TrialKitProcurementPage() {
                         ₹{reviewItem.total_payable_amount_inr?.toLocaleString("en-IN")}
                       </strong>
                     </div>
-                    <div>
-                      <span className="text-gray-500 text-[10px] block">Rate & GST</span>
-                      <span className="text-gray-800">
-                        ₹{reviewItem.unit_cost_price_inr?.toLocaleString("en-IN")} / kit + {reviewItem.gst_rate_percent}% GST
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 text-[10px] block">Bank UTR Number</span>
-                      <strong className="text-gray-900 font-mono text-[11px]">
-                        {reviewItem.payment_details?.transaction_utr_no}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 text-[10px] block">Payment Mode & Date</span>
-                      <span className="text-gray-700 capitalize">
-                        {reviewItem.payment_details?.payment_mode?.replace(/_/g, " ")} •{" "}
-                        {reviewItem.payment_details?.payment_date ? new Date(reviewItem.payment_details.payment_date).toLocaleDateString() : ""}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 text-[10px] block">Debit Account</span>
-                      <span className="text-gray-700">{reviewItem.payment_details?.company_bank_account || "HDFC Bank"}</span>
-                    </div>
-                    {reviewItem.payment_details?.payment_receipt_url && (
-                      <div>
-                        <a
-                          href={reviewItem.payment_details.payment_receipt_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-purple-700 font-bold underline flex items-center gap-1"
-                        >
-                          <FaExternalLinkAlt className="text-[10px]" /> View Payment Receipt
-                        </a>
+
+                    {reviewItem.supplier_payments && reviewItem.supplier_payments.length > 0 ? (
+                      <div className="space-y-2 pt-1">
+                        <span className="text-gray-500 text-[10px] block font-bold uppercase">
+                          Supplier Allocations ({reviewItem.supplier_payments.length})
+                        </span>
+                        {reviewItem.supplier_payments.map((sp, idx) => (
+                          <div key={idx} className="p-2 bg-white rounded-xl border border-gray-200 text-[10px] space-y-0.5">
+                            <div className="flex justify-between items-center font-bold">
+                              <span className="text-gray-900">
+                                {sp.group_type === "panel" ? "☀️" : sp.group_type === "inverter" ? "⚡" : "🛠️"}{" "}
+                                {sp.supplier_name}
+                              </span>
+                              <span className="text-purple-700 font-mono font-black">₹{sp.total_payable_inr?.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-gray-500 font-mono text-[9px]">
+                              <span>Base: ₹{sp.base_amount_inr?.toLocaleString("en-IN")}</span>
+                              <span>GST ({sp.gst_rate_percent}%): +₹{sp.gst_amount_inr?.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div className="text-gray-500 font-mono text-[9px]">
+                              UTR: <strong className="text-gray-800">{sp.transaction_utr_no}</strong>
+                            </div>
+                            {sp.payment_receipt_url && (
+                              <div>
+                                <a
+                                  href={sp.payment_receipt_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-purple-700 font-bold underline inline-flex items-center gap-1 text-[9px]"
+                                >
+                                  <FaExternalLinkAlt size={8} /> Receipt Slip
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
+                    ) : (
+                      <>
+                        <div>
+                          <span className="text-gray-500 text-[10px] block">Rate & GST</span>
+                          <span className="text-gray-800">
+                            ₹{reviewItem.unit_cost_price_inr?.toLocaleString("en-IN")} / kit + {reviewItem.gst_rate_percent}% GST
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-[10px] block">Bank UTR Number</span>
+                          <strong className="text-gray-900 font-mono text-[11px]">
+                            {reviewItem.payment_details?.transaction_utr_no}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-[10px] block">Payment Mode & Date</span>
+                          <span className="text-gray-700 capitalize">
+                            {reviewItem.payment_details?.payment_mode?.replace(/_/g, " ")} •{" "}
+                            {reviewItem.payment_details?.payment_date ? new Date(reviewItem.payment_details.payment_date).toLocaleDateString() : ""}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-[10px] block">Debit Account</span>
+                          <span className="text-gray-700">{reviewItem.payment_details?.company_bank_account || "HDFC Bank"}</span>
+                        </div>
+                        {reviewItem.payment_details?.payment_receipt_url && (
+                          <div>
+                            <a
+                              href={reviewItem.payment_details.payment_receipt_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-purple-700 font-bold underline flex items-center gap-1"
+                            >
+                              <FaExternalLinkAlt className="text-[10px]" /> View Payment Receipt
+                            </a>
+                          </div>
+                        )}
+                      </>
                     )}
                   </>
                 )}

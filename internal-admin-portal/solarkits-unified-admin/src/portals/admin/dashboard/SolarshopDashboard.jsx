@@ -406,7 +406,7 @@ const menus = [
                 //     unique_id: "RSL_TERRITORY"
                 // },
                 {
-                    name: "Product Authorization",
+                    name: "Kit Cluster Authorizations",
                     icon: <FiPackage />,
                     path: "/admin-panel/solar-shop/reseller-management/product-auth",
                     unique_id: "RSL_PROD_AUTH"

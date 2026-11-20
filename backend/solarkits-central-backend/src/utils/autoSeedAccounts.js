@@ -9,41 +9,65 @@ async function autoSeedCustomerAccounts() {
     const demoAccounts = [
       {
         email: 'customer@solarkits.com',
-        password: '1234',
+        password: '4567',
+        pin: '4567',
         name: 'Customer Account',
         whatsapp: '9876543210'
       },
       {
         email: 'rahil.sunnovative@gmail.com',
         password: '1234',
+        pin: '1234',
         name: 'Rahil Harsoda (Demo)',
         whatsapp: '9913421453'
       },
       {
         email: 'sushilpiprotar@gmail.com',
         password: '1234',
+        pin: '1234',
         name: 'Sushil Piprotar (Demo)',
         whatsapp: '9876543211'
       },
       {
         email: 'structasoft.epc@gmail.com',
         password: '1234',
+        pin: '1234',
         name: 'Structasoft EPC Innovations',
         whatsapp: '9900000099'
       },
       {
         email: 'dwarka.epc@solarkits.com',
-        password: 'Password@123',
+        password: '2345',
+        pin: '2345',
         name: 'Dwarka Solar EPC Solutions',
         whatsapp: '9876543220',
         state_name: 'Gujarat',
         district_name: 'Devbhoomi Dwarka'
+      },
+      {
+        email: 'ravi.s@sunnovative.com',
+        password: '1234',
+        pin: '1234',
+        name: 'Rajkot GST Onboarded EPC (Ravi Harsoda)',
+        whatsapp: '7777939842',
+        state_name: 'Gujarat',
+        district_name: 'Rajkot'
+      },
+      {
+        email: 'ravi.s@gmail.com',
+        password: '3456',
+        pin: '3456',
+        name: 'Demo EPC Contractor',
+        whatsapp: '9876543210',
+        state_name: 'Gujarat',
+        district_name: 'Rajkot'
       }
     ];
 
-    // Cache Gujarat and Devbhoomi Dwarka
+    // Cache Gujarat, Devbhoomi Dwarka and Rajkot
     let gujaratDoc = await GeoLevel1.findOne({ name: { $regex: /^Gujarat$/i } });
     let dwarkaDoc = gujaratDoc ? await GeoLevel2.findOne({ level_1: gujaratDoc._id, name: { $regex: /dwarka/i } }) : null;
+    let rajkotDoc = gujaratDoc ? await GeoLevel2.findOne({ level_1: gujaratDoc._id, name: { $regex: /rajkot/i } }) : null;
 
     for (const acc of demoAccounts) {
       const password_hash = await bcrypt.hash(acc.password, 10);
@@ -54,12 +78,14 @@ async function autoSeedCustomerAccounts() {
       if (acc.state_name && gujaratDoc) {
         states = [gujaratDoc._id];
       }
-      if (acc.district_name && dwarkaDoc) {
-        districts = [dwarkaDoc._id];
+      const targetDistrictDoc = acc.district_name && acc.district_name.toLowerCase().includes('dwarka') ? dwarkaDoc : rajkotDoc;
+      if (acc.district_name && targetDistrictDoc) {
+        districts = [targetDistrictDoc._id];
       }
 
       if (existing) {
         existing.password_hash = password_hash;
+        existing.security_pin = acc.pin || acc.password;
         existing.status = 'approved';
         existing.is_email_verified = true;
         existing.is_whatsapp_verified = true;
@@ -68,13 +94,13 @@ async function autoSeedCustomerAccounts() {
         if (districts.length > 0) existing.districts = districts;
         await existing.save();
 
-        if (gujaratDoc && dwarkaDoc && acc.district_name) {
+        if (gujaratDoc && targetDistrictDoc && acc.district_name) {
           await EpcAccountLocation.findOneAndUpdate(
             { account_id: existing._id, is_primary: true },
             {
               account_id: existing._id,
               state_id: gujaratDoc._id,
-              district_id: dwarkaDoc._id,
+              district_id: targetDistrictDoc._id,
               is_primary: true,
               deleted_at: null
             },
@@ -87,6 +113,7 @@ async function autoSeedCustomerAccounts() {
           email: acc.email,
           whatsapp: acc.whatsapp,
           password_hash: password_hash,
+          security_pin: acc.pin || acc.password,
           is_email_verified: true,
           is_whatsapp_verified: true,
           status: 'approved',
@@ -94,11 +121,11 @@ async function autoSeedCustomerAccounts() {
           districts
         });
 
-        if (gujaratDoc && dwarkaDoc && acc.district_name) {
+        if (gujaratDoc && targetDistrictDoc && acc.district_name) {
           await EpcAccountLocation.create({
             account_id: created._id,
             state_id: gujaratDoc._id,
-            district_id: dwarkaDoc._id,
+            district_id: targetDistrictDoc._id,
             is_primary: true
           });
         }
@@ -112,7 +139,7 @@ async function autoSeedCustomerAccounts() {
 const mongoose = require('mongoose');
 
 const runAccountSeeder = () => {
-  autoSeedCustomerAccounts().catch(() => {});
+  autoSeedCustomerAccounts().catch(() => { });
 };
 
 if (mongoose.connection.readyState === 1) {
