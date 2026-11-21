@@ -380,6 +380,7 @@ const slice = createSlice({
           qty: requestedQty,
           is_trial_kit: isTrialKit,
           trial_kit_quantity: isTrialKit ? (payload?.trial_kit_quantity || requestedQty) : null,
+          future_intent: isTrialKit ? (payload?.future_intent || null) : null,
           delivery_cost: deliveryCost,
           delivery_pincode: deliveryPincode,
           warehouse_name: payload?.warehouse_name || null,
@@ -420,6 +421,9 @@ const slice = createSlice({
         const isBulkOrderQty = orderQuantities.length > 0;
 
         if (exists) {
+          if (payload?.future_intent) {
+            exists.future_intent = payload.future_intent;
+          }
           if (replaceQty) {
             exists.qty = requestedQty;
           } else {
@@ -575,6 +579,9 @@ const slice = createSlice({
           bulkPack: kit.bulkPack,
         };
         if (exists) {
+          if (payload?.future_intent) {
+            exists.future_intent = payload.future_intent;
+          }
           if (replaceQty) {
             // Directly set the qty (used when switching between order quantity tiers)
             exists.qty = requestedQty;

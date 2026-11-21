@@ -17,7 +17,8 @@ import {
   MessageSquare,
   ArrowRight,
   UserCheck,
-  Star
+  Star,
+  Target
 } from 'lucide-react';
 
 const FUNNEL_STAGES = [
@@ -213,8 +214,8 @@ export default function BdeTrialKitFunnel() {
             key={s.key}
             onClick={() => setSelectedStage(s.key)}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${selectedStage === s.key
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
           >
             {s.label}
@@ -263,9 +264,11 @@ export default function BdeTrialKitFunnel() {
                       <span className="text-slate-400 font-medium">Trial Kit:</span>
                       <span className="font-bold text-slate-800">{lead.kit_type}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-medium">Warehouse:</span>
-                      <span className="text-slate-700">{lead.warehouse_name || 'Central'}</span>
+                    <div className="flex justify-between items-baseline gap-2">
+                      <span className="text-slate-400 font-medium shrink-0">Warehouse:</span>
+                      <span className="text-slate-700 font-semibold text-right truncate">
+                        {lead.warehouse_id?.warehouse_name || lead.warehouse_name || 'Ahmedabad Central Warehouse'}
+                      </span>
                     </div>
                     {lead.delivery_details?.delivered_at && (
                       <div className="flex justify-between">
@@ -276,6 +279,27 @@ export default function BdeTrialKitFunnel() {
                       </div>
                     )}
                   </div>
+
+                  {/* Future Purchase Intent Badge (Submitted at checkout) */}
+                  {lead.future_intent && (lead.future_intent.expected_quantity > 0 || lead.future_intent.loose_quantity > 0 || lead.future_intent.po_quantity > 0) && (
+                    <div className="mt-2.5 p-2.5 bg-amber-50/90 border border-amber-200/80 rounded-xl text-xs space-y-1">
+                      <div className="flex items-center justify-between text-amber-900 font-bold">
+                        <span className="flex items-center gap-1.5">
+                          <Target className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          Future Intent:
+                        </span>
+                        <span className="uppercase text-[10px] px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-900 font-black">
+                          {lead.future_intent.future_purchase_mode === 'loose' ? 'Loose Kits' : (lead.future_intent.future_purchase_mode === 'bulk_po' ? 'Bulk PO' : 'Loose & PO')}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-amber-800">
+                        <span>Planned Qty: <strong>{lead.future_intent.expected_quantity || (lead.future_intent.loose_quantity + lead.future_intent.po_quantity)} Kits</strong></span>
+                        {lead.future_intent.estimated_timeline && (
+                          <span className="text-[10px] text-slate-500 font-medium">{lead.future_intent.estimated_timeline}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Feedback Summary Badge if received */}
                   {lead.feedback?.feedback_status === 'submitted' && (
@@ -358,8 +382,8 @@ export default function BdeTrialKitFunnel() {
                         onClick={() => handleUpdateStage(stage.key)}
                         disabled={updatingStage}
                         className={`p-2.5 rounded-xl text-left border font-bold transition flex flex-col justify-between ${isActive
-                            ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                           }`}
                       >
                         <span className="text-[11px]">{stage.label}</span>
@@ -369,6 +393,69 @@ export default function BdeTrialKitFunnel() {
                   })}
                 </div>
               </div>
+
+              {/* Pre-Order Future Purchase Intent Card (Filled by EPC before checkout) */}
+              {activeLead.future_intent && (activeLead.future_intent.expected_quantity > 0 || activeLead.future_intent.loose_quantity > 0 || activeLead.future_intent.po_quantity > 0) && (
+                <div className="p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent rounded-2xl border border-amber-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Target className="w-4 h-4 text-amber-600" />
+                      <span className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
+                        Pre-Order Future Purchase Intent (EPC Questionnaire)
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-500 text-white shadow-xs">
+                      {activeLead.future_intent.future_purchase_mode === 'loose'
+                        ? 'Loose Kits Model'
+                        : activeLead.future_intent.future_purchase_mode === 'bulk_po'
+                          ? 'Bulk PO Model'
+                          : 'Both Loose & PO'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200/70 shadow-xs">
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Total Planned Qty</span>
+                      <span className="text-base font-black text-amber-700">
+                        {activeLead.future_intent.expected_quantity ||
+                          ((Number(activeLead.future_intent.loose_quantity) || 0) +
+                            (Number(activeLead.future_intent.po_quantity) || 0))}{' '}
+                        Kits
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200/70 shadow-xs">
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Loose Kits Qty</span>
+                      <span className="text-sm font-bold text-slate-800">
+                        {activeLead.future_intent.loose_quantity || 0} Kits
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200/70 shadow-xs">
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Bulk PO Qty</span>
+                      <span className="text-sm font-bold text-slate-800">
+                        {activeLead.future_intent.po_quantity || 0} Kits
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-white/90 rounded-xl border border-amber-200/70 shadow-xs">
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Timeline</span>
+                      <span className="text-xs font-bold text-slate-800">
+                        {activeLead.future_intent.estimated_timeline || 'Immediate'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {activeLead.future_intent.remarks && (
+                    <div className="p-2.5 bg-white/95 rounded-xl border border-amber-200/70 text-xs">
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">
+                        EPC Project Remarks / Requirements:
+                      </span>
+                      <p className="text-slate-800 font-medium mt-0.5">{activeLead.future_intent.remarks}</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Submitted Feedback Review (Section 5) */}
               {activeLead.feedback?.feedback_status === 'submitted' ? (

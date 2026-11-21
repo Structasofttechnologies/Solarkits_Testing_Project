@@ -95,6 +95,7 @@ const TrialKitInventoryPage = lazy(() => import("../pages/trial-kits/TrialKitInv
 const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrdersPage"));
 const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
 const TrialKitProcurementPage = lazy(() => import("../pages/trial-kits/TrialKitProcurementPage"));
+const TrialKitUnassignedLeadsPage = lazy(() => import("../pages/trial-kits/TrialKitUnassignedLeadsPage"));
 
 const menus = [
     [
@@ -362,6 +363,12 @@ const menus = [
                     name: "Trial Kit Orders",
                     icon: <FaBoxes />,
                     path: "/admin-panel/solar-shop/trial-kits/orders",
+                    unique_id: "00000000",
+                },
+                {
+                    name: "Unassigned Intent Leads",
+                    icon: <FaUsers />,
+                    path: "/admin-panel/solar-shop/trial-kits/unassigned-leads",
                     unique_id: "00000000",
                 },
                 {
@@ -1967,6 +1974,8 @@ export default function SolarShopDashboard() {
                                     <Route path="/:countryName/trial-kits/procurement" element={<Suspense fallback={<Loader text="Loading Trial Kit Procurement Approvals..." />}><TrialKitProcurementPage /></Suspense>} />
                                     <Route path="/trial-kits/orders" element={<Suspense fallback={<Loader text="Loading Trial Kit Orders..." />}><TrialKitOrdersPage /></Suspense>} />
                                     <Route path="/:countryName/trial-kits/orders" element={<Suspense fallback={<Loader text="Loading Trial Kit Orders..." />}><TrialKitOrdersPage /></Suspense>} />
+                                    <Route path="/trial-kits/unassigned-leads" element={<Suspense fallback={<Loader text="Loading Unassigned Intent Leads..." />}><TrialKitUnassignedLeadsPage /></Suspense>} />
+                                    <Route path="/:countryName/trial-kits/unassigned-leads" element={<Suspense fallback={<Loader text="Loading Unassigned Intent Leads..." />}><TrialKitUnassignedLeadsPage /></Suspense>} />
                                     <Route path="/trial-kits/analytics" element={<Suspense fallback={<Loader text="Loading Trial Kit Analytics..." />}><TrialKitAnalyticsPage /></Suspense>} />
                                     <Route path="/:countryName/trial-kits/analytics" element={<Suspense fallback={<Loader text="Loading Trial Kit Analytics..." />}><TrialKitAnalyticsPage /></Suspense>} />
 

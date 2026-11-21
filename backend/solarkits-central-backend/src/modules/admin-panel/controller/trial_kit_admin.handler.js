@@ -689,8 +689,31 @@ exports.get_orders = async (req, res) => {
       filter.delivery_destination_type = delivery_destination;
     }
 
-    if (bde_id && mongoose.Types.ObjectId.isValid(bde_id)) {
+    if (bde_id === 'unassigned' || req.query.is_unassigned === 'true') {
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { bde_id: null },
+          { bde_id: { $exists: false } }
+        ]
+      });
+    } else if (bde_id && mongoose.Types.ObjectId.isValid(bde_id)) {
       filter.bde_id = bde_id;
+    }
+
+    if (req.query.future_purchase_mode && req.query.future_purchase_mode !== 'all') {
+      filter['future_intent.future_purchase_mode'] = req.query.future_purchase_mode;
+    }
+
+    if (req.query.has_future_intent === 'true') {
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { 'future_intent.expected_quantity': { $gt: 0 } },
+          { 'future_intent.loose_quantity': { $gt: 0 } },
+          { 'future_intent.po_quantity': { $gt: 0 } }
+        ]
+      });
     }
 
     // State filter (supports single or comma-separated list)
@@ -833,9 +856,19 @@ exports.get_orders = async (req, res) => {
       filterCounts.by_kit[kt] = (filterCounts.by_kit[kt] || 0) + 1;
     });
 
+    const formattedOrders = orders.map(o => {
+      const resolvedWhName = o.warehouse_id?.warehouse_name || (o.warehouse_name && !o.warehouse_name.startsWith('IND_') ? o.warehouse_name : null) || 'Ahmedabad Central Warehouse';
+      const resolvedWhCode = o.warehouse_id?.warehouse_code || (o.warehouse_name && o.warehouse_name.startsWith('IND_') ? o.warehouse_name : null) || 'IND_GUJ_001';
+      return {
+        ...o,
+        warehouse_name: resolvedWhName,
+        warehouse_code: resolvedWhCode
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      data: orders,
+      data: formattedOrders,
       total,
       page: parsedPage,
       limit: parsedLimit,
@@ -893,13 +926,8 @@ exports.group_and_send_orders = async (req, res) => {
       updateFields.group_name = '';
     }
 
-    if (warehouse_id && mongoose.Types.ObjectId.isValid(warehouse_id)) {
-      updateFields.warehouse_id = warehouse_id;
-      const wh = await CompanyWarehouse.findById(warehouse_id).select('warehouse_name warehouse_code').lean();
-      if (wh) {
-        updateFields.warehouse_name = wh.warehouse_name || wh.warehouse_code;
-      }
-    }
+    // Origin Warehouse Preserved: Always keep each order's allocated warehouse where the order was created.
+    // Warehouse override removed per strict requirement.
 
     const updateOps = { $set: updateFields };
     if (notes && notes.trim() !== '') {
@@ -1237,13 +1265,49 @@ exports.reassign_bde = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Trial kit order not found.' });
     }
 
+    // Assign BDE to order and lock status
     order.bde_id = bde._id;
     order.bde_name = bde.full_name;
+    order.is_bde_assigned = true;
+    order.bde_assigned_at = new Date();
+
+    // Ensure funnel stage is initialized so lead appears immediately in BDE Funnel
+    if (!order.funnel) {
+      order.funnel = {
+        current_stage: 'interested_in_purchase',
+        stage_history: [],
+        call_notes: []
+      };
+    }
+    if (!order.funnel.current_stage) {
+      order.funnel.current_stage = 'interested_in_purchase';
+    }
+    order.funnel.stage_updated_at = new Date();
+    order.funnel.bde_assigned_at = new Date();
+    if (!order.funnel.stage_history) order.funnel.stage_history = [];
+    order.funnel.stage_history.push({
+      stage: order.funnel.current_stage,
+      entered_at: new Date(),
+      remarks: `Trial kit intent lead assigned to BDE ${bde.full_name} (${bde.bde_id || 'BDE'}) by Admin.`
+    });
+
     await order.save();
+
+    // Officially link the EPC Account to this BDE so all future communications and orders route to them
+    if (order.epc_id) {
+      try {
+        await EpcAccount.findByIdAndUpdate(order.epc_id, {
+          onboarded_by_bde_id: bde._id,
+          bde_assigned_date: new Date()
+        });
+      } catch (epcErr) {
+        console.error('Error linking BDE to EPC Account during trial kit assignment:', epcErr);
+      }
+    }
 
     return res.status(200).json({
       success: true,
-      message: `Lead reassigned to BDE: ${bde.full_name}`,
+      message: `Lead successfully assigned to BDE: ${bde.full_name}`,
       data: order
     });
   } catch (err) {

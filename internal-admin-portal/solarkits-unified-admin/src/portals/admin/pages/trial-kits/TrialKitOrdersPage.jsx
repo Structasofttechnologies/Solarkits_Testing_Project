@@ -261,7 +261,12 @@ export default function TrialKitOrdersPage() {
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="font-semibold text-gray-800">{o.kit_type}</div>
-                        <div className="text-[11px] text-gray-500">{o.warehouse_name}</div>
+                        <div className="text-[11px] font-medium text-gray-600">
+                          {o.warehouse_id?.warehouse_name || o.warehouse_name || "Ahmedabad Central Warehouse"}
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-mono">
+                          {o.warehouse_id?.warehouse_code || o.warehouse_code || (o.warehouse_name?.startsWith("IND_") ? o.warehouse_name : null) || "IND_GUJ_001"}
+                        </div>
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[10px] ${

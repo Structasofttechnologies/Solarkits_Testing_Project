@@ -93,7 +93,6 @@ export default function TrialKitsOrdersPage() {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupDispatchMode, setGroupDispatchMode] = useState("group"); // 'group' | 'individual'
   const [groupName, setGroupName] = useState("");
-  const [groupWarehouseOverride, setGroupWarehouseOverride] = useState("");
   const [groupNotes, setGroupNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [notification, setNotification] = useState(null);
@@ -283,7 +282,6 @@ export default function TrialKitsOrdersPage() {
         order_ids: selectedOrderIds,
         dispatch_mode: groupDispatchMode,
         group_name: groupName,
-        warehouse_id: groupWarehouseOverride || undefined,
         notes: groupNotes,
       };
 
@@ -361,11 +359,10 @@ export default function TrialKitsOrdersPage() {
         {/* Global Alert Notification */}
         {notification && (
           <div
-            className={`mt-4 p-3 rounded-xl border text-xs font-medium flex items-center justify-between animate-in slide-in-from-top-2 ${
-              notification.type === "success"
-                ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700"
-                : "bg-red-50 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-700"
-            }`}
+            className={`mt-4 p-3 rounded-xl border text-xs font-medium flex items-center justify-between animate-in slide-in-from-top-2 ${notification.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700"
+              : "bg-red-50 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-700"
+              }`}
           >
             <div className="flex items-center gap-2">
               {notification.type === "success" ? (
@@ -419,21 +416,19 @@ export default function TrialKitsOrdersPage() {
                       key={t.id}
                       type="button"
                       onClick={() => setOrderMode(orderMode === t.id ? "all" : t.id)}
-                      className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                        orderMode === t.id
-                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                          : "bg-surface border-border hover:bg-blue-50/50 dark:hover:bg-blue-950/30 text-text-primary"
-                      }`}
+                      className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${orderMode === t.id
+                        ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                        : "bg-surface border-border hover:bg-blue-50/50 dark:hover:bg-blue-950/30 text-text-primary"
+                        }`}
                     >
                       <span>{t.label}</span>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-tight ${
-                          orderMode === t.id
-                            ? "bg-white/20 text-white"
-                            : t.count > 0
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200"
-                              : "bg-surface-hover text-text-muted"
-                        }`}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-tight ${orderMode === t.id
+                          ? "bg-white/20 text-white"
+                          : t.count > 0
+                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200"
+                            : "bg-surface-hover text-text-muted"
+                          }`}
                       >
                         {t.count}
                       </span>
@@ -457,21 +452,19 @@ export default function TrialKitsOrdersPage() {
                       key={o.id}
                       type="button"
                       onClick={() => setOrderOrigin(orderOrigin === o.id ? "all" : o.id)}
-                      className={`py-2 px-2 text-[11px] font-semibold rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
-                        orderOrigin === o.id
-                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                          : "bg-surface border-border hover:bg-blue-50/50 dark:hover:bg-blue-950/30 text-text-primary"
-                      }`}
+                      className={`py-2 px-2 text-[11px] font-semibold rounded-xl border flex items-center justify-between transition-all cursor-pointer ${orderOrigin === o.id
+                        ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                        : "bg-surface border-border hover:bg-blue-50/50 dark:hover:bg-blue-950/30 text-text-primary"
+                        }`}
                     >
                       <span className="truncate">{o.label}</span>
                       <span
-                        className={`ml-1 px-1.5 py-0.5 rounded-full text-[9px] font-black shrink-0 ${
-                          orderOrigin === o.id
-                            ? "bg-white/20 text-white"
-                            : o.count > 0
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200"
-                              : "bg-surface-hover text-text-muted"
-                        }`}
+                        className={`ml-1 px-1.5 py-0.5 rounded-full text-[9px] font-black shrink-0 ${orderOrigin === o.id
+                          ? "bg-white/20 text-white"
+                          : o.count > 0
+                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200"
+                            : "bg-surface-hover text-text-muted"
+                          }`}
                       >
                         {o.count}
                       </span>
@@ -494,21 +487,19 @@ export default function TrialKitsOrdersPage() {
                       key={c.id}
                       type="button"
                       onClick={() => setOrderCategory(orderCategory === c.id ? "all" : c.id)}
-                      className={`py-2 px-3 text-xs font-semibold rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
-                        orderCategory === c.id
-                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                          : "bg-surface border-border hover:bg-blue-50/50 dark:hover:bg-blue-950/30 text-text-primary"
-                      }`}
+                      className={`py-2 px-3 text-xs font-semibold rounded-xl border flex items-center justify-between transition-all cursor-pointer ${orderCategory === c.id
+                        ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                        : "bg-surface border-border hover:bg-blue-50/50 dark:hover:bg-blue-950/30 text-text-primary"
+                        }`}
                     >
                       <span>{c.label}</span>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-tight ${
-                          orderCategory === c.id
-                            ? "bg-white/20 text-white"
-                            : c.count > 0
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200"
-                              : "bg-surface-hover text-text-muted"
-                        }`}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-tight ${orderCategory === c.id
+                          ? "bg-white/20 text-white"
+                          : c.count > 0
+                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200"
+                            : "bg-surface-hover text-text-muted"
+                          }`}
                       >
                         {c.count}
                       </span>
@@ -595,8 +586,8 @@ export default function TrialKitsOrdersPage() {
               <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold">
                 {selectedWarehouse === "all"
                   ? `🌐 Pan India (${filterCounts.total || 0} Orders)`
-                  : filterOptions.warehouses?.find((w) => w._id === selectedWarehouse)?.warehouse_code
-                    ? `Active Warehouse: ${filterOptions.warehouses.find((w) => w._id === selectedWarehouse).warehouse_code}`
+                  : filterOptions.warehouses?.find((w) => w._id === selectedWarehouse)?.warehouse_name
+                    ? `Active Warehouse: ${filterOptions.warehouses.find((w) => w._id === selectedWarehouse).warehouse_name}`
                     : "Filtered by Warehouse"}
               </span>
             </div>
@@ -610,9 +601,10 @@ export default function TrialKitsOrdersPage() {
               </option>
               {(filterOptions.warehouses || []).map((wh) => {
                 const whOrderCount = filterCounts.by_warehouse?.[wh._id] || 0;
+                const whDisplayName = wh.warehouse_name || wh.warehouse_code || "Warehouse";
                 return (
                   <option key={wh._id} value={wh._id}>
-                    {wh.warehouse_code} — {wh.district_name || wh.state_name || wh.address?.split(",")[0]} — [{whOrderCount} Orders]
+                    {whDisplayName} {wh.warehouse_code ? `(${wh.warehouse_code})` : ""} — [{whOrderCount} Orders]
                   </option>
                 );
               })}
@@ -690,11 +682,10 @@ export default function TrialKitsOrdersPage() {
                       key={lim}
                       type="button"
                       onClick={() => setOrderCountLimit(lim)}
-                      className={`py-1.5 text-xs font-black rounded-lg border transition-all cursor-pointer ${
-                        orderCountLimit === lim
-                          ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                          : "bg-surface border-border hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-text-primary"
-                      }`}
+                      className={`py-1.5 text-xs font-black rounded-lg border transition-all cursor-pointer ${orderCountLimit === lim
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                        : "bg-surface border-border hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-text-primary"
+                        }`}
                     >
                       {lim}
                     </button>
@@ -891,9 +882,8 @@ export default function TrialKitsOrdersPage() {
                   return (
                     <tr
                       key={o._id}
-                      className={`hover:bg-blue-50/30 dark:hover:bg-blue-950/20 transition-colors ${
-                        isSelected ? "bg-blue-50/50 dark:bg-blue-950/30" : ""
-                      }`}
+                      className={`hover:bg-blue-50/30 dark:hover:bg-blue-950/20 transition-colors ${isSelected ? "bg-blue-50/50 dark:bg-blue-950/30" : ""
+                        }`}
                     >
                       <td className="py-3 px-3 text-center">
                         <input
@@ -946,8 +936,13 @@ export default function TrialKitsOrdersPage() {
                         </div>
                       </td>
 
-                      <td className="py-3 px-3 font-medium text-text-secondary">
-                        {o.warehouse_name || o.warehouse_id?.warehouse_code || "WH-MAIN"}
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-text-primary text-xs">
+                          {o.warehouse_id?.warehouse_name || o.warehouse_name || "Ahmedabad Central Warehouse"}
+                        </div>
+                        <div className="text-[10px] text-text-muted font-mono">
+                          {o.warehouse_id?.warehouse_code || o.warehouse_code || (o.warehouse_name?.startsWith("IND_") ? o.warehouse_name : null) || "IND_GUJ_001"}
+                        </div>
                       </td>
 
                       <td className="py-3 px-3 text-center">
@@ -962,15 +957,14 @@ export default function TrialKitsOrdersPage() {
 
                       <td className="py-3 px-3 text-center">
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-tight ${
-                            isDelivered
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                              : isOutForDelivery
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
-                                : isSentToWh
-                                  ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                                  : "bg-surface-hover text-text-muted"
-                          }`}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-tight ${isDelivered
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                            : isOutForDelivery
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
+                              : isSentToWh
+                                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                : "bg-surface-hover text-text-muted"
+                            }`}
                         >
                           {isDelivered
                             ? "Delivered"
@@ -1091,24 +1085,6 @@ export default function TrialKitsOrdersPage() {
 
               <div>
                 <label className="block text-[11px] font-bold text-text-secondary uppercase mb-1">
-                  Target Warehouse Allocation (Optional Override)
-                </label>
-                <select
-                  value={groupWarehouseOverride}
-                  onChange={(e) => setGroupWarehouseOverride(e.target.value)}
-                  className="w-full py-2 px-3 bg-surface border border-border rounded-xl text-text-primary focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Keep Each Order's Assigned Warehouse</option>
-                  {(filterOptions.warehouses || []).map((w) => (
-                    <option key={w._id} value={w._id}>
-                      {w.warehouse_code} — {w.district_name || w.state_name || w.address?.split(",")[0]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-text-secondary uppercase mb-1">
                   Dispatch Instructions / Notes
                 </label>
                 <textarea
@@ -1132,6 +1108,12 @@ export default function TrialKitsOrdersPage() {
                 <div className="flex justify-between text-text-secondary">
                   <span>Dispatch Mode:</span>
                   <span className="font-bold uppercase text-blue-600 dark:text-blue-400">{groupDispatchMode}</span>
+                </div>
+                <div className="flex justify-between text-text-secondary items-center pt-1 border-t border-border/50">
+                  <span>Warehouse Allocation:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <FaCheckCircle className="w-3 h-3" /> Origin Warehouse (Order Created Location)
+                  </span>
                 </div>
               </div>
             </div>
@@ -1205,6 +1187,15 @@ export default function TrialKitsOrdersPage() {
                 <div>
                   <span className="text-text-muted text-[10px] uppercase font-bold block">Origin & Mode</span>
                   <span className="capitalize font-medium text-text-primary">{selectedOrderDetail.order_origin} • {selectedOrderDetail.order_type}</span>
+                </div>
+                <div>
+                  <span className="text-text-muted text-[10px] uppercase font-bold block">Fulfillment Warehouse</span>
+                  <span className="font-bold text-text-primary">
+                    {selectedOrderDetail.warehouse_id?.warehouse_name || selectedOrderDetail.warehouse_name || "Ahmedabad Central Warehouse"}
+                  </span>
+                  <span className="text-[10px] text-text-muted font-mono block">
+                    Code: {selectedOrderDetail.warehouse_id?.warehouse_code || selectedOrderDetail.warehouse_code || (selectedOrderDetail.warehouse_name?.startsWith("IND_") ? selectedOrderDetail.warehouse_name : null) || "IND_GUJ_001"}
+                  </span>
                 </div>
               </div>
 

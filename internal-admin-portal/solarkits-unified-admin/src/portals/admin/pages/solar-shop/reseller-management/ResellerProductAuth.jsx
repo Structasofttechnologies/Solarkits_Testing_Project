@@ -45,7 +45,7 @@ export default function ResellerProductAuth() {
   const [selectedDistrict, setSelectedDistrict] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"); // 'all' | 'authorized' | 'restricted'
-  const [viewMode, setViewMode] = useState("grid"); // 'grid' | 'table'
+  const [viewMode, setViewMode] = useState("table"); // 'table' (default) | 'grid'
 
   // ── 2. Kit Data States ──────────────────────────────────────────────────────
   const [kits, setKits] = useState([]);
@@ -104,13 +104,33 @@ export default function ResellerProductAuth() {
     fetchFilterMasters();
   }, []);
 
-  // Cascaded clusters based on selected state
+  // Cascaded clusters based on selected state with sequential numbering and active kit counters
   const availableClusters = useMemo(() => {
-    if (!selectedState) return clusters;
-    return clusters.filter(
-      c => (c.state_name || "").toLowerCase() === selectedState.toLowerCase()
-    );
-  }, [clusters, selectedState]);
+    const list = !selectedState
+      ? clusters
+      : clusters.filter(
+          c => (c.state_name || "").toLowerCase() === selectedState.toLowerCase()
+        );
+
+    return list.map((c, index) => {
+      const covObj = mapCoverage.find(
+        mc => mc.cluster_id?.toString() === (c.id || c.cluster_id)?.toString()
+      );
+      const totalKits = covObj?.total_kits ?? 0;
+      const authorizedKits = covObj?.authorized_kits ?? 0;
+      const restrictedKits = covObj?.restricted_kits ?? 0;
+      const coverageStatus = covObj?.coverage_status || "unconfigured";
+
+      return {
+        ...c,
+        cluster_number: index + 1,
+        total_kits: totalKits,
+        authorized_kits: authorizedKits,
+        restricted_kits: restrictedKits,
+        coverage_status: coverageStatus,
+      };
+    });
+  }, [clusters, selectedState, mapCoverage]);
 
   // When selected state changes, auto-select first cluster if current is not in that state
   const handleStateChange = (newStateName) => {
@@ -128,10 +148,15 @@ export default function ResellerProductAuth() {
 
   // Selected cluster object
   const currentClusterObj = useMemo(() => {
-    return clusters.find(
-      c => (c.id || c.cluster_id)?.toString() === selectedCluster?.toString()
+    return (
+      availableClusters.find(
+        c => (c.id || c.cluster_id)?.toString() === selectedCluster?.toString()
+      ) ||
+      clusters.find(
+        c => (c.id || c.cluster_id)?.toString() === selectedCluster?.toString()
+      )
     );
-  }, [clusters, selectedCluster]);
+  }, [availableClusters, clusters, selectedCluster]);
 
   // Cascaded districts for selected cluster
   const availableDistricts = useMemo(() => {
@@ -317,26 +342,28 @@ export default function ResellerProductAuth() {
   const authorizedCount = kits.filter(k => k.is_authorized).length;
   const restrictedCount = kits.filter(k => !k.is_authorized).length;
 
-  // Prepare districts data for IndiaChoroplethMap
+  // Prepare districts data for IndiaChoroplethMap with numbered clusters and kit metrics
   const mapDistrictsData = useMemo(() => {
     const list = [];
-    (mapCoverage || []).forEach(mc => {
-      (mc.district_names || []).forEach(dName => {
+    (availableClusters || []).forEach(ac => {
+      (ac.district_names || []).forEach(dName => {
         list.push({
           district_name: dName,
-          state_name: mc.state_name,
-          cluster_code: mc.cluster_code,
-          cluster_name: mc.cluster_name,
-          cluster_id: mc.cluster_id,
-          coverage_status: mc.coverage_status,
-          total_kits: mc.total_kits,
-          authorized_kits: mc.authorized_kits,
-          status: mc.coverage_status === "full" ? "allotted" : "available"
+          state_name: ac.state_name,
+          cluster_code: ac.cluster_code,
+          cluster_name: ac.cluster_name,
+          cluster_id: ac.id || ac.cluster_id,
+          cluster_number: ac.cluster_number,
+          coverage_status: ac.coverage_status,
+          total_kits: ac.total_kits,
+          authorized_kits: ac.authorized_kits,
+          restricted_kits: ac.restricted_kits,
+          status: ac.coverage_status === "full" ? "allotted" : "available"
         });
       });
     });
     return list;
-  }, [mapCoverage]);
+  }, [availableClusters]);
 
   return (
     <div className="space-y-6">
@@ -572,127 +599,45 @@ export default function ResellerProductAuth() {
       </div>
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* 4. Dual-Pane Content Layout: Left Map + Right Kit Toggles */}
+      {/* 4. Dual-Pane Content Layout: Left Kits Activation (50%) + Right Regional Map (50%) */}
       {/* ───────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* LEFT PANE: Map View & Regional Coverage (5 cols) */}
-        <div className="lg:col-span-5 bg-surface rounded-2xl border border-border shadow-xs overflow-hidden flex flex-col space-y-4 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                <FiMapPin className="text-sm" />
-              </span>
-              <div>
-                <h3 className="text-xs font-bold text-text-primary uppercase tracking-wide">
-                  Regional Cluster Coverage
-                </h3>
-                <span className="text-[11px] text-text-secondary">
-                  Showing {selectedState || "India"} clusters
-                </span>
-              </div>
-            </div>
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-bg border border-border text-text-primary">
-              {availableClusters.length} Clusters
-            </span>
-          </div>
-
-          {/* Map Container */}
-          <div className="h-80 w-full rounded-xl border border-border overflow-hidden bg-bg relative">
-            <IndiaChoroplethMap
-              districtsData={mapDistrictsData}
-              clustersList={availableClusters}
-              selectedState={selectedState}
-              selectedCluster={currentClusterObj?.cluster_name || ""}
-              onDistrictClick={(dist) => {
-                if (dist?.cluster_id) {
-                  setSelectedCluster(dist.cluster_id);
-                }
-              }}
-            />
-          </div>
-
-          {/* Quick Cluster Selector List */}
-          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-text-secondary">
-              Clusters in {selectedState}
-            </div>
-            {availableClusters.map(c => {
-              const isSelected = (c.id || c.cluster_id)?.toString() === selectedCluster?.toString();
-              const covObj = mapCoverage.find(mc => mc.cluster_id?.toString() === (c.id || c.cluster_id)?.toString());
-              const status = covObj?.coverage_status || "unconfigured";
-
-              return (
-                <div
-                  key={c.id || c.cluster_id}
-                  onClick={() => {
-                    setSelectedCluster(c.id || c.cluster_id);
-                    setSelectedDistrict("");
-                  }}
-                  className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between gap-2 ${
-                    isSelected
-                      ? "bg-primary/10 border-primary text-text-primary shadow-xs"
-                      : "bg-bg/60 border-border hover:border-border-hover text-text-secondary hover:text-text-primary"
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-surface border border-border text-text-primary">
-                        {c.cluster_code}
-                      </span>
-                      <span className={`font-semibold truncate ${isSelected ? "text-primary" : "text-text-primary"}`}>
-                        {c.cluster_name}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-text-secondary mt-0.5 truncate">
-                      {c.district_count} Districts: {(c.district_names || []).slice(0, 3).join(", ")}
-                      {(c.district_names || []).length > 3 ? "..." : ""}
-                    </div>
-                  </div>
-
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
-                      status === "full"
-                        ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-                        : status === "partial"
-                        ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
-                        : status === "restricted"
-                        ? "bg-rose-500/10 text-rose-600 border border-rose-500/20"
-                        : "bg-slate-500/10 text-slate-500 border border-slate-500/20"
-                    }`}
-                  >
-                    {status === "full" ? "All Active" : status === "partial" ? "Partial" : status === "restricted" ? "Hidden" : "No Kits"}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* LEFT PANE: Kits Activation & Store Visibility Table (50% screen) */}
+        <div className="space-y-4">
+          {/* Left Pane Header: Cluster Info & Visibility Counters */}
+          <div className="p-4 bg-surface rounded-xl border border-border shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                {currentClusterObj?.cluster_number && (
+                  <span className="text-xs font-mono font-black px-2 py-0.5 rounded bg-primary text-white shadow-xs">
+                    #{currentClusterObj.cluster_number}
                   </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* RIGHT PANE: Kits List with Live Store Toggles (7 cols) */}
-        <div className="lg:col-span-7 space-y-4">
-          {/* Right Pane Header */}
-          <div className="p-4 bg-surface rounded-xl border border-border shadow-xs flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
+                )}
                 <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
                   {currentClusterObj?.cluster_code || "CLUSTER"}
                 </span>
-                <h2 className="text-sm font-bold text-text-primary">
+                <h2 className="text-sm font-bold text-text-primary truncate" title={currentClusterObj?.cluster_name}>
                   {currentClusterObj?.cluster_name || "Select Cluster"}
                 </h2>
               </div>
-              <p className="text-[11px] text-text-secondary mt-0.5">
+              <p className="text-[11px] text-text-secondary mt-1">
                 Toggle kits ON to display in Solar Store for buyers in this cluster, or OFF to hide them.
               </p>
             </div>
 
-            <div className="text-right">
-              <span className="text-xs font-bold text-emerald-600 block">
-                {authorizedCount} Active in Store
-              </span>
-              <span className="text-[10px] text-rose-500">
-                {restrictedCount} Hidden
-              </span>
+            <div className="flex items-center gap-2 sm:text-right shrink-0">
+              <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center">
+                <span className="text-xs font-black text-emerald-600 block leading-tight">
+                  {authorizedCount} Active
+                </span>
+                <span className="text-[10px] text-emerald-700/80">Store Visible</span>
+              </div>
+              <div className="px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-center">
+                <span className="text-xs font-black text-rose-600 block leading-tight">
+                  {restrictedCount} Hidden
+                </span>
+                <span className="text-[10px] text-rose-700/80">Suppressed</span>
+              </div>
             </div>
           </div>
 
@@ -715,17 +660,131 @@ export default function ResellerProductAuth() {
                 <span className="font-semibold text-primary">Solar Shop ➔ Warehouse Kit Activations</span> first.
               </p>
             </div>
-          ) : viewMode === "grid" ? (
+          ) : viewMode === "table" ? (
             /* ───────────────────────────────────────────────────────── */
-            /* GRID VIEW: Kit Cards with Live Toggle Switch */
+            /* TABLE VIEW (DEFAULT COMPACT VIEW) */
             /* ───────────────────────────────────────────────────────── */
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-surface rounded-xl border border-border overflow-hidden shadow-xs">
+              <div className="overflow-x-auto max-h-[620px] overflow-y-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead className="sticky top-0 z-10 bg-bg shadow-xs">
+                    <tr className="border-b border-border text-[11px] uppercase font-bold text-text-secondary tracking-wider">
+                      <th className="py-3 px-3 w-10 text-center">#</th>
+                      <th className="py-3 px-3">Kit Details</th>
+                      <th className="py-3 px-3">Capacity</th>
+                      <th className="py-3 px-3">Fulfilling Hub</th>
+                      <th className="py-3 px-3">Selling Price</th>
+                      <th className="py-3 px-3 text-center">Status</th>
+                      <th className="py-3 px-3 text-right">Visibility</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border text-xs">
+                    {filteredKits.map((kit, idx) => {
+                      const isToggling = actionLoadingId === kit.id;
+                      return (
+                        <tr
+                          key={kit.id}
+                          className={`hover:bg-bg/60 transition-colors ${
+                            kit.is_authorized ? "bg-surface" : "bg-bg/20 opacity-90"
+                          }`}
+                        >
+                          {/* S.No */}
+                          <td className="py-2.5 px-3 text-center font-mono text-[11px] font-semibold text-text-secondary">
+                            {idx + 1}
+                          </td>
+
+                          {/* Kit Details */}
+                          <td className="py-2.5 px-3">
+                            <div className="font-bold text-text-primary text-xs leading-snug truncate max-w-[190px]" title={kit.kit_name}>
+                              {kit.kit_name}
+                            </div>
+                            <div className="text-[10px] font-mono text-text-secondary flex items-center gap-1.5 mt-0.5">
+                              <span>SKU: {kit.kit_code}</span>
+                              <span className="text-[10px] text-text-secondary/60">•</span>
+                              <span className="text-[10px] text-text-secondary">{kit.system_type}</span>
+                            </div>
+                          </td>
+
+                          {/* Capacity Badge */}
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary">
+                              {kit.capacity} kW
+                            </span>
+                          </td>
+
+                          {/* Fulfilling Hub */}
+                          <td className="py-2.5 px-3">
+                            <div
+                              className="flex items-center gap-1.5 text-text-secondary text-[11px] truncate max-w-[130px]"
+                              title={kit.warehouses && kit.warehouses.length > 0 ? kit.warehouses[0].name : "Ahmedabad Central"}
+                            >
+                              <FaWarehouse className="text-[10px] text-primary shrink-0" />
+                              <span className="truncate">
+                                {kit.warehouses && kit.warehouses.length > 0
+                                  ? kit.warehouses[0].name
+                                  : "Ahmedabad Central"}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Selling Price */}
+                          <td className="py-2.5 px-3 whitespace-nowrap font-bold text-text-primary text-xs">
+                            ₹{Number(kit.selling_price || 0).toLocaleString("en-IN")}
+                          </td>
+
+                          {/* Store Status Pill */}
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${
+                                kit.is_authorized
+                                  ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                                  : "bg-rose-500/10 text-rose-600 border border-rose-500/20"
+                              }`}
+                            >
+                              {kit.is_authorized ? (
+                                <>
+                                  <FiCheckCircle className="text-[10px]" />
+                                  <span>Visible</span>
+                                </>
+                              ) : (
+                                <>
+                                  <FiXCircle className="text-[10px]" />
+                                  <span>Hidden</span>
+                                </>
+                              )}
+                            </span>
+                          </td>
+
+                          {/* Action Toggle */}
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-2">
+                              {isToggling && <FiLoader className="animate-spin text-primary text-xs" />}
+                              <ToggleButton
+                                checked={kit.is_authorized}
+                                isChecked={kit.is_authorized}
+                                disabled={isToggling}
+                                onChange={(newVal) => handleToggleKit(kit, newVal)}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* ───────────────────────────────────────────────────────── */
+            /* GRID VIEW (COMPACT CARD VIEW) */
+            /* ───────────────────────────────────────────────────────── */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {filteredKits.map(kit => {
                 const isToggling = actionLoadingId === kit.id;
                 return (
                   <div
                     key={kit.id}
-                    className={`p-4 rounded-xl border transition-all space-y-3.5 bg-surface ${
+                    className={`p-3.5 rounded-xl border transition-all space-y-3 bg-surface ${
                       kit.is_authorized
                         ? "border-emerald-500/40 shadow-xs"
                         : "border-border opacity-85 bg-bg/40"
@@ -777,7 +836,7 @@ export default function ResellerProductAuth() {
                         <span className="text-text-secondary flex items-center gap-1">
                           <FaWarehouse className="text-[10px] text-primary" /> Fulfilling Hub:
                         </span>
-                        <span className="font-semibold text-text-primary truncate max-w-[150px]">
+                        <span className="font-semibold text-text-primary truncate max-w-[130px]">
                           {kit.warehouses && kit.warehouses.length > 0
                             ? kit.warehouses[0].name
                             : "Ahmedabad Central"}
@@ -799,7 +858,7 @@ export default function ResellerProductAuth() {
                           Solar Store Visibility
                         </span>
                         <span className="text-[10px] text-text-secondary">
-                          {kit.is_authorized ? "Buyers can view & order" : "Hidden from search & catalog"}
+                          {kit.is_authorized ? "Buyers can view & order" : "Hidden from search"}
                         </span>
                       </div>
 
@@ -817,73 +876,140 @@ export default function ResellerProductAuth() {
                 );
               })}
             </div>
-          ) : (
-            /* ───────────────────────────────────────────────────────── */
-            /* TABLE VIEW */
-            /* ───────────────────────────────────────────────────────── */
-            <div className="bg-surface rounded-xl border border-border overflow-hidden shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-bg border-b border-border text-xs uppercase font-semibold text-text-secondary">
-                      <th className="p-3.5">Kit Name & SKU</th>
-                      <th className="p-3.5">Capacity</th>
-                      <th className="p-3.5">Fulfilling Warehouse</th>
-                      <th className="p-3.5">Selling Price</th>
-                      <th className="p-3.5">Store Status</th>
-                      <th className="p-3.5 text-right">Visibility Toggle</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border text-xs">
-                    {filteredKits.map(kit => {
-                      const isToggling = actionLoadingId === kit.id;
-                      return (
-                        <tr key={kit.id} className="hover:bg-bg/40 transition-colors">
-                          <td className="p-3.5">
-                            <div className="font-bold text-text-primary">{kit.kit_name}</div>
-                            <div className="text-[10px] font-mono text-text-secondary">{kit.kit_code}</div>
-                          </td>
-                          <td className="p-3.5">
-                            <span className="font-mono font-bold px-1.5 py-0.5 rounded bg-bg border border-border text-text-primary">
-                              {kit.capacity} kW
-                            </span>
-                          </td>
-                          <td className="p-3.5 text-text-secondary">
-                            {kit.warehouses && kit.warehouses.length > 0 ? kit.warehouses[0].name : "Mapped Hub"}
-                          </td>
-                          <td className="p-3.5 font-bold text-text-primary">
-                            ₹{Number(kit.selling_price || 0).toLocaleString("en-IN")}
-                          </td>
-                          <td className="p-3.5">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${
-                                kit.is_authorized
-                                  ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-                                  : "bg-rose-500/10 text-rose-600 border border-rose-500/20"
-                              }`}
-                            >
-                              {kit.is_authorized ? "Active in Store" : "Hidden"}
-                            </span>
-                          </td>
-                          <td className="p-3.5 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {isToggling && <FiLoader className="animate-spin text-primary text-xs" />}
-                              <ToggleButton
-                                checked={kit.is_authorized}
-                                isChecked={kit.is_authorized}
-                                disabled={isToggling}
-                                onChange={(newVal) => handleToggleKit(kit, newVal)}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          )}
+        </div>
+
+        {/* RIGHT PANE: Map View & Regional Coverage (50% screen width) */}
+        <div className="bg-surface rounded-2xl border border-border shadow-xs overflow-hidden flex flex-col space-y-4 p-4 lg:sticky lg:top-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                <FiMapPin className="text-sm" />
+              </span>
+              <div>
+                <h3 className="text-xs font-bold text-text-primary uppercase tracking-wide">
+                  Regional Cluster Coverage
+                </h3>
+                <span className="text-[11px] text-text-secondary">
+                  Showing {selectedState || "India"} clusters with active kit counters
+                </span>
               </div>
             </div>
-          )}
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-bg border border-border text-text-primary">
+              {availableClusters.length} Clusters
+            </span>
+          </div>
+
+          {/* Map Container */}
+          <div className="h-96 w-full rounded-xl border border-border overflow-hidden bg-bg relative">
+            <IndiaChoroplethMap
+              districtsData={mapDistrictsData}
+              clustersList={availableClusters}
+              selectedState={selectedState}
+              selectedCluster={currentClusterObj?.cluster_name || ""}
+              showClusterNumbering={true}
+              showKitCounts={true}
+              onDistrictClick={(distOrId, matchObj) => {
+                const targetId = matchObj?.cluster_id || distOrId?.cluster_id || distOrId;
+                if (targetId) {
+                  setSelectedCluster(targetId);
+                  setSelectedDistrict("");
+                }
+              }}
+            />
+          </div>
+
+          {/* Quick Cluster Selector List with Numbering and Active Kit Counters */}
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-text-secondary pb-1 border-b border-border/50">
+              <span>Clusters in {selectedState || "Selected State"}</span>
+              <span>Active Kits / Total</span>
+            </div>
+            {availableClusters.map(c => {
+              const isSelected = (c.id || c.cluster_id)?.toString() === selectedCluster?.toString();
+              const covObj = mapCoverage.find(mc => mc.cluster_id?.toString() === (c.id || c.cluster_id)?.toString());
+              const status = covObj?.coverage_status || c.coverage_status || "unconfigured";
+              const totalKits = c.total_kits ?? covObj?.total_kits ?? 0;
+              const authKits = c.authorized_kits ?? covObj?.authorized_kits ?? 0;
+
+              return (
+                <div
+                  key={c.id || c.cluster_id}
+                  onClick={() => {
+                    setSelectedCluster(c.id || c.cluster_id);
+                    setSelectedDistrict("");
+                  }}
+                  className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between gap-3 ${
+                    isSelected
+                      ? "bg-primary/10 border-primary text-text-primary shadow-xs ring-1 ring-primary/30"
+                      : "bg-bg/60 border-border hover:border-border-hover text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {/* Number Badge */}
+                    <span
+                      className={`w-5 h-5 rounded-md font-mono text-[10px] font-black flex items-center justify-center shrink-0 border ${
+                        isSelected
+                          ? "bg-primary text-white border-primary"
+                          : "bg-surface text-text-primary border-border"
+                      }`}
+                    >
+                      {c.cluster_number}
+                    </span>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded bg-surface border border-border text-text-primary">
+                          {c.cluster_code}
+                        </span>
+                        <span className={`font-semibold truncate ${isSelected ? "text-primary" : "text-text-primary"}`}>
+                          {c.cluster_name}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                        {c.district_count} Districts: {(c.district_names || []).slice(0, 3).join(", ")}
+                        {(c.district_names || []).length > 3 ? "..." : ""}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Active Kits Badge */}
+                  <div className="shrink-0 text-right">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap inline-flex items-center gap-1 ${
+                        status === "full"
+                          ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                          : status === "partial"
+                          ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                          : status === "restricted"
+                          ? "bg-rose-500/10 text-rose-600 border border-rose-500/20"
+                          : "bg-slate-500/10 text-slate-500 border border-slate-500/20"
+                      }`}
+                    >
+                      {totalKits > 0 ? (
+                        <>
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              status === "full"
+                                ? "bg-emerald-500"
+                                : status === "partial"
+                                ? "bg-amber-500"
+                                : "bg-rose-500"
+                            }`}
+                          />
+                          <span>
+                            {authKits}/{totalKits} Active
+                          </span>
+                        </>
+                      ) : (
+                        "0 Kits"
+                      )}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

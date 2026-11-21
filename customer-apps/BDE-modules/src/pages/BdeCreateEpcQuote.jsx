@@ -28,6 +28,7 @@ import {
   Phone,
   Mail,
   ChevronLeft,
+  ChevronRight,
   X,
 } from 'lucide-react';
 import api from '../services/api';

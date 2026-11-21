@@ -857,6 +857,7 @@ export default function CheckOut() {
         gstRate: Number(item.gstRate ?? item.gst_rate ?? item.pricing?.gstRate ?? item.pricing?.gst_rate ?? checkoutSettings.gst_rate ?? 12),
         districtId: item.districtId,
         is_trial_kit: Boolean(item.is_trial_kit),
+        future_intent: item.future_intent || null,
         delivery_cost: Number(item.delivery_cost || 0),
         delivery_pincode: item.delivery_pincode || null,
         warehouse_name: item.warehouse_name || null,

@@ -116,38 +116,38 @@ const menus = [
     { name: "Operations Dashboard", icon: <MdEngineering />, path: "/admin-panel/operations-dashboard", unique_id: "00000000" },
     { name: "Store Dashboard", icon: <FaStore />, path: "/admin-panel/store-dashboard", unique_id: "00000000" },
     { name: "EPC Analytics", icon: <FaChartLine />, path: "/admin-panel/epc-analytics", unique_id: "00000000" },
-    {
-      name: "Trial Kit Management",
-      icon: <FaBoxes />,
-      path: "/admin-panel/trial-kits",
-      unique_id: "00000000",
-      subMenu: [
-        {
-          name: "Trial Kit Inventory",
-          icon: <FaWarehouse />,
-          path: "/admin-panel/trial-kits/inventory",
-          unique_id: "00000000",
-        },
-        {
-          name: "Procurement Approvals",
-          icon: <FaCreditCard />,
-          path: "/admin-panel/trial-kits/procurement",
-          unique_id: "00000000",
-        },
-        {
-          name: "Trial Orders & Tracking",
-          icon: <FaTruck />,
-          path: "/admin-panel/trial-kits/orders",
-          unique_id: "00000000",
-        },
-        {
-          name: "Conversion Analytics (BI)",
-          icon: <FaChartLine />,
-          path: "/admin-panel/trial-kits/analytics",
-          unique_id: "00000000",
-        },
-      ],
-    },
+    // {
+    //   name: "Trial Kit Management",
+    //   icon: <FaBoxes />,
+    //   path: "/admin-panel/trial-kits",
+    //   unique_id: "00000000",
+    //   subMenu: [
+    //     {
+    //       name: "Trial Kit Inventory",
+    //       icon: <FaWarehouse />,
+    //       path: "/admin-panel/trial-kits/inventory",
+    //       unique_id: "00000000",
+    //     },
+    //     {
+    //       name: "Procurement Approvals",
+    //       icon: <FaCreditCard />,
+    //       path: "/admin-panel/trial-kits/procurement",
+    //       unique_id: "00000000",
+    //     },
+    //     {
+    //       name: "Trial Orders & Tracking",
+    //       icon: <FaTruck />,
+    //       path: "/admin-panel/trial-kits/orders",
+    //       unique_id: "00000000",
+    //     },
+    //     {
+    //       name: "Conversion Analytics (BI)",
+    //       icon: <FaChartLine />,
+    //       path: "/admin-panel/trial-kits/analytics",
+    //       unique_id: "00000000",
+    //     },
+    //   ],
+    // },
   ],
   [
     {

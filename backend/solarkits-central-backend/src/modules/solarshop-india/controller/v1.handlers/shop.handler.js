@@ -762,13 +762,13 @@ const get_combo_kits_by_district = async (req, res) => {
       console.warn('[get_combo_kits_by_district] Error loading TrialKitInventory:', invErr.message);
     }
 
-    // ── Count prior trial kit orders for current buyer & GSTIN to enforce purchase limits ──
+    // ── Count prior trial kit orders for current buyer & GSTIN to enforce purchase limits (1 Trial Kit per product per GST) ──
     const trialCountByKitId = {};
     try {
       let buyerId = req.user?.account_id || req.user?.id || req.user?._id;
       if (!buyerId) {
         const authHeader = req.headers.authorization;
-        const cookieToken = req.cookies?.access_token;
+        const cookieToken = req.cookies?.token || req.cookies?.access_token;
         const token = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.split(' ')[1] : cookieToken;
         if (token) {
           const jwt = require('jsonwebtoken');
@@ -782,45 +782,73 @@ const get_combo_kits_by_district = async (req, res) => {
         const buyerObjId = new mongoose.Types.ObjectId(buyerId);
 
         // Find EPC account to get GSTIN
-        const epcDoc = await EpcAccount.findById(buyerObjId).select('gstin registered_whatsapp').lean();
-        const buyerGstin = (epcDoc?.gstin || '').trim().toUpperCase();
+        const epcDoc = await EpcAccount.findById(buyerObjId).select('gstin company_id registered_whatsapp').lean();
+        let buyerGstin = (epcDoc?.gstin || '').trim().toUpperCase();
 
-        const orderOrQueries = [{ epc_id: buyerObjId }];
-        if (buyerGstin) {
-          orderOrQueries.push({ 'delivery_address.gst_number': buyerGstin });
-          orderOrQueries.push({ 'billing_address.gst_number': buyerGstin });
+        // If gstin not set on account, fallback to company GST
+        if (!buyerGstin && epcDoc?.company_id) {
+          try {
+            const rawDb = mongoose.connection.db;
+            if (rawDb) {
+              const companyGst = await rawDb.collection('epc_company_gst').findOne({
+                company_id: epcDoc.company_id,
+                deleted_at: null
+              });
+              if (companyGst?.gst_number) {
+                buyerGstin = companyGst.gst_number.trim().toUpperCase();
+              }
+            }
+          } catch (cgErr) {
+            console.warn('[get_combo_kits_by_district] Error loading company GST:', cgErr.message);
+          }
         }
 
-        // 1. Query EpcOrder collection
+        // Collect all EPC account IDs associated with this GST number
+        let allEpcIds = [buyerObjId];
+        if (buyerGstin) {
+          const siblingEpcs = await EpcAccount.find({
+            gstin: { $regex: new RegExp(`^${buyerGstin}$`, 'i') },
+            deleted_at: null
+          }).select('_id').lean();
+          siblingEpcs.forEach(s => {
+            if (!allEpcIds.some(id => id.toString() === s._id.toString())) {
+              allEpcIds.push(s._id);
+            }
+          });
+        }
+
+        // 1. Query EpcOrder collection for trial orders placed by this GST or account
         const buyerTrialOrders = await EpcOrder.find({
-          $or: orderOrQueries,
+          epc_id: { $in: allEpcIds },
           order_status: { $nin: ['cancelled'] },
           payment_status: { $nin: ['rejected'] },
-          $and: [
-            {
-              $or: [
-                { is_trial_order: true },
-                { 'items.is_trial_kit': true },
-                { 'items.item_name': { $regex: /trial/i } }
-              ]
-            }
+          $or: [
+            { is_trial_order: true },
+            { 'items.is_trial_kit': true },
+            { 'items.item_name': { $regex: /trial/i } }
           ]
         }, { 'items.kit_id': 1, 'items.item_name': 1, 'items.is_trial_kit': 1 }).lean();
 
         (buyerTrialOrders || []).forEach(o => {
           (o.items || []).forEach(it => {
             const isTrial = Boolean(it.is_trial_kit || (it.item_name && /trial/i.test(it.item_name)));
-            if (isTrial && it.kit_id) {
-              const kId = it.kit_id.toString();
-              trialCountByKitId[kId] = (trialCountByKitId[kId] || 0) + 1;
+            if (isTrial) {
+              if (it.kit_id) {
+                const kId = it.kit_id.toString();
+                trialCountByKitId[kId] = (trialCountByKitId[kId] || 0) + 1;
+              }
+              if (it.item_name) {
+                const cleanName = it.item_name.replace(/\s*\(trial.*?\)/i, '').trim().toLowerCase();
+                trialCountByKitId[cleanName] = (trialCountByKitId[cleanName] || 0) + 1;
+              }
             }
           });
         });
 
         // 2. Query TrialKitOrder collection
-        const tkOrQueries = [{ epc_id: buyerObjId }];
+        const tkOrQueries = [{ epc_id: { $in: allEpcIds } }];
         if (buyerGstin) {
-          tkOrQueries.push({ gst_number: buyerGstin });
+          tkOrQueries.push({ gst_number: { $regex: new RegExp(`^${buyerGstin}$`, 'i') } });
         }
         const directTrialOrders = await TrialKitOrder.find({
           $or: tkOrQueries,
@@ -831,6 +859,10 @@ const get_combo_kits_by_district = async (req, res) => {
           if (o.combo_kit_id) {
             const kId = o.combo_kit_id.toString();
             trialCountByKitId[kId] = (trialCountByKitId[kId] || 0) + 1;
+          }
+          if (o.kit_type) {
+            const cleanName = o.kit_type.replace(/\s*\(trial.*?\)/i, '').trim().toLowerCase();
+            trialCountByKitId[cleanName] = (trialCountByKitId[cleanName] || 0) + 1;
           }
         });
       }
@@ -1963,16 +1995,28 @@ const get_combo_kits_by_district = async (req, res) => {
         trialKitQuantity: kit.trial_kit_quantity !== undefined && kit.trial_kit_quantity !== null ? Math.max(1, Number(kit.trial_kit_quantity)) : 1,
         trial_kit_max_orders_per_buyer: kit.trial_kit_max_orders_per_buyer !== undefined ? Number(kit.trial_kit_max_orders_per_buyer) : 1,
         trialKitMaxOrdersPerBuyer: kit.trial_kit_max_orders_per_buyer !== undefined ? Number(kit.trial_kit_max_orders_per_buyer) : 1,
-        trial_kit_purchased_count: trialCountByKitId[kit._id.toString()] || (kit.name ? (trialCountByKitId[kit.name] || 0) : 0),
-        trialKitPurchasedCount: trialCountByKitId[kit._id.toString()] || (kit.name ? (trialCountByKitId[kit.name] || 0) : 0),
+        trial_kit_purchased_count: (() => {
+          const byId = trialCountByKitId[kit._id.toString()] || 0;
+          const byName = kit.name ? (trialCountByKitId[kit.name.trim().toLowerCase()] || trialCountByKitId[kit.name] || 0) : 0;
+          return Math.max(byId, byName);
+        })(),
+        trialKitPurchasedCount: (() => {
+          const byId = trialCountByKitId[kit._id.toString()] || 0;
+          const byName = kit.name ? (trialCountByKitId[kit.name.trim().toLowerCase()] || trialCountByKitId[kit.name] || 0) : 0;
+          return Math.max(byId, byName);
+        })(),
         trial_kit_limit_reached: (() => {
           const limit = kit.trial_kit_max_orders_per_buyer !== undefined ? Number(kit.trial_kit_max_orders_per_buyer) : 1;
-          const purchased = trialCountByKitId[kit._id.toString()] || (kit.name ? (trialCountByKitId[kit.name] || 0) : 0);
+          const byId = trialCountByKitId[kit._id.toString()] || 0;
+          const byName = kit.name ? (trialCountByKitId[kit.name.trim().toLowerCase()] || trialCountByKitId[kit.name] || 0) : 0;
+          const purchased = Math.max(byId, byName);
           return Boolean(limit > 0 && purchased >= limit);
         })(),
         trialKitLimitReached: (() => {
           const limit = kit.trial_kit_max_orders_per_buyer !== undefined ? Number(kit.trial_kit_max_orders_per_buyer) : 1;
-          const purchased = trialCountByKitId[kit._id.toString()] || (kit.name ? (trialCountByKitId[kit.name] || 0) : 0);
+          const byId = trialCountByKitId[kit._id.toString()] || 0;
+          const byName = kit.name ? (trialCountByKitId[kit.name.trim().toLowerCase()] || trialCountByKitId[kit.name] || 0) : 0;
+          const purchased = Math.max(byId, byName);
           return Boolean(limit > 0 && purchased >= limit);
         })(),
         trial_kit_available_stock: (() => {

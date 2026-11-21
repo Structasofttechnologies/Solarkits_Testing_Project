@@ -26,7 +26,18 @@ exports.get_availability = async (req, res) => {
       return res.status(404).json({ success: false, message: 'EPC account not found.' });
     }
 
-    const gstin = (epc.gstin || epc.registered_whatsapp || '').trim().toUpperCase();
+    let gstin = (epc.gstin || epc.registered_whatsapp || '').trim().toUpperCase();
+    if (!gstin && epc.company_id) {
+      try {
+        const rawDb = mongoose.connection.db;
+        if (rawDb) {
+          const cGst = await rawDb.collection('epc_company_gst').findOne({ company_id: epc.company_id, deleted_at: null });
+          if (cGst?.gst_number) gstin = cGst.gst_number.trim().toUpperCase();
+        }
+      } catch (e) {
+        console.warn('Error resolving company GST in get_availability:', e.message);
+      }
+    }
 
     // Query active configured combo kits
     const configuredKits = await ComboKit.find({ deleted_at: null, is_custom: false })
@@ -38,21 +49,20 @@ exports.get_availability = async (req, res) => {
       .sort({ capacity: 1, name: 1 })
       .lean();
 
-    // Query all orders matching this GSTIN across all accounts
+    // Query all orders matching this GSTIN or EPC Account across all accounts
     let orderedKitIds = [];
     let orderedKitTypes = [];
+    const queryConds = [{ epc_id: epc._id }];
     if (gstin) {
-      const activeOrders = await TrialKitOrder.find({
-        gst_number: gstin,
-        $or: [
-          { order_status: { $in: ['confirmed', 'dispatched', 'delivered'] } },
-          { order_status: 'cancelled', 'cancellation.restriction_released': { $ne: true } }
-        ]
-      }).select('combo_kit_id kit_type order_status order_number').lean();
-
-      orderedKitIds = activeOrders.map(o => o.combo_kit_id?.toString()).filter(Boolean);
-      orderedKitTypes = activeOrders.map(o => o.kit_type);
+      queryConds.push({ gst_number: { $regex: new RegExp(`^${gstin}$`, 'i') } });
     }
+    const activeOrders = await TrialKitOrder.find({
+      $or: queryConds,
+      order_status: { $nin: ['cancelled'] }
+    }).select('combo_kit_id kit_type order_status order_number').lean();
+
+    orderedKitIds = activeOrders.map(o => o.combo_kit_id?.toString()).filter(Boolean);
+    orderedKitTypes = activeOrders.map(o => (o.kit_type || '').replace(/\s*\(trial.*?\)/i, '').trim().toLowerCase());
 
     // Get aggregated stock across warehouses for each combo kit / kit type
     const allInventories = await TrialKitInventory.find({ status: 'active' }).lean();
@@ -60,7 +70,10 @@ exports.get_availability = async (req, res) => {
     // Evaluate availability and restriction status for each configured combo kit
     const kits = configuredKits.map(kit => {
       const kitIdStr = kit._id.toString();
-      const isAlreadyOrdered = orderedKitIds.includes(kitIdStr) || orderedKitTypes.includes(kit.name);
+      const isAlreadyOrdered =
+        orderedKitIds.includes(kitIdStr) ||
+        orderedKitTypes.includes((kit.name || '').trim().toLowerCase()) ||
+        orderedKitTypes.includes(kit.name);
 
       // Extract brands
       const brandSet = new Set();
@@ -282,6 +295,35 @@ exports.place_order = async (req, res) => {
       gst_number: gstin
     };
 
+    const assignedBdeId = epc.assigned_bde_id || epc.onboarded_by_bde_id || null;
+    let assignedBdeName = epc.assigned_bde_name || '';
+    if (assignedBdeId && !assignedBdeName) {
+      try {
+        const BDEProfile = require('../../../admin-panel/models/india_solarshop_db/bde_profiles.schema');
+        const bdeDoc = await BDEProfile.findById(assignedBdeId).lean();
+        if (bdeDoc) assignedBdeName = bdeDoc.full_name || bdeDoc.name || '';
+      } catch (e) {
+        // Continue with empty name if lookup fails
+      }
+    }
+
+    const rawIntent = req.body.future_intent || null;
+    let futureIntentDoc = null;
+    if (rawIntent) {
+      const lQty = Number(rawIntent.loose_quantity || 0);
+      const pQty = Number(rawIntent.po_quantity || 0);
+      const expQty = Number(rawIntent.expected_quantity || (lQty + pQty) || 0);
+      futureIntentDoc = {
+        future_purchase_mode: rawIntent.future_purchase_mode || (pQty > 0 && lQty > 0 ? 'both' : (pQty > 0 ? 'bulk_po' : 'loose')),
+        expected_quantity: expQty,
+        loose_quantity: lQty,
+        po_quantity: pQty,
+        estimated_timeline: rawIntent.estimated_timeline || '',
+        remarks: rawIntent.remarks || '',
+        submitted_at: new Date()
+      };
+    }
+
     const newOrder = new TrialKitOrder({
       order_number: orderNumber,
       epc_id: epc._id,
@@ -292,10 +334,11 @@ exports.place_order = async (req, res) => {
       kit_type: resolvedKitType,
       warehouse_id: targetInventory.warehouse_id,
       warehouse_name: targetInventory.warehouse_name,
-      bde_id: epc.assigned_bde_id || null,
-      bde_name: epc.assigned_bde_name || '',
+      bde_id: assignedBdeId,
+      bde_name: assignedBdeName,
       order_status: 'confirmed',
       shipping_address: finalAddress,
+      future_intent: futureIntentDoc,
       funnel: {
         current_stage: 'trial_kit_delivered',
         stage_history: [{

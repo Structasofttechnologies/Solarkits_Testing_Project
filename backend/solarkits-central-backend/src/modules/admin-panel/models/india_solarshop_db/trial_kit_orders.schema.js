@@ -64,6 +64,14 @@ const schema = new mongoose.Schema({
     type: String, 
     default: '' 
   },
+  is_bde_assigned: {
+    type: Boolean,
+    default: false
+  },
+  bde_assigned_at: {
+    type: Date,
+    default: null
+  },
   order_status: { 
     type: String, 
     enum: ['confirmed', 'ready_for_warehouse', 'sent_to_warehouse', 'out_for_delivery', 'dispatched', 'delivered', 'cancelled'], 
@@ -165,6 +173,21 @@ const schema = new mongoose.Schema({
     admin_approved_at: { type: Date, default: null },
     stock_reversed: { type: Boolean, default: false },
     restriction_released: { type: Boolean, default: false }
+  },
+
+  // ── Pre-Order Future Purchase Intent (Submitted by EPC during Trial Kit Checkout) ──
+  future_intent: {
+    future_purchase_mode: { 
+      type: String, 
+      enum: ['loose', 'bulk_po', 'both'], 
+      default: 'loose' 
+    },
+    expected_quantity: { type: Number, default: 0 },
+    loose_quantity: { type: Number, default: 0 },
+    po_quantity: { type: Number, default: 0 },
+    estimated_timeline: { type: String, default: '' },
+    remarks: { type: String, default: '' },
+    submitted_at: { type: Date, default: null }
   },
 
   // ── Feedback Fields (Section 5) ────────────────────────────────────────────
