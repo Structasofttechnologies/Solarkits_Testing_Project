@@ -292,35 +292,42 @@ exports.get_eligible_epcs = async (req, res) => {
     let epcIds = [];
 
     if (actor.role === 'reseller') {
+      const resellerObjId = mongoose.Types.ObjectId.isValid(actor.id)
+        ? new mongoose.Types.ObjectId(actor.id)
+        : null;
+
+      const relMatches = [{ reseller_id: actor.id }];
+      if (resellerObjId) relMatches.push({ reseller_id: resellerObjId });
+
       const relationships = await EpcResellerRelationship.find({
-        reseller_id: actor.id,
+        $or: relMatches,
         status: 'active',
       }).select('epc_id').lean();
-      epcIds = relationships.map(r => r.epc_id);
+      epcIds = relationships.map(r => r.epc_id).filter(Boolean);
 
       // Also include EPCs where primary_reseller_id or onboarded_by_reseller_id = this franchisee
+      const directMatches = [
+        { primary_reseller_id: actor.id },
+        { onboarded_by_reseller_id: actor.id },
+      ];
+      if (resellerObjId) {
+        directMatches.push(
+          { primary_reseller_id: resellerObjId },
+          { onboarded_by_reseller_id: resellerObjId }
+        );
+      }
+
       const direct = await EpcAccount.find({
-        $or: [
-          { primary_reseller_id: actor.id },
-          { onboarded_by_reseller_id: actor.id },
-        ],
+        $or: directMatches,
         deleted_at: null,
-        status: 'approved',
+        status: { $in: ['approved', 'active', 'pending'] },
       }).select('_id').lean();
       direct.forEach(d => {
         if (!epcIds.some(e => e.toString() === d._id.toString())) {
           epcIds.push(d._id);
         }
       });
-
-      // Fallback: If no direct EPCs found, allow approved EPCs for testing/demo
-      if (epcIds.length === 0) {
-        const anyEpcs = await EpcAccount.find({
-          deleted_at: null,
-          status: 'approved',
-        }).select('_id').limit(50).lean();
-        epcIds = anyEpcs.map(e => e._id);
-      }
+      // Strictly only EPCs onboarded by / assigned to this franchise (NO test/demo fallback)
     } else if (actor.role === 'bde') {
       const bdeObjId = mongoose.Types.ObjectId.isValid(actor.id)
         ? new mongoose.Types.ObjectId(actor.id)
@@ -649,6 +656,7 @@ exports.get_eligible_kits = async (req, res) => {
     const resellerId = actor.role === 'reseller' ? actor.id : (req.query.franchisee_id || null);
 
     let allowedKitIds = null; // null indicates unrestricted
+    let planQuotePermissions = null;
 
     if (resellerId && mongoose.Types.ObjectId.isValid(resellerId)) {
       // 1. Fetch active subscription & plan for this franchisee
@@ -659,6 +667,7 @@ exports.get_eligible_kits = async (req, res) => {
 
       const activePlan = activeSub?.plan_id;
       if (activePlan) {
+        planQuotePermissions = activePlan.quote_permissions || ['po_quote', 'loose_quote'];
         const poSettingsList = await FranchiseePlanPoSetting.find({
           plan_id: activePlan._id,
           is_active: true,
@@ -879,7 +888,11 @@ exports.get_eligible_kits = async (req, res) => {
         bos_kits: k.bos_kits || [],
         loose_order_quantities: Array.isArray(k.loose_order_quantities) && k.loose_order_quantities.length > 0
           ? k.loose_order_quantities.map(Number).filter(n => !isNaN(n) && n > 0).sort((a, b) => a - b)
-          : [5, 10, 25, 50],
+          : (Number(k.capacity || 0) <= 1 ? [45, 75, 105] : [25, 50, 100]),
+        order_quantities: Array.isArray(k.order_quantities) && k.order_quantities.length > 0
+          ? k.order_quantities.map(Number).filter(n => !isNaN(n) && n > 0).sort((a, b) => a - b)
+          : (Number(k.capacity || 0) <= 1 ? [200, 500] : [200, 500]),
+        warranty_years: k.warranty_years || k.warrantyYears || 12,
         allow_trial_kit: Boolean(k.allow_trial_kit),
         trial_kit_quantity: k.trial_kit_quantity !== undefined && k.trial_kit_quantity !== null ? Math.max(1, Number(k.trial_kit_quantity)) : 10,
         trial_kit_max_orders_per_buyer: Number(k.trial_kit_max_orders_per_buyer || 1),
@@ -953,7 +966,12 @@ exports.get_eligible_kits = async (req, res) => {
       normalizedKits = normalizedKits.filter(k => k.allow_trial_kit);
     }
 
-    return res.json({ status: 'success', data: normalizedKits, kits: normalizedKits });
+    return res.json({
+      status: 'success',
+      data: normalizedKits,
+      kits: normalizedKits,
+      quote_permissions: planQuotePermissions,
+    });
   } catch (err) {
     console.error('[get_eligible_kits]', err.message);
     return res.status(500).json({ status: 'error', message: 'Failed to fetch eligible kits' });
@@ -1186,8 +1204,8 @@ exports.validate_eligibility = async (req, res) => {
     const errors = [];
 
     // Check EPC
-    const epc = await EpcAccount.findOne({ _id: epc_id, deleted_at: null, status: 'approved' }).lean();
-    if (!epc) errors.push('EPC account not found or not approved');
+    const epc = await EpcAccount.findOne({ _id: epc_id, deleted_at: null, status: { $in: ['approved', 'active', 'pending'] } }).lean();
+    if (!epc) errors.push('EPC account not found');
 
     // Check kit
     const kit = await WarehouseComboKit.findOne({ _id: combo_kit_id, is_active: true, deleted_at: null }).lean();
@@ -1243,8 +1261,8 @@ exports.create_draft = async (req, res) => {
     }
 
     // Get EPC snapshot with fully resolved location
-    const epc = await EpcAccount.findOne({ _id: body.epc_id, deleted_at: null, status: 'approved' }).lean();
-    if (!epc) return res.status(404).json({ status: 'error', message: 'EPC not found or not approved' });
+    const epc = await EpcAccount.findOne({ _id: body.epc_id, deleted_at: null, status: { $in: ['approved', 'active', 'pending'] } }).lean();
+    if (!epc) return res.status(404).json({ status: 'error', message: 'EPC not found' });
 
     const epcLoc = await _resolveEpcLocation(epc);
 
@@ -1289,10 +1307,35 @@ exports.create_draft = async (req, res) => {
     if (actor.role === 'bde' && !franchisee_id) quote_source = 'bde_direct';
     if (actor.role === 'bde' && franchisee_id) quote_source = 'bde_for_franchisee';
 
-    const is_trial_kit = body.is_trial_kit === true || body.is_trial_kit === 'true' || body.quote_type === 'trial_kit';
+    const rawQuoteMode = body.quote_mode;
+    const is_trial_kit = body.is_trial_kit === true || body.is_trial_kit === 'true' || body.quote_type === 'trial_kit' || rawQuoteMode === 'trial_quote';
     const quote_type = is_trial_kit ? 'trial_kit' : 'standard';
     let trial_kit_quantity = null;
     let finalQuantity = Math.max(1, parseInt(body.quantity, 10) || 1);
+
+    const quote_mode = rawQuoteMode || (is_trial_kit ? 'trial_quote' : (finalQuantity >= 200 ? 'po_quote' : 'loose_quote'));
+
+    // Validate franchisee plan quote permissions
+    if (franchisee_id) {
+      try {
+        const activeSub = await ResellerPlanSubscription.findOne({
+          reseller_id: franchisee_id,
+        }).populate('plan_id').sort({ created_at: -1 }).lean();
+
+        const planQuotePerms = activeSub?.plan_id?.quote_permissions;
+        if (Array.isArray(planQuotePerms) && planQuotePerms.length > 0) {
+          if (!planQuotePerms.includes(quote_mode)) {
+            const modeLabelMap = { po_quote: 'PO Quotes', loose_quote: 'Loose Quotes', trial_quote: 'Trial Order Quotes' };
+            return res.status(400).json({
+              status: 'error',
+              message: `Your franchise plan (${activeSub?.plan_id?.name || 'Current Plan'}) is only authorized for: ${planQuotePerms.map(p => modeLabelMap[p] || p).join(', ')}. Creating ${modeLabelMap[quote_mode] || quote_mode} is not permitted.`,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[create_draft] Franchisee plan quote_permissions check skipped:', err.message);
+      }
+    }
 
     let industry_type_id = body.industry_type_id || null;
     let industry_type_snapshot = body.industry_type_snapshot || null;
@@ -1390,6 +1433,7 @@ exports.create_draft = async (req, res) => {
       status: 'draft',
       ...initialPrices,
       quote_source,
+      quote_mode,
       is_trial_kit: Boolean(is_trial_kit),
       quote_type,
       trial_kit_quantity,
@@ -1724,7 +1768,12 @@ async function _getBdeFranchisees(bde_id) {
 exports.get_dashboard = async (req, res) => {
   try {
     const actor = _actorFromReq(req);
+    const { is_trial_kit } = req.query;
     const filter = { deleted_at: null };
+
+    if (is_trial_kit !== undefined) {
+      filter.is_trial_kit = is_trial_kit === 'true' || is_trial_kit === true;
+    }
 
     if (actor.role === 'reseller') {
       filter.franchisee_id = new mongoose.Types.ObjectId(actor.id);
@@ -1756,6 +1805,7 @@ exports.get_dashboard = async (req, res) => {
           }),
       status: { $in: ['scheduled', 'rescheduled', 'pending'] },
       deleted_at: null,
+      ...(is_trial_kit !== undefined ? { is_trial_kit: is_trial_kit === 'true' || is_trial_kit === true } : {}),
     };
 
     const [
@@ -2706,6 +2756,7 @@ exports.create_followup = async (req, res) => {
     const followup = new EpcQuoteFollowup({
       quote_id: quote._id,
       quote_number: quote.quote_number,
+      is_trial_kit: Boolean(quote.is_trial_kit),
       epc_id: quote.epc_id,
       epc_name: quote.epc_snapshot?.company_name,
       franchisee_id: quote.franchisee_id,
@@ -2769,11 +2820,15 @@ exports.list_quote_followups = async (req, res) => {
 exports.list_all_followups = async (req, res) => {
   try {
     const actor = _actorFromReq(req);
-    const { date_filter, status, page = 1, limit = 30 } = req.query;
+    const { date_filter, status, page = 1, limit = 30, is_trial_kit } = req.query;
 
     const filter = { deleted_at: null };
     if (actor.role === 'reseller') filter.franchisee_id = actor.id;
     else if (actor.role === 'bde') filter.bde_id = actor.id;
+
+    if (is_trial_kit !== undefined) {
+      filter.is_trial_kit = is_trial_kit === 'true' || is_trial_kit === true;
+    }
 
     const dateRange = _followUpDateRange(date_filter);
     if (dateRange) filter.next_follow_up_date = dateRange;
@@ -2927,7 +2982,7 @@ exports.convert_to_order = async (req, res) => {
     }
 
     // Check EPC still active
-    const epc = await EpcAccount.findOne({ _id: quote.epc_id, deleted_at: null, status: 'approved' }).lean();
+    const epc = await EpcAccount.findOne({ _id: quote.epc_id, deleted_at: null, status: { $in: ['approved', 'active'] } }).lean();
     if (!epc) return res.status(400).json({ status: 'error', message: 'EPC account is no longer active' });
 
     // Check kit still active

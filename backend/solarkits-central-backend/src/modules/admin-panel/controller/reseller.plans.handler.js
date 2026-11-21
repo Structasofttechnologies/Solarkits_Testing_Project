@@ -42,6 +42,19 @@ const normalizeOrderTypes = (val) => {
   return filtered.length > 0 ? filtered : ['po_order'];
 };
 
+const VALID_QUOTE_PERMISSIONS = ['po_quote', 'loose_quote', 'trial_quote'];
+const normalizeQuotePermissions = (val) => {
+  if (!val) return ['po_quote', 'loose_quote'];
+  let arr = [];
+  if (Array.isArray(val)) {
+    arr = val;
+  } else if (typeof val === 'string') {
+    arr = val.split(',').map((s) => s.trim());
+  }
+  const filtered = arr.filter((t) => VALID_QUOTE_PERMISSIONS.includes(t));
+  return filtered.length > 0 ? filtered : ['po_quote'];
+};
+
 // ─── 1. LIST ──────────────────────────────────────────────────────────────────
 /**
  * GET /admin-api/resellers/plans/list
@@ -165,6 +178,7 @@ const list_reseller_plans = async (req, res) => {
 
         // ─── 3. Order Type Support ─────────────────────────────────────────────
         order_type_allowed:       normalizeOrderTypes(r.order_type_allowed),
+        quote_permissions:        normalizeQuotePermissions(r.quote_permissions),
 
         // ─── 4. Company Fixed Franchisee Margins & Commissions ──────────────────
         default_dealer_margin:      r.default_dealer_margin ?? 5,
@@ -226,6 +240,7 @@ const add_reseller_plan = async (req, res) => {
       moq_project_type,
       moq_description,
       order_type_allowed,
+      quote_permissions,
       description,
       sort_order,
       // Store Management fields
@@ -292,6 +307,7 @@ const add_reseller_plan = async (req, res) => {
 
       // 3. Order Type Support
       order_type_allowed:       normalizeOrderTypes(order_type_allowed),
+      quote_permissions:        normalizeQuotePermissions(quote_permissions),
 
       // 4. Fixed Dealer Margin & Commission
       default_dealer_margin:      req.body.default_dealer_margin != null ? Number(req.body.default_dealer_margin) : 5,
@@ -452,6 +468,9 @@ const update_reseller_plan = async (req, res) => {
     // 3. Order Type Support
     if (fields.order_type_allowed !== undefined) {
       updateData.order_type_allowed = normalizeOrderTypes(fields.order_type_allowed);
+    }
+    if (fields.quote_permissions !== undefined) {
+      updateData.quote_permissions = normalizeQuotePermissions(fields.quote_permissions);
     }
 
     // 4. Fixed Dealer Margin & Commission

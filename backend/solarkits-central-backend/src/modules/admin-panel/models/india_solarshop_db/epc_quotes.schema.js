@@ -72,6 +72,14 @@ const schema = new mongoose.Schema(
       default: 'franchisee_generated',
     },
 
+    // ── Franchise Quote Permission Mode ───────────────────────────────────────
+    quote_mode: {
+      type: String,
+      enum: ['po_quote', 'loose_quote', 'trial_quote', 'standard'],
+      default: 'standard',
+      index: true,
+    },
+
     // ── Trial Kit Proposal Flags ──────────────────────────────────────────────
     is_trial_kit: { type: Boolean, default: false, index: true },
     quote_type: {

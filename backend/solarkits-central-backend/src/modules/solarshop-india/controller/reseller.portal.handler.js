@@ -53,6 +53,19 @@ const normalizeOrderTypes = (val) => {
   return filtered.length > 0 ? filtered : ['po_order'];
 };
 
+const VALID_QUOTE_PERMISSIONS = ['po_quote', 'loose_quote', 'trial_quote'];
+const normalizeQuotePermissions = (val) => {
+  if (!val) return ['po_quote', 'loose_quote'];
+  let arr = [];
+  if (Array.isArray(val)) {
+    arr = val;
+  } else if (typeof val === 'string') {
+    arr = val.split(',').map((s) => s.trim());
+  }
+  const filtered = arr.filter((t) => VALID_QUOTE_PERMISSIONS.includes(t));
+  return filtered.length > 0 ? filtered : ['po_quote'];
+};
+
 // ─── GST State Code → State Name Map (India, as per GSTIN standard) ───────────
 const GST_STATE_CODE_MAP = {
   '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab',
@@ -557,6 +570,7 @@ const get_reseller_me = async (req, res) => {
       plan_name: subscription?.plan_id?.name || null,
       plan_id: subscription?.plan_id?._id || subscription?.plan_id || null,
       order_type_allowed: normalizeOrderTypes(subscription?.plan_id?.order_type_allowed),
+      quote_permissions: normalizeQuotePermissions(subscription?.plan_id?.quote_permissions),
       warehouse_capacity: reseller.warehouse_capacity || {
         max_kits: 50,
         max_weight_kg: 10000,
