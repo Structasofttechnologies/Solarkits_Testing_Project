@@ -22,32 +22,32 @@ const { india_solarshop_db: db } = require('../../config/databases');
 
 const schema = new mongoose.Schema({
   // ── Existing checkout settings ─────────────────────────────────────────────
-  enable_checkout_timer:      { type: Boolean, default: true },
-  checkout_timer_duration:    { type: Number, default: 20 },    // minutes
+  enable_checkout_timer: { type: Boolean, default: true },
+  checkout_timer_duration: { type: Number, default: 20 },    // minutes
   combokit_bulk_panels_limit: { type: Number, default: 30 },
-  gst_rate:                   { type: Number, default: 13.8 },
+  gst_rate: { type: Number, default: 12 },
 
   // ── Stage TATs & Procurement Settings ──────────────────────────────────────
   payment_stage_tats: { type: mongoose.Schema.Types.Mixed, default: {} },
   procurement_settings: {
-    production_tat_days:      { type: Number, default: 5 },
-    supply_tat_days:          { type: Number, default: 3 },
+    production_tat_days: { type: Number, default: 5 },
+    supply_tat_days: { type: Number, default: 3 },
     estimated_transport_cost: { type: Number, default: 0 },
   },
 
   // ── Centralized Order & Operational Stage Approval Workflow Settings ────────
   approval_workflow_config: {
-    require_order_approval:            { type: Boolean, default: true },
-    require_po_approval:               { type: Boolean, default: true },
-    require_advance_payment_approval:  { type: Boolean, default: true },
-    require_balance_payment_approval:  { type: Boolean, default: true },
-    require_delivery_charge_approval:  { type: Boolean, default: true },
+    require_order_approval: { type: Boolean, default: true },
+    require_po_approval: { type: Boolean, default: true },
+    require_advance_payment_approval: { type: Boolean, default: true },
+    require_balance_payment_approval: { type: Boolean, default: true },
+    require_delivery_charge_approval: { type: Boolean, default: true },
     stage_tat_hours: {
-      order:          { type: Number, default: 24 },
-      po:             { type: Number, default: 24 },
-      first_payment:  { type: Number, default: 24 },
+      order: { type: Number, default: 24 },
+      po: { type: Number, default: 24 },
+      first_payment: { type: Number, default: 24 },
       second_payment: { type: Number, default: 24 },
-      delivery:       { type: Number, default: 12 },
+      delivery: { type: Number, default: 12 },
     }
   },
 
@@ -65,16 +65,16 @@ const schema = new mongoose.Schema({
   // ── Dynamic Apply Franchise Form Fields Configuration ──
   franchise_form_fields: [
     {
-      field_key:    { type: String, required: true, trim: true },
-      label:        { type: String, required: true, trim: true },
-      placeholder:  { type: String, default: '', trim: true },
-      help_text:    { type: String, default: '', trim: true },
-      field_type:   { type: String, default: 'text' }, // text | tel | email | select | textarea | checkbox
-      is_required:  { type: Boolean, default: false },
-      is_active:    { type: Boolean, default: true },
-      sort_order:   { type: Number, default: 0 },
-      options:      [{ label: String, value: String }],
-      updated_at:   { type: Date, default: Date.now },
+      field_key: { type: String, required: true, trim: true },
+      label: { type: String, required: true, trim: true },
+      placeholder: { type: String, default: '', trim: true },
+      help_text: { type: String, default: '', trim: true },
+      field_type: { type: String, default: 'text' }, // text | tel | email | select | textarea | checkbox
+      is_required: { type: Boolean, default: false },
+      is_active: { type: Boolean, default: true },
+      sort_order: { type: Number, default: 0 },
+      options: [{ label: String, value: String }],
+      updated_at: { type: Date, default: Date.now },
     }
   ],
 
@@ -164,12 +164,12 @@ const schema = new mongoose.Schema({
    * service enforces before marking a reseller as 'active'.
    * All default to true (most restrictive). Admin can relax individual requirements.
    */
-  activation_require_gst_verified:        { type: Boolean, default: true },
-  activation_require_kyc_approved:        { type: Boolean, default: true },
-  activation_require_signed_agreement:    { type: Boolean, default: false }, // Off until agreement flow is built (Phase R2)
-  activation_require_active_plan:         { type: Boolean, default: false }, // Off until plan requirement is confirmed (Blocking Q4)
-  activation_require_territory_assigned:  { type: Boolean, default: true },
-  activation_require_product_auth:        { type: Boolean, default: true },
+  activation_require_gst_verified: { type: Boolean, default: true },
+  activation_require_kyc_approved: { type: Boolean, default: true },
+  activation_require_signed_agreement: { type: Boolean, default: false }, // Off until agreement flow is built (Phase R2)
+  activation_require_active_plan: { type: Boolean, default: false }, // Off until plan requirement is confirmed (Blocking Q4)
+  activation_require_territory_assigned: { type: Boolean, default: true },
+  activation_require_product_auth: { type: Boolean, default: true },
 
   // ── Franchise Master Agreement Content & Template ──────────────────────────
   franchise_agreement_title: {
@@ -250,11 +250,19 @@ By digitally signing below, the Franchise Partner certifies that they have read,
 
   // ── Company Offline Bank Account Details Configuration ─────────────────────
   offline_bank_details: {
+ 
     account_number:       { type: String, trim: true, default: '' },
     ifsc_code:            { type: String, trim: true, uppercase: true, default: '' },
     account_holder_name:  { type: String, trim: true, default: '' },
     updated_at:           { type: Date, default: Date.now },
     updated_by:           { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
+ 
+    account_number: { type: String, trim: true, default: '' },
+    ifsc_code: { type: String, trim: true, uppercase: true, default: '' },
+    account_holder_name: { type: String, trim: true, default: '' },
+    updated_at: { type: Date, default: Date.now },
+    updated_by: { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
+ 
   },
 
   created_at: { type: Date, default: Date.now },

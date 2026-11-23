@@ -48,7 +48,7 @@ export default function EpcQuoteFollowupList() {
   const fetchFollowups = useCallback(async () => {
     setLoading(true);
     try {
-      const params = {};
+      const params = { is_trial_kit: false };
       if (activeTab !== "all") params.date_filter = activeTab;
       const res = await api.get("/india/v1/reseller/quotes/follow-ups/list", { params });
       if (res.data?.status === "success") {
@@ -56,10 +56,10 @@ export default function EpcQuoteFollowupList() {
         const list = Array.isArray(raw)
           ? raw
           : Array.isArray(raw?.followups)
-          ? raw.followups
-          : Array.isArray(res.data?.followups)
-          ? res.data.followups
-          : [];
+            ? raw.followups
+            : Array.isArray(res.data?.followups)
+              ? res.data.followups
+              : [];
         setFollowups(list);
       } else {
         setFollowups([]);
@@ -158,11 +158,10 @@ export default function EpcQuoteFollowupList() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                  activeTab === tab.id
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${activeTab === tab.id
                     ? "bg-amber-500 text-white shadow-sm"
                     : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 {tab.label}
               </button>
@@ -217,11 +216,10 @@ export default function EpcQuoteFollowupList() {
                         {fu.quote_id?.quote_number || "View Quote"}
                       </Link>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          isOverdue
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isOverdue
                             ? "bg-red-50 text-red-600 border border-red-200"
                             : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
-                        }`}
+                          }`}
                       >
                         {isOverdue ? "Overdue" : fu.status}
                       </span>
@@ -266,13 +264,12 @@ export default function EpcQuoteFollowupList() {
                         </div>
                         <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full ${
-                              fu.probability_pct >= 70
+                            className={`h-full rounded-full ${fu.probability_pct >= 70
                                 ? "bg-emerald-500"
                                 : fu.probability_pct >= 40
-                                ? "bg-amber-500"
-                                : "bg-red-400"
-                            }`}
+                                  ? "bg-amber-500"
+                                  : "bg-red-400"
+                              }`}
                             style={{ width: `${fu.probability_pct}%` }}
                           ></div>
                         </div>

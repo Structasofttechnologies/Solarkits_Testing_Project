@@ -38,6 +38,7 @@ const schema = new mongoose.Schema({
       'initial_stock',
       'warehouse_allocation',
       'vendor_inward',
+      'procurement_inward',
       'increase_adjustment',
       'decrease_adjustment',
       'order_deduction',
@@ -45,6 +46,16 @@ const schema = new mongoose.Schema({
       'restock'
     ],
     required: true
+  },
+  procurement_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'trial_kit_procurements',
+    default: null
+  },
+  utr_number: {
+    type: String,
+    trim: true,
+    default: ''
   },
   quantity_change: { 
     type: Number, 

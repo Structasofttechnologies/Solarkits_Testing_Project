@@ -46,6 +46,14 @@ const NAV_ITEMS = [
     ],
   },
   {
+    name: "Trial Kit Quotes",
+    icon: FiBox,
+    children: [
+      { name: "All Quotes", icon: FiFileText, path: "/trial-kit-quotes" },
+      { name: "Quote Follow-ups", icon: FiCalendar, path: "/trial-kit-quote-followups" },
+    ],
+  },
+  {
     name: "My Orders",
     icon: FiShoppingCart,
     children: [
@@ -103,7 +111,12 @@ export default function DashboardLayout() {
   useEffect(() => {
     NAV_ITEMS.forEach((item) => {
       if (item.children) {
-        const hasActiveChild = item.children.some((child) => child.path === location.pathname);
+        const hasActiveChild = item.children.some((child) => {
+          if (location.pathname === child.path) return true;
+          if (child.path === "/epc-quotes" && location.pathname.startsWith("/epc-quotes")) return true;
+          if (child.path === "/trial-kit-quotes" && location.pathname.startsWith("/trial-kit-quotes")) return true;
+          return false;
+        });
         if (hasActiveChild) {
           setExpandedMenus((prev) => ({ ...prev, [item.name]: true }));
         }
@@ -190,8 +203,18 @@ export default function DashboardLayout() {
     navigate("/login");
   };
 
-  // Redirect unactivated partners out of the dashboard layout to the standalone Onboarding portal
-  if (reseller && reseller.activation_status !== "active") {
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Redirect unactivated or non-operational partners out of the dashboard layout to the standalone Onboarding portal
+  // Franchisee must have completed store setup and operations launched by Admin to access dashboard
+  const isOperational = Boolean(
+    reseller?.is_operational === true ||
+    (reseller?.activation_status === "active" && reseller?.reseller_lifecycle_status === "active")
+  );
+
+  if (reseller && (!isOperational || reseller.activation_status !== "active")) {
     return <Navigate to="/onboarding" replace />;
   }
 
@@ -349,7 +372,12 @@ export default function DashboardLayout() {
                   // Nested Accordion Menu
                   if (item.children && Array.isArray(item.children)) {
                     const Icon = item.icon || FiShoppingCart;
-                    const isAnyChildActive = item.children.some((c) => location.pathname === c.path);
+                    const isAnyChildActive = item.children.some((c) => {
+                      if (location.pathname === c.path) return true;
+                      if (c.path === "/epc-quotes" && location.pathname.startsWith("/epc-quotes")) return true;
+                      if (c.path === "/trial-kit-quotes" && location.pathname.startsWith("/trial-kit-quotes")) return true;
+                      return false;
+                    });
                     const isOpen = Boolean(expandedMenus[item.name]);
 
                     return (
@@ -406,7 +434,9 @@ export default function DashboardLayout() {
                             >
                               {item.children.map((child, cIdx) => {
                                 const ChildIcon = child.icon || FiBox;
-                                const isChildActive = location.pathname === child.path;
+                                const isChildActive = location.pathname === child.path ||
+                                  (child.path === "/epc-quotes" && location.pathname.startsWith("/epc-quotes/")) ||
+                                  (child.path === "/trial-kit-quotes" && location.pathname.startsWith("/trial-kit-quotes/"));
                                 const childKey = child.path || child.name || `child-${cIdx}`;
 
                                 return (
@@ -877,7 +907,18 @@ export default function DashboardLayout() {
 
         {/* Page Body */}
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto scrollbar-hover min-h-0" style={{ background: "var(--color-bg)" }}>
-          <Outlet context={{ reseller, refreshUser: fetchMe, allowedOrderType: allowedOrderTypes, allowedOrderTypes }} />
+          <Outlet
+            context={{
+              reseller,
+              refreshUser: fetchMe,
+              allowedOrderType: allowedOrderTypes,
+              allowedOrderTypes,
+              quotePermissions:
+                reseller?.quote_permissions ||
+                reseller?.active_subscription?.plan_id?.quote_permissions ||
+                ["po_quote", "loose_quote"],
+            }}
+          />
         </main>
       </div>
 

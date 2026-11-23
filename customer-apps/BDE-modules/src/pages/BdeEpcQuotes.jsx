@@ -361,8 +361,8 @@ export default function BdeEpcQuotes() {
         <button
           onClick={() => setActiveTab('quotes')}
           className={`px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2 ${activeTab === 'quotes'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
+            ? 'border-indigo-600 text-indigo-600'
+            : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
         >
           <FileText className="w-4 h-4" />
@@ -375,8 +375,8 @@ export default function BdeEpcQuotes() {
         <button
           onClick={() => setActiveTab('followups')}
           className={`px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2 ${activeTab === 'followups'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
+            ? 'border-indigo-600 text-indigo-600'
+            : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
         >
           <Calendar className="w-4 h-4" />
@@ -386,8 +386,8 @@ export default function BdeEpcQuotes() {
         <button
           onClick={() => setActiveTab('analytics')}
           className={`px-4 py-3 text-sm font-semibold border-b-2 transition flex items-center gap-2 ${activeTab === 'analytics'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
+            ? 'border-indigo-600 text-indigo-600'
+            : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
         >
           <TrendingUp className="w-4 h-4" />
@@ -502,9 +502,14 @@ export default function BdeEpcQuotes() {
                           <td className="py-3 px-4 font-mono font-bold whitespace-nowrap">
                             <Link
                               to={`/epc-quotes/${q._id}`}
-                              className="text-indigo-600 hover:underline flex items-center gap-1.5"
+                              className="text-indigo-600 hover:underline flex items-center gap-1.5 flex-wrap"
                             >
                               <span>{q.quote_number || `DRAFT-${q._id?.slice(-6)?.toUpperCase() || 'NEW'}`}</span>
+                              {q.is_trial_kit && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200">
+                                  Trial Kit ({q.trial_kit_quantity || q.quantity})
+                                </span>
+                              )}
                               {q.revision_number > 0 && (
                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
                                   R{q.revision_number}
@@ -677,8 +682,8 @@ export default function BdeEpcQuotes() {
                 key={tab.id}
                 onClick={() => setFollowupFilter(tab.id)}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${followupFilter === tab.id
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
               >
                 {tab.label}

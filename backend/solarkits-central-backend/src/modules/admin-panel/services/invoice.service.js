@@ -58,7 +58,7 @@ function generateInvoiceData({ order, sellerInfo = {}, buyerInfo = {} }) {
       quantity: item.quantity || 1,
       unit_price_inr: ((item.unit_price_paise || 0) / 100).toFixed(2),
       taxable_value_inr: (((item.unit_price_paise || 0) * (item.quantity || 1)) / 100).toFixed(2),
-      gst_rate: `${item.gst_rate || 13.8}%`,
+      gst_rate: `${item.gst_rate != null ? item.gst_rate : 12}%`,
       total_price_inr: ((item.total_price_paise || 0) / 100).toFixed(2),
     })),
     totals: {

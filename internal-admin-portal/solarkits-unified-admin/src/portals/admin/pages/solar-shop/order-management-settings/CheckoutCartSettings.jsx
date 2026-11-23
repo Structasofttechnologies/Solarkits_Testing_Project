@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import {
-  FaSlidersH, FaSave, FaHourglassHalf
+  FaSlidersH, FaSave, FaHourglassHalf, FaPercent
 } from "react-icons/fa";
 import { setAlert } from "@/features/alert.slice";
 import Button from "@/components/Button";
@@ -22,6 +22,7 @@ export default function CheckoutCartSettings() {
   const [settings, setSettings] = useState({
     enable_checkout_timer: true,
     checkout_timer_duration: 20,
+    gst_rate: 12,
   });
 
   const fetchSettings = async () => {
@@ -51,6 +52,10 @@ export default function CheckoutCartSettings() {
     // Validations
     if (settings.checkout_timer_duration < 5 || settings.checkout_timer_duration > 60) {
       dispatch(setAlert({ type: "warning", message: "Checkout timer duration must be between 5 and 60 minutes." }));
+      return;
+    }
+    if (settings.gst_rate !== undefined && (settings.gst_rate < 0 || settings.gst_rate > 28)) {
+      dispatch(setAlert({ type: "warning", message: "Default GST rate must be between 0% and 28%." }));
       return;
     }
 
@@ -110,6 +115,25 @@ export default function CheckoutCartSettings() {
               helperText="Minimum 5 minutes, Maximum 60 minutes."
             />
 
+          </div>
+
+          {/* Platform Default GST Tax Settings */}
+          <div className="bg-surface p-6 rounded-xl border border-border shadow-sm space-y-4">
+            <h3 className="font-bold text-text-primary text-lg flex items-center gap-2 border-b border-border pb-3">
+              <FaPercent className="text-primary" /> Platform Default GST Tax Settings
+            </h3>
+
+            <CustomInput
+              label="Default Platform GST Rate (%) *"
+              type="number"
+              step="0.1"
+              value={settings.gst_rate !== undefined ? settings.gst_rate : 12}
+              onChange={(e) => handleChange("gst_rate", Number(e.target.value))}
+              min="0"
+              max="28"
+              required
+              helperText="Fallback GST rate for equipment/kits when no specific warehouse margin GST rate is defined. Standard goods: 12% | Concessional: 5% | Composite Turnkey: 13.8% | Standard Service: 18%."
+            />
           </div>
 
           <div className="flex justify-end">

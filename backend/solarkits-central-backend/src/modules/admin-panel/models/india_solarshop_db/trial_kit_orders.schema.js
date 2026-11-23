@@ -64,10 +64,71 @@ const schema = new mongoose.Schema({
     type: String, 
     default: '' 
   },
+  is_bde_assigned: {
+    type: Boolean,
+    default: false
+  },
+  bde_assigned_at: {
+    type: Date,
+    default: null
+  },
   order_status: { 
     type: String, 
-    enum: ['confirmed', 'dispatched', 'delivered', 'cancelled'], 
+    enum: ['confirmed', 'ready_for_warehouse', 'sent_to_warehouse', 'out_for_delivery', 'dispatched', 'delivered', 'cancelled'], 
     default: 'confirmed' 
+  },
+  order_type: {
+    type: String,
+    enum: ['offline', 'online'],
+    default: 'offline'
+  },
+  order_origin: {
+    type: String,
+    enum: ['epc', 'franchisee', 'company'],
+    default: 'epc'
+  },
+  order_category: {
+    type: String,
+    enum: ['govt_tender', 'industry_kit', 'standard_trial'],
+    default: 'industry_kit'
+  },
+  industry_type: {
+    type: String,
+    default: 'General Solar'
+  },
+  project_type: {
+    type: String,
+    default: 'Rooftop Solar'
+  },
+  delivery_destination_type: {
+    type: String,
+    enum: ['all', 'epc', 'franchisee', 'company'],
+    default: 'epc'
+  },
+  is_grouped: {
+    type: Boolean,
+    default: false
+  },
+  group_id: {
+    type: String,
+    default: null
+  },
+  group_name: {
+    type: String,
+    default: ''
+  },
+  grouped_at: {
+    type: Date,
+    default: null
+  },
+  grouped_by: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null
+  },
+  account_workflow_status: {
+    type: String,
+    enum: ['pending_account', 'sent_to_warehouse'],
+    default: 'pending_account'
   },
   order_date: { 
     type: Date, 
@@ -89,6 +150,9 @@ const schema = new mongoose.Schema({
       phone: { type: String, default: '' }
     },
     courier_name: { type: String, default: '' },
+    vehicle_number: { type: String, default: '' },
+    driver_name: { type: String, default: '' },
+    driver_phone: { type: String, default: '' },
     tracking_number: { type: String, default: '' },
     tracking_url: { type: String, default: '' },
     dispatched_at: { type: Date, default: null },
@@ -109,6 +173,21 @@ const schema = new mongoose.Schema({
     admin_approved_at: { type: Date, default: null },
     stock_reversed: { type: Boolean, default: false },
     restriction_released: { type: Boolean, default: false }
+  },
+
+  // ── Pre-Order Future Purchase Intent (Submitted by EPC during Trial Kit Checkout) ──
+  future_intent: {
+    future_purchase_mode: { 
+      type: String, 
+      enum: ['loose', 'bulk_po', 'both'], 
+      default: 'loose' 
+    },
+    expected_quantity: { type: Number, default: 0 },
+    loose_quantity: { type: Number, default: 0 },
+    po_quantity: { type: Number, default: 0 },
+    estimated_timeline: { type: String, default: '' },
+    remarks: { type: String, default: '' },
+    submitted_at: { type: Date, default: null }
   },
 
   // ── Feedback Fields (Section 5) ────────────────────────────────────────────
@@ -168,6 +247,9 @@ schema.index({ epc_id: 1, created_at: -1 });
 schema.index({ bde_id: 1, 'funnel.current_stage': 1 });
 schema.index({ warehouse_id: 1, order_status: 1 });
 schema.index({ order_status: 1, 'feedback.feedback_status': 1 });
+schema.index({ account_workflow_status: 1, order_status: 1 });
+schema.index({ group_id: 1 });
+schema.index({ order_origin: 1, order_type: 1 });
 schema.virtual('id').get(function () { return this._id; });
 
 module.exports = db.model('trial_kit_orders', schema);

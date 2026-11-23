@@ -587,6 +587,24 @@ export default function BdeProfile({ moduleUniqueId = 'ADM_BDE_MGMT' }) {
                 />
               </div>
             </div>
+
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+              <span className="text-[11px] font-bold text-slate-500 uppercase">Trial Kit Target (EPC)</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-rose-700">
+                  {goal.monthly_trial_kits_achieved || 0}
+                </span>
+                <span className="text-xs text-slate-500 font-medium">/ {goal.monthly_trial_kit_goal || 0} kits</span>
+              </div>
+              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-rose-600 h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${goal.monthly_trial_kit_goal > 0 ? Math.min(100, Math.round(((goal.monthly_trial_kits_achieved || 0) / goal.monthly_trial_kit_goal) * 100)) : 0}%`
+                  }}
+                />
+              </div>
+            </div>
           </div>
 
           {goal.notes && (

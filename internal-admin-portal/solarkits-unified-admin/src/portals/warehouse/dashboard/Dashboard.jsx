@@ -12,7 +12,7 @@ import Loader from "../components/Loader";
 import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
-import { FaHome, FaExchangeAlt, FaBoxes, FaTruck, FaSyncAlt, FaTools, FaCheckCircle, FaFileInvoice, FaUser, FaMapMarkerAlt, FaTruckLoading, FaShippingFast, FaClipboardList } from "react-icons/fa";
+import { FaHome, FaExchangeAlt, FaBoxes, FaTruck, FaSyncAlt, FaTools, FaCheckCircle, FaFileInvoice, FaUser, FaMapMarkerAlt, FaTruckLoading, FaShippingFast, FaClipboardList, FaWarehouse } from "react-icons/fa";
 import { HiCube } from "react-icons/hi";
 import { FiAlertCircle, FiX, FiArrowRight, FiUsers, FiDollarSign, FiMapPin, FiBarChart2, FiSliders } from "react-icons/fi";
 
@@ -160,10 +160,29 @@ const getMenusForMode = (mode, prefix = "/warehouse-management-panel", badgeCoun
         unique_id: "WH_STOCK_ADJ"
       },
       {
-        name: "Trial Kit Fulfillment",
+        name: "Trial Kits Management",
         icon: <FaBoxes />,
-        path: `${prefix}/trial-kits`,
-        unique_id: "WH_TRIAL_KITS"
+        unique_id: "WH_TRIAL_KITS",
+        subMenu: [
+          {
+            name: "Trial Kit Inward",
+            icon: <FaTruckLoading />,
+            path: `${prefix}/trial-kits/inward`,
+            unique_id: "WH_TRIAL_KITS"
+          },
+          {
+            name: "Trial Orders Fulfillment",
+            icon: <FaTruck />,
+            path: `${prefix}/trial-kits/orders`,
+            unique_id: "WH_TRIAL_KITS"
+          },
+          {
+            name: "Warehouse Stock Summary",
+            icon: <FaWarehouse />,
+            path: `${prefix}/trial-kits/stock`,
+            unique_id: "WH_TRIAL_KITS"
+          }
+        ]
       }
     ]
   ];
@@ -386,6 +405,10 @@ export default function Dashboard() {
   const getPageTitle = () => {
     const path = location.pathname;
     if (path.includes('/home')) return 'Warehouse Dashboard';
+    if (path.includes('/trial-kits/inward')) return 'Trial Kit Inward Indents';
+    if (path.includes('/trial-kits/orders')) return 'Trial Orders Fulfillment';
+    if (path.includes('/trial-kits/stock')) return 'Warehouse Trial Kit Stock Summary';
+    if (path.includes('/trial-kits')) return 'Trial Kit Management';
     if (path.includes('/new-orders')) return 'New Orders (Procurement Fulfillment)';
     if (path.includes('/bos-kit-assembly')) return 'BOS Kit Assembly & Preparation Workstation';
     if (path.includes('/out-for-delivery')) return 'Out for Delivery (Dispatch Gate)';

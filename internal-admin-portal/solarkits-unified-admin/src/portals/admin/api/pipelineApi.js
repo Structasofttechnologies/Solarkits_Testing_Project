@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { authHeaderObj } from '@/app/authHeader';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const rawApiUrl = import.meta.env.VITE_ADMIN_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/admin-api';
+const API_BASE = rawApiUrl.replace(/\/+$/, '');
 
 /**
  * Fetch solarshop connected pipeline status (checks Combo Kits pending Margin & Warehouse Activation)
@@ -10,10 +11,11 @@ export const fetchPipelineStatus = async (country = 'india') => {
   try {
     const res = await axios.get(`${API_BASE}/solarshop/pipeline-status?country=${encodeURIComponent(country)}`, {
       headers: authHeaderObj(),
+      timeout: 8000,
     });
     return res.data?.data || null;
   } catch (error) {
-    console.error('Error fetching pipeline status:', error);
+    console.warn('[pipelineApi] Pipeline status unavailable:', error.message || error);
     return null;
   }
 };
@@ -25,10 +27,11 @@ export const fetchSidebarCounts = async (country = 'india') => {
   try {
     const res = await axios.get(`${API_BASE}/solarshop/sidebar-counts?country=${encodeURIComponent(country)}`, {
       headers: authHeaderObj(),
+      timeout: 8000,
     });
     return res.data?.data || null;
   } catch (error) {
-    console.warn('Error fetching sidebar counts:', error.message);
+    console.warn('[pipelineApi] Sidebar counts unavailable:', error.message || error);
     return null;
   }
 };

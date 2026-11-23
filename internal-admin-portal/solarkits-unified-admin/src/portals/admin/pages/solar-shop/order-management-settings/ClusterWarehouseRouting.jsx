@@ -49,6 +49,9 @@ export default function ClusterWarehouseRouting() {
   const [mappings, setMappings] = useState([]);
   const [capabilities, setCapabilities] = useState([]);
   const [availableWarehouses, setAvailableWarehouses] = useState([]);
+  const [coverageStates, setCoverageStates] = useState([]);
+  const [modalStateSearch, setModalStateSearch] = useState("");
+  const [expandedRowId, setExpandedRowId] = useState(null);
 
   // Cluster Modal
   const [clusterModalOpen, setClusterModalOpen] = useState(false);
@@ -64,11 +67,14 @@ export default function ClusterWarehouseRouting() {
   const [mappingModalOpen, setMappingModalOpen] = useState(false);
   const [editingMapping, setEditingMapping] = useState(null);
   const [mappingFormData, setMappingFormData] = useState({
+    warehouse_id: "",
     warehouse_name: "",
     warehouse_code: "",
     cluster_id: "",
+    cluster_name: "",
     states: [],
-    kit_types: ["Combo Kit"],
+    franchise_cluster_ids: [],
+    franchise_clusters: [],
     effective_from: new Date().toISOString().split("T")[0],
     status: "Active",
   });
@@ -97,11 +103,12 @@ export default function ClusterWarehouseRouting() {
     try {
       const headers = authHeaderObj();
 
-      const [clustersRes, mappingsRes, capabilitiesRes, warehousesRes] = await Promise.allSettled([
+      const [clustersRes, mappingsRes, capabilitiesRes, warehousesRes, coverageRes] = await Promise.allSettled([
         axios.get(`${ROUTING_API}/clusters`, { headers }),
         axios.get(`${ROUTING_API}/mappings`, { headers }),
         axios.get(`${ROUTING_API}/capabilities`, { headers }),
         axios.get(`${ROUTING_API}/available-warehouses`, { headers }),
+        axios.get(`${ROUTING_API}/coverage-options`, { headers }),
       ]);
 
       if (clustersRes.status === "fulfilled" && clustersRes.value?.data?.data) {
@@ -115,6 +122,9 @@ export default function ClusterWarehouseRouting() {
       }
       if (warehousesRes.status === "fulfilled" && warehousesRes.value?.data?.data) {
         setAvailableWarehouses(warehousesRes.value.data.data);
+      }
+      if (coverageRes.status === "fulfilled" && coverageRes.value?.data?.data?.states) {
+        setCoverageStates(coverageRes.value.data.data.states);
       }
     } catch (err) {
       console.error("Error loading cluster routing data:", err);
@@ -240,28 +250,45 @@ export default function ClusterWarehouseRouting() {
   const handleOpenMappingModal = (mapping = null) => {
     if (mapping) {
       setEditingMapping(mapping);
+      const mStates = Array.isArray(mapping.states) ? mapping.states : [];
+      const mFcIds = Array.isArray(mapping.franchise_cluster_ids)
+        ? mapping.franchise_cluster_ids.map(id => id.toString())
+        : (Array.isArray(mapping.franchise_clusters)
+          ? mapping.franchise_clusters.map(fc => (fc.cluster_id || fc.id || fc._id)?.toString()).filter(Boolean)
+          : []);
+
+      const matchedWh = availableWarehouses.find((w) => w.warehouse_code === mapping.warehouse_code);
+      const resolvedWhName = matchedWh?.warehouse_name || mapping.warehouse_name || "";
+
       setMappingFormData({
-        warehouse_name: mapping.warehouse_name || "",
+        warehouse_id: mapping.warehouse_id || matchedWh?.id || matchedWh?._id || "",
+        warehouse_name: resolvedWhName,
         warehouse_code: mapping.warehouse_code || "",
         cluster_id: mapping.cluster_id || "",
-        states: mapping.states || [],
-        kit_types: mapping.kit_types || ["Combo Kit"],
+        cluster_name: mapping.cluster_name || "",
+        states: mStates,
+        franchise_cluster_ids: mFcIds,
+        franchise_clusters: mapping.franchise_clusters || [],
         effective_from: mapping.effective_from || new Date().toISOString().split("T")[0],
         status: mapping.status || "Active",
       });
     } else {
       setEditingMapping(null);
-      const defaultCluster = clusters[0];
+      const defaultWh = availableWarehouses[0];
       setMappingFormData({
-        warehouse_name: availableWarehouses[0]?.warehouse_name || "",
-        warehouse_code: availableWarehouses[0]?.warehouse_code || "",
-        cluster_id: defaultCluster?.id || "",
-        states: defaultCluster?.states || [],
-        kit_types: ["Combo Kit"],
+        warehouse_id: defaultWh?.id || defaultWh?._id || "",
+        warehouse_name: defaultWh?.warehouse_name || "",
+        warehouse_code: defaultWh?.warehouse_code || "",
+        cluster_id: "",
+        cluster_name: "",
+        states: [],
+        franchise_cluster_ids: [],
+        franchise_clusters: [],
         effective_from: new Date().toISOString().split("T")[0],
         status: "Active",
       });
     }
+    setModalStateSearch("");
     setMappingModalOpen(true);
   };
 
@@ -274,32 +301,153 @@ export default function ClusterWarehouseRouting() {
         warehouse_code: selectedWh.warehouse_code,
         warehouse_name: selectedWh.warehouse_name,
       }));
+    } else {
+      setMappingFormData((prev) => ({
+        ...prev,
+        warehouse_id: "",
+        warehouse_code: "",
+        warehouse_name: "",
+      }));
     }
+  };
+
+  const toggleState = (stateName) => {
+    const isChecked = mappingFormData.states.includes(stateName);
+    const targetStateObj = coverageStates.find((s) => s.name === stateName);
+    const stateClusterIds = (targetStateObj?.clusters || []).map((c) => (c.id || c.cluster_id)?.toString());
+
+    if (isChecked) {
+      setMappingFormData((prev) => ({
+        ...prev,
+        states: prev.states.filter((s) => s !== stateName),
+        franchise_cluster_ids: prev.franchise_cluster_ids.filter(
+          (id) => !stateClusterIds.includes(id?.toString())
+        ),
+      }));
+    } else {
+      setMappingFormData((prev) => ({
+        ...prev,
+        states: [...prev.states, stateName],
+        franchise_cluster_ids: Array.from(
+          new Set([...prev.franchise_cluster_ids, ...stateClusterIds])
+        ),
+      }));
+    }
+  };
+
+  const toggleCluster = (clusterId) => {
+    const idStr = clusterId?.toString();
+    const isChecked = mappingFormData.franchise_cluster_ids.some((id) => id?.toString() === idStr);
+
+    if (isChecked) {
+      setMappingFormData((prev) => ({
+        ...prev,
+        franchise_cluster_ids: prev.franchise_cluster_ids.filter((id) => id?.toString() !== idStr),
+      }));
+    } else {
+      setMappingFormData((prev) => ({
+        ...prev,
+        franchise_cluster_ids: [...prev.franchise_cluster_ids, idStr],
+      }));
+    }
+  };
+
+  const selectAllClustersInState = (stateName) => {
+    const targetStateObj = coverageStates.find((s) => s.name === stateName);
+    const stateClusterIds = (targetStateObj?.clusters || []).map((c) => (c.id || c.cluster_id)?.toString());
+
+    setMappingFormData((prev) => ({
+      ...prev,
+      franchise_cluster_ids: Array.from(
+        new Set([...prev.franchise_cluster_ids, ...stateClusterIds])
+      ),
+    }));
+  };
+
+  const deselectAllClustersInState = (stateName) => {
+    const targetStateObj = coverageStates.find((s) => s.name === stateName);
+    const stateClusterIds = (targetStateObj?.clusters || []).map((c) => (c.id || c.cluster_id)?.toString());
+
+    setMappingFormData((prev) => ({
+      ...prev,
+      franchise_cluster_ids: prev.franchise_cluster_ids.filter(
+        (id) => !stateClusterIds.includes(id?.toString())
+      ),
+    }));
+  };
+
+  const deselectAllStates = () => {
+    setMappingFormData((prev) => ({
+      ...prev,
+      states: [],
+      franchise_cluster_ids: [],
+    }));
   };
 
   const handleSaveMapping = async (e) => {
     e.preventDefault();
-    if (!mappingFormData.warehouse_name || !mappingFormData.cluster_id) {
-      dispatch(setAlert({ type: "warning", message: "Warehouse and Cluster are required" }));
+    if (!mappingFormData.warehouse_name || !mappingFormData.warehouse_name.trim()) {
+      dispatch(setAlert({ type: "warning", message: "Warehouse name is required" }));
+      return;
+    }
+    if (!mappingFormData.states || mappingFormData.states.length === 0) {
+      dispatch(setAlert({ type: "warning", message: "Please assign at least one fulfillment state" }));
       return;
     }
 
     try {
       const headers = authHeaderObj();
+
+      // Compile rich franchise_clusters from coverageStates matching selected IDs
+      const compiledClusters = [];
+      const selectedIdSet = new Set(mappingFormData.franchise_cluster_ids.map(id => id.toString()));
+
+      (coverageStates || []).forEach((st) => {
+        if (mappingFormData.states.includes(st.name)) {
+          (st.clusters || []).forEach((cl) => {
+            const clId = (cl.id || cl.cluster_id)?.toString();
+            if (selectedIdSet.has(clId)) {
+              compiledClusters.push({
+                cluster_id: cl.id || cl.cluster_id,
+                cluster_code: cl.cluster_code,
+                cluster_name: cl.cluster_name,
+                state_name: cl.state_name || st.name,
+                district_names: cl.district_names || []
+              });
+            }
+          });
+        }
+      });
+
+      const payload = {
+        warehouse_id: mappingFormData.warehouse_id,
+        warehouse_code: mappingFormData.warehouse_code,
+        warehouse_name: mappingFormData.warehouse_name,
+        cluster_id: mappingFormData.cluster_id || null,
+        cluster_name: mappingFormData.cluster_name || (mappingFormData.states.length > 1
+          ? `${mappingFormData.states[0]} +${mappingFormData.states.length - 1} States`
+          : mappingFormData.states[0]),
+        states: mappingFormData.states,
+        franchise_cluster_ids: mappingFormData.franchise_cluster_ids,
+        franchise_clusters: compiledClusters,
+        effective_from: mappingFormData.effective_from,
+        status: mappingFormData.status,
+      };
+
       if (editingMapping) {
         const res = await axios.put(
           `${ROUTING_API}/mappings/${editingMapping.id}`,
-          mappingFormData,
+          payload,
           { headers }
         );
         if (res.data?.status === "success") {
           setMappings((prev) =>
             prev.map((m) => (m.id === editingMapping.id ? res.data.data : m))
           );
-          dispatch(setAlert({ type: "success", message: "Mapping updated successfully!" }));
+          dispatch(setAlert({ type: "success", message: "Warehouse mapping updated successfully!" }));
         }
       } else {
-        const res = await axios.post(`${ROUTING_API}/mappings`, mappingFormData, { headers });
+        const res = await axios.post(`${ROUTING_API}/mappings`, payload, { headers });
         if (res.data?.status === "success") {
           setMappings((prev) => [res.data.data, ...prev]);
           dispatch(setAlert({ type: "success", message: "Warehouse mapped successfully!" }));
@@ -354,9 +502,9 @@ export default function ClusterWarehouseRouting() {
     setCapabilities((prev) =>
       prev.map((wh) =>
         wh.warehouse_id === warehouseId ||
-        wh.warehouse_code === warehouseId ||
-        wh.id === warehouseId ||
-        wh._id === warehouseId
+          wh.warehouse_code === warehouseId ||
+          wh.id === warehouseId ||
+          wh._id === warehouseId
           ? { ...wh, capabilities: updatedCapabilities }
           : wh
       )
@@ -381,9 +529,9 @@ export default function ClusterWarehouseRouting() {
       setCapabilities((prev) =>
         prev.map((wh) =>
           wh.warehouse_id === warehouseId ||
-          wh.warehouse_code === warehouseId ||
-          wh.id === warehouseId ||
-          wh._id === warehouseId
+            wh.warehouse_code === warehouseId ||
+            wh.id === warehouseId ||
+            wh._id === warehouseId
             ? { ...wh, capabilities: currentWh.capabilities }
             : wh
         )
@@ -422,7 +570,7 @@ export default function ClusterWarehouseRouting() {
         setCapabilities((prev) =>
           prev.map((wh) =>
             wh.warehouse_id === editingCapability.warehouse_id ||
-            wh.warehouse_code === editingCapability.warehouse_code
+              wh.warehouse_code === editingCapability.warehouse_code
               ? { ...wh, ...res.data.data }
               : wh
           )
@@ -455,7 +603,30 @@ export default function ClusterWarehouseRouting() {
       m.warehouse_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.warehouse_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.cluster_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.states?.some((s) => s.toLowerCase().includes(searchQuery.toLowerCase()))
+      m.states?.some((s) => s.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      m.franchise_clusters?.some((fc) =>
+        fc.cluster_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        fc.cluster_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        fc.district_names?.some((d) => d.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+  );
+
+  // States available for modal filtering: only states having active franchise clusters
+  const activeClusterStates = (coverageStates || []).filter(
+    (s) => s.cluster_count > 0 || (Array.isArray(s.clusters) && s.clusters.length > 0)
+  );
+
+  const filteredStatesForModal = activeClusterStates.filter((s) =>
+    s.name?.toLowerCase().includes(modalStateSearch.toLowerCase())
+  );
+
+  // Count total clusters across selected states in modal
+  const selectedStateObjects = (coverageStates || []).filter((s) =>
+    mappingFormData.states.includes(s.name)
+  );
+  const totalClustersInSelectedStates = selectedStateObjects.reduce(
+    (acc, st) => acc + (st.clusters?.length || 0),
+    0
   );
 
   return (
@@ -485,31 +656,28 @@ export default function ClusterWarehouseRouting() {
           <div className="flex bg-bg p-1 rounded-lg border border-border">
             <button
               onClick={() => setActiveTab("clusters")}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-                activeTab === "clusters"
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === "clusters"
                   ? "bg-primary text-white shadow-sm"
                   : "text-text-secondary hover:text-text-primary"
-              }`}
+                }`}
             >
               <FaLayerGroup /> Clusters ({clusters.length})
             </button>
             <button
               onClick={() => setActiveTab("mappings")}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-                activeTab === "mappings"
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === "mappings"
                   ? "bg-primary text-white shadow-sm"
                   : "text-text-secondary hover:text-text-primary"
-              }`}
+                }`}
             >
               <FaWarehouse /> Warehouse Mapping ({mappings.length})
             </button>
             <button
               onClick={() => setActiveTab("capabilities")}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-                activeTab === "capabilities"
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === "capabilities"
                   ? "bg-primary text-white shadow-sm"
                   : "text-text-secondary hover:text-text-primary"
-              }`}
+                }`}
             >
               <FaBoxes /> Kit Capabilities ({capabilities.length})
             </button>
@@ -595,11 +763,10 @@ export default function ClusterWarehouseRouting() {
                             </td>
                             <td className="p-4">
                               <span
-                                className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                                  cluster.status === "Active"
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium ${cluster.status === "Active"
                                     ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
                                     : "bg-zinc-500/10 text-zinc-500 border border-zinc-500/20"
-                                }`}
+                                  }`}
                               >
                                 {cluster.status}
                               </span>
@@ -650,7 +817,7 @@ export default function ClusterWarehouseRouting() {
                   onClick={() => handleOpenMappingModal()}
                   className="w-full sm:w-auto flex items-center justify-center gap-2"
                 >
-                  <FaPlus /> Map Warehouse to Cluster
+                  <FaPlus /> Map Warehouse to States & Clusters
                 </Button>
               </div>
 
@@ -660,9 +827,8 @@ export default function ClusterWarehouseRouting() {
                     <thead>
                       <tr className="bg-bg border-b border-border text-xs uppercase font-semibold text-text-secondary">
                         <th className="p-4">Warehouse</th>
-                        <th className="p-4">Cluster Assigned</th>
                         <th className="p-4">Fulfillment States</th>
-                        <th className="p-4">Kit Types Capable</th>
+                        <th className="p-4">Active Franchise Clusters</th>
                         <th className="p-4">Effective Date</th>
                         <th className="p-4">Status</th>
                         <th className="p-4 text-right">Actions</th>
@@ -671,7 +837,7 @@ export default function ClusterWarehouseRouting() {
                     <tbody className="divide-y divide-border text-sm">
                       {filteredMappings.length === 0 ? (
                         <tr>
-                          <td colSpan="7" className="p-8 text-center text-text-secondary">
+                          <td colSpan="6" className="p-8 text-center text-text-secondary">
                             No warehouse mappings found matching your query.
                           </td>
                         </tr>
@@ -680,19 +846,21 @@ export default function ClusterWarehouseRouting() {
                           <tr key={item.id} className="hover:bg-bg/50 transition-colors">
                             <td className="p-4">
                               <div className="font-semibold text-text-primary">{item.warehouse_name}</div>
-                              <div className="text-xs text-text-secondary font-mono">{item.warehouse_code}</div>
-                            </td>
-                            <td className="p-4 font-medium text-text-primary">
-                              <span className="px-2.5 py-1 rounded bg-bg border border-border font-medium text-xs">
-                                {item.cluster_name}
-                              </span>
+                              <div className="text-xs text-text-secondary font-mono flex items-center gap-1.5 mt-0.5">
+                                <span>{item.warehouse_code}</span>
+                                {item.cluster_name && (
+                                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-bg border border-border text-text-secondary">
+                                    {item.cluster_name}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-4">
                               <div className="flex flex-wrap gap-1 max-w-xs">
                                 {item.states?.map((st) => (
                                   <span
                                     key={st}
-                                    className="px-2 py-0.5 rounded text-xs bg-bg border border-border text-text-secondary"
+                                    className="px-2 py-0.5 rounded text-xs bg-bg border border-border text-text-primary font-medium"
                                   >
                                     {st}
                                   </span>
@@ -700,25 +868,50 @@ export default function ClusterWarehouseRouting() {
                               </div>
                             </td>
                             <td className="p-4">
-                              <div className="flex flex-wrap gap-1">
-                                {item.kit_types?.map((kt) => (
-                                  <span
-                                    key={kt}
-                                    className="px-2 py-0.5 rounded text-xs bg-amber-500/10 text-amber-600 border border-amber-500/20 font-medium"
-                                  >
-                                    {kt}
-                                  </span>
-                                ))}
-                              </div>
+                              {item.franchise_clusters && item.franchise_clusters.length > 0 ? (
+                                <div className="space-y-1 max-w-xs">
+                                  <div className="flex flex-wrap gap-1">
+                                    {(expandedRowId === item.id
+                                      ? item.franchise_clusters
+                                      : item.franchise_clusters.slice(0, 3)
+                                    ).map((fc) => (
+                                      <span
+                                        key={fc.cluster_id || fc._id || fc.cluster_code}
+                                        className="px-2 py-0.5 rounded text-xs bg-primary/10 text-primary border border-primary/20 font-medium inline-flex items-center gap-1"
+                                        title={`${fc.cluster_name} - Districts: ${(fc.district_names || []).join(', ')}`}
+                                      >
+                                        <span className="font-mono text-[10px] font-bold">{fc.cluster_code}:</span>
+                                        <span>{fc.cluster_name}</span>
+                                      </span>
+                                    ))}
+                                    {item.franchise_clusters.length > 3 && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setExpandedRowId(expandedRowId === item.id ? null : item.id)
+                                        }
+                                        className="px-2 py-0.5 rounded text-xs bg-bg border border-border text-text-secondary hover:text-primary transition-colors cursor-pointer"
+                                      >
+                                        {expandedRowId === item.id
+                                          ? "Show less"
+                                          : `+${item.franchise_clusters.length - 3} more`}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-text-secondary italic">
+                                  State-wide fulfillment ({item.states?.length || 0} states)
+                                </span>
+                              )}
                             </td>
                             <td className="p-4 text-text-secondary text-xs">{item.effective_from}</td>
                             <td className="p-4">
                               <span
-                                className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                                  item.status === "Active"
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium ${item.status === "Active"
                                     ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
                                     : "bg-zinc-500/10 text-zinc-500 border border-zinc-500/20"
-                                }`}
+                                  }`}
                               >
                                 {item.status}
                               </span>
@@ -975,153 +1168,257 @@ export default function ClusterWarehouseRouting() {
         <Dialog
           isOpen={mappingModalOpen}
           onClose={() => setMappingModalOpen(false)}
-          title={editingMapping ? "Edit Warehouse Mapping" : "Map Warehouse to Cluster"}
+          title={editingMapping ? "Edit Warehouse Mapping" : "Map Warehouse to States & Franchise Clusters"}
+          size="lg"
         >
           <form onSubmit={handleSaveMapping} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">
-                Select Company Warehouse *
-              </label>
-              {availableWarehouses.length > 0 ? (
-                <select
-                  value={mappingFormData.warehouse_code}
-                  onChange={(e) => handleWarehouseSelect(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-bg border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary mb-2"
-                >
-                  <option value="">-- Choose Existing Warehouse --</option>
-                  {availableWarehouses.map((w) => (
-                    <option key={w.warehouse_code} value={w.warehouse_code}>
-                      {w.warehouse_name} [{w.warehouse_code}]
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-
-              <CustomInput
-                placeholder="Or custom warehouse name e.g. Bhiwandi Central Hub (WH-01)"
-                value={mappingFormData.warehouse_name}
-                onChange={(e) =>
-                  setMappingFormData({ ...mappingFormData, warehouse_name: e.target.value })
-                }
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">
-                Target Regional Cluster *
-              </label>
-              <select
-                value={mappingFormData.cluster_id}
-                onChange={(e) => {
-                  const selectedId = e.target.value;
-                  const c = clusters.find((cl) => cl.id === selectedId);
-                  setMappingFormData({
-                    ...mappingFormData,
-                    cluster_id: selectedId,
-                    states: c?.states || [],
-                  });
-                }}
-                className="w-full px-3 py-2 text-sm bg-bg border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary"
-                required
-              >
-                <option value="">Select a Cluster</option>
-                {clusters.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.states?.join(", ")})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Fulfillment States within the Cluster */}
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">
-                Fulfillment States Assigned ({mappingFormData.states.length} selected)
-              </label>
-              <div className="max-h-36 overflow-y-auto bg-bg p-3 rounded-lg border border-border flex flex-wrap gap-2 text-xs">
-                {(() => {
-                  const targetCluster = clusters.find((c) => c.id === mappingFormData.cluster_id);
-                  const candidateStates = targetCluster?.states?.length
-                    ? targetCluster.states
-                    : ALL_INDIAN_STATES;
-
-                  return candidateStates.map((st) => {
-                    const isChecked = mappingFormData.states.includes(st);
-                    return (
-                      <label
-                        key={st}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs cursor-pointer transition-colors ${
-                          isChecked
-                            ? "bg-primary/10 border-primary text-primary font-medium"
-                            : "bg-surface border-border text-text-secondary"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {
-                            if (isChecked) {
-                              setMappingFormData({
-                                ...mappingFormData,
-                                states: mappingFormData.states.filter((s) => s !== st),
-                              });
-                            } else {
-                              setMappingFormData({
-                                ...mappingFormData,
-                                states: [...mappingFormData.states, st],
-                              });
-                            }
-                          }}
-                          className="hidden"
-                        />
-                        <span>{st}</span>
-                      </label>
-                    );
-                  })();
-                })}
+            {/* 1. Warehouse Selection */}
+            <div className="bg-bg/60 p-4 rounded-xl border border-border space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-text-primary uppercase tracking-wide flex items-center gap-1.5">
+                  <FaWarehouse className="text-primary" /> Select Company Warehouse *
+                </label>
+                {mappingFormData.warehouse_code && (
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-semibold">
+                    {mappingFormData.warehouse_code}
+                  </span>
+                )}
               </div>
+
+              {availableWarehouses.length > 0 ? (
+                <>
+                  <select
+                    value={mappingFormData.warehouse_code}
+                    onChange={(e) => handleWarehouseSelect(e.target.value)}
+                    className="w-full px-3 py-2 text-sm bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary shadow-xs"
+                    required
+                  >
+                    <option value="">-- Choose Existing Warehouse --</option>
+                    {availableWarehouses.map((w) => (
+                      <option key={w.warehouse_code} value={w.warehouse_code}>
+                        {w.warehouse_name} [{w.warehouse_code}]
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Read-only Warehouse Name display */}
+                  {mappingFormData.warehouse_name ? (
+                    <div className="p-3 bg-surface rounded-lg border border-border flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] text-text-secondary uppercase font-semibold block tracking-wider">
+                          Warehouse Name
+                        </span>
+                        <span className="text-sm font-bold text-text-primary">
+                          {mappingFormData.warehouse_name}
+                        </span>
+                      </div>
+                      <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                        {mappingFormData.warehouse_code}
+                      </span>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div className="text-xs text-text-secondary italic p-2 bg-surface rounded-lg border border-border">
+                  No company warehouses found. Please create one in operations first.
+                </div>
+              )}
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary mb-1">
-                Kit Types Capable
-              </label>
-              <div className="flex gap-4">
-                {["Combo Kit", "Customize Kit", "Bulk Kit"].map((kt) => {
-                  const isChecked = mappingFormData.kit_types.includes(kt);
-                  return (
-                    <label
-                      key={kt}
-                      className="flex items-center gap-1.5 text-xs text-text-primary cursor-pointer"
+            {/* 2. States Selection (Multi-State Assignment) */}
+            <div className="bg-bg/60 p-4 rounded-xl border border-border space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="text-xs font-bold text-text-primary uppercase tracking-wide flex items-center gap-1.5">
+                    <FaMapMarkerAlt className="text-emerald-500" /> Fulfillment States Assigned *
+                  </label>
+                  <p className="text-[11px] text-text-secondary mt-0.5">
+                    Select multiple states. Franchise clusters in these states will appear below for activation.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+                    {mappingFormData.states.length} states selected
+                  </span>
+                  {mappingFormData.states.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={deselectAllStates}
+                      className="text-xs text-red-500 hover:underline"
                     >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          if (isChecked) {
-                            setMappingFormData({
-                              ...mappingFormData,
-                              kit_types: mappingFormData.kit_types.filter((k) => k !== kt),
-                            });
-                          } else {
-                            setMappingFormData({
-                              ...mappingFormData,
-                              kit_types: [...mappingFormData.kit_types, kt],
-                            });
-                          }
-                        }}
-                      />
-                      <span>{kt}</span>
-                    </label>
+                      Clear All
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* State Search */}
+              <div className="relative">
+                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs" />
+                <input
+                  type="text"
+                  placeholder="Filter states by name (e.g. Gujarat, Maharashtra, Rajasthan)..."
+                  value={modalStateSearch}
+                  onChange={(e) => setModalStateSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              {/* State Chips */}
+              <div className="max-h-40 overflow-y-auto bg-surface p-3 rounded-lg border border-border flex flex-wrap gap-2 text-xs">
+                {filteredStatesForModal.map((st) => {
+                  const isChecked = mappingFormData.states.includes(st.name);
+                  return (
+                    <button
+                      key={st.name}
+                      type="button"
+                      onClick={() => toggleState(st.name)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${isChecked
+                          ? "bg-primary text-white border-primary shadow-xs"
+                          : "bg-bg border-border text-text-secondary hover:text-text-primary hover:border-primary/40"
+                        }`}
+                    >
+                      {isChecked ? <FaCheck className="text-[10px]" /> : null}
+                      <span>{st.name}</span>
+                      {st.cluster_count > 0 && (
+                        <span
+                          className={`px-1.5 py-0.2 rounded-full text-[10px] ${isChecked
+                              ? "bg-white/20 text-white"
+                              : "bg-primary/10 text-primary border border-primary/20 font-semibold"
+                            }`}
+                        >
+                          {st.cluster_count} {st.cluster_count === 1 ? "cluster" : "clusters"}
+                        </span>
+                      )}
+                    </button>
                   );
                 })}
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* 3. Franchise Clusters Assignment (Grouped by Selected State) */}
+            <div className="bg-bg/60 p-4 rounded-xl border border-border space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="text-xs font-bold text-text-primary uppercase tracking-wide flex items-center gap-1.5">
+                    <FaLayerGroup className="text-blue-500" /> Active Franchise Clusters Coverage
+                  </label>
+                  <p className="text-[11px] text-text-secondary mt-0.5">
+                    Assign specific franchise clusters in each selected state to this warehouse.
+                  </p>
+                </div>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                  {mappingFormData.franchise_cluster_ids.length} of {totalClustersInSelectedStates} clusters active
+                </span>
+              </div>
+
+              {mappingFormData.states.length === 0 ? (
+                <div className="p-6 text-center text-xs text-text-secondary border border-dashed border-border rounded-lg bg-surface">
+                  <FaMapMarkerAlt className="mx-auto text-xl text-text-secondary/50 mb-1.5" />
+                  Please select one or more fulfillment states above to configure active franchise clusters.
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                  {mappingFormData.states.map((stName) => {
+                    const stObj = coverageStates.find((s) => s.name === stName);
+                    const clustersInState = stObj?.clusters || [];
+                    const selectedInState = clustersInState.filter((cl) =>
+                      mappingFormData.franchise_cluster_ids.includes((cl.id || cl.cluster_id)?.toString())
+                    );
+                    const isAllSelected = clustersInState.length > 0 && selectedInState.length === clustersInState.length;
+
+                    return (
+                      <div key={stName} className="bg-surface rounded-xl border border-border overflow-hidden">
+                        {/* State Header Bar */}
+                        <div className="px-3.5 py-2.5 bg-bg/70 border-b border-border flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-xs text-text-primary">{stName}</span>
+                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-surface border border-border text-text-secondary font-medium">
+                              {selectedInState.length} / {clustersInState.length} active
+                            </span>
+                          </div>
+                          {clustersInState.length > 0 && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => selectAllClustersInState(stName)}
+                                className={`text-[11px] font-medium hover:underline ${isAllSelected ? "text-text-secondary" : "text-primary"}`}
+                              >
+                                Select All
+                              </button>
+                              <span className="text-border">|</span>
+                              <button
+                                type="button"
+                                onClick={() => deselectAllClustersInState(stName)}
+                                className="text-[11px] font-medium text-text-secondary hover:text-red-500 hover:underline"
+                              >
+                                Deselect All
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Clusters Grid */}
+                        <div className="p-3">
+                          {clustersInState.length === 0 ? (
+                            <div className="p-3 bg-bg/50 rounded-lg border border-dashed border-border text-xs text-text-secondary">
+                              <span className="font-medium text-text-primary">Full State Coverage:</span> No specific franchise clusters configured in {stName}. Orders from any district in {stName} will be fulfilled by this warehouse.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {clustersInState.map((cl) => {
+                                const clId = (cl.id || cl.cluster_id)?.toString();
+                                const isChecked = mappingFormData.franchise_cluster_ids.includes(clId);
+                                return (
+                                  <div
+                                    key={clId}
+                                    onClick={() => toggleCluster(clId)}
+                                    className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-all flex items-start gap-2.5 ${isChecked
+                                        ? "bg-primary/5 border-primary shadow-xs"
+                                        : "bg-bg/40 border-border hover:border-border-hover text-text-secondary"
+                                      }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => { }}
+                                      className="mt-0.5 rounded border-border text-primary focus:ring-primary pointer-events-none"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-surface rounded border border-border text-text-primary">
+                                          {cl.cluster_code}
+                                        </span>
+                                        <span className={`font-semibold truncate ${isChecked ? "text-primary" : "text-text-primary"}`}>
+                                          {cl.cluster_name}
+                                        </span>
+                                      </div>
+                                      {cl.district_names && cl.district_names.length > 0 && (
+                                        <div
+                                          className="text-[11px] text-text-secondary mt-1 truncate"
+                                          title={cl.district_names.join(", ")}
+                                        >
+                                          {cl.district_names.length} Districts: {cl.district_names.join(", ")}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 4. Effective Date & Status */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">
+                <label className="block text-xs font-semibold text-text-secondary mb-1.5">
                   Effective From Date
                 </label>
                 <CustomInput
@@ -1134,7 +1431,7 @@ export default function ClusterWarehouseRouting() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">
+                <label className="block text-xs font-semibold text-text-secondary mb-1.5">
                   Status
                 </label>
                 <select

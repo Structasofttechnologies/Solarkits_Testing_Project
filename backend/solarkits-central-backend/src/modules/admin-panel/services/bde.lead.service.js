@@ -707,17 +707,17 @@ async function getBdeDashboardMetrics(bdeId) {
     }),
     BDELead.countDocuments({
       current_bde_id: bdeId,
-      lead_status: { $in: ['approved', 'agreement_pending', 'agreement_signed', 'fee_payment_pending', 'fee_paid'] },
+      lead_status: { $in: ['approved', 'agreement_pending', 'agreement_signed', 'fee_payment_pending', 'fee_paid', 'completed', 'converted', 'onboarded'] },
       deleted_at: null,
     }),
     BDELead.countDocuments({
       current_bde_id: bdeId,
-      lead_status: { $in: ['agreement_signed', 'fee_payment_pending', 'fee_paid'] },
+      lead_status: { $in: ['agreement_signed', 'fee_payment_pending', 'fee_paid', 'completed', 'converted', 'onboarded'] },
       deleted_at: null,
     }),
     BDELead.countDocuments({
       current_bde_id: bdeId,
-      lead_status: 'fee_paid',
+      lead_status: { $in: ['fee_paid', 'completed', 'converted', 'onboarded'] },
       deleted_at: null,
     }),
     Reseller.find({ bde_id: bdeId })
@@ -731,8 +731,8 @@ async function getBdeDashboardMetrics(bdeId) {
   // Conversion Funnel Stage Counts
   const funnel = {
     total_leads: totalLeads,
-    contacted: allLeads.filter((l) => ['contacted', 'follow_up_scheduled', 'interested', 'signup_started', 'approved', 'fee_paid'].includes(l.lead_status)).length,
-    interested: allLeads.filter((l) => ['interested', 'signup_started', 'approved', 'fee_paid'].includes(l.lead_status)).length,
+    contacted: allLeads.filter((l) => ['contacted', 'follow_up_scheduled', 'interested', 'signup_started', 'approved', 'fee_paid', 'completed', 'converted', 'onboarded'].includes(l.lead_status)).length,
+    interested: allLeads.filter((l) => ['interested', 'signup_started', 'approved', 'fee_paid', 'completed', 'converted', 'onboarded'].includes(l.lead_status)).length,
     signup_started: signupsStarted,
     approved: adminApproved,
     agreement_signed: agreementsSigned,

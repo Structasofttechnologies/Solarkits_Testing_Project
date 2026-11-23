@@ -10,7 +10,11 @@ import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
 
+ 
 import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck, FaBullhorn, FaEnvelope, FaWhatsapp } from "react-icons/fa";
+ 
+import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck, FaCreditCard } from "react-icons/fa";
+ 
 
 import {
   MdAccountTree,
@@ -64,6 +68,7 @@ const InvoiceDoSettings = lazy(() => import("../pages/solar-shop/order-managemen
 const TrialKitInventoryPage = lazy(() => import("../pages/trial-kits/TrialKitInventoryPage"));
 const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrdersPage"));
 const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
+const TrialKitProcurementPage = lazy(() => import("../pages/trial-kits/TrialKitProcurementPage"));
 
 /* ===================== Marketing Management Module Pages ===================== */
 const MarketingDashboard = lazy(() => import("../pages/marketing/MarketingDashboard"));
@@ -144,6 +149,12 @@ const menus = [
     //       unique_id: "00000000",
     //     },
     //     {
+    //       name: "Procurement Approvals",
+    //       icon: <FaCreditCard />,
+    //       path: "/admin-panel/trial-kits/procurement",
+    //       unique_id: "00000000",
+    //     },
+    //     {
     //       name: "Trial Orders & Tracking",
     //       icon: <FaTruck />,
     //       path: "/admin-panel/trial-kits/orders",
@@ -189,12 +200,12 @@ const menus = [
           path: "/admin-panel/bde-management/franchisees",
           unique_id: "ADM_BDE_MGMT",
         },
-        {
-          name: "Territory Exceptions",
-          icon: <FaMapLocationDot />,
-          path: "/admin-panel/bde-management/territory-exceptions",
-          unique_id: "ADM_BDE_MGMT",
-        },
+        // {
+        //   name: "Territory Exceptions",
+        //   icon: <FaMapLocationDot />,
+        //   path: "/admin-panel/bde-management/territory-exceptions",
+        //   unique_id: "ADM_BDE_MGMT",
+        // },
         {
           name: "Conversion Funnel",
           icon: <FaCoins />,
@@ -870,6 +881,14 @@ export default function Dashboard() {
                     element={
                       <Suspense fallback={<Loader text="Loading Trial Kit Orders..." />}>
                         <TrialKitOrdersPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/trial-kits/procurement"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Trial Kit Procurement Approvals..." />}>
+                        <TrialKitProcurementPage />
                       </Suspense>
                     }
                   />

@@ -69,7 +69,6 @@ export default function LeadCaptureModal({
   const [availableDistricts, setAvailableDistricts] = useState([]);
   const [availableClusters, setAvailableClusters] = useState([]);
   const [selectedCluster, setSelectedCluster] = useState(null);
-  const [excludedDistricts, setExcludedDistricts] = useState([]);
   const [businessProfiles, setBusinessProfiles] = useState([]);
   const [formFieldsConfig, setFormFieldsConfig] = useState(null);
   const [showTerritoryMap, setShowTerritoryMap] = useState(true);
@@ -188,21 +187,6 @@ export default function LeadCaptureModal({
   }, []);
 
   useEffect(() => {
-    const fetchExcluded = async () => {
-      try {
-        const res = await api.get('/india/v1/reseller/leads/excluded-districts');
-        if (res.data?.status === 'success' && Array.isArray(res.data?.data)) {
-          setExcludedDistricts(res.data.data);
-        }
-      } catch (err) {
-        // Fallback default flagship store district
-        setExcludedDistricts([{ state: 'Maharashtra', district: 'Pune', reason: 'Company Flagship Store' }]);
-      }
-    };
-    fetchExcluded();
-  }, []);
-
-  useEffect(() => {
     if (initialContext) {
       setFormData((prev) => ({
         ...prev,
@@ -220,18 +204,13 @@ export default function LeadCaptureModal({
   useEffect(() => {
     if (formData.state && INDIAN_STATES_DISTRICTS[formData.state]) {
       const allDistricts = INDIAN_STATES_DISTRICTS[formData.state] || [];
-      const stateExcluded = (excludedDistricts || [])
-        .filter(ex => (ex.state || '').trim().toLowerCase() === (formData.state || '').trim().toLowerCase())
-        .map(ex => (ex.district || '').trim().toLowerCase());
+      setAvailableDistricts(allDistricts);
 
-      const filtered = allDistricts.filter(d => !stateExcluded.includes((d || '').trim().toLowerCase()));
-      setAvailableDistricts(filtered);
-
-      if (!filtered.includes(formData.district)) {
-        setFormData((prev) => ({ ...prev, district: filtered[0] || "" }));
+      if (!allDistricts.includes(formData.district)) {
+        setFormData((prev) => ({ ...prev, district: allDistricts[0] || "" }));
       }
     }
-  }, [formData.state, excludedDistricts]);
+  }, [formData.state]);
 
   // ── Resolve Franchise Clusters on State Change ───────────────────────────
   useEffect(() => {

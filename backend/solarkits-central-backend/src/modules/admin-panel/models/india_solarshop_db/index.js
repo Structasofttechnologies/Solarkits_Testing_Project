@@ -40,6 +40,7 @@ const TerritoryAssignmentHistory = require('./territory_assignment_history.schem
 // --- Phase 4: Product Authorization Matrix ---
 const ResellerProductAuthorization = require('./reseller_product_authorizations.schema');
 const DistrictProductRule = require('./district_product_rules.schema');
+const KitClusterAuthorization = require('./kit_cluster_authorizations.schema');
 
 // --- Phase R6: Reseller Procurement & Stock Ledger ---
 const ResellerProcurementOrder = require('./reseller_procurement_orders.schema');
@@ -173,6 +174,7 @@ module.exports = {
   // --- Phase 4: Product Authorization Matrix ---
   ResellerProductAuthorization,
   DistrictProductRule,
+  KitClusterAuthorization,
   // --- Phase R6: Reseller Procurement & Stock Ledger ---
   ResellerProcurementOrder,
   ResellerInventoryLedger,
@@ -281,4 +283,8 @@ module.exports = {
   TrialKitInventory: require('./trial_kit_inventories.schema'),
   TrialKitStockHistory: require('./trial_kit_stock_histories.schema'),
   TrialKitOrder: require('./trial_kit_orders.schema'),
+ 
+ 
+  TrialKitProcurement: require('./trial_kit_procurements.schema'),
+ 
 };

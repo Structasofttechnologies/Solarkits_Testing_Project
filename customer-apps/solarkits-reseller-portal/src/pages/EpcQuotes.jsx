@@ -113,6 +113,7 @@ export default function EpcQuotes() {
         page: pagination.page,
         limit: pagination.limit,
         sort: sortOrder,
+        is_trial_kit: false,
       };
       if (search.trim()) params.search = search.trim();
       if (statusFilter) params.status = statusFilter;
@@ -139,7 +140,7 @@ export default function EpcQuotes() {
   // Fetch Dashboard Stats
   const fetchDashboard = useCallback(async () => {
     try {
-      const res = await api.get("/india/v1/reseller/quotes/dashboard");
+      const res = await api.get("/india/v1/reseller/quotes/dashboard", { params: { is_trial_kit: false } });
       if (res.data?.status === "success") {
         setDashboardData(res.data.data);
       }
@@ -152,7 +153,7 @@ export default function EpcQuotes() {
   const fetchFollowups = useCallback(async () => {
     setFollowupsLoading(true);
     try {
-      const params = {};
+      const params = { is_trial_kit: false };
       if (followupFilter !== "all") {
         params.date_filter = followupFilter;
       }
@@ -162,10 +163,10 @@ export default function EpcQuotes() {
         const list = Array.isArray(raw)
           ? raw
           : Array.isArray(raw?.followups)
-          ? raw.followups
-          : Array.isArray(res.data?.followups)
-          ? res.data.followups
-          : [];
+            ? raw.followups
+            : Array.isArray(res.data?.followups)
+              ? res.data.followups
+              : [];
         setFollowups(list);
       } else {
         setFollowups([]);
@@ -422,11 +423,10 @@ export default function EpcQuotes() {
       <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 mb-6">
         <button
           onClick={() => setActiveTab("quotes")}
-          className={`px-4 py-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
-            activeTab === "quotes"
+          className={`px-4 py-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${activeTab === "quotes"
               ? "border-amber-500 text-amber-600 dark:text-amber-400"
               : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-          }`}
+            }`}
         >
           <FiFileText size={16} />
           <span>All Quotes</span>
@@ -437,11 +437,10 @@ export default function EpcQuotes() {
 
         <button
           onClick={() => setActiveTab("followups")}
-          className={`px-4 py-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
-            activeTab === "followups"
+          className={`px-4 py-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${activeTab === "followups"
               ? "border-amber-500 text-amber-600 dark:text-amber-400"
               : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-          }`}
+            }`}
         >
           <FiCalendar size={16} />
           <span>Follow-up Pipeline</span>
@@ -449,11 +448,10 @@ export default function EpcQuotes() {
 
         <button
           onClick={() => setActiveTab("dashboard")}
-          className={`px-4 py-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
-            activeTab === "dashboard"
+          className={`px-4 py-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${activeTab === "dashboard"
               ? "border-amber-500 text-amber-600 dark:text-amber-400"
               : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-          }`}
+            }`}
         >
           <FiTrendingUp size={16} />
           <span>Pipeline Analytics</span>
@@ -733,11 +731,10 @@ export default function EpcQuotes() {
               <button
                 key={tab.id}
                 onClick={() => setFollowupFilter(tab.id)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                  followupFilter === tab.id
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${followupFilter === tab.id
                     ? "bg-amber-500 text-white shadow-sm"
                     : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 {tab.label}
               </button>
@@ -772,9 +769,8 @@ export default function EpcQuotes() {
                             {fu.quote_id?.quote_number || "Quotation"}
                           </span>
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              isOverdue ? "bg-red-50 text-red-600 border border-red-200" : "bg-blue-50 text-blue-600"
-                            }`}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isOverdue ? "bg-red-50 text-red-600 border border-red-200" : "bg-blue-50 text-blue-600"
+                              }`}
                           >
                             {isOverdue ? "Overdue" : fu.status}
                           </span>
@@ -811,13 +807,12 @@ export default function EpcQuotes() {
                             </div>
                             <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                               <div
-                                className={`h-full rounded-full ${
-                                  fu.probability_pct >= 70
+                                className={`h-full rounded-full ${fu.probability_pct >= 70
                                     ? "bg-emerald-500"
                                     : fu.probability_pct >= 40
-                                    ? "bg-amber-500"
-                                    : "bg-red-400"
-                                }`}
+                                      ? "bg-amber-500"
+                                      : "bg-red-400"
+                                  }`}
                                 style={{ width: `${fu.probability_pct}%` }}
                               ></div>
                             </div>
@@ -985,11 +980,10 @@ export default function EpcQuotes() {
                         setShareMethod("email");
                         setShareRecipient(shareModalQuote.epc_snapshot?.email || "");
                       }}
-                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
-                        shareMethod === "email"
+                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${shareMethod === "email"
                           ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300"
                           : "border-slate-200 dark:border-slate-700 text-slate-600"
-                      }`}
+                        }`}
                     >
                       <FiMail size={16} /> Email PDF
                     </button>
@@ -999,11 +993,10 @@ export default function EpcQuotes() {
                         setShareMethod("whatsapp");
                         setShareRecipient(shareModalQuote.epc_snapshot?.mobile || "");
                       }}
-                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
-                        shareMethod === "whatsapp"
+                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${shareMethod === "whatsapp"
                           ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
                           : "border-slate-200 dark:border-slate-700 text-slate-600"
-                      }`}
+                        }`}
                     >
                       <FiSend size={16} /> WhatsApp
                     </button>
@@ -1269,11 +1262,10 @@ export default function EpcQuotes() {
                     <button
                       type="button"
                       onClick={() => setOrderType("epc_order")}
-                      className={`p-3 rounded-xl border text-xs font-bold text-left transition ${
-                        orderType === "epc_order"
+                      className={`p-3 rounded-xl border text-xs font-bold text-left transition ${orderType === "epc_order"
                           ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
                           : "border-slate-200 dark:border-slate-700 text-slate-600"
-                      }`}
+                        }`}
                     >
                       <div className="font-bold">EPC Direct Order</div>
                       <div className="text-[10px] font-normal text-slate-400 mt-0.5">Billed to EPC Buyer</div>
@@ -1282,11 +1274,10 @@ export default function EpcQuotes() {
                     <button
                       type="button"
                       onClick={() => setOrderType("fpo_order")}
-                      className={`p-3 rounded-xl border text-xs font-bold text-left transition ${
-                        orderType === "fpo_order"
+                      className={`p-3 rounded-xl border text-xs font-bold text-left transition ${orderType === "fpo_order"
                           ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
                           : "border-slate-200 dark:border-slate-700 text-slate-600"
-                      }`}
+                        }`}
                     >
                       <div className="font-bold">Franchisee PO</div>
                       <div className="text-[10px] font-normal text-slate-400 mt-0.5">Franchisee PO inventory</div>

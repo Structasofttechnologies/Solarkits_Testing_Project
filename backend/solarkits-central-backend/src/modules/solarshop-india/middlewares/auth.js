@@ -30,7 +30,7 @@ const verify_auth = (req, res, next) => {
 
 const optional_auth = (req, res, next) => {
     try {
-        let token = req.cookies?.access_token;
+        let token = req.cookies?.token || req.cookies?.access_token;
         if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
             token = req.headers.authorization.split(' ')[1];
         }

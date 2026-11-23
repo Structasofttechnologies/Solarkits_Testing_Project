@@ -23,6 +23,10 @@ import EpcQuotes from "./pages/EpcQuotes";
 import CreateEpcQuote from "./pages/CreateEpcQuote";
 import EpcQuoteDetail from "./pages/EpcQuoteDetail";
 import EpcQuoteFollowupList from "./pages/EpcQuoteFollowupList";
+import TrialKitQuotes from "./pages/TrialKitQuotes";
+import CreateTrialKitQuote from "./pages/CreateTrialKitQuote";
+import TrialKitQuoteDetail from "./pages/TrialKitQuoteDetail";
+import TrialKitQuoteFollowupList from "./pages/TrialKitQuoteFollowupList";
 import KnowledgeCenter from "./pages/KnowledgeCenter";
 
 export default function App() {
@@ -66,6 +70,10 @@ export default function App() {
           <Route path='/epc-quotes/create' element={<CreateEpcQuote />} />
           <Route path='/epc-quotes/:id' element={<EpcQuoteDetail />} />
           <Route path='/epc-quote-followups' element={<EpcQuoteFollowupList />} />
+          <Route path='/trial-kit-quotes' element={<TrialKitQuotes />} />
+          <Route path='/trial-kit-quotes/create' element={<CreateTrialKitQuote />} />
+          <Route path='/trial-kit-quotes/:id' element={<TrialKitQuoteDetail />} />
+          <Route path='/trial-kit-quote-followups' element={<TrialKitQuoteFollowupList />} />
           <Route path='/knowledge-center' element={<KnowledgeCenter />} />
           <Route path='/how-to-use' element={<KnowledgeCenter />} />
         </Route>

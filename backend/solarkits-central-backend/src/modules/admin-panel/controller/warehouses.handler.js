@@ -456,6 +456,8 @@ const get_warehouses = async (req, res) => {
         cluster_name: (routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()])?.cluster_name || (geoMap.l2Cluster[row.level_2?.toString()] || null)?.name || null,
         cluster_id: (routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()])?.cluster_id?.toString() || (geoMap.l2Cluster[row.level_2?.toString()] || null)?.id || null,
         fulfillment_states: (routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()])?.states || [],
+        franchise_clusters: (routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()])?.franchise_clusters || [],
+        franchise_cluster_ids: (routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()])?.franchise_cluster_ids || [],
         is_cluster_mapped: Boolean(routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()]),
         routing_mapping: (routingMapById[(row._id || row.id)?.toString()] || routingMapByCode[(row.warehouse_code || '').trim().toUpperCase()]) || null,
         country_id: row.level_0,

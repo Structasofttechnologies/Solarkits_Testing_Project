@@ -875,7 +875,7 @@ export default function BdeDashboard() {
       )}
 
       {/* Target Progress & Quick Cards Grid */}
-      <div className={`grid grid-cols-1 ${canOnboardFranchise !== false && canOnboardEpc !== false ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${canOnboardFranchise !== false && canOnboardEpc !== false ? 'xl:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
         {/* Franchisee Signups Target */}
         {canOnboardFranchise !== false && (
           <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
@@ -957,6 +957,31 @@ export default function BdeDashboard() {
                 />
               </div>
               <p className="text-[11px] font-semibold text-emerald-600">{goals.network_kit_achievement_pct || 0}% kit goal achievement</p>
+            </div>
+          </div>
+        )}
+
+        {/* EPC Trial Kits Target */}
+        {(canOnboardEpc !== false || (goals.monthly_trial_kit_goal || 0) > 0) && (
+          <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">EPC Trial Kits</span>
+              <div className="p-2.5 bg-rose-50 text-rose-600 rounded-2xl">
+                <Package className="w-5 h-5" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black text-rose-700">{goals.monthly_trial_kits_achieved || 0}</span>
+                <span className="text-xs text-slate-400 font-semibold">/ {goals.monthly_trial_kit_goal || 0} kits</span>
+              </div>
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-rose-600 h-full rounded-full transition-all"
+                  style={{ width: `${Math.min(100, goals.trial_kit_achievement_pct || 0)}%` }}
+                />
+              </div>
+              <p className="text-[11px] font-semibold text-rose-600">{goals.trial_kit_achievement_pct || 0}% kit goal achievement</p>
             </div>
           </div>
         )}

@@ -132,7 +132,7 @@ export default function GoalAssignment({ moduleUniqueId = 'ADM_BDE_MGMT' }) {
                       {b.goal?.period_type ? `${b.goal.period_type} (${b.goal.year || new Date().getFullYear()})` : 'Monthly (Current)'}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-200">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-1 border-t border-slate-200">
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">Monthly Signups</span>
                       <span className="font-black text-[#0575B8]">
@@ -167,6 +167,12 @@ export default function GoalAssignment({ moduleUniqueId = 'ADM_BDE_MGMT' }) {
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">Network Kits</span>
                       <span className="font-black text-purple-700">
                         {b.goal?.monthly_network_kit_goal ?? b.current_goal?.monthly_network_kit_goal ?? 0}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Trial Kits (EPC)</span>
+                      <span className="font-black text-rose-700">
+                        {b.goal?.monthly_trial_kit_goal ?? b.current_goal?.monthly_trial_kit_goal ?? 0}
                       </span>
                     </div>
                   </div>

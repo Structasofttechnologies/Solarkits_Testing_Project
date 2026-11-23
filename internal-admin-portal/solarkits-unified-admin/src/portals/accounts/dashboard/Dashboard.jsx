@@ -1,14 +1,14 @@
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import Header from "../components/Header"
 import Drawer from "../components/Drawer";
-import { FaHome, FaBuilding, FaFileInvoice, FaCreditCard, FaCheckCircle, FaHandshake, FaBoxes, FaLayerGroup, FaBalanceScale, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine } from "react-icons/fa"
+import { FaHome, FaBuilding, FaFileInvoice, FaCreditCard, FaCheckCircle, FaHandshake, FaBoxes, FaLayerGroup, FaBalanceScale, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine, FaTruckLoading } from "react-icons/fa"
 import { lazy, Suspense, useEffect, useState, useMemo, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import { PermissionGuard } from "../components/PermissionGuard";
 import { useSelector } from "react-redux";
 import Loader from "../components/Loader";
 import { selectAllowedUniqueIds, selectNoModulesForTier } from "../features/modules.slice";
-import { getSidebarBadgeCounts } from "../api/accounts";
+import { getSidebarBadgeCounts, getTrialKitsBadgeCount } from "../api/accounts";
 
 const Home = lazy(() => import("../pages/Home"));
 const Profile = lazy(() => import("../pages/Profile"));
@@ -33,6 +33,10 @@ const ExecutiveFinanceDashboard = lazy(() => import("../pages/executive/Executiv
 const CompanyProfileAndFy = lazy(() => import("../pages/company-profile/CompanyProfileAndFy"));
 const StatutoryRegistersHub = lazy(() => import("../pages/registers/StatutoryRegistersHub"));
 const AccountsTrialKitStockPage = lazy(() => import("../pages/trial-kits/AccountsTrialKitStockPage"));
+ 
+const TrialKitsOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitsOrdersPage"));
+const TrialKitsProcurementPage = lazy(() => import("../pages/trial-kits/TrialKitsProcurementPage"));
+ 
 
 const getMenusWithBadges = (badgeCounts = {}) => [
   [
@@ -62,10 +66,26 @@ const getMenusWithBadges = (badgeCounts = {}) => [
       badge: badgeCounts.new_orders || 0
     },
     {
-      name: "Trial Kit Stock",
+      name: "Trial Kits Management",
       icon: <FaBoxes />,
-      path: "/account-panel/trial-kits",
-      unique_id: "ACC_TRIAL_KITS"
+      unique_id: "ACC_TRIAL_KITS_MGMT",
+      badge: ((Number(badgeCounts.trial_kits_procurement) || 0) + (Number(badgeCounts.trial_kits_orders) || 0)) || 0,
+      subMenu: [
+        {
+          name: "Trial Kits Procurement",
+          icon: <FaTruckLoading />,
+          path: "/account-panel/trial-kits-procurement",
+          unique_id: "ACC_TRIAL_KITS_PROCUREMENT",
+          badge: badgeCounts.trial_kits_procurement || 0
+        },
+        {
+          name: "Trial Kits Orders",
+          icon: <FaBoxes />,
+          path: "/account-panel/trial-kits-orders",
+          unique_id: "ACC_TRIAL_KITS_ORDERS",
+          badge: badgeCounts.trial_kits_orders || 0
+        }
+      ]
     },
     {
       name: "Procurement",
@@ -178,14 +198,19 @@ const getMenusWithBadges = (badgeCounts = {}) => [
 ];
 
 const isModuleAllowed = (menu, allowedUniqueIds) => {
-  if (!menu.unique_id) return false;
+  if (!menu.unique_id) return true;
   if (
+    menu.unique_id === "00000000" ||
+    menu.unique_id.startsWith("ACC_TRIAL_") ||
     menu.unique_id === "ACC_ACCOUNTING" ||
     menu.unique_id === "ACC_GST" ||
     menu.unique_id === "ACC_INVOICE_VALIDATION" ||
     menu.unique_id === "ACC_EXPENSES" ||
     menu.unique_id === "ACC_COMPANY_PROFILE" ||
-    menu.unique_id === "ACC_REGISTERS"
+    menu.unique_id === "ACC_REGISTERS" ||
+    menu.unique_id === "ACC_TRIAL_KITS" ||
+    menu.unique_id === "ACC_TRIAL_KITS_ORDERS" ||
+    menu.unique_id === "ACC_TRIAL_KITS_PROCUREMENT"
   ) return true;
   if ((menu.unique_id === "ACC_NEW_ORDERS" || menu.unique_id === "ACC_PROCUREMENT") && (allowedUniqueIds.includes("ACC_NEW_ORDERS") || allowedUniqueIds.includes("ACC_HOME") || allowedUniqueIds.includes("ACC_PO") || allowedUniqueIds.includes("ACC_PROCUREMENT"))) return true;
   if (menu.unique_id === "ACC_OEM_PO" && allowedUniqueIds.includes("ACC_PO")) return true;
@@ -247,6 +272,8 @@ export default function Dashboard() {
 
   const [sidebarBadges, setSidebarBadges] = useState({
     new_orders: 0,
+    trial_kits_orders: 0,
+    trial_kits_procurement: 0,
     procurement: 0,
     supplier_payments: 0,
     purchase_orders: 0,
@@ -254,10 +281,15 @@ export default function Dashboard() {
 
   const fetchBadges = useCallback(async () => {
     try {
-      const res = await getSidebarBadgeCounts();
-      if (res?.data) {
-        setSidebarBadges(res.data);
-      }
+      const [res, tkBadgeRes] = await Promise.all([
+        getSidebarBadgeCounts().catch(() => ({ data: {} })),
+        getTrialKitsBadgeCount().catch(() => ({ data: {} }))
+      ]);
+      setSidebarBadges(prev => ({
+        ...prev,
+        ...(res?.data || {}),
+        trial_kits_orders: tkBadgeRes?.data?.pending_account || 0
+      }));
     } catch (err) {
       console.warn("Failed to fetch accounts sidebar badges:", err);
     }
@@ -333,6 +365,22 @@ export default function Dashboard() {
                 className="min-h-full w-full max-w-full min-w-0"
               >
                 <Routes location={location}>
+                  <Route
+                    path="/trial-kits-orders/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Trial Kits Orders..." />}>
+                        <TrialKitsOrdersPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/trial-kits-procurement/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Trial Kits Procurement..." />}>
+                        <TrialKitsProcurementPage />
+                      </Suspense>
+                    }
+                  />
                   <Route
                     path="/trial-kits/*"
                     element={

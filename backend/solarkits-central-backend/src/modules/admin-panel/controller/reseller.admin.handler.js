@@ -271,7 +271,9 @@ const review_kyc = async (req, res) => {
 
       // Update lifecycle status to kyc_verified
       reseller.reseller_lifecycle_status = 'kyc_verified';
-      reseller.activation_status = 'active';
+      if (reseller.is_operational) {
+        reseller.activation_status = 'active';
+      }
       reseller.is_active = true;
     } else if (decision === 'reject') {
       targetKycStatus = 'rejected';
@@ -676,9 +678,11 @@ const verify_fee_payment_receipt = async (req, res) => {
       reseller.fee_payment_verified_at = new Date();
       reseller.fee_payment_verified_by = adminId;
       reseller.fee_payment_remarks = cleanRemarks || 'Payment receipt verified and approved';
-      reseller.activation_status = 'active';
+      // Account remains pending & non-operational until BDE completes store setup and Admin launches operations
+      reseller.activation_status = 'pending';
       reseller.is_active = true;
-      reseller.reseller_lifecycle_status = 'active';
+      reseller.is_operational = false;
+      reseller.reseller_lifecycle_status = 'store_setup_pending';
       await reseller.save();
 
       // Ensure assigned territories are active
@@ -689,7 +693,11 @@ const verify_fee_payment_receipt = async (req, res) => {
 
       // Step 3: Trigger automatic Store Setup creation if agreement is signed
       try {
-        await createStoreSetupForFranchisee(reseller._id, adminId);
+        const setup = await createStoreSetupForFranchisee(reseller._id, adminId);
+        if (setup && !reseller.store_setup_id) {
+          reseller.store_setup_id = setup._id;
+          await reseller.save();
+        }
       } catch (setupErr) {
         console.error('[reseller.admin] Auto store setup creation error:', setupErr);
       }

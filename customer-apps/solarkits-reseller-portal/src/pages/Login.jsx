@@ -43,8 +43,18 @@ export default function Login() {
 
   useEffect(() => {
     const token = localStorage.getItem("reseller_token");
+    const userStr = localStorage.getItem("reseller_user");
     if (token) {
-      navigate("/dashboard");
+      try {
+        const u = userStr ? JSON.parse(userStr) : null;
+        if (u?.is_operational === true && u?.activation_status === "active") {
+          navigate("/dashboard");
+        } else {
+          navigate("/onboarding");
+        }
+      } catch {
+        navigate("/onboarding");
+      }
     }
   }, [navigate]);
 
@@ -120,7 +130,10 @@ export default function Login() {
         localStorage.setItem("reseller_token", token);
         localStorage.setItem("reseller_user", JSON.stringify(reseller));
 
-        if (reseller?.activation_status === "active") {
+        const isOperational = Boolean(
+          reseller?.is_operational === true && reseller?.activation_status === "active"
+        );
+        if (isOperational) {
           navigate("/dashboard");
         } else {
           navigate("/onboarding");
@@ -169,7 +182,10 @@ export default function Login() {
         localStorage.setItem("reseller_token", token);
         localStorage.setItem("reseller_user", JSON.stringify(reseller));
 
-        if (reseller?.activation_status === "active") {
+        const isOperational = Boolean(
+          reseller?.is_operational === true && reseller?.activation_status === "active"
+        );
+        if (isOperational) {
           navigate("/dashboard");
         } else {
           navigate("/onboarding");

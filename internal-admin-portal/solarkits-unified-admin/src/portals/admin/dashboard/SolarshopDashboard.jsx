@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine } from "react-icons/fa";
+import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine, FaCreditCard } from "react-icons/fa";
 import { HiCube } from "react-icons/hi";
 import { useSelector, useDispatch } from "react-redux";
 import { setAlert } from "../features/alert.slice";
@@ -94,11 +94,14 @@ const ExecutiveFinanceDashboard = lazy(() => import("../../accounts/pages/execut
 const TrialKitInventoryPage = lazy(() => import("../pages/trial-kits/TrialKitInventoryPage"));
 const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrdersPage"));
 const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
+const TrialKitProcurementPage = lazy(() => import("../pages/trial-kits/TrialKitProcurementPage"));
+const TrialKitUnassignedLeadsPage = lazy(() => import("../pages/trial-kits/TrialKitUnassignedLeadsPage"));
 
 const menus = [
     [
         { step: "01", badgeKey: "01", name: "Dashboard", icon: <FaHome />, path: "/admin-panel/solar-shop/home", unique_id: "00000000" },
 
+ 
        // { 
         //    step: "01B", 
         //    badgeKey: "ACC_M", 
@@ -155,6 +158,10 @@ const menus = [
         //     path: "/admin-panel/solar-shop/executive-finance",
         //     unique_id: "00000000"
         // }
+ 
+
+
+ 
     ],
     [
         { step: "02", badgeKey: "02", name: "Approve New EPC", icon: <FaUsers />, path: "/admin-panel/solar-shop/approve-new-epc", unique_id: "ADM_APPROVE_EPC" },
@@ -219,8 +226,7 @@ const menus = [
         },
         { step: "04", badgeKey: "04", name: "PO Orders", icon: <FaFileInvoiceDollar />, path: "/admin-panel/solar-shop/po-orders", unique_id: "00000000" },
         { step: "05", badgeKey: "05", name: "Loose Orders", icon: <FaBoxes />, path: "/admin-panel/solar-shop/loose-orders", unique_id: "00000000" },
-        { step: "06", badgeKey: "06", name: "EPC Orders & Approvals", icon: <FaUserShield />, path: "/admin-panel/solar-shop/epc-orders", unique_id: "00000000" },
-        { step: "07", badgeKey: "07", name: "Order & Stage Approvals", icon: <FiCheckSquare />, path: "/admin-panel/solar-shop/order-approvals", unique_id: "ADM_ORDER_APPROVALS" },
+        { step: "06", badgeKey: "06", name: "EPC Orders & Approvals", icon: <FaUserShield />, path: "/admin-panel/solar-shop/order-approvals", unique_id: "00000000" },
         {
             step: "08",
             badgeKey: "08",
@@ -333,12 +339,7 @@ const menus = [
             path: "/admin-panel/solar-shop/order-management-settings",
             unique_id: "ADM_ORDER_SETTINGS",
             subMenu: [
-                {
-                    name: "Order Settings",
-                    icon: <HiCube />,
-                    path: "/admin-panel/solar-shop/order-management-settings",
-                    unique_id: "ADM_ORDER_SETTINGS"
-                },
+
                 {
                     name: "Offers Management",
                     icon: <HiCube />,
@@ -369,12 +370,12 @@ const menus = [
                 //     path: "/admin-panel/solar-shop/order-management-settings/admin-supplier-settings?tab=oem-products",
                 //     unique_id: "ADM_ORDER_SETTINGS"
                 // },
-                {
-                    name: "Kit Display Checklist",
-                    icon: <FiCheckSquare />,
-                    path: "/admin-panel/solar-shop/order-management-settings/kit-checklist",
-                    unique_id: "ADM_ORDER_SETTINGS"
-                },
+                // {
+                //     name: "Kit Display Checklist",
+                //     icon: <FiCheckSquare />,
+                //     path: "/admin-panel/solar-shop/order-management-settings/kit-checklist",
+                //     unique_id: "ADM_ORDER_SETTINGS"
+                // },
                 {
                     name: "Order Stages & TAT Settings",
                     icon: <FiClock />,
@@ -412,9 +413,21 @@ const menus = [
                     unique_id: "00000000",
                 },
                 {
+                    name: "Procurement Approvals",
+                    icon: <FaCreditCard />,
+                    path: "/admin-panel/solar-shop/trial-kits/procurement",
+                    unique_id: "00000000",
+                },
+                {
                     name: "Trial Kit Orders",
                     icon: <FaBoxes />,
                     path: "/admin-panel/solar-shop/trial-kits/orders",
+                    unique_id: "00000000",
+                },
+                {
+                    name: "Unassigned Intent Leads",
+                    icon: <FaUsers />,
+                    path: "/admin-panel/solar-shop/trial-kits/unassigned-leads",
                     unique_id: "00000000",
                 },
                 {
@@ -452,14 +465,14 @@ const menus = [
                     path: "/admin-panel/solar-shop/reseller-management/plans",
                     unique_id: "RSL_PLAN"
                 },
+                // {
+                //     name: "Territories",
+                //     icon: <FiMapPin />,
+                //     path: "/admin-panel/solar-shop/reseller-management/territories",
+                //     unique_id: "RSL_TERRITORY"
+                // },
                 {
-                    name: "Territories",
-                    icon: <FiMapPin />,
-                    path: "/admin-panel/solar-shop/reseller-management/territories",
-                    unique_id: "RSL_TERRITORY"
-                },
-                {
-                    name: "Product Authorization",
+                    name: "Kit Cluster Authorizations",
                     icon: <FiPackage />,
                     path: "/admin-panel/solar-shop/reseller-management/product-auth",
                     unique_id: "RSL_PROD_AUTH"
@@ -981,20 +994,14 @@ export default function SolarShopDashboard() {
                                     />
                                     <Route
                                         path="/epc-orders"
-                                        element={
-                                            <Suspense fallback={<Loader text="Loading EPC Orders & Approvals..." />}>
-                                                <AdminEpcOrders />
-                                            </Suspense>
-                                        }
+                                        element={<Navigate to="../order-approvals" replace />}
                                     />
                                     <Route
                                         path="/order-approvals"
                                         element={
-                                            <PermissionGuard requiredUniqueId="ADM_ORDER_APPROVALS">
-                                                <Suspense fallback={<Loader text="Loading Order & Stage Approvals..." />}>
-                                                    <AdminOrderApprovalDashboard />
-                                                </Suspense>
-                                            </PermissionGuard>
+                                            <Suspense fallback={<Loader text="Loading EPC Orders & Approvals..." />}>
+                                                <AdminOrderApprovalDashboard />
+                                            </Suspense>
                                         }
                                     />
                                     <Route
@@ -1143,20 +1150,14 @@ export default function SolarShopDashboard() {
                                     />
                                     <Route
                                         path="/:countryName/epc-orders"
-                                        element={
-                                            <Suspense fallback={<Loader text="Loading EPC Orders & Approvals..." />}>
-                                                <AdminEpcOrders />
-                                            </Suspense>
-                                        }
+                                        element={<Navigate to="../order-approvals" replace />}
                                     />
                                     <Route
                                         path="/:countryName/order-approvals"
                                         element={
-                                            <PermissionGuard requiredUniqueId="ADM_ORDER_APPROVALS">
-                                                <Suspense fallback={<Loader text="Loading Order & Stage Approvals..." />}>
-                                                    <AdminOrderApprovalDashboard />
-                                                </Suspense>
-                                            </PermissionGuard>
+                                            <Suspense fallback={<Loader text="Loading EPC Orders & Approvals..." />}>
+                                                <AdminOrderApprovalDashboard />
+                                            </Suspense>
                                         }
                                     />
                                     <Route
@@ -2028,8 +2029,12 @@ export default function SolarShopDashboard() {
                                     {/* ── Trial Kit Management Routes ──── */}
                                     <Route path="/trial-kits/inventory" element={<Suspense fallback={<Loader text="Loading Trial Kit Inventory..." />}><TrialKitInventoryPage /></Suspense>} />
                                     <Route path="/:countryName/trial-kits/inventory" element={<Suspense fallback={<Loader text="Loading Trial Kit Inventory..." />}><TrialKitInventoryPage /></Suspense>} />
+                                    <Route path="/trial-kits/procurement" element={<Suspense fallback={<Loader text="Loading Trial Kit Procurement Approvals..." />}><TrialKitProcurementPage /></Suspense>} />
+                                    <Route path="/:countryName/trial-kits/procurement" element={<Suspense fallback={<Loader text="Loading Trial Kit Procurement Approvals..." />}><TrialKitProcurementPage /></Suspense>} />
                                     <Route path="/trial-kits/orders" element={<Suspense fallback={<Loader text="Loading Trial Kit Orders..." />}><TrialKitOrdersPage /></Suspense>} />
                                     <Route path="/:countryName/trial-kits/orders" element={<Suspense fallback={<Loader text="Loading Trial Kit Orders..." />}><TrialKitOrdersPage /></Suspense>} />
+                                    <Route path="/trial-kits/unassigned-leads" element={<Suspense fallback={<Loader text="Loading Unassigned Intent Leads..." />}><TrialKitUnassignedLeadsPage /></Suspense>} />
+                                    <Route path="/:countryName/trial-kits/unassigned-leads" element={<Suspense fallback={<Loader text="Loading Unassigned Intent Leads..." />}><TrialKitUnassignedLeadsPage /></Suspense>} />
                                     <Route path="/trial-kits/analytics" element={<Suspense fallback={<Loader text="Loading Trial Kit Analytics..." />}><TrialKitAnalyticsPage /></Suspense>} />
                                     <Route path="/:countryName/trial-kits/analytics" element={<Suspense fallback={<Loader text="Loading Trial Kit Analytics..." />}><TrialKitAnalyticsPage /></Suspense>} />
 

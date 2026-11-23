@@ -417,10 +417,8 @@ async function createPoDraft({
             commission_amount_paise: { $gt: 0 },
           }).lean();
           if (!definedRule) {
-            const planRule = plan_id ? await resolveCommissionRule(plan_id) : null;
-            if (!planRule) {
-              console.warn(`[franchisee.po.service] No specific variation commission rule for kit "${item.item_name || kitId}". Using default rate.`);
-            }
+            const kitName = item.item_name || 'Selected Product';
+            throw new Error(`Commission setting is not defined for product "${kitName}". Please configure commission settings in Franchise Commission Settings before creating a Purchase Order.`);
           }
         }
       }
@@ -1428,10 +1426,8 @@ async function allocatePoProducts({
           commission_amount_paise: { $gt: 0 },
         }).lean();
         if (!definedRule) {
-          const planRule = plan_id ? await resolveCommissionRule(plan_id) : null;
-          if (!planRule) {
-            console.warn(`[franchisee.po.service] No specific variation commission rule for allocated product "${item.item_name || kitId}". Using default rate.`);
-          }
+          const kitName = item.item_name || 'Allocated Product';
+          throw new Error(`Commission setting is not defined for product "${kitName}". Please configure commission settings in Franchise Commission Settings before allocating.`);
         }
       }
     }

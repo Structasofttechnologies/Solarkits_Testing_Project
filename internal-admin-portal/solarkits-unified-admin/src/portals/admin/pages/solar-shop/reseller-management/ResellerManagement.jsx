@@ -197,12 +197,12 @@ function ResellerManagement() {
         }
       />
 
-      {/* Product Authorization Matrix */}
+      {/* Kit Cluster Authorizations */}
       <Route
         path="/product-auth"
         element={
           <PermissionGuard requiredUniqueId="RSL_PROD_AUTH">
-            <Suspense fallback={<Loader text="Loading Product Authorization Matrix..." />}>
+            <Suspense fallback={<Loader text="Loading Kit Cluster Authorizations..." />}>
               <ResellerProductAuth moduleUniqueId="RSL_PROD_AUTH" />
             </Suspense>
           </PermissionGuard>

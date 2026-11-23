@@ -17,5 +17,6 @@ router.use('/cluster-routing', require('./solarshop/cluster_routing.route'));
 router.use('/oem-partner-products', require('./solarshop/oem_partner_products.route'));
 router.use('/warehouse-partner-mappings', require('./solarshop/warehouse_partner_mappings.route'));
 router.use('/epc-orders', require('./solarshop/epc_orders.route'));
+router.use('/kit-cluster-auth', require('./solarshop/kit_cluster_auth.route'));
 
 module.exports = router

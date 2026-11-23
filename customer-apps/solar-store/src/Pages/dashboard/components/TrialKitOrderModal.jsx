@@ -12,6 +12,10 @@ import {
   FaShieldAlt,
   FaTag,
   FaWarehouse,
+  FaClipboardList,
+  FaLayerGroup,
+  FaCalendarAlt,
+  FaBoxes,
 } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import Dialog from "@/Components/Dialog";
@@ -29,9 +33,8 @@ export default function TrialKitOrderModal({
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { isAuthenticated, user } = useSelector((state) => state.auth_slice);
-  const selectedDistrict = useSelector((state) => state.slice.selectedDistrict);
 
-  // Trial Quantity: configured by admin (default 1)
+  // Trial kit default quantity (typically 1 Kit)
   const defaultTrialQty = kit?.trial_kit_quantity !== undefined && kit?.trial_kit_quantity !== null
     ? Math.max(1, Number(kit.trial_kit_quantity) || 1)
     : 1;
@@ -60,6 +63,53 @@ export default function TrialKitOrderModal({
   const [loading, setLoading] = useState(false);
   const [deliveryData, setDeliveryData] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Admin-configured loose order quantities (e.g. 25, 50, 100 or 45, 75, 105 kits)
+  const looseOrderQuantities = useMemo(() => {
+    const rawLoose = kit?.looseOrderQuantities || kit?.loose_order_quantities || [];
+    const fromPricing = (kit?.loose_order_pricing || []).map((t) => Number(t.quantity)).filter((n) => !isNaN(n) && n > 0);
+    const combined = [...new Set([...(Array.isArray(rawLoose) ? rawLoose.map(Number) : []), ...fromPricing])]
+      .filter((n) => !isNaN(n) && n > 0)
+      .sort((a, b) => a - b);
+    return combined.length > 0 ? combined : [25, 50, 100];
+  }, [kit?.looseOrderQuantities, kit?.loose_order_quantities, kit?.loose_order_pricing]);
+
+  // Admin-configured Bulk PO quantities (e.g. 200, 500 or 500, 1000 kits)
+  const poOrderQuantities = useMemo(() => {
+    const rawPo = kit?.orderQuantities || kit?.order_quantities || [];
+    const fromPricing = (kit?.po_order_pricing || []).map((t) => Number(t.quantity)).filter((n) => !isNaN(n) && n > 0);
+    const combined = [...new Set([...(Array.isArray(rawPo) ? rawPo.map(Number) : []), ...fromPricing])]
+      .filter((n) => !isNaN(n) && n > 0)
+      .sort((a, b) => a - b);
+    return combined.length > 0 ? combined : [200, 500, 1000];
+  }, [kit?.orderQuantities, kit?.order_quantities, kit?.po_order_pricing]);
+
+  // Future Purchase Intent Questionnaire State (Trial Kit Special Form - Only 'loose' or 'bulk_po')
+  const [purchaseMode, setPurchaseMode] = useState("loose"); // 'loose' | 'bulk_po'
+  const [selectedQuantity, setSelectedQuantity] = useState(() => looseOrderQuantities[0] || 25);
+  const [timeline, setTimeline] = useState("within_15_days");
+  const [remarks, setRemarks] = useState("");
+
+  const handleSelectMode = (mode) => {
+    setPurchaseMode(mode);
+    if (mode === "loose") {
+      setSelectedQuantity(looseOrderQuantities[0] || 25);
+    } else {
+      setSelectedQuantity(poOrderQuantities[0] || 200);
+    }
+  };
+
+  useEffect(() => {
+    if (purchaseMode === "loose") {
+      if (!looseOrderQuantities.includes(selectedQuantity)) {
+        setSelectedQuantity(looseOrderQuantities[0] || 25);
+      }
+    } else {
+      if (!poOrderQuantities.includes(selectedQuantity)) {
+        setSelectedQuantity(poOrderQuantities[0] || 200);
+      }
+    }
+  }, [purchaseMode, looseOrderQuantities, poOrderQuantities]);
 
   // Sync trial quantity when kit changes
   useEffect(() => {
@@ -125,21 +175,21 @@ export default function TrialKitOrderModal({
         console.error("Delivery freight calculation error:", err);
         setErrorMsg(
           err.response?.data?.message ||
-          "Unable to calculate freight for this PIN code. Please try again."
+          "Could not compute freight for this PIN. Please check internet connection."
         );
       } finally {
         setLoading(false);
       }
     },
-    [pincode, kit?._id, kit?.id, trialQty, unitPrice, currentVariant, kit]
+    [pincode, kit, trialQty, unitPrice, currentVariant]
   );
 
-  // Auto-calculate if 6-digit pin is present on open
+  // Auto-calculate freight if user has default pincode
   useEffect(() => {
-    if (isOpen && pincode && /^\d{6}$/.test(pincode)) {
-      handleCalculateFreight(pincode);
+    if (user?.pincode && /^\d{6}$/.test(String(user.pincode).trim()) && isOpen && !deliveryData) {
+      handleCalculateFreight(user.pincode);
     }
-  }, [isOpen]);
+  }, [user?.pincode, isOpen, handleCalculateFreight, deliveryData]);
 
   const handlePincodeChange = (e) => {
     const val = e.target.value.replace(/\D/g, "").slice(0, 6);
@@ -180,7 +230,7 @@ export default function TrialKitOrderModal({
     }
 
     if (isTrialLimitReached) {
-      setErrorMsg(`Maximum trial kit purchase limit (${trialLimit} order(s)) has been reached for this product.`);
+      setErrorMsg(`Only 1 trial kit per product is permitted per registered GST number. You have already ordered a trial kit for "${kit?.name || kit?.kitName || 'this combo kit'}".`);
       return;
     }
 
@@ -194,6 +244,24 @@ export default function TrialKitOrderModal({
       return;
     }
 
+    const effectiveQty = Number(selectedQuantity) || (purchaseMode === "loose" ? looseOrderQuantities[0] : poOrderQuantities[0]) || 25;
+
+    const futureIntentPayload = {
+      future_purchase_mode: purchaseMode,
+      expected_quantity: effectiveQty,
+      loose_quantity: purchaseMode === "loose" ? effectiveQty : 0,
+      po_quantity: purchaseMode === "bulk_po" ? effectiveQty : 0,
+      estimated_timeline:
+        timeline === "within_15_days"
+          ? "Within 15 Days"
+          : timeline === "15_to_30_days"
+            ? "15 - 30 Days"
+            : timeline === "1_to_3_months"
+              ? "1 - 3 Months"
+              : "3+ Months",
+      remarks: remarks.trim(),
+    };
+
     dispatch(
       addToCart({
         id: kit.id || kit._id,
@@ -202,6 +270,7 @@ export default function TrialKitOrderModal({
         is_trial_kit: true,
         order_type: "trial",
         trial_kit_quantity: trialQty,
+        future_intent: futureIntentPayload,
         delivery_cost: deliveryFreight,
         delivery_pincode: pincode,
         delivery_district: deliveryData.district_name || selectedDistrict?.name || "",
@@ -234,7 +303,7 @@ export default function TrialKitOrderModal({
       title={`Trial Kit Order (${trialQty} Kits) • ${kit?.kitName || "Solar Kit"}`}
       size="lg"
     >
-      <div className="p-6 space-y-6 text-text-primary">
+      <div className="p-6 space-y-5 text-text-primary">
         {/* Banner Card */}
         <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 rounded-2xl border border-primary/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
@@ -271,12 +340,32 @@ export default function TrialKitOrderModal({
         <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/40 p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
           <div className="flex items-center gap-2 text-blue-900 dark:text-blue-300 font-semibold">
             <FaShieldAlt className="text-blue-600 dark:text-blue-400 shrink-0 text-sm" />
-            <span>Policy: Strictly One Trial Kit Per EPC GST Number</span>
+            <span>Policy: Strictly 1 Trial Kit Per Product Per EPC GST Number</span>
           </div>
           <div className="font-mono text-xs font-bold text-blue-800 dark:text-blue-200 bg-blue-100/80 dark:bg-blue-900/50 px-3 py-1 rounded-xl border border-blue-200 dark:border-blue-800 self-start sm:self-auto">
             {user?.gstin ? `EPC GSTIN: ${user.gstin}` : "Verified at Order Checkout"}
           </div>
         </div>
+
+        {/* 1 Trial Kit Per Product Limit Reached Warning */}
+        {isTrialLimitReached && (
+          <div className="bg-amber-500/15 border border-amber-500/40 p-3.5 rounded-2xl flex items-center justify-between text-xs animate-in fade-in">
+            <div className="flex items-center gap-2.5 text-amber-900 dark:text-amber-200 font-semibold">
+              <FaShieldAlt className="text-amber-600 dark:text-amber-400 shrink-0 text-base" />
+              <div>
+                <span className="block font-black text-amber-900 dark:text-amber-200 uppercase tracking-wide">
+                  1 Trial Kit Per Product Limit Reached
+                </span>
+                <span className="text-[11px] font-medium text-amber-800 dark:text-amber-300">
+                  A trial kit for this product has already been ordered under your registered GST. You cannot place another trial kit order for this product.
+                </span>
+              </div>
+            </div>
+            <span className="font-mono text-xs font-black text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-900/60 px-3 py-1 rounded-xl border border-amber-300 dark:border-amber-700 shrink-0">
+              1/1 Ordered
+            </span>
+          </div>
+        )}
 
         {/* Warehouse Buffer Stock Status */}
         {isTrialInStock ? (
@@ -307,7 +396,7 @@ export default function TrialKitOrderModal({
         )}
 
         {/* Configuration Row: Quantity & Pincode */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Trial Quantity Section */}
           <div className="bg-surface-hover/60 border border-border p-4 rounded-2xl">
             <label className="text-xs font-black text-text-secondary uppercase tracking-wider block mb-2">
@@ -363,6 +452,153 @@ export default function TrialKitOrderModal({
             <p className="text-[11px] text-text-muted mt-2">
               Freight rate is calculated dynamically per State, District & PIN code.
             </p>
+          </div>
+        </div>
+
+        {/* ── Future Purchase Intent Questionnaire (Trial Kits Exclusive) ── */}
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 sm:p-5 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-amber-500/20">
+            <div className="flex items-center gap-2.5">
+              <span className="p-2 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                <FaClipboardList size={18} />
+              </span>
+              <div>
+                <h4 className="text-xs sm:text-sm font-black text-text-primary flex items-center gap-2">
+                  <span>Pre-Order Future Purchase Intent</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white uppercase tracking-wider">
+                    Trial Kits Exclusive
+                  </span>
+                </h4>
+                <p className="text-[11px] text-text-muted mt-0.5">
+                  Which purchase model and quantities do you plan to buy once this trial kit is tested?
+                </p>
+              </div>
+            </div>
+            <div className="text-right hidden sm:block">
+              <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase block">
+                Planned Future Stock
+              </span>
+              <span className="text-sm font-black text-amber-600 dark:text-amber-400">
+                {selectedQuantity} Kits
+              </span>
+            </div>
+          </div>
+
+          {/* Question 1: Loose vs Bulk PO */}
+          <div>
+            <label className="text-xs font-black text-text-secondary uppercase tracking-wider block mb-2 flex items-center gap-1.5">
+              <FaLayerGroup className="text-amber-500" />
+              1. Which Purchase Option Will You Choose in the Future? *
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => handleSelectMode("loose")}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  purchaseMode === "loose"
+                    ? "bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs"
+                    : "bg-surface border-border hover:bg-surface-hover text-text-secondary"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-xs">Loose Kits</span>
+                  {purchaseMode === "loose" && <FaCheckCircle className="text-amber-600 dark:text-amber-400 text-xs" />}
+                </div>
+                <p className="text-[10px] text-text-muted mt-1">
+                  Flexible on-demand order ({looseOrderQuantities[0]} - {looseOrderQuantities[looseOrderQuantities.length - 1]} Kits)
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectMode("bulk_po")}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  purchaseMode === "bulk_po"
+                    ? "bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs"
+                    : "bg-surface border-border hover:bg-surface-hover text-text-secondary"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-xs">Bulk PO</span>
+                  {purchaseMode === "bulk_po" && <FaCheckCircle className="text-amber-600 dark:text-amber-400 text-xs" />}
+                </div>
+                <p className="text-[10px] text-text-muted mt-1">
+                  Commercial Bulk PO ({poOrderQuantities[0]}+ Kits scheduled deliveries)
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {/* Question 2: Expected Quantities (Configured Pills Only - No Manual Text Input) */}
+          <div className="space-y-3 pt-1">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-black text-text-secondary uppercase tracking-wider block flex items-center gap-1.5">
+                  <FaBoxes className="text-amber-500" />
+                  2. Select {purchaseMode === "loose" ? "Loose Order" : "Bulk PO"} Quantity *
+                </label>
+                <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                  Selected: {selectedQuantity} Kits
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2.5">
+                {(purchaseMode === "loose" ? looseOrderQuantities : poOrderQuantities).map((qty) => {
+                  const isSelected = selectedQuantity === qty;
+                  return (
+                    <button
+                      key={qty}
+                      type="button"
+                      onClick={() => setSelectedQuantity(qty)}
+                      className={`px-4 py-2.5 rounded-xl font-black text-xs transition-all flex items-center gap-2 border shadow-xs ${
+                        isSelected
+                          ? "bg-amber-500 text-white border-amber-600 ring-2 ring-amber-500/30 scale-[1.02]"
+                          : "bg-surface hover:bg-surface-hover text-text-primary border-border"
+                      }`}
+                    >
+                      <span>{qty} Kits</span>
+                      {isSelected && <FaCheckCircle className="text-white text-xs" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-text-muted mt-1.5">
+                {purchaseMode === "loose"
+                  ? "Admin-configured loose batch sizes available for instant dispatch."
+                  : "Admin-configured commercial bulk PO volumes for scheduled factory fulfillment."}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="text-xs font-black text-text-secondary uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                  <FaCalendarAlt className="text-amber-500" />
+                  Estimated Purchase Timeline *
+                </label>
+                <select
+                  value={timeline}
+                  onChange={(e) => setTimeline(e.target.value)}
+                  className="w-full px-3 py-2 bg-surface border border-border rounded-xl text-xs font-bold text-text-primary focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
+                >
+                  <option value="within_15_days">Within 15 Days after Trial Delivery</option>
+                  <option value="15_to_30_days">15 - 30 Days (Next Month Project)</option>
+                  <option value="1_to_3_months">1 - 3 Months (Quarterly Pipeline)</option>
+                  <option value="3_plus_months">3+ Months (Future Tender/Tied)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-black text-text-secondary uppercase tracking-wider block mb-1.5">
+                  Remarks / Project Scope (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  placeholder="e.g. Residential 50 kW rooftop, EPC tender"
+                  className="w-full px-3 py-2 bg-surface border border-border rounded-xl text-xs font-medium text-text-primary focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -487,7 +723,11 @@ export default function TrialKitOrderModal({
             leftIcon={<FaTruck className="text-white" />}
             className="font-black px-6 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-700 hover:to-amber-600 text-white shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {!isTrialInStock ? "Out of Stock (Trial Kit)" : "Order Trial Kit (Checkout)"}
+            {isTrialLimitReached
+              ? "Already Ordered (1/GST Limit)"
+              : !isTrialInStock
+                ? "Out of Stock (Trial Kit)"
+                : "Order Trial Kit (Checkout)"}
           </Button>
         </div>
       </div>

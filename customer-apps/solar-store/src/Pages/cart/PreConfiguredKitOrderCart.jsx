@@ -97,7 +97,7 @@ export default function PreConfiguredKitOrderCart() {
     const [checkoutSettings, setCheckoutSettings] = useState({
         enable_checkout_timer: true,
         checkout_timer_duration: 20,
-        gst_rate: 13.8
+        gst_rate: 12
     });
 
     useEffect(() => {
@@ -197,7 +197,7 @@ export default function PreConfiguredKitOrderCart() {
     }, [cart, searchTerm, sortBy]);
 
     const getTaxBreakdown = (amount) => {
-        const fallbackRate = Number(checkoutSettings.gst_rate ?? 13.8);
+        const fallbackRate = Number(checkoutSettings.gst_rate ?? 12);
         let taxable = 0;
         let gstAmount = 0;
 

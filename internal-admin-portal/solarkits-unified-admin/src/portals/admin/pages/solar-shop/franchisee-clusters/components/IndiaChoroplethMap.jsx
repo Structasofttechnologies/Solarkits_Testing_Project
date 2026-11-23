@@ -98,6 +98,8 @@ export default function IndiaChoroplethMap({
   selectedBde = '',
   searchDistrict = '',
   onDistrictClick,
+  showClusterNumbering = false,
+  showKitCounts = false,
 }) {
   const [geoData, setGeoData] = useState(null);
   const [loadingGeo, setLoadingGeo] = useState(true);
@@ -266,6 +268,88 @@ export default function IndiaChoroplethMap({
     },
     [districtLookup]
   );
+
+  // ── Precompute Cluster Centroids for Map Labels & Numbered Badges ──────────
+  const clusterCentroids = useMemo(() => {
+    if (!geoData || !projection || !pathGenerator) return [];
+    if (!showClusterNumbering && !showKitCounts) return [];
+
+    const clusterMap = new Map();
+
+    // 1. Initialize from clustersList
+    (clustersList || []).forEach((c, index) => {
+      const cId = String(c._id || c.id || c.cluster_id);
+      clusterMap.set(cId, {
+        cluster_id: cId,
+        cluster_number: c.cluster_number || (index + 1),
+        cluster_code: c.cluster_code || 'CLU',
+        cluster_name: c.cluster_name || 'Cluster',
+        color: c.color_code || getClusterTheme(cId).fill,
+        total_kits: c.total_kits,
+        authorized_kits: c.authorized_kits,
+        restricted_kits: c.restricted_kits,
+        coverage_status: c.coverage_status,
+        points: []
+      });
+    });
+
+    // 2. Map district features to their cluster centroids
+    districtFeatures.forEach((feat) => {
+      const match = getDistrictMatch(feat);
+      if (match?.cluster_id) {
+        const cId = String(match.cluster_id);
+        let entry = clusterMap.get(cId);
+        if (!entry) {
+          entry = {
+            cluster_id: cId,
+            cluster_number: match.cluster_number || (clusterMap.size + 1),
+            cluster_code: match.cluster_code || 'CLU',
+            cluster_name: match.cluster_name || 'Cluster',
+            color: match.cluster_color || getClusterTheme(cId).fill,
+            total_kits: match.total_kits,
+            authorized_kits: match.authorized_kits,
+            restricted_kits: match.restricted_kits,
+            coverage_status: match.coverage_status,
+            points: []
+          };
+          clusterMap.set(cId, entry);
+        }
+
+        if (entry.total_kits === undefined && match.total_kits !== undefined) {
+          entry.total_kits = match.total_kits;
+          entry.authorized_kits = match.authorized_kits;
+          entry.restricted_kits = match.restricted_kits;
+        }
+        if (match.cluster_number && !entry.cluster_number) {
+          entry.cluster_number = match.cluster_number;
+        }
+
+        try {
+          const pt = pathGenerator.centroid(feat);
+          if (pt && !isNaN(pt[0]) && !isNaN(pt[1])) {
+            entry.points.push(pt);
+          }
+        } catch (e) {}
+      }
+    });
+
+    const result = [];
+    clusterMap.forEach((entry) => {
+      if (entry.points.length > 0) {
+        const sumX = entry.points.reduce((acc, p) => acc + p[0], 0);
+        const sumY = entry.points.reduce((acc, p) => acc + p[1], 0);
+        const cx = sumX / entry.points.length;
+        const cy = sumY / entry.points.length;
+        result.push({
+          ...entry,
+          cx,
+          cy
+        });
+      }
+    });
+
+    return result;
+  }, [geoData, projection, pathGenerator, showClusterNumbering, showKitCounts, clustersList, districtFeatures, getDistrictMatch]);
 
   // Auto-focus / zoom when selectedState changes
   useEffect(() => {
@@ -652,6 +736,137 @@ export default function IndiaChoroplethMap({
               </g>
             );
           })}
+
+          {/* 4. Cluster Numbering & Active Kits Badges Overlay */}
+          {(showClusterNumbering || showKitCounts) &&
+            clusterCentroids.map((c) => {
+              const isSelected =
+                selectedCluster &&
+                (String(c.cluster_id) === String(selectedCluster) ||
+                  String(c.cluster_name).toLowerCase() === String(selectedCluster).toLowerCase());
+              // Scale dynamically with zoom so badge stays readable and sharp
+              const s = 1 / Math.max(0.65, zoom * 0.65);
+              const hasKits = c.total_kits !== undefined;
+              const pillW = (hasKits ? 104 : 64) * s;
+              const pillH = 24 * s;
+              const numRadius = 9 * s;
+
+              const statusDotColor =
+                c.total_kits > 0
+                  ? c.authorized_kits === c.total_kits
+                    ? '#10b981'
+                    : c.authorized_kits > 0
+                    ? '#f59e0b'
+                    : '#f43f5e'
+                  : '#94a3b8';
+
+              return (
+                <g
+                  key={`cluster-badge-${c.cluster_id}`}
+                  transform={`translate(${c.cx}, ${c.cy})`}
+                  className="cursor-pointer select-none"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onDistrictClick) {
+                      onDistrictClick({ cluster_id: c.cluster_id, id: c.cluster_id }, c);
+                    }
+                  }}
+                  onMouseEnter={() => {
+                    setHoveredDistrict({
+                      feature: null,
+                      match: {
+                        cluster_id: c.cluster_id,
+                        cluster_number: c.cluster_number,
+                        cluster_code: c.cluster_code,
+                        cluster_name: c.cluster_name,
+                        total_kits: c.total_kits,
+                        authorized_kits: c.authorized_kits,
+                        restricted_kits: c.restricted_kits,
+                        coverage_status: c.coverage_status,
+                      },
+                      districtName: c.cluster_name,
+                      stateName: selectedState || 'Territory',
+                    });
+                  }}
+                >
+                  {/* Outer selection ring */}
+                  {isSelected && (
+                    <rect
+                      x={-pillW / 2 - 3.5 * s}
+                      y={-pillH / 2 - 3.5 * s}
+                      width={pillW + 7 * s}
+                      height={pillH + 7 * s}
+                      rx={15 * s}
+                      fill="none"
+                      stroke="#2563eb"
+                      strokeWidth={2.5 * s}
+                      strokeDasharray={`${4 * s},${2 * s}`}
+                      opacity={0.9}
+                    />
+                  )}
+
+                  {/* Pill Background Card */}
+                  <rect
+                    x={-pillW / 2}
+                    y={-pillH / 2}
+                    width={pillW}
+                    height={pillH}
+                    rx={12 * s}
+                    fill="#ffffff"
+                    stroke={isSelected ? '#2563eb' : '#334155'}
+                    strokeWidth={(isSelected ? 1.6 : 1) * s}
+                    filter="drop-shadow(0 2px 4px rgba(0,0,0,0.22))"
+                  />
+
+                  {/* Number Badge Circle */}
+                  <circle
+                    cx={-pillW / 2 + 12 * s}
+                    cy={0}
+                    r={numRadius}
+                    fill={c.color || '#2563eb'}
+                  />
+                  <text
+                    x={-pillW / 2 + 12 * s}
+                    y={3.5 * s}
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize={9.5 * s}
+                    fontWeight="900"
+                    fontFamily="monospace"
+                  >
+                    {c.cluster_number}
+                  </text>
+
+                  {/* Active Kits Badge or Cluster Code */}
+                  {hasKits ? (
+                    <g transform={`translate(${-pillW / 2 + 25 * s}, 0)`}>
+                      <circle cx={4 * s} cy={-0.5 * s} r={2.8 * s} fill={statusDotColor} />
+                      <text
+                        x={10 * s}
+                        y={3.5 * s}
+                        fill="#0f172a"
+                        fontSize={9.5 * s}
+                        fontWeight="800"
+                        fontFamily="sans-serif"
+                      >
+                        {c.authorized_kits ?? 0}/{c.total_kits} Active
+                      </text>
+                    </g>
+                  ) : (
+                    <text
+                      x={-pillW / 2 + 25 * s}
+                      y={3.5 * s}
+                      fill="#0f172a"
+                      fontSize={9 * s}
+                      fontWeight="800"
+                      fontFamily="monospace"
+                    >
+                      {c.cluster_code}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
         </g>
       </svg>
 
@@ -807,7 +1022,12 @@ export default function IndiaChoroplethMap({
             <div className="mt-2 space-y-1.5">
               {mapViewMode === 'clusters' ? (
                 <>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {hoveredDistrict.match.cluster_number && (
+                      <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-orange-500/20 text-orange-400 border border-orange-500/40 font-black">
+                        #{hoveredDistrict.match.cluster_number}
+                      </span>
+                    )}
                     <span
                       className="w-2.5 h-2.5 rounded-full"
                       style={{
@@ -825,6 +1045,23 @@ export default function IndiaChoroplethMap({
                     <div className="text-[11px] text-slate-300 font-medium flex items-center justify-between">
                       <span className="text-slate-400">Cluster Code:</span>
                       <span className="font-mono text-orange-400 font-bold">{hoveredDistrict.match.cluster_code}</span>
+                    </div>
+                  )}
+
+                  {hoveredDistrict.match.total_kits !== undefined && (
+                    <div className="pt-1.5 mt-1 border-t border-slate-700/70 space-y-1">
+                      <div className="text-[11px] flex items-center justify-between">
+                        <span className="text-slate-400">Store Active Kits:</span>
+                        <span className="font-bold text-emerald-400">
+                          {hoveredDistrict.match.authorized_kits || 0} / {hoveredDistrict.match.total_kits} Active
+                        </span>
+                      </div>
+                      <div className="text-[10px] flex items-center justify-between text-slate-400">
+                        <span>Hidden in Store:</span>
+                        <span className="font-semibold text-rose-400">
+                          {hoveredDistrict.match.restricted_kits || 0} Hidden
+                        </span>
+                      </div>
                     </div>
                   )}
 

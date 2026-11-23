@@ -33,6 +33,7 @@ const GeoLevel0 = require("../../models/geolocation_db/geo_level_0.schema");
 const GeoLevel1 = require("../../models/geolocation_db/geo_level_1.schema");
 const WarehouseClusterMapping = require("../../../admin-panel/models/core_db/warehouse_cluster_mapping.schema");
 const RegionalCluster = require("../../../admin-panel/models/core_db/regional_cluster.schema");
+const FranchiseeCluster = require("../../../admin-panel/models/india_solarshop_db/franchisee_clusters.schema");
 const { india_solarshop_db, core_db } = require("../../config/databases");
 
 // Register external referenced schemas on india_solarshop_db connection to allow populate()
@@ -344,38 +345,58 @@ const resolveWarehousesForLocation = async ({ targetDistrictId, clusterId, state
     } catch (e) { }
   }
 
-  // 2. State-wise Cluster & Warehouse Routing (New Logic)
-  if (stateName) {
-    try {
-      const clusterMappings = await WarehouseClusterMapping.find({
+  // 2. Franchise Cluster & State-wise Cluster & Warehouse Routing
+  try {
+    let targetFcDoc = null;
+    if (clusterId && mongoose.Types.ObjectId.isValid(clusterId)) {
+      targetFcDoc = await FranchiseeCluster.findById(clusterId).lean();
+    }
+    if (!targetFcDoc && targetDistrictId && mongoose.Types.ObjectId.isValid(targetDistrictId)) {
+      targetFcDoc = await FranchiseeCluster.findOne({
+        district_ids: new mongoose.Types.ObjectId(targetDistrictId),
+        deleted_at: null
+      }).lean();
+    }
+
+    let clusterMappings = [];
+    if (targetFcDoc) {
+      clusterMappings = await WarehouseClusterMapping.find({
+        franchise_cluster_ids: targetFcDoc._id,
+        status: 'Active',
+        deleted_at: null
+      }).lean();
+    }
+
+    if (clusterMappings.length === 0 && stateName) {
+      clusterMappings = await WarehouseClusterMapping.find({
         states: { $regex: new RegExp(`^${stateName.trim()}$`, 'i') },
         status: 'Active',
         deleted_at: null
       }).lean();
+    }
 
-      if (clusterMappings.length > 0) {
-        const mappedWhCodes = clusterMappings.map(m => m.warehouse_code).filter(Boolean);
-        const mappedWhIds = clusterMappings.map(m => m.warehouse_id).filter(id => id && mongoose.Types.ObjectId.isValid(id));
+    if (clusterMappings.length > 0) {
+      const mappedWhCodes = clusterMappings.map(m => m.warehouse_code).filter(Boolean);
+      const mappedWhIds = clusterMappings.map(m => m.warehouse_id).filter(id => id && mongoose.Types.ObjectId.isValid(id));
 
-        const whConditions = [];
-        if (mappedWhIds.length > 0) whConditions.push({ _id: { $in: mappedWhIds } });
-        if (mappedWhCodes.length > 0) whConditions.push({ warehouse_code: { $in: mappedWhCodes } });
+      const whConditions = [];
+      if (mappedWhIds.length > 0) whConditions.push({ _id: { $in: mappedWhIds } });
+      if (mappedWhCodes.length > 0) whConditions.push({ warehouse_code: { $in: mappedWhCodes } });
 
-        if (whConditions.length > 0) {
-          const mappedWarehouses = await CompanyWarehouse.find({
-            $or: whConditions,
-            is_active: true,
-            deleted_at: null
-          }).lean();
+      if (whConditions.length > 0) {
+        const mappedWarehouses = await CompanyWarehouse.find({
+          $or: whConditions,
+          is_active: true,
+          deleted_at: null
+        }).lean();
 
-          if (mappedWarehouses.length > 0) {
-            return { warehouses: mappedWarehouses, stateName, isClusterRouted: true, clusterMappings };
-          }
+        if (mappedWarehouses.length > 0) {
+          return { warehouses: mappedWarehouses, stateName, isClusterRouted: true, clusterMappings, matchedFranchiseCluster: targetFcDoc };
         }
       }
-    } catch (routeErr) {
-      console.warn("Error in resolveWarehousesForLocation cluster routing:", routeErr.message);
     }
+  } catch (routeErr) {
+    console.warn("Error in resolveWarehousesForLocation cluster routing:", routeErr.message);
   }
 
   // 3. Fallback: Find sub warehouses in this district
@@ -564,6 +585,47 @@ const get_combo_kits_by_district = async (req, res) => {
       kits = kits.filter(k => allowedKitIdSet.has(k._id.toString()));
     }
 
+    // Filter out kits deauthorized/hidden under Kit Cluster Authorizations
+    try {
+      const { KitClusterAuthorization, FranchiseeCluster } = require('../../../admin-panel/models/india_solarshop_db');
+      if (KitClusterAuthorization && (clusterId || targetDistrictId || stateId)) {
+        let fcIds = [];
+        if (targetDistrictId && districtDoc?.name) {
+          const fcMatches = await FranchiseeCluster.find({
+            district_names: { $regex: new RegExp(`^${districtDoc.name.trim()}$`, 'i') },
+            deleted_at: null
+          }).select('_id').lean();
+          fcIds = fcMatches.map(f => f._id);
+        }
+        if (clusterId) fcIds.push(clusterId);
+
+        const orConditions = [];
+        if (fcIds.length > 0) orConditions.push({ cluster_id: { $in: fcIds } });
+        if (targetDistrictId && mongoose.Types.ObjectId.isValid(targetDistrictId)) {
+          orConditions.push({ district_id: new mongoose.Types.ObjectId(targetDistrictId) });
+        }
+        if (stateId && mongoose.Types.ObjectId.isValid(stateId)) {
+          orConditions.push({ state_id: new mongoose.Types.ObjectId(stateId), district_id: null });
+        }
+
+        if (orConditions.length > 0) {
+          const deauthorizedDocs = await KitClusterAuthorization.find({
+            combo_kit_id: { $in: kitIds },
+            is_authorized: false,
+            deleted_at: null,
+            $or: orConditions
+          }).select('combo_kit_id').lean();
+
+          if (deauthorizedDocs.length > 0) {
+            const deauthorizedKitIdSet = new Set(deauthorizedDocs.map(d => d.combo_kit_id?.toString()));
+            kits = kits.filter(k => !deauthorizedKitIdSet.has(k._id.toString()));
+          }
+        }
+      }
+    } catch (kcaErr) {
+      console.warn('[get_combo_kits_by_district] Error checking KitClusterAuthorization:', kcaErr.message);
+    }
+
     if (kits.length === 0) {
       return res.status(200).json({ success: true, source: "db", data: [] });
     }
@@ -700,13 +762,13 @@ const get_combo_kits_by_district = async (req, res) => {
       console.warn('[get_combo_kits_by_district] Error loading TrialKitInventory:', invErr.message);
     }
 
-    // ── Count prior trial kit orders for current buyer & GSTIN to enforce purchase limits ──
+    // ── Count prior trial kit orders for current buyer & GSTIN to enforce purchase limits (1 Trial Kit per product per GST) ──
     const trialCountByKitId = {};
     try {
       let buyerId = req.user?.account_id || req.user?.id || req.user?._id;
       if (!buyerId) {
         const authHeader = req.headers.authorization;
-        const cookieToken = req.cookies?.access_token;
+        const cookieToken = req.cookies?.token || req.cookies?.access_token;
         const token = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.split(' ')[1] : cookieToken;
         if (token) {
           const jwt = require('jsonwebtoken');
@@ -720,45 +782,73 @@ const get_combo_kits_by_district = async (req, res) => {
         const buyerObjId = new mongoose.Types.ObjectId(buyerId);
 
         // Find EPC account to get GSTIN
-        const epcDoc = await EpcAccount.findById(buyerObjId).select('gstin registered_whatsapp').lean();
-        const buyerGstin = (epcDoc?.gstin || '').trim().toUpperCase();
+        const epcDoc = await EpcAccount.findById(buyerObjId).select('gstin company_id registered_whatsapp').lean();
+        let buyerGstin = (epcDoc?.gstin || '').trim().toUpperCase();
 
-        const orderOrQueries = [{ epc_id: buyerObjId }];
-        if (buyerGstin) {
-          orderOrQueries.push({ 'delivery_address.gst_number': buyerGstin });
-          orderOrQueries.push({ 'billing_address.gst_number': buyerGstin });
+        // If gstin not set on account, fallback to company GST
+        if (!buyerGstin && epcDoc?.company_id) {
+          try {
+            const rawDb = mongoose.connection.db;
+            if (rawDb) {
+              const companyGst = await rawDb.collection('epc_company_gst').findOne({
+                company_id: epcDoc.company_id,
+                deleted_at: null
+              });
+              if (companyGst?.gst_number) {
+                buyerGstin = companyGst.gst_number.trim().toUpperCase();
+              }
+            }
+          } catch (cgErr) {
+            console.warn('[get_combo_kits_by_district] Error loading company GST:', cgErr.message);
+          }
         }
 
-        // 1. Query EpcOrder collection
+        // Collect all EPC account IDs associated with this GST number
+        let allEpcIds = [buyerObjId];
+        if (buyerGstin) {
+          const siblingEpcs = await EpcAccount.find({
+            gstin: { $regex: new RegExp(`^${buyerGstin}$`, 'i') },
+            deleted_at: null
+          }).select('_id').lean();
+          siblingEpcs.forEach(s => {
+            if (!allEpcIds.some(id => id.toString() === s._id.toString())) {
+              allEpcIds.push(s._id);
+            }
+          });
+        }
+
+        // 1. Query EpcOrder collection for trial orders placed by this GST or account
         const buyerTrialOrders = await EpcOrder.find({
-          $or: orderOrQueries,
+          epc_id: { $in: allEpcIds },
           order_status: { $nin: ['cancelled'] },
           payment_status: { $nin: ['rejected'] },
-          $and: [
-            {
-              $or: [
-                { is_trial_order: true },
-                { 'items.is_trial_kit': true },
-                { 'items.item_name': { $regex: /trial/i } }
-              ]
-            }
+          $or: [
+            { is_trial_order: true },
+            { 'items.is_trial_kit': true },
+            { 'items.item_name': { $regex: /trial/i } }
           ]
         }, { 'items.kit_id': 1, 'items.item_name': 1, 'items.is_trial_kit': 1 }).lean();
 
         (buyerTrialOrders || []).forEach(o => {
           (o.items || []).forEach(it => {
             const isTrial = Boolean(it.is_trial_kit || (it.item_name && /trial/i.test(it.item_name)));
-            if (isTrial && it.kit_id) {
-              const kId = it.kit_id.toString();
-              trialCountByKitId[kId] = (trialCountByKitId[kId] || 0) + 1;
+            if (isTrial) {
+              if (it.kit_id) {
+                const kId = it.kit_id.toString();
+                trialCountByKitId[kId] = (trialCountByKitId[kId] || 0) + 1;
+              }
+              if (it.item_name) {
+                const cleanName = it.item_name.replace(/\s*\(trial.*?\)/i, '').trim().toLowerCase();
+                trialCountByKitId[cleanName] = (trialCountByKitId[cleanName] || 0) + 1;
+              }
             }
           });
         });
 
         // 2. Query TrialKitOrder collection
-        const tkOrQueries = [{ epc_id: buyerObjId }];
+        const tkOrQueries = [{ epc_id: { $in: allEpcIds } }];
         if (buyerGstin) {
-          tkOrQueries.push({ gst_number: buyerGstin });
+          tkOrQueries.push({ gst_number: { $regex: new RegExp(`^${buyerGstin}$`, 'i') } });
         }
         const directTrialOrders = await TrialKitOrder.find({
           $or: tkOrQueries,
@@ -769,6 +859,10 @@ const get_combo_kits_by_district = async (req, res) => {
           if (o.combo_kit_id) {
             const kId = o.combo_kit_id.toString();
             trialCountByKitId[kId] = (trialCountByKitId[kId] || 0) + 1;
+          }
+          if (o.kit_type) {
+            const cleanName = o.kit_type.replace(/\s*\(trial.*?\)/i, '').trim().toLowerCase();
+            trialCountByKitId[cleanName] = (trialCountByKitId[cleanName] || 0) + 1;
           }
         });
       }
@@ -1901,16 +1995,28 @@ const get_combo_kits_by_district = async (req, res) => {
         trialKitQuantity: kit.trial_kit_quantity !== undefined && kit.trial_kit_quantity !== null ? Math.max(1, Number(kit.trial_kit_quantity)) : 1,
         trial_kit_max_orders_per_buyer: kit.trial_kit_max_orders_per_buyer !== undefined ? Number(kit.trial_kit_max_orders_per_buyer) : 1,
         trialKitMaxOrdersPerBuyer: kit.trial_kit_max_orders_per_buyer !== undefined ? Number(kit.trial_kit_max_orders_per_buyer) : 1,
-        trial_kit_purchased_count: trialCountByKitId[kit._id.toString()] || (kit.name ? (trialCountByKitId[kit.name] || 0) : 0),
-        trialKitPurchasedCount: trialCountByKitId[kit._id.toString()] || (kit.name ? (trialCountByKitId[kit.name] || 0) : 0),
+        trial_kit_purchased_count: (() => {
+          const byId = trialCountByKitId[kit._id.toString()] || 0;
+          const byName = kit.name ? (trialCountByKitId[kit.name.trim().toLowerCase()] || trialCountByKitId[kit.name] || 0) : 0;
+          return Math.max(byId, byName);
+        })(),
+        trialKitPurchasedCount: (() => {
+          const byId = trialCountByKitId[kit._id.toString()] || 0;
+          const byName = kit.name ? (trialCountByKitId[kit.name.trim().toLowerCase()] || trialCountByKitId[kit.name] || 0) : 0;
+          return Math.max(byId, byName);
+        })(),
         trial_kit_limit_reached: (() => {
           const limit = kit.trial_kit_max_orders_per_buyer !== undefined ? Number(kit.trial_kit_max_orders_per_buyer) : 1;
-          const purchased = trialCountByKitId[kit._id.toString()] || (kit.name ? (trialCountByKitId[kit.name] || 0) : 0);
+          const byId = trialCountByKitId[kit._id.toString()] || 0;
+          const byName = kit.name ? (trialCountByKitId[kit.name.trim().toLowerCase()] || trialCountByKitId[kit.name] || 0) : 0;
+          const purchased = Math.max(byId, byName);
           return Boolean(limit > 0 && purchased >= limit);
         })(),
         trialKitLimitReached: (() => {
           const limit = kit.trial_kit_max_orders_per_buyer !== undefined ? Number(kit.trial_kit_max_orders_per_buyer) : 1;
-          const purchased = trialCountByKitId[kit._id.toString()] || (kit.name ? (trialCountByKitId[kit.name] || 0) : 0);
+          const byId = trialCountByKitId[kit._id.toString()] || 0;
+          const byName = kit.name ? (trialCountByKitId[kit.name.trim().toLowerCase()] || trialCountByKitId[kit.name] || 0) : 0;
+          const purchased = Math.max(byId, byName);
           return Boolean(limit > 0 && purchased >= limit);
         })(),
         trial_kit_available_stock: (() => {
@@ -2313,7 +2419,7 @@ const get_checkout_settings = async (req, res) => {
           enable_checkout_timer: true,
           checkout_timer_duration: 10,
           combokit_bulk_panels_limit: 30,
-          gst_rate: 13.8
+          gst_rate: 12
         }
       });
     }
@@ -2323,7 +2429,7 @@ const get_checkout_settings = async (req, res) => {
         enable_checkout_timer: settings.enable_checkout_timer ?? true,
         checkout_timer_duration: settings.checkout_timer_duration ?? 10,
         combokit_bulk_panels_limit: settings.combokit_bulk_panels_limit ?? 30,
-        gst_rate: settings.gst_rate ?? 13.8
+        gst_rate: settings.gst_rate ?? 12
       }
     });
   } catch (error) {

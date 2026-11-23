@@ -243,9 +243,24 @@ export default function StoreSetupDetail({ setupId, onBack }) {
               <StatusBadge status={setup.status} delayDays={setup.delay_days} />
             </div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">{setup.franchisee_name}</h2>
-            <p className="text-xs text-slate-500 mt-1">
-              {setup.plan_name || 'Standard Franchisee'} &bull; GST: {setup.gst_number || 'Under Verification'} &bull; Mobile: {setup.mobile}
-            </p>
+            <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-2">
+              <span>{setup.plan_name || 'Standard Franchisee'}</span>
+              <span>&bull;</span>
+              <span className="flex items-center gap-1.5">
+                GST: <strong className="font-mono text-slate-700">{setup.gst_number || setup.franchisee_id?.gst_number || 'N/A'}</strong>
+                {(setup.franchisee_id?.gst_verified_at || setup.status === 'operations_started') ? (
+                  <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-bold">
+                    ✓ Verified
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[10px] font-bold">
+                    Pending Verification (Auto-resolved on launch)
+                  </span>
+                )}
+              </span>
+              <span>&bull;</span>
+              <span>Mobile: {setup.mobile}</span>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -376,10 +391,10 @@ export default function StoreSetupDetail({ setupId, onBack }) {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-bold text-slate-900">{del.reason}</span>
                     <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full border ${del.decision_status === 'approved'
-                        ? 'bg-teal-50 text-teal-700 border-teal-200'
-                        : del.decision_status === 'rejected'
-                          ? 'bg-rose-50 text-rose-700 border-rose-200'
-                          : 'bg-purple-50 text-purple-700 border-purple-200'
+                      ? 'bg-teal-50 text-teal-700 border-teal-200'
+                      : del.decision_status === 'rejected'
+                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                        : 'bg-purple-50 text-purple-700 border-purple-200'
                       }`}>
                       {del.decision_status.toUpperCase()}
                     </span>
@@ -483,10 +498,10 @@ export default function StoreSetupDetail({ setupId, onBack }) {
 
                     <div className="flex items-center gap-3">
                       <span className={`px-2.5 py-0.5 text-[11px] font-semibold rounded-full border ${item.status === 'completed'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : item.status === 'in_progress'
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : item.status === 'in_progress'
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-slate-100 text-slate-600 border-slate-200'
                         }`}>
                         {item.status.toUpperCase()}
                       </span>
@@ -600,8 +615,8 @@ export default function StoreSetupDetail({ setupId, onBack }) {
                             key={empId}
                             onClick={() => setSelectedEmployeeId(empId)}
                             className={`p-3.5 rounded-2xl border transition cursor-pointer flex items-start justify-between gap-3 ${isSelected
-                                ? 'bg-blue-50 border-[#0575B8] shadow-xs'
-                                : 'bg-slate-50/70 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                              ? 'bg-blue-50 border-[#0575B8] shadow-xs'
+                              : 'bg-slate-50/70 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
                               }`}
                           >
                             <div className="flex items-start gap-3 min-w-0">

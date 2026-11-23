@@ -30,8 +30,8 @@ const QUICK_LINKS = [
     bg: "bg-info-soft",
   },
   {
-    label: "Product Authorization",
-    description: "Franchisee-product access matrix",
+    label: "Kit Cluster Authorizations",
+    description: "Manage state & franchise cluster kit visibility in Solar Store",
     icon: FiPackage,
     path: "/admin-panel/solar-shop/reseller-management/product-auth",
     color: "text-success",
@@ -55,7 +55,7 @@ const QUICK_LINKS = [
   },
   {
     label: "Franchisee Agreements & Policy",
-    description: "Manage franchisee agreement lifecycles, contract renewals, master legal templates & flagship store exclusions",
+    description: "Manage franchisee agreement lifecycles, contract renewals & master legal templates",
     icon: FiFileText,
     path: "/admin-panel/solar-shop/reseller-management/settings",
     color: "text-primary",

@@ -1302,16 +1302,47 @@ export default function LooseOrders({ moduleUniqueId = "ADM_LOOSE_ORDERS" }) {
                               </td>
                               <td className="p-3 text-center font-bold text-primary">{item.quantity}</td>
                               <td className="p-3 text-right text-text-secondary">{fmtINR(item.unit_price_inr)}</td>
-                              <td className="p-3 text-right text-text-secondary">{item.gst_rate || 12}%</td>
+                              <td className="p-3 text-right text-text-secondary">{Number(item.gst_rate != null ? item.gst_rate : 12).toFixed(1)}%</td>
                               <td className="p-3 text-right font-bold text-text-primary">{fmtINR(item.total_price_inr)}</td>
                             </tr>
                           ))}
                         </tbody>
                         <tfoot className="bg-surface-hover/40 font-bold border-t border-border">
                           <tr>
-                            <td colSpan={4} className="p-3 text-right text-text-muted">Subtotal (INR):</td>
+                            <td colSpan={4} className="p-3 text-right text-text-muted">Subtotal (Taxable Base):</td>
                             <td className="p-3 text-right text-text-primary">{fmtINR(selectedOrder.subtotal_inr)}</td>
                           </tr>
+                          {(() => {
+                            const buyerState = (selectedOrder.delivery_address?.state_name || selectedOrder.buyer?.state_name || "").toLowerCase();
+                            const isIntraState = !buyerState || buyerState.includes("gujarat");
+                            const taxInr = Number(selectedOrder.tax_total_inr || 0);
+                            const avgGstRate = Number(selectedOrder.items?.[0]?.gst_rate || 5);
+                            const halfRate = (avgGstRate / 2).toFixed(1);
+
+                            if (isIntraState && taxInr > 0) {
+                              const halfTax = taxInr / 2;
+                              return (
+                                <>
+                                  <tr className="text-text-muted font-medium text-[11px] bg-surface-hover/20">
+                                    <td colSpan={4} className="py-1.5 px-3 text-right">CGST ({halfRate}%):</td>
+                                    <td className="py-1.5 px-3 text-right text-text-secondary">{fmtINR(halfTax)}</td>
+                                  </tr>
+                                  <tr className="text-text-muted font-medium text-[11px] bg-surface-hover/20">
+                                    <td colSpan={4} className="py-1.5 px-3 text-right">SGST ({halfRate}%):</td>
+                                    <td className="py-1.5 px-3 text-right text-text-secondary">{fmtINR(halfTax)}</td>
+                                  </tr>
+                                </>
+                              );
+                            } else if (taxInr > 0) {
+                              return (
+                                <tr className="text-text-muted font-medium text-[11px] bg-surface-hover/20">
+                                  <td colSpan={4} className="py-1.5 px-3 text-right">IGST ({avgGstRate.toFixed(1)}%):</td>
+                                  <td className="py-1.5 px-3 text-right text-text-secondary">{fmtINR(taxInr)}</td>
+                                </tr>
+                              );
+                            }
+                            return null;
+                          })()}
                           <tr>
                             <td colSpan={4} className="p-3 text-right text-text-muted">Total Tax:</td>
                             <td className="p-3 text-right text-text-primary">{fmtINR(selectedOrder.tax_total_inr)}</td>

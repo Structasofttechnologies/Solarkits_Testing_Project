@@ -436,6 +436,16 @@ const review_final_verification = async (req, res) => {
       setup.admin_remarks = admin_remarks || 'Store setup verified and approved for launch.';
       await setup.save();
 
+      // Ensure franchisee's GST is recorded as verified upon Admin Store Verification approval
+      if (setup.franchisee_id) {
+        const reseller = await Reseller.findById(setup.franchisee_id);
+        if (reseller && reseller.gst_number && !reseller.gst_verified_at) {
+          reseller.gst_verified_at = new Date();
+          reseller.gst_registration_status = reseller.gst_registration_status || 'ACTIVE';
+          await reseller.save();
+        }
+      }
+
       // Record verification cycle
       await StoreSetupVerification.create({
         store_setup_id: setup._id,

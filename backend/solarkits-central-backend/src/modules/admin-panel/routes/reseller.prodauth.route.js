@@ -105,4 +105,13 @@ router.delete(
   handler.delete_district_product_rule
 );
 
+// ── Kit Cluster Authorizations Routes (New Architecture) ────────────────────────
+const clusterAuthHandler = require('../controller/solarshop/kit_cluster_auth.handler');
+
+router.get('/filter-options', check_auth, check_permissions(VIEW_AUTH_PERMISSIONS), clusterAuthHandler.get_filter_options);
+router.get('/cluster-kits', check_auth, check_permissions(VIEW_AUTH_PERMISSIONS), clusterAuthHandler.get_cluster_kits);
+router.post('/toggle-auth', check_auth, check_permissions([{ unique_code: 'RSL_PROD_AUTH', permissions: ['edit'] }, { unique_code: 'RSL_PROD_AUTH', permissions: ['add'] }]), clusterAuthHandler.toggle_kit_auth);
+router.post('/bulk-toggle-auth', check_auth, check_permissions([{ unique_code: 'RSL_PROD_AUTH', permissions: ['edit'] }, { unique_code: 'RSL_PROD_AUTH', permissions: ['add'] }]), clusterAuthHandler.bulk_toggle_auth);
+router.get('/map-coverage-summary', check_auth, check_permissions(VIEW_AUTH_PERMISSIONS), clusterAuthHandler.get_map_coverage_summary);
+
 module.exports = router;

@@ -10,6 +10,7 @@ export default function GoalModal({ isOpen, onClose, bde, onSuccess }) {
   const [monthlyEpcLeadGoal, setMonthlyEpcLeadGoal] = useState(25);
   const [monthlyEpcOnboardGoal, setMonthlyEpcOnboardGoal] = useState(10);
   const [monthlyNetworkKitGoal, setMonthlyNetworkKitGoal] = useState(200);
+  const [monthlyTrialKitGoal, setMonthlyTrialKitGoal] = useState(10);
   const [canOnboardEpc, setCanOnboardEpc] = useState(true);
   const [canOnboardFranchise, setCanOnboardFranchise] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -41,6 +42,7 @@ export default function GoalModal({ isOpen, onClose, bde, onSuccess }) {
       setMonthlyEpcLeadGoal(existing.monthly_epc_lead_goal ?? 25);
       setMonthlyEpcOnboardGoal(existing.monthly_epc_onboard_goal ?? 10);
       setMonthlyNetworkKitGoal(existing.monthly_network_kit_goal ?? 200);
+      setMonthlyTrialKitGoal(existing.monthly_trial_kit_goal ?? 10);
       setYear(existing.year || new Date().getFullYear());
       setNotes(existing.notes || '');
     } else {
@@ -51,6 +53,7 @@ export default function GoalModal({ isOpen, onClose, bde, onSuccess }) {
       setMonthlyEpcLeadGoal(25);
       setMonthlyEpcOnboardGoal(10);
       setMonthlyNetworkKitGoal(200);
+      setMonthlyTrialKitGoal(10);
       setYear(new Date().getFullYear());
       setNotes('');
     }
@@ -71,6 +74,7 @@ export default function GoalModal({ isOpen, onClose, bde, onSuccess }) {
         setMonthlyEpcLeadGoal(activeGoal.monthly_epc_lead_goal ?? 25);
         setMonthlyEpcOnboardGoal(activeGoal.monthly_epc_onboard_goal ?? 10);
         setMonthlyNetworkKitGoal(activeGoal.monthly_network_kit_goal ?? 200);
+        setMonthlyTrialKitGoal(activeGoal.monthly_trial_kit_goal ?? 10);
         setYear(activeGoal.year || new Date().getFullYear());
         setNotes(activeGoal.notes || '');
         if (activeGoal.can_onboard_epc !== undefined) {
@@ -105,6 +109,7 @@ export default function GoalModal({ isOpen, onClose, bde, onSuccess }) {
         monthly_epc_lead_goal: canOnboardEpc ? Number(monthlyEpcLeadGoal) : 0,
         monthly_epc_onboard_goal: canOnboardEpc ? Number(monthlyEpcOnboardGoal) : 0,
         monthly_network_kit_goal: canOnboardFranchise ? Number(monthlyNetworkKitGoal) : 0,
+        monthly_trial_kit_goal: canOnboardEpc ? Number(monthlyTrialKitGoal) : 0,
         can_onboard_epc: canOnboardEpc,
         can_onboard_franchise: canOnboardFranchise,
         notes,
@@ -375,6 +380,23 @@ export default function GoalModal({ isOpen, onClose, bde, onSuccess }) {
                     onChange={(e) => setMonthlyEpcOnboardGoal(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-white border border-teal-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-teal-500 transition"
                   />
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700 uppercase tracking-wider block text-[11px]">
+                    EPC Trial Kits Target (Monthly Orders)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={monthlyTrialKitGoal}
+                    onChange={(e) => setMonthlyTrialKitGoal(e.target.value)}
+                    placeholder="e.g. 10"
+                    className="w-full px-3.5 py-2.5 bg-white border border-teal-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:border-teal-500 transition"
+                  />
+                  <p className="text-[10px] text-slate-500 font-medium">Monthly target for trial kit orders delivered to prospective EPC contractors.</p>
                 </div>
               </div>
             </div>

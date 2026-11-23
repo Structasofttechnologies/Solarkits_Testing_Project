@@ -77,6 +77,63 @@ const ORDER_TYPES = [
   },
 ];
 
+const QUOTE_PERMISSIONS_CONFIG = [
+  {
+    value: "po_quote",
+    label: "PO Quote",
+    description: "Authorize formal Bulk Purchase Order quotation generation",
+    icon: FiFileText,
+    badgeColor: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400",
+  },
+  {
+    value: "loose_quote",
+    label: "Loose Quote",
+    description: "Authorize direct individual kit / loose orders quotation generation",
+    icon: FiTruck,
+    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400",
+  },
+  {
+    value: "trial_quote",
+    label: "Trial Order Quote",
+    description: "Authorize sample testing / trial kit proposal generation",
+    icon: FiBox,
+    badgeColor: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400",
+  },
+];
+
+function QuotePermissionsBadge({ permissions }) {
+  let perms = [];
+  if (Array.isArray(permissions)) {
+    perms = permissions;
+  } else if (typeof permissions === "string") {
+    perms = permissions.split(",").map((s) => s.trim()).filter(Boolean);
+  } else {
+    perms = ["po_quote", "loose_quote"];
+  }
+
+  const matched = perms
+    .map((p) => QUOTE_PERMISSIONS_CONFIG.find((qp) => qp.value === p))
+    .filter(Boolean);
+
+  if (matched.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {matched.map((cfg) => {
+        const Icon = cfg.icon;
+        return (
+          <span
+            key={cfg.value}
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${cfg.badgeColor}`}
+          >
+            <Icon size={10} /> {cfg.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 // Helper icons mapping for industry types
 const INDUSTRY_ICONS = {
   RESI: FiHome,
@@ -315,6 +372,14 @@ function FormModal({ mode, initial, onClose, onSaved }) {
       return ["po_order"];
     })(),
 
+    // Franchise Quote Creation Permissions
+    quote_permissions: (() => {
+      const raw = initial?.quote_permissions;
+      if (Array.isArray(raw) && raw.length > 0) return raw;
+      if (typeof raw === "string") return raw.split(",").map((s) => s.trim()).filter(Boolean);
+      return ["po_quote", "loose_quote"];
+    })(),
+
     description: initial?.description || "",
     sort_order: initial?.sort_order ?? 0,
   });
@@ -366,6 +431,9 @@ function FormModal({ mode, initial, onClose, onSaved }) {
 
         // Order Type
         order_type_allowed: form.order_type_allowed,
+
+        // Franchise Quote Permissions
+        quote_permissions: form.quote_permissions,
 
         description: form.description.trim() || null,
         sort_order: Number(form.sort_order || 0),
@@ -745,6 +813,68 @@ function FormModal({ mode, initial, onClose, onSaved }) {
                       </div>
                     </div>
                     <p className="text-[10px] text-text-muted leading-tight">{ot.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 6. Franchise Quote Creation Permissions */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 flex items-center gap-1.5">
+                <FiFileText size={14} /> 6. Franchise Quote Creation Permissions <span className="text-danger">*</span>
+              </h4>
+              <span className="text-[10px] text-text-muted">Controls allowed quote types for franchise on this plan</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {QUOTE_PERMISSIONS_CONFIG.map((qp) => {
+                const Icon = qp.icon;
+                const currentList = Array.isArray(form.quote_permissions)
+                  ? form.quote_permissions
+                  : [form.quote_permissions].filter(Boolean);
+                const sel = currentList.includes(qp.value);
+
+                const handleToggle = () => {
+                  let updated;
+                  if (sel) {
+                    if (currentList.length <= 1) {
+                      dispatch(setAlert({ type: "warning", message: "At least one quote creation permission must be selected" }));
+                      return;
+                    }
+                    updated = currentList.filter((v) => v !== qp.value);
+                  } else {
+                    updated = [...currentList, qp.value];
+                  }
+                  setForm({ ...form, quote_permissions: updated });
+                };
+
+                return (
+                  <button
+                    key={qp.value}
+                    type="button"
+                    onClick={handleToggle}
+                    className={`relative flex flex-col items-start p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                      sel
+                        ? "border-blue-600 bg-blue-50/60 dark:bg-blue-950/20 text-blue-900 dark:text-blue-300 shadow-sm ring-1 ring-blue-500/20"
+                        : "border-border bg-bg text-text-secondary hover:border-blue-300 opacity-70 hover:opacity-100"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <div className="flex items-center gap-2">
+                        <Icon size={16} className={sel ? "text-blue-600" : "text-text-muted"} />
+                        <span className="text-xs font-bold text-text-primary">{qp.label}</span>
+                      </div>
+                      <div
+                        className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                          sel ? "bg-blue-600 border-blue-600 text-white" : "border-border bg-surface"
+                        }`}
+                      >
+                        {sel && <FiCheck size={11} strokeWidth={3} />}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-text-muted leading-tight">{qp.description}</p>
                   </button>
                 );
               })}
@@ -1841,6 +1971,12 @@ export default function ResellerPlans({ moduleUniqueId }) {
                       {/* Order Type */}
                       <td className="px-4 py-3.5">
                         <OrderTypeBadge orderType={plan.order_type_allowed} />
+                        {plan.quote_permissions && plan.quote_permissions.length > 0 && (
+                          <div className="mt-1.5 flex flex-col gap-0.5">
+                            <span className="text-[9px] font-black uppercase tracking-wider text-text-muted">Quote Rights:</span>
+                            <QuotePermissionsBadge permissions={plan.quote_permissions} />
+                          </div>
+                        )}
                       </td>
 
                       {/* Assigned Scope & Products */}

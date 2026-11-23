@@ -18,6 +18,7 @@ const schema = new mongoose.Schema(
       required: true,
     },
     quote_number: { type: String, default: null, trim: true, uppercase: true },
+    is_trial_kit: { type: Boolean, default: false, index: true },
 
     epc_id: {
       type: mongoose.Schema.Types.ObjectId,

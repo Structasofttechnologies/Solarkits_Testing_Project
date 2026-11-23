@@ -239,6 +239,7 @@ adminRouter.use('/registers', require('./modules/account-panel/routes/registers.
 
 // ─── SOLARKITS: Trial Kit Management Module ───
 adminRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
+ 
 
 // ─── SOLARKITS: Email & WhatsApp Marketing & Campaign Automation Engine ───
 adminRouter.use('/marketing', require('./modules/admin-panel/marketing/routes/marketing.route'));
@@ -248,6 +249,8 @@ try {
 } catch (schedErr) {
   console.warn('⚠️ Marketing scheduler startup notice:', schedErr.message);
 }
+ 
+ 
 
 app.use('/admin-api', adminRouter);
 app.use('/api', adminRouter);

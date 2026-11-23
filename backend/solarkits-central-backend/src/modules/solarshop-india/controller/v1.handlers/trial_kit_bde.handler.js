@@ -23,8 +23,6 @@ exports.get_funnel_leads = async (req, res) => {
 
     if (stage && stage !== 'all') {
       filter['funnel.current_stage'] = stage;
-    } else {
-      filter['funnel.current_stage'] = { $ne: null };
     }
 
     if (search) {

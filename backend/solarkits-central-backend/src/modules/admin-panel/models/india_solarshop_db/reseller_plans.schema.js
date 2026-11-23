@@ -64,6 +64,12 @@ const schema = new mongoose.Schema({
     default: ['po_order'],
   },
 
+  // ─── 3b. Franchise Quote Creation Permissions ─────────────────────────────────
+  quote_permissions: {
+    type: [String],
+    default: ['po_quote', 'loose_quote'],
+  },
+
   // ─── 4. Company Fixed Franchisee Margins & Commissions ──────────────────────
   default_dealer_margin:      { type: Number, min: 0, default: 5 },
   commission_method:          { type: String, enum: ['PERCENTAGE', 'FIXED_PER_KIT'], default: 'PERCENTAGE' },

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSelector } from "react-redux";
 import axiosInstance from "@/utils/axiosInstance";
 import {
@@ -49,6 +49,31 @@ export default function TrialKitsPage() {
     contact_name: "",
     phone: "",
     gst_number: ""
+  });
+
+  const looseOrderQuantities = useMemo(() => {
+    const rawLoose = selectedKit?.looseOrderQuantities || selectedKit?.loose_order_quantities || [];
+    const fromPricing = (selectedKit?.loose_order_pricing || []).map((t) => Number(t.quantity)).filter((n) => !isNaN(n) && n > 0);
+    const combined = [...new Set([...(Array.isArray(rawLoose) ? rawLoose.map(Number) : []), ...fromPricing])]
+      .filter((n) => !isNaN(n) && n > 0)
+      .sort((a, b) => a - b);
+    return combined.length > 0 ? combined : [25, 50, 100];
+  }, [selectedKit]);
+
+  const poOrderQuantities = useMemo(() => {
+    const rawPo = selectedKit?.orderQuantities || selectedKit?.order_quantities || [];
+    const fromPricing = (selectedKit?.po_order_pricing || []).map((t) => Number(t.quantity)).filter((n) => !isNaN(n) && n > 0);
+    const combined = [...new Set([...(Array.isArray(rawPo) ? rawPo.map(Number) : []), ...fromPricing])]
+      .filter((n) => !isNaN(n) && n > 0)
+      .sort((a, b) => a - b);
+    return combined.length > 0 ? combined : [200, 500, 1000];
+  }, [selectedKit]);
+
+  const [futureIntentForm, setFutureIntentForm] = useState({
+    future_purchase_mode: "loose",
+    selected_quantity: 25,
+    estimated_timeline: "Within 15 Days",
+    remarks: ""
   });
 
   // Feedback Modal State
@@ -107,6 +132,14 @@ export default function TrialKitsPage() {
     setSelectedKit(kit);
     setOrderError("");
     setOrderSuccess("");
+    const rawLoose = kit?.looseOrderQuantities || kit?.loose_order_quantities || [];
+    const defaultQty = Array.isArray(rawLoose) && rawLoose.length > 0 ? Number(rawLoose[0]) : 25;
+    setFutureIntentForm({
+      future_purchase_mode: "loose",
+      selected_quantity: defaultQty,
+      estimated_timeline: "Within 15 Days",
+      remarks: ""
+    });
     setShippingForm({
       address: user?.address || "",
       state: user?.state_name || "",
@@ -134,10 +167,19 @@ export default function TrialKitsPage() {
     try {
       setSubmittingOrder(true);
       setOrderError("");
+      const effectiveQty = Number(futureIntentForm.selected_quantity) || (futureIntentForm.future_purchase_mode === "loose" ? looseOrderQuantities[0] : poOrderQuantities[0]) || 25;
       const payload = {
         combo_kit_id: selectedKit.combo_kit_id || selectedKit._id,
         kit_type: selectedKit.name || selectedKit.kit_type,
-        shipping_address: shippingForm
+        shipping_address: shippingForm,
+        future_intent: {
+          future_purchase_mode: futureIntentForm.future_purchase_mode,
+          expected_quantity: effectiveQty,
+          loose_quantity: futureIntentForm.future_purchase_mode === "loose" ? effectiveQty : 0,
+          po_quantity: futureIntentForm.future_purchase_mode === "bulk_po" ? effectiveQty : 0,
+          estimated_timeline: futureIntentForm.estimated_timeline,
+          remarks: futureIntentForm.remarks
+        }
       };
       const res = await axiosInstance.post("/india/v1/shop/trial-kits/order", payload);
       if (res.data?.success) {
@@ -228,8 +270,8 @@ export default function TrialKitsPage() {
         <button
           onClick={() => setActiveTab("available")}
           className={`pb-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === "available"
-              ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
-              : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400"
+            ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+            : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400"
             }`}
         >
           Trial Kit Availability
@@ -237,8 +279,8 @@ export default function TrialKitsPage() {
         <button
           onClick={() => setActiveTab("orders")}
           className={`pb-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${activeTab === "orders"
-              ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
-              : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400"
+            ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+            : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400"
             }`}
         >
           My Trial Orders
@@ -268,10 +310,10 @@ export default function TrialKitsPage() {
                   <div
                     key={kit.combo_kit_id || kit._id || kit.kit_type}
                     className={`rounded-2xl border transition-all p-5 flex flex-col justify-between ${isAlreadyOrdered
-                        ? "bg-gray-100 border-gray-300 text-gray-500 dark:bg-gray-800/60 dark:border-gray-700"
-                        : isAvailable
-                          ? "bg-white border-blue-200 dark:bg-gray-900 dark:border-gray-800 shadow-sm hover:shadow-md"
-                          : "bg-white border-orange-200 dark:bg-gray-900 dark:border-gray-800"
+                      ? "bg-gray-100 border-gray-300 text-gray-500 dark:bg-gray-800/60 dark:border-gray-700"
+                      : isAvailable
+                        ? "bg-white border-blue-200 dark:bg-gray-900 dark:border-gray-800 shadow-sm hover:shadow-md"
+                        : "bg-white border-orange-200 dark:bg-gray-900 dark:border-gray-800"
                       }`}
                   >
                     <div>
@@ -315,8 +357,8 @@ export default function TrialKitsPage() {
                       {/* Kit Title */}
                       <h3
                         className={`text-base font-bold tracking-tight ${isAlreadyOrdered
-                            ? "text-gray-600 dark:text-gray-400"
-                            : "text-gray-900 dark:text-white"
+                          ? "text-gray-600 dark:text-gray-400"
+                          : "text-gray-900 dark:text-white"
                           }`}
                       >
                         {kitTitle}
@@ -441,12 +483,12 @@ export default function TrialKitsPage() {
                         </span>
                         <span
                           className={`text-xs font-semibold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${isDelivered
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                              : isDispatched
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
-                                : isCancelled
-                                  ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
-                                  : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                            : isDispatched
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                              : isCancelled
+                                ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
+                                : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
                             }`}
                         >
                           {order.order_status}
@@ -644,6 +686,85 @@ export default function TrialKitsPage() {
                 </div>
               </div>
 
+              {/* Future Purchase Intent Questionnaire */}
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-2xl space-y-2.5">
+                <span className="font-bold text-amber-900 dark:text-amber-200 block">
+                  Future Purchase Intent (Post-Trial Plan)
+                </span>
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-1">
+                    Future Purchase Model *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['loose', 'bulk_po'].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => {
+                          const nextQty = m === 'loose' ? (looseOrderQuantities[0] || 25) : (poOrderQuantities[0] || 200);
+                          setFutureIntentForm({ ...futureIntentForm, future_purchase_mode: m, selected_quantity: nextQty });
+                        }}
+                        className={`py-2 px-3 rounded-xl font-bold text-xs capitalize border flex items-center justify-between transition-all ${
+                          futureIntentForm.future_purchase_mode === m
+                            ? 'bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-500/20'
+                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span>{m === 'loose' ? 'Loose Kits' : 'Bulk PO'}</span>
+                        {futureIntentForm.future_purchase_mode === m && <FiCheckCircle className="text-white text-xs" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-gray-700 dark:text-gray-300 font-semibold text-xs">
+                      Select Expected {futureIntentForm.future_purchase_mode === 'loose' ? 'Loose Kits' : 'Bulk PO'} Quantity *
+                    </label>
+                    <span className="text-amber-600 dark:text-amber-400 font-bold text-xs">
+                      {futureIntentForm.selected_quantity || (futureIntentForm.future_purchase_mode === 'loose' ? looseOrderQuantities[0] : poOrderQuantities[0])} Kits
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(futureIntentForm.future_purchase_mode === 'loose' ? looseOrderQuantities : poOrderQuantities).map((qty) => {
+                      const isSelected = Number(futureIntentForm.selected_quantity) === qty;
+                      return (
+                        <button
+                          key={qty}
+                          type="button"
+                          onClick={() => setFutureIntentForm({ ...futureIntentForm, selected_quantity: qty })}
+                          className={`px-3 py-1.5 rounded-lg font-bold text-xs border transition-all flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-500/20 scale-[1.02]'
+                              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <span>{qty} Kits</span>
+                          {isSelected && <FiCheckCircle className="text-white text-xs" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-1">
+                    Timeline
+                  </label>
+                  <select
+                    value={futureIntentForm.estimated_timeline}
+                    onChange={(e) => setFutureIntentForm({ ...futureIntentForm, estimated_timeline: e.target.value })}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  >
+                    <option value="Within 15 Days">Within 15 Days</option>
+                    <option value="15 - 30 Days">15 - 30 Days</option>
+                    <option value="1 - 3 Months">1 - 3 Months</option>
+                    <option value="3+ Months">3+ Months</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="pt-4 flex justify-end gap-3">
                 <button
                   type="button"
@@ -720,8 +841,8 @@ export default function TrialKitsPage() {
                       key={star}
                       onClick={() => setFeedbackForm({ ...feedbackForm, product_quality_rating: star })}
                       className={`p-2 rounded-lg border flex items-center gap-1 font-bold ${feedbackForm.product_quality_rating >= star
-                          ? "bg-amber-50 border-amber-300 text-amber-600"
-                          : "border-gray-200 text-gray-400"
+                        ? "bg-amber-50 border-amber-300 text-amber-600"
+                        : "border-gray-200 text-gray-400"
                         }`}
                     >
                       <FiStar className="w-4 h-4 fill-current" /> {star}

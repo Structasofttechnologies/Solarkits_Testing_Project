@@ -95,13 +95,13 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
 
   // Franchise Goal Settings Form State
   const [financialYear, setFinancialYear] = useState(initialFY);
-  const [annualEpcGoal, setAnnualEpcGoal] = useState(100);
+  const [monthlyKitsTarget, setMonthlyKitsTarget] = useState(100);
+  const [yearlyKitsTarget, setYearlyKitsTarget] = useState(1200);
+  const [annualEpcGoal, setAnnualEpcGoal] = useState(50);
+  const [epcOnboardDays, setEpcOnboardDays] = useState(90);
   const [annualLiveEpcGoal, setAnnualLiveEpcGoal] = useState(60);
   const [liveEpcCriteriaDays, setLiveEpcCriteriaDays] = useState(90);
-  const [monthlyKitsTarget, setMonthlyKitsTarget] = useState(100);
-  const [monthlyRevenueTarget, setMonthlyRevenueTarget] = useState(5000000);
-  const [poKitsTarget, setPoKitsTarget] = useState(80);
-  const [looseKitsTarget, setLooseKitsTarget] = useState(20);
+  const [annualPoOrdersGoal, setAnnualPoOrdersGoal] = useState(50);
 
   // Setup Fee Breakdown
   const [setupFee, setSetupFee] = useState(100000);
@@ -289,13 +289,13 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
 
     // Reset Goal Form State
     setFinancialYear(initialFY);
-    setAnnualEpcGoal(100);
+    setMonthlyKitsTarget(100);
+    setYearlyKitsTarget(1200);
+    setAnnualEpcGoal(50);
+    setEpcOnboardDays(90);
     setAnnualLiveEpcGoal(60);
     setLiveEpcCriteriaDays(90);
-    setMonthlyKitsTarget(100);
-    setMonthlyRevenueTarget(5000000);
-    setPoKitsTarget(80);
-    setLooseKitsTarget(20);
+    setAnnualPoOrdersGoal(50);
 
     setIsModalOpen(true);
   };
@@ -323,13 +323,13 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
 
     // Set Default Goal Form State and Load Cluster Goal
     setFinancialYear(initialFY);
-    setAnnualEpcGoal(100);
+    setMonthlyKitsTarget(100);
+    setYearlyKitsTarget(1200);
+    setAnnualEpcGoal(50);
+    setEpcOnboardDays(90);
     setAnnualLiveEpcGoal(60);
     setLiveEpcCriteriaDays(90);
-    setMonthlyKitsTarget(100);
-    setMonthlyRevenueTarget(5000000);
-    setPoKitsTarget(80);
-    setLooseKitsTarget(20);
+    setAnnualPoOrdersGoal(50);
 
     // Fetch existing goals for this cluster
     axios
@@ -338,14 +338,18 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
         if (res.data?.status === 'success' && res.data.data) {
           const d = res.data.data;
           if (d.annual_epc_goal !== undefined) setAnnualEpcGoal(d.annual_epc_goal);
+          if (d.epc_onboard_days !== undefined) setEpcOnboardDays(d.epc_onboard_days);
           if (d.annual_live_epc_goal !== undefined) setAnnualLiveEpcGoal(d.annual_live_epc_goal);
           if (d.live_epc_criteria_days !== undefined) setLiveEpcCriteriaDays(d.live_epc_criteria_days);
-          if (d.monthly_kit_goals && d.monthly_kit_goals.length > 0) {
+          if (d.annual_po_orders_goal !== undefined) setAnnualPoOrdersGoal(d.annual_po_orders_goal);
+          if (d.monthly_kits_target !== undefined) {
+            setMonthlyKitsTarget(d.monthly_kits_target);
+            setYearlyKitsTarget(d.annual_kits_target || d.monthly_kits_target * 12);
+          } else if (d.monthly_kit_goals && d.monthly_kit_goals.length > 0) {
             const firstM = d.monthly_kit_goals[0];
-            setMonthlyKitsTarget(firstM.target_kits_quantity || 100);
-            setMonthlyRevenueTarget(firstM.target_revenue || 5000000);
-            setPoKitsTarget(firstM.target_po_kits || Math.round((firstM.target_kits_quantity || 100) * 0.8));
-            setLooseKitsTarget(firstM.target_loose_orders || Math.round((firstM.target_kits_quantity || 100) * 0.2));
+            const k = firstM.target_kits_quantity || 100;
+            setMonthlyKitsTarget(k);
+            setYearlyKitsTarget(d.annual_kits_target || k * 12);
           }
         }
       })
@@ -410,13 +414,13 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
         },
         goal_config: {
           financial_year: financialYear,
+          monthly_kits_target: Number(monthlyKitsTarget || 0),
+          annual_kits_target: Number(yearlyKitsTarget || 0),
           annual_epc_goal: Number(annualEpcGoal || 0),
+          epc_onboard_days: Number(epcOnboardDays || 90),
           annual_live_epc_goal: Number(annualLiveEpcGoal || 0),
           live_epc_criteria_days: Number(liveEpcCriteriaDays || 90),
-          monthly_kit_target: Number(monthlyKitsTarget || 0),
-          monthly_revenue_target: Number(monthlyRevenueTarget || 0),
-          target_po_kits: Number(poKitsTarget || 0),
-          target_loose_orders: Number(looseKitsTarget || 0),
+          annual_po_orders_goal: Number(annualPoOrdersGoal || 0),
           reason: auditReason || (editingCluster ? 'Updated cluster goals' : 'Initial cluster creation goals'),
         },
         reason: auditReason || (editingCluster ? 'Updated cluster configuration' : 'Initial cluster creation'),
@@ -444,9 +448,9 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
             month: m,
             year: y,
             target_kits_quantity: Number(monthlyKitsTarget || 0),
-            target_revenue: Number(monthlyRevenueTarget || 0),
-            target_po_kits: Number(poKitsTarget || 0),
-            target_loose_orders: Number(looseKitsTarget || 0),
+            target_revenue: 0,
+            target_po_kits: 0,
+            target_loose_orders: 0,
           });
         }
         await axios
@@ -455,9 +459,13 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
             {
               cluster_id: savedClusterId,
               financial_year: financialYear,
+              monthly_kits_target: Number(monthlyKitsTarget || 0),
+              annual_kits_target: Number(yearlyKitsTarget || 0),
               annual_epc_goal: Number(annualEpcGoal || 0),
+              epc_onboard_days: Number(epcOnboardDays || 90),
               annual_live_epc_goal: Number(annualLiveEpcGoal || 0),
               live_epc_criteria_days: Number(liveEpcCriteriaDays || 90),
+              annual_po_orders_goal: Number(annualPoOrdersGoal || 0),
               monthly_kit_goals: auto12Months,
               reason: auditReason || (editingCluster ? 'Updated cluster goals' : 'Initial cluster creation goals'),
             },
@@ -1126,7 +1134,7 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
                         Cluster Performance Goal Settings
                       </h4>
                       <p className="text-[11px] text-slate-500 font-medium">
-                        Set annual EPC targets and a monthly kit sales & revenue quota (auto-applies across all 12 months)
+                        Configure monthly & yearly kit quotas, 90-day EPC onboarding targets, active EPCs, and yearly PO order goals.
                       </p>
                     </div>
                   </div>
@@ -1144,12 +1152,64 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
                   </div>
                 </div>
 
-                {/* Row 1: Annual EPC Goals */}
+                {/* 1. Monthly & 2. Yearly Sell Kit Target */}
+                <div className="bg-white p-3.5 rounded-lg border border-slate-200 space-y-3">
+                  <div className="text-[11px] font-black text-slate-800 uppercase flex items-center gap-1.5">
+                    <FiLayers className="text-orange-600" size={13} /> Kit Sales Target Quota
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-black text-slate-700 uppercase mb-1">
+                        1. Monthly Sell Kit Target <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={monthlyKitsTarget}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setMonthlyKitsTarget(val);
+                            setYearlyKitsTarget(val * 12);
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-black text-slate-900 text-sm focus:bg-white focus:ring-1 focus:ring-orange-500"
+                          placeholder="100"
+                        />
+                        <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Kits / Month</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Monthly territory quota (applies across all 12 months)</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-black text-slate-700 uppercase mb-1">
+                        2. Yearly Sell Kit Target <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={yearlyKitsTarget}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setYearlyKitsTarget(val);
+                            setMonthlyKitsTarget(Math.round(val / 12));
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-black text-slate-900 text-sm focus:bg-white focus:ring-1 focus:ring-orange-500"
+                          placeholder="1200"
+                        />
+                        <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Kits / Year</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Annual commitment for the financial year (April – March)</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. EPC Onboarding, 4. EPC Active Yearly, and 5. PO Orders Yearly */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* 1. Annual EPC Onboarding Goal */}
+                  {/* 3. EPC Onboarding Goal (Day 90 Target) */}
                   <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1">
                     <label className="block text-[11px] font-black text-slate-700 uppercase">
-                      1. Annual EPC Onboarding Goal <span className="text-red-500">*</span>
+                      3. EPC Onboarding Goal <span className="text-red-500">*</span>
                     </label>
                     <div className="flex items-center gap-2">
                       <input
@@ -1158,17 +1218,28 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
                         value={annualEpcGoal}
                         onChange={(e) => setAnnualEpcGoal(Number(e.target.value))}
                         className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-black text-slate-900 text-sm focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="100"
+                        placeholder="50"
                       />
                       <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Approved EPCs</span>
                     </div>
-                    <p className="text-[10px] text-slate-400">Total verified & approved EPC partners</p>
+                    <div className="flex items-center gap-1.5 pt-0.5 text-[10px] text-slate-500 font-semibold">
+                      <span>Timeframe:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={epcOnboardDays}
+                        onChange={(e) => setEpcOnboardDays(Number(e.target.value))}
+                        className="w-12 px-1 py-0.5 text-center font-bold bg-slate-100 border border-slate-200 rounded text-slate-800"
+                      />
+                      <span>Days (Day 90 me 50 EPC)</span>
+                    </div>
                   </div>
 
-                  {/* 2. Annual Live EPC Goal */}
+                  {/* 4. Annual Active EPC Goal */}
                   <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1">
                     <label className="block text-[11px] font-black text-slate-700 uppercase">
-                      2. Annual Live EPC Goal <span className="text-red-500">*</span>
+                      4. EPC Active - Yearly <span className="text-red-500">*</span>
                     </label>
                     <div className="flex items-center gap-2">
                       <input
@@ -1181,404 +1252,67 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
                       />
                       <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Active EPCs</span>
                     </div>
-                    <p className="text-[10px] text-slate-400">Regularly purchasing / transacting EPCs</p>
-                  </div>
-
-                  {/* 3. Live EPC Activity Threshold */}
-                  <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1">
-                    <label className="block text-[11px] font-black text-slate-700 uppercase">
-                      Live Activity Window
-                    </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 pt-0.5 text-[10px] text-slate-500 font-semibold">
+                      <span>Window:</span>
                       <input
                         type="number"
                         min="15"
                         max="365"
                         value={liveEpcCriteriaDays}
                         onChange={(e) => setLiveEpcCriteriaDays(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-black text-slate-900 text-sm focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="90"
+                        className="w-12 px-1 py-0.5 text-center font-bold bg-slate-100 border border-slate-200 rounded text-slate-800"
                       />
-                      <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Days</span>
-                    </div>
-                    <p className="text-[10px] text-slate-400">Active if login/order within window</p>
-                  </div>
-                </div>
-
-                {/* Row 2: Monthly Kit Sales & Revenue Target (Uniform Rule) */}
-                <div className="bg-white p-3.5 rounded-lg border border-slate-200 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <span className="text-[11px] font-black text-slate-800 uppercase">
-                        Monthly Kit Sales & Revenue Target (Applies to all 12 Months)
-                      </span>
-                      <p className="text-[11px] text-slate-500">
-                        Ek month ka quota set karein, baki sabhi 12 months me automatically apply hoga.
-                      </p>
-                    </div>
-
-                    {/* Quick 1-click Preset Buttons */}
-                    {/* <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Quick Presets:</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMonthlyKitsTarget(100);
-                          setMonthlyRevenueTarget(5000000);
-                          setPoKitsTarget(80);
-                          setLooseKitsTarget(20);
-                        }}
-                        className="px-2 py-0.5 bg-slate-100 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border border-slate-200 rounded text-[11px] font-bold text-slate-700 transition-colors"
-                      >
-                        100 Kits / ₹50L
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMonthlyKitsTarget(150);
-                          setMonthlyRevenueTarget(7500000);
-                          setPoKitsTarget(120);
-                          setLooseKitsTarget(30);
-                        }}
-                        className="px-2 py-0.5 bg-slate-100 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border border-slate-200 rounded text-[11px] font-bold text-slate-700 transition-colors"
-                      >
-                        150 Kits / ₹75L
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMonthlyKitsTarget(200);
-                          setMonthlyRevenueTarget(10000000);
-                          setPoKitsTarget(160);
-                          setLooseKitsTarget(40);
-                        }}
-                        className="px-2 py-0.5 bg-slate-100 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border border-slate-200 rounded text-[11px] font-bold text-slate-700 transition-colors"
-                      >
-                        200 Kits / ₹1 Cr
-                      </button>
-                    </div> */}
-                  </div>
-
-                  {/* Inputs Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                        Monthly Target Kits <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={monthlyKitsTarget}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setMonthlyKitsTarget(val);
-                          setPoKitsTarget(Math.round(val * 0.8));
-                          setLooseKitsTarget(Math.round(val * 0.2));
-                        }}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-black text-slate-900 text-sm focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="100"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                        Monthly Target Revenue (₹) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="10000"
-                        value={monthlyRevenueTarget}
-                        onChange={(e) => setMonthlyRevenueTarget(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-black text-slate-900 text-sm focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="5000000"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                        PO Orders Target (Kits)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={poKitsTarget}
-                        onChange={(e) => setPoKitsTarget(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-bold text-slate-800 text-xs focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="80"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                        Loose Orders Target (Kits)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={looseKitsTarget}
-                        onChange={(e) => setLooseKitsTarget(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-bold text-slate-800 text-xs focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="20"
-                      />
+                      <span>Days Active Threshold</span>
                     </div>
                   </div>
 
-                  {/* Live Annual Impact Summary Banner */}
-                  <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <span className="text-[10px] font-bold text-emerald-800 uppercase">Annual Kit Target (12 Mo):</span>
-                        <div className="text-sm font-black text-emerald-950">
-                          {(monthlyKitsTarget * 12).toLocaleString('en-IN')} Kits / Year
-                        </div>
-                      </div>
-                      <div className="border-l border-emerald-300 h-8" />
-                      <div>
-                        <span className="text-[10px] font-bold text-emerald-800 uppercase">Annual Revenue Target (12 Mo):</span>
-                        <div className="text-sm font-black text-emerald-950">
-                          ₹{(monthlyRevenueTarget * 12).toLocaleString('en-IN')} / Year
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-[11px] font-bold text-emerald-800 bg-white px-2.5 py-1 rounded-md border border-emerald-200 shadow-2xs">
-                      ✓ Uniform quota across all 12 months (April – March)
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 6: Franchisee Goal Settings for this Cluster */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                      <FiTarget size={15} />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-slate-800 uppercase">
-                        Cluster Performance Goal Settings
-                      </h4>
-                      <p className="text-[11px] text-slate-500 font-medium">
-                        Set annual EPC targets and a monthly kit sales & revenue quota (auto-applies across all 12 months)
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase">FY:</span>
-                    <select
-                      value={financialYear}
-                      onChange={(e) => setFinancialYear(e.target.value)}
-                      className="px-2 py-1 text-xs font-bold bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none"
-                    >
-                      <option value="2026-27">FY 2026–27</option>
-                      <option value="2025-26">FY 2025–26</option>
-                      <option value="2027-28">FY 2027–28</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Row 1: Annual EPC Goals */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* 1. Annual EPC Onboarding Goal */}
+                  {/* 5. PO Orders -> Yearly */}
                   <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1">
                     <label className="block text-[11px] font-black text-slate-700 uppercase">
-                      1. Annual EPC Onboarding Goal <span className="text-red-500">*</span>
+                      5. PO Orders - Yearly <span className="text-red-500">*</span>
                     </label>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
                         min="0"
-                        value={annualEpcGoal}
-                        onChange={(e) => setAnnualEpcGoal(Number(e.target.value))}
+                        value={annualPoOrdersGoal}
+                        onChange={(e) => setAnnualPoOrdersGoal(Number(e.target.value))}
                         className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-black text-slate-900 text-sm focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="100"
+                        placeholder="50"
                       />
-                      <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Approved EPCs</span>
+                      <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">PO Orders</span>
                     </div>
-                    <p className="text-[10px] text-slate-400">Total verified & approved EPC partners</p>
-                  </div>
-
-                  {/* 2. Annual Live EPC Goal */}
-                  <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1">
-                    <label className="block text-[11px] font-black text-slate-700 uppercase">
-                      2. Annual Live EPC Goal <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="0"
-                        value={annualLiveEpcGoal}
-                        onChange={(e) => setAnnualLiveEpcGoal(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-black text-slate-900 text-sm focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="60"
-                      />
-                      <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Active EPCs</span>
-                    </div>
-                    <p className="text-[10px] text-slate-400">Regularly purchasing / transacting EPCs</p>
-                  </div>
-
-                  {/* 3. Live EPC Activity Threshold */}
-                  <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1">
-                    <label className="block text-[11px] font-black text-slate-700 uppercase">
-                      Live Activity Window
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="15"
-                        max="365"
-                        value={liveEpcCriteriaDays}
-                        onChange={(e) => setLiveEpcCriteriaDays(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-black text-slate-900 text-sm focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="90"
-                      />
-                      <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Days</span>
-                    </div>
-                    <p className="text-[10px] text-slate-400">Active if login/order within window</p>
+                    <p className="text-[10px] text-slate-400">Target PO orders to create in a year</p>
                   </div>
                 </div>
 
-                {/* Row 2: Monthly Kit Sales & Revenue Target (Uniform Rule) */}
-                <div className="bg-white p-3.5 rounded-lg border border-slate-200 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                {/* Annual Rollup Summary Banner */}
+                <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-4">
                     <div>
-                      <span className="text-[11px] font-black text-slate-800 uppercase">
-                        Monthly Kit Sales & Revenue Target (Applies to all 12 Months)
-                      </span>
-                      <p className="text-[11px] text-slate-500">
-                        Ek month ka quota set karein, baki sabhi 12 months me automatically apply hoga.
-                      </p>
-                    </div>
-
-                    {/* Quick 1-click Preset Buttons */}
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Quick Presets:</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMonthlyKitsTarget(100);
-                          setMonthlyRevenueTarget(5000000);
-                          setPoKitsTarget(80);
-                          setLooseKitsTarget(20);
-                        }}
-                        className="px-2 py-0.5 bg-slate-100 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border border-slate-200 rounded text-[11px] font-bold text-slate-700 transition-colors"
-                      >
-                        100 Kits / ₹50L
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMonthlyKitsTarget(150);
-                          setMonthlyRevenueTarget(7500000);
-                          setPoKitsTarget(120);
-                          setLooseKitsTarget(30);
-                        }}
-                        className="px-2 py-0.5 bg-slate-100 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border border-slate-200 rounded text-[11px] font-bold text-slate-700 transition-colors"
-                      >
-                        150 Kits / ₹75L
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMonthlyKitsTarget(200);
-                          setMonthlyRevenueTarget(10000000);
-                          setPoKitsTarget(160);
-                          setLooseKitsTarget(40);
-                        }}
-                        className="px-2 py-0.5 bg-slate-100 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border border-slate-200 rounded text-[11px] font-bold text-slate-700 transition-colors"
-                      >
-                        200 Kits / ₹1 Cr
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Inputs Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                        Monthly Target Kits <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={monthlyKitsTarget}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setMonthlyKitsTarget(val);
-                          setPoKitsTarget(Math.round(val * 0.8));
-                          setLooseKitsTarget(Math.round(val * 0.2));
-                        }}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-black text-slate-900 text-sm focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="100"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                        Monthly Target Revenue (₹) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="10000"
-                        value={monthlyRevenueTarget}
-                        onChange={(e) => setMonthlyRevenueTarget(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-black text-slate-900 text-sm focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="5000000"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                        PO Orders Target (Kits)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={poKitsTarget}
-                        onChange={(e) => setPoKitsTarget(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-bold text-slate-800 text-xs focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="80"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                        Loose Orders Target (Kits)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={looseKitsTarget}
-                        onChange={(e) => setLooseKitsTarget(Number(e.target.value))}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded font-bold text-slate-800 text-xs focus:bg-white focus:ring-1 focus:ring-orange-500"
-                        placeholder="20"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Live Annual Impact Summary Banner */}
-                  <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <span className="text-[10px] font-bold text-emerald-800 uppercase">Annual Kit Target (12 Mo):</span>
-                        <div className="text-sm font-black text-emerald-950">
-                          {(monthlyKitsTarget * 12).toLocaleString('en-IN')} Kits / Year
-                        </div>
-                      </div>
-                      <div className="border-l border-emerald-300 h-8" />
-                      <div>
-                        <span className="text-[10px] font-bold text-emerald-800 uppercase">Annual Revenue Target (12 Mo):</span>
-                        <div className="text-sm font-black text-emerald-950">
-                          ₹{(monthlyRevenueTarget * 12).toLocaleString('en-IN')} / Year
-                        </div>
+                      <span className="text-[10px] font-bold text-emerald-800 uppercase">Yearly Kits:</span>
+                      <div className="text-sm font-black text-emerald-950">
+                        {yearlyKitsTarget.toLocaleString('en-IN')} Kits / Year
                       </div>
                     </div>
-                    <span className="text-[11px] font-bold text-emerald-800 bg-white px-2.5 py-1 rounded-md border border-emerald-200 shadow-2xs">
-                      ✓ Uniform quota across all 12 months (April – March)
-                    </span>
+                    <div className="border-l border-emerald-300 h-8" />
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-800 uppercase">Yearly PO Orders:</span>
+                      <div className="text-sm font-black text-emerald-950">
+                        {annualPoOrdersGoal} PO Orders / Year
+                      </div>
+                    </div>
+                    <div className="border-l border-emerald-300 h-8" />
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-800 uppercase">EPC Onboarding:</span>
+                      <div className="text-sm font-black text-emerald-950">
+                        {annualEpcGoal} EPCs in {epcOnboardDays} Days
+                      </div>
+                    </div>
                   </div>
+                  <span className="text-[11px] font-bold text-emerald-800 bg-white px-2.5 py-1 rounded-md border border-emerald-200 shadow-2xs">
+                    ✓ Applied to Franchisee Dashboard
+                  </span>
                 </div>
               </div>
 

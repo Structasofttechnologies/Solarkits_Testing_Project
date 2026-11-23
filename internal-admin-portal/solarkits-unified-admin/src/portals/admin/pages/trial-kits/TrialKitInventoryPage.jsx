@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getTrialKitStock,
   inwardTrialKitStock,
   adjustTrialKitStock,
   getTrialKitStockHistory,
-  getHierarchyOptions
+  getHierarchyOptions,
+  getTrialKitProcurementBadgeCounts
 } from "../../api/trialKitsApi";
 import {
   FaBoxes,
@@ -12,7 +14,8 @@ import {
   FaWarehouse,
   FaTruckLoading,
   FaCheckCircle,
-  FaTag
+  FaTag,
+  FaCreditCard
 } from "react-icons/fa";
 import { FiRefreshCw, FiX, FiCheck, FiCheckCircle, FiAlertCircle, FiSliders } from "react-icons/fi";
 
@@ -26,8 +29,10 @@ const resolveImageUrl = (url) => {
 };
 
 export default function TrialKitInventoryPage() {
+  const navigate = useNavigate();
   const [comboKits, setComboKits] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -516,6 +521,14 @@ export default function TrialKitInventoryPage() {
           })));
         }
       }
+      try {
+        const badgeRes = await getTrialKitProcurementBadgeCounts();
+        if (badgeRes?.data?.pending_admin !== undefined) {
+          setPendingApprovalCount(badgeRes.data.pending_admin);
+        }
+      } catch (bErr) {
+        // non-blocking
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load trial kit stock.");
     } finally {
@@ -635,6 +648,18 @@ export default function TrialKitInventoryPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => navigate("/admin-panel/solar-shop/trial-kits/procurement")}
+            className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-purple-700 hover:bg-purple-800 text-white flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <FaCreditCard />
+            Procurement Approvals
+            {pendingApprovalCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-amber-950 font-extrabold text-[10px]">
+                {pendingApprovalCount}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => handleOpenHistory()}
             className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 flex items-center gap-1.5 shadow-sm cursor-pointer"

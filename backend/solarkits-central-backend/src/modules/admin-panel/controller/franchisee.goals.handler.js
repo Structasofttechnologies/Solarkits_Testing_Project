@@ -7,6 +7,7 @@ const {
   FpoOrder,
   PurchaseOrder,
 } = require('../models/india_solarshop_db');
+const { invalidateGoalCache } = require('../services/franchisee.goal.service');
 
 /**
  * Computes actual metrics for a franchisee cluster goal in real-time
@@ -111,19 +112,51 @@ const computeGoalActuals = async (goalDoc) => {
     ? Math.round((annualKitsActualTotal / annualKitsTargetTotal) * 100)
     : 0;
 
+  // 3. Calculate PO Orders Count for Financial Year
+  let actual_po_orders_count = 0;
+  let po_orders_achievement_pct = 0;
+  if (franchiseeId && goalObj.financial_year) {
+    const [startYrStr] = goalObj.financial_year.split('-').map(Number);
+    if (!isNaN(startYrStr)) {
+      const fyStart = new Date(startYrStr, 3, 1, 0, 0, 0);
+      const fyEnd = new Date(startYrStr + 1, 2, 31, 23, 59, 59);
+      actual_po_orders_count = await FpoOrder.countDocuments({
+        reseller_id: franchiseeId,
+        created_at: { $gte: fyStart, $lte: fyEnd },
+        deleted_at: null,
+      });
+      const poGoal = goalObj.annual_po_orders_goal || 50;
+      if (poGoal > 0) {
+        po_orders_achievement_pct = Math.round((actual_po_orders_count / poGoal) * 100);
+      }
+    }
+  }
+
+  const effectiveAnnualKitsTarget = goalObj.annual_kits_target || annualKitsTargetTotal || (goalObj.monthly_kits_target ? goalObj.monthly_kits_target * 12 : 1200);
+  const effectiveMonthlyKitsTarget = goalObj.monthly_kits_target || (goalObj.monthly_kit_goals?.[0]?.target_kits_quantity || 100);
+
   return {
     ...goalObj,
+    monthly_kits_target: effectiveMonthlyKitsTarget,
+    annual_kits_target: effectiveAnnualKitsTarget,
+    annual_po_orders_goal: goalObj.annual_po_orders_goal || 50,
+    epc_onboard_days: goalObj.epc_onboard_days || 90,
+    actual_po_orders_count,
+    po_orders_achievement_pct,
     actual_epc_onboarded,
     actual_live_epcs,
     epc_achievement_pct,
     live_epc_achievement_pct,
     monthly_kit_goals: monthlyBreakdown,
     totals: {
-      annual_kits_target: annualKitsTargetTotal,
+      annual_kits_target: effectiveAnnualKitsTarget,
       annual_kits_actual: annualKitsActualTotal,
       annual_kits_achievement_pct: annualKitAchievementPct,
       annual_revenue_target: annualRevenueTargetTotal,
       annual_revenue_actual: annualRevenueActualTotal,
+      annual_po_orders_goal: goalObj.annual_po_orders_goal || 50,
+      actual_po_orders_count,
+      po_orders_achievement_pct,
     },
   };
 };
@@ -248,10 +281,14 @@ exports.set_cluster_goals = async (req, res) => {
       cluster_id,
       franchisee_id,
       financial_year,
+      monthly_kits_target,
+      annual_kits_target,
       annual_epc_goal,
+      epc_onboard_days,
       annual_live_epc_goal,
-      monthly_kit_goals,
       live_epc_criteria_days,
+      annual_po_orders_goal,
+      monthly_kit_goals,
       reason,
     } = req.body;
 
@@ -272,6 +309,14 @@ exports.set_cluster_goals = async (req, res) => {
       deleted_at: null,
     });
 
+    const mKits = Number(monthly_kits_target ?? 100);
+    const aKits = Number(annual_kits_target ?? (mKits * 12));
+    const epcGoal = Number(annual_epc_goal ?? 50);
+    const epcDays = Number(epc_onboard_days ?? 90);
+    const liveGoal = Number(annual_live_epc_goal ?? 60);
+    const liveDays = Number(live_epc_criteria_days ?? 90);
+    const poGoal = Number(annual_po_orders_goal ?? 50);
+
     if (goal) {
       // Log revision
       goal.revisions.push({
@@ -281,12 +326,20 @@ exports.set_cluster_goals = async (req, res) => {
         reason: reason || 'Admin updated goals',
         previous_annual_epc_goal: goal.annual_epc_goal,
         previous_annual_live_epc_goal: goal.annual_live_epc_goal,
+        previous_epc_onboard_days: goal.epc_onboard_days,
+        previous_monthly_kits_target: goal.monthly_kits_target,
+        previous_annual_kits_target: goal.annual_kits_target,
+        previous_annual_po_orders_goal: goal.annual_po_orders_goal,
         previous_monthly_goals: goal.monthly_kit_goals,
       });
 
-      if (annual_epc_goal !== undefined) goal.annual_epc_goal = Number(annual_epc_goal);
-      if (annual_live_epc_goal !== undefined) goal.annual_live_epc_goal = Number(annual_live_epc_goal);
-      if (live_epc_criteria_days !== undefined) goal.live_epc_criteria_days = Number(live_epc_criteria_days);
+      if (monthly_kits_target !== undefined) goal.monthly_kits_target = mKits;
+      if (annual_kits_target !== undefined) goal.annual_kits_target = aKits;
+      if (annual_epc_goal !== undefined) goal.annual_epc_goal = epcGoal;
+      if (epc_onboard_days !== undefined) goal.epc_onboard_days = epcDays;
+      if (annual_live_epc_goal !== undefined) goal.annual_live_epc_goal = liveGoal;
+      if (live_epc_criteria_days !== undefined) goal.live_epc_criteria_days = liveDays;
+      if (annual_po_orders_goal !== undefined) goal.annual_po_orders_goal = poGoal;
       if (monthly_kit_goals && Array.isArray(monthly_kit_goals)) {
         goal.monthly_kit_goals = monthly_kit_goals;
       }
@@ -294,6 +347,10 @@ exports.set_cluster_goals = async (req, res) => {
       goal.updated_by = req.user?._id || null;
 
       await goal.save();
+
+      if (mappedFranchiseeId) {
+        try { invalidateGoalCache(mappedFranchiseeId); } catch (e) { }
+      }
 
       return res.status(200).json({
         status: 'success',
@@ -307,14 +364,22 @@ exports.set_cluster_goals = async (req, res) => {
       cluster_id,
       franchisee_id: mappedFranchiseeId,
       financial_year,
-      annual_epc_goal: Number(annual_epc_goal || 100),
-      annual_live_epc_goal: Number(annual_live_epc_goal || 60),
-      live_epc_criteria_days: Number(live_epc_criteria_days || 90),
+      monthly_kits_target: mKits,
+      annual_kits_target: aKits,
+      annual_epc_goal: epcGoal,
+      epc_onboard_days: epcDays,
+      annual_live_epc_goal: liveGoal,
+      live_epc_criteria_days: liveDays,
+      annual_po_orders_goal: poGoal,
       monthly_kit_goals: Array.isArray(monthly_kit_goals) ? monthly_kit_goals : [],
       created_by: req.user?._id || null,
     });
 
     await goal.save();
+
+    if (mappedFranchiseeId) {
+      try { invalidateGoalCache(mappedFranchiseeId); } catch (e) { }
+    }
 
     return res.status(201).json({
       status: 'success',

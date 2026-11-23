@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
+import AdminEpcOrders from "../epc-orders/AdminEpcOrders";
 import {
   FaCheck,
   FaTimes,
@@ -108,6 +109,26 @@ const STAGE_CONFIGS = {
 
 export default function AdminOrderApprovalDashboard() {
   const { countryName } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedView = searchParams.get("view");
+  // Default to 'epc' (the screenshot UI) unless explicitly 'stages'
+  const [activeDeskView, setActiveDeskView] = useState(
+    requestedView === "stages" ? "stages" : "epc"
+  );
+
+  const handleSwitchView = (viewKey) => {
+    setActiveDeskView(viewKey);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (viewKey === "stages") {
+        next.set("view", "stages");
+      } else {
+        next.delete("view");
+      }
+      return next;
+    });
+  };
+
   const dispatch = useDispatch();
   const token = useSelector((state) => state.auth.token);
 
@@ -238,9 +259,11 @@ export default function AdminOrderApprovalDashboard() {
   useEffect(() => {
     if (token) {
       fetchSummary();
-      fetchQueue(1);
+      if (activeDeskView === "stages") {
+        fetchQueue(1);
+      }
     }
-  }, [token, activeTab, statusFilter, fetchSummary, fetchQueue]);
+  }, [token, activeDeskView, activeTab, statusFilter, fetchSummary, fetchQueue]);
 
   // Handle Search submit
   const handleSearch = (e) => {
@@ -444,9 +467,48 @@ export default function AdminOrderApprovalDashboard() {
   };
 
   return (
-    <div className="space-y-6 pb-24">
-      {/* ── Top Header Banner (Brand Gradient Theme) ── */}
-      <div className="relative rounded-2xl bg-gradient-to-r from-primary to-primary-end p-6 lg:p-8 text-white shadow-xl overflow-hidden">
+    <div className="space-y-4 pb-24">
+      {/* ── Desk Mode Switcher Bar ── */}
+      <div className="flex items-center justify-between flex-wrap gap-3 px-4 pt-2">
+        <div className="flex items-center gap-1.5 p-1 bg-surface-hover/80 dark:bg-slate-800/80 rounded-2xl border border-border shadow-xs">
+          <button
+            type="button"
+            onClick={() => handleSwitchView("epc")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              activeDeskView === "epc"
+                ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+                : "text-text-secondary hover:text-text-primary hover:bg-surface"
+            }`}
+          >
+            <FaShieldAlt className="text-sm" />
+            <span>Solar Shop EPC Orders & Payment Approvals</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSwitchView("stages")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              activeDeskView === "stages"
+                ? "bg-primary text-white shadow-md shadow-primary/30"
+                : "text-text-secondary hover:text-text-primary hover:bg-surface"
+            }`}
+          >
+            <FiCheckSquare className="text-sm" />
+            <span>Stage Gatekeeper Approvals (POs & Freight)</span>
+            {kpis.total_overdue > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">
+                {kpis.total_overdue}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {activeDeskView === "epc" ? (
+        <AdminEpcOrders />
+      ) : (
+        <div className="space-y-6">
+          {/* ── Top Header Banner (Brand Gradient Theme) ── */}
+          <div className="relative rounded-2xl bg-gradient-to-r from-primary to-primary-end p-6 lg:p-8 text-white shadow-xl overflow-hidden">
         {/* Background decoration */}
         <div className="absolute inset-0 bg-grid-white/10 mask-[linear-gradient(0deg,transparent,black)] pointer-events-none"></div>
         <div className="absolute -right-20 -top-20 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
@@ -1957,6 +2019,8 @@ export default function AdminOrderApprovalDashboard() {
             </div>
           </div>
         </Dialog>
+      )}
+        </div>
       )}
     </div>
   );

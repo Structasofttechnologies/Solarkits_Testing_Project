@@ -98,7 +98,7 @@ export default function CheckOut() {
   const [checkoutSettings, setCheckoutSettings] = useState({
     enable_checkout_timer: true,
     checkout_timer_duration: 20,
-    gst_rate: 13.8,
+    gst_rate: 12,
   });
 
   // Offers and Coupons
@@ -293,7 +293,12 @@ export default function CheckOut() {
             ...(prev || {}),
             order_number: data.orderNumber || "CONFIRMED",
             utr_number: data.utr,
-            status: "confirmed"
+            status: "confirmed",
+            order_status: "confirmed",
+            payment_status: "captured",
+            payment_method: "icici_ecollection",
+            payment_gateway_used: "icici_ecollection",
+            is_online: true,
           }));
           dispatch(clearCart());
         }
@@ -549,7 +554,7 @@ export default function CheckOut() {
   };
 
   const getTaxBreakdown = (amount) => {
-    const fallbackRate = Number(checkoutSettings.gst_rate ?? 13.8);
+    const fallbackRate = Number(checkoutSettings.gst_rate ?? 12);
     let taxable = 0;
     let gstAmount = 0;
 
@@ -849,9 +854,10 @@ export default function CheckOut() {
         description: item.description || null,
         quantity: item.qty || 1,
         ourPrice: item.ourPrice,
-        gstRate: Number(item.gstRate ?? item.gst_rate ?? item.pricing?.gstRate ?? item.pricing?.gst_rate ?? checkoutSettings.gst_rate ?? 13.8),
+        gstRate: Number(item.gstRate ?? item.gst_rate ?? item.pricing?.gstRate ?? item.pricing?.gst_rate ?? checkoutSettings.gst_rate ?? 12),
         districtId: item.districtId,
         is_trial_kit: Boolean(item.is_trial_kit),
+        future_intent: item.future_intent || null,
         delivery_cost: Number(item.delivery_cost || 0),
         delivery_pincode: item.delivery_pincode || null,
         warehouse_name: item.warehouse_name || null,
@@ -966,9 +972,20 @@ export default function CheckOut() {
 
   // ── Success State: Order Submitted (Render First) ──────────────
   if (orderConfirmed && confirmedOrderData) {
-    const isVerifiedSuccess = confirmedOrderData.payment_status === "captured" ||
+    const isVerifiedSuccess =
+      confirmedOrderData.payment_status === "captured" ||
       confirmedOrderData.offline_payment?.verification_status === "approved" ||
-      confirmedOrderData.order_status === "confirmed";
+      confirmedOrderData.order_status === "confirmed" ||
+      confirmedOrderData.status === "confirmed";
+
+    const isOnlineSuccess = Boolean(
+      (confirmedOrderData.payment_method === "icici_ecollection" ||
+        confirmedOrderData.payment_gateway_used === "icici_ecollection" ||
+        confirmedOrderData.is_online ||
+        confirmedOrderData.payment_mode === "online" ||
+        selectedPaymentMethod === "online") &&
+      isVerifiedSuccess
+    );
 
     return (
       <div className="max-w-xl mx-auto my-10 bg-surface p-8 rounded-3xl border border-border shadow-2xl text-center space-y-6 animate-in fade-in zoom-in-95 duration-300">
@@ -1043,6 +1060,10 @@ export default function CheckOut() {
             {isOnlineSuccess ? (
               <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
                 <FiCheckCircle size={12} /> Auto-Verified (ICICI Instant)
+              </span>
+            ) : isVerifiedSuccess ? (
+              <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                <FiCheckCircle size={12} /> Verified by Accounts
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300">

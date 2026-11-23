@@ -61,6 +61,10 @@ export default function BdeGoals() {
   const networkKitAchieved = goal.monthly_network_kits_achieved ?? 0;
   const networkKitPct = networkKitGoal > 0 ? Math.min(100, Math.round((networkKitAchieved / networkKitGoal) * 100)) : 0;
 
+  const trialKitGoal = goal.monthly_trial_kit_goal ?? 0;
+  const trialKitAchieved = goal.monthly_trial_kits_achieved ?? 0;
+  const trialKitPct = trialKitGoal > 0 ? Math.min(100, Math.round((trialKitAchieved / trialKitGoal) * 100)) : 0;
+
   return (
     <div className="space-y-6">
       {/* Header & Target Period Banner */}
@@ -343,6 +347,47 @@ export default function BdeGoals() {
               ? `${networkKitGoal - networkKitAchieved} kits remaining for network goal.`
               : networkKitGoal > 0
               ? '🎉 Network kit sales goal achieved!'
+              : 'Target not configured.'}
+          </p>
+        </div>
+
+        {/* 7. EPC Trial Kits Target */}
+        <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
+              <Package className="w-6 h-6" />
+            </div>
+            <span className="px-2.5 py-1 bg-rose-50 text-rose-700 font-bold text-xs rounded-full uppercase">
+              Trial Kits
+            </span>
+          </div>
+
+          <div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">EPC Trial Kits Target</span>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-4xl font-black text-rose-900">{trialKitAchieved}</span>
+              <span className="text-sm font-bold text-slate-400">/ {trialKitGoal} kits</span>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <span className="text-slate-600">Progress</span>
+              <span className="text-rose-600 font-bold">{trialKitPct}%</span>
+            </div>
+            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+              <div
+                className="bg-rose-600 h-full rounded-full transition-all duration-500"
+                style={{ width: `${trialKitPct}%` }}
+              />
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-500 pt-2 border-t border-slate-100">
+            {trialKitGoal > 0 && trialKitGoal - trialKitAchieved > 0
+              ? `${trialKitGoal - trialKitAchieved} more trial kits needed to reach EPC goal.`
+              : trialKitGoal > 0
+              ? '🎉 EPC trial kits target reached!'
               : 'Target not configured.'}
           </p>
         </div>

@@ -193,18 +193,18 @@ function NavigationDrawer({
       // 3B. If not resolved from sub_counts, check top-level module keys
       if (count === 0) {
         const key = item.step || item.badgeKey;
-        if (key && sidebarCounts[key] !== undefined) {
+        const n = item.name?.toLowerCase() || "";
+        const p = item.path?.toLowerCase() || "";
+        if (key === "06" || key === "07" || p.includes("order-approvals") || p.includes("epc-orders") || n.includes("epc order") || n.includes("stage approval")) {
+          count = (Number(sidebarCounts?.["06"]) || 0) + (Number(sidebarCounts?.["07"]) || 0);
+        } else if (key && sidebarCounts[key] !== undefined) {
           count = Number(sidebarCounts[key]) || 0;
         } else if (item.unique_id && sidebarCounts[item.unique_id] !== undefined) {
           count = Number(sidebarCounts[item.unique_id]) || 0;
         } else {
-          const n = item.name?.toLowerCase() || "";
-          const p = item.path?.toLowerCase() || "";
           if ((n.includes("epc") && (n.includes("approve") || n.includes("lead") || n.includes("website"))) || p.includes("approve-new-epc") || p.includes("website-epc")) count = sidebarCounts["02"] || 0;
           else if (n.includes("po order") || p.includes("po-orders")) count = sidebarCounts["04"] || 0;
           else if (n.includes("loose order") || p.includes("loose-orders")) count = sidebarCounts["05"] || 0;
-          else if (n.includes("epc order") || p.includes("epc-orders")) count = sidebarCounts["06"] || 0;
-          else if (n.includes("stage approval") || p.includes("order-approvals")) count = sidebarCounts["07"] || 0;
           else if (n.includes("delivery") || p.includes("delivery-management")) count = sidebarCounts["08"] || 0;
           else if (n.includes("service ticket") || p.includes("service-tickets")) count = sidebarCounts["12"] || 0;
           else if (n.includes("franchisee") || p.includes("reseller-management")) count = sidebarCounts["13"] || 0;
@@ -521,16 +521,14 @@ function NavigationDrawer({
                   >
                     <div className="flex gap-2.5 items-center min-w-0 flex-1 mr-1.5 text-left">
                       <span
-                        className={`text-xl min-w-6 flex justify-center transition-colors ${
-                          isParentActive ? "text-primary" : "text-primary group-hover:scale-110"
-                        }`}
+                        className={`text-xl min-w-6 flex justify-center transition-colors ${isParentActive ? "text-primary" : "text-primary group-hover:scale-110"
+                          }`}
                       >
                         {item.icon}
                       </span>
                       <span
-                        className={`flex-1 font-semibold text-[13.5px] tracking-tight truncate overflow-hidden text-ellipsis whitespace-nowrap text-left ${
-                          isParentActive ? "text-primary font-bold" : "text-text-primary"
-                        }`}
+                        className={`flex-1 font-semibold text-[13.5px] tracking-tight truncate overflow-hidden text-ellipsis whitespace-nowrap text-left ${isParentActive ? "text-primary font-bold" : "text-text-primary"
+                          }`}
                       >
                         {item.name}
                       </span>
@@ -538,13 +536,12 @@ function NavigationDrawer({
                     <div className="flex items-center gap-1.5 ml-auto shrink-0">
                       {badgeInfo?.count > 0 && (
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10.5px] font-mono font-black shrink-0 transition-all ${
-                            isParentActive
+                          className={`px-2 py-0.5 rounded-full text-[10.5px] font-mono font-black shrink-0 transition-all ${isParentActive
                               ? "bg-primary text-white shadow-xs"
                               : badgeInfo.isUrgent
                                 ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
                                 : "bg-primary/15 text-primary border border-primary/25"
-                          }`}
+                            }`}
                           title={badgeInfo.tooltip}
                         >
                           {badgeInfo.count}
@@ -560,9 +557,8 @@ function NavigationDrawer({
                         </span>
                       )}
                       <span
-                        className={`text-lg flex justify-center transition-transform duration-300 ${
-                          isOpen ? "rotate-180" : ""
-                        }`}
+                        className={`text-lg flex justify-center transition-transform duration-300 ${isOpen ? "rotate-180" : ""
+                          }`}
                       >
                         <MdExpandMore />
                       </span>
@@ -576,10 +572,14 @@ function NavigationDrawer({
                     onClick={() => {
                       if (isMobile && setIsOpen) setIsOpen(false);
                     }}
-                    title={item.name}
+                     title={item.name}
                     className={`flex items-center justify-between w-full ${
                       depth > 0 ? "px-3 py-2 pl-3.5 rounded-lg" : "px-3.5 py-2.5 rounded-xl"
                     } transition-all duration-200 whitespace-nowrap group cursor-pointer
+ 
+                    className={`flex items-center justify-between w-full ${depth > 0 ? "px-3 py-2 pl-3.5 rounded-lg" : "px-3.5 py-2.5 rounded-xl"
+                      } transition-all duration-300 whitespace-nowrap group
+ 
                     ${isLeafActive
                         ? "bg-gradient-to-r from-blue-700 to-indigo-800 text-white shadow-md shadow-blue-900/30 font-bold"
                         : "text-text-secondary bg-transparent hover:bg-primary/10 hover:text-primary dark:hover:bg-white/5"
@@ -587,16 +587,26 @@ function NavigationDrawer({
                   >
                     <div className="flex gap-2.5 items-center min-w-0 flex-1 mr-1.5 text-left">
                       <span
+ 
                         className={`${depth > 0 ? "text-lg min-w-5" : "text-xl min-w-6"} flex justify-center transition-all ${
                           isLeafActive ? "text-white" : "text-primary group-hover:text-primary group-hover:scale-110"
                         }`}
+ 
+                        className={`${depth > 0 ? "text-lg min-w-5" : "text-xl min-w-6"} flex justify-center transition-colors ${isLeafActive ? "text-white" : "text-primary group-hover:scale-110"
+                          }`}
+ 
                       >
                         {item.icon}
                       </span>
                       <span
+ 
                         className={`flex-1 ${depth > 0 ? "text-[13px]" : "text-[13.5px]"} tracking-tight truncate overflow-hidden text-ellipsis whitespace-nowrap text-left transition-colors ${
                           isLeafActive ? "text-white font-bold" : "text-text-primary group-hover:text-primary font-semibold"
                         }`}
+ 
+                        className={`flex-1 ${depth > 0 ? "text-[13px]" : "text-[13.5px]"} tracking-tight truncate overflow-hidden text-ellipsis whitespace-nowrap text-left ${isLeafActive ? "text-white font-bold" : "text-text-primary font-semibold"
+                          }`}
+ 
                       >
                         {item.name}
                       </span>
@@ -604,13 +614,12 @@ function NavigationDrawer({
                     <div className="flex items-center gap-1.5 ml-auto shrink-0">
                       {badgeInfo?.count > 0 && (
                         <span
-                          className={`px-2 py-0.5 rounded-full ${depth > 0 ? "text-[10px]" : "text-[10.5px]"} font-mono font-black shrink-0 transition-all ${
-                            isLeafActive
+                          className={`px-2 py-0.5 rounded-full ${depth > 0 ? "text-[10px]" : "text-[10.5px]"} font-mono font-black shrink-0 transition-all ${isLeafActive
                               ? "bg-white text-primary shadow-xs"
                               : badgeInfo.isUrgent
                                 ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
                                 : "bg-primary/15 text-primary border border-primary/25"
-                          }`}
+                            }`}
                           title={badgeInfo.tooltip}
                         >
                           {badgeInfo.count}
@@ -674,11 +683,15 @@ function NavigationDrawer({
             animate={{ x: 0 }}
             exit={{ x: isMobile ? "-100%" : 0 }}
             transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-            className={`shadow-xl flex flex-col transition-colors duration-300 ${
-              isMobile
+            className={`shadow-xl flex flex-col transition-colors duration-300 ${isMobile
                 ? "fixed top-0 left-0 h-screen z-1000 bg-surface w-72"
+ 
                 : "h-screen w-72 bg-surface border-r border-border shrink-0"
             }`}
+ 
+                : "h-screen w-64 bg-surface border-r border-border shrink-0"
+              }`}
+ 
           >
             {/* Logo */}
             <div className="flex items-center justify-center p-6 border-b border-border min-h-[100px] bg-gradient-to-b from-primary/5 to-transparent">
@@ -696,9 +709,8 @@ function NavigationDrawer({
                 return (
                   <div
                     key={index}
-                    className={`py-1 ${
-                      index !== items.length - 1 ? "border-b border-border/50 mb-1" : ""
-                    }`}
+                    className={`py-1 ${index !== items.length - 1 ? "border-b border-border/50 mb-1" : ""
+                      }`}
                   >
                     {renderMenuItems(sectionList)}
                   </div>

@@ -20,6 +20,7 @@ const {
 const EpcOrder = require('../models/india_solarshop_db/epc_orders.schema');
 const { CompanyWarehouse } = require('../../warehouse-panel/models/company_warehouse_db');
 const BDEProfile = require('../models/india_solarshop_db/bde_profiles.schema');
+const { GeoLevel1, GeoLevel2 } = require('../models/geolocation_db');
 
 /**
  * 1. GET ALL TRIAL KIT STOCK (Admin & Account)
@@ -65,7 +66,9 @@ exports.get_stock = async (req, res) => {
         .sort({ capacity: 1, name: 1 })
         .lean(),
       CompanyWarehouse.find(warehouseFilter)
-        .select('_id warehouse_name warehouse_code address state_name district_name')
+        .populate('level_1', 'name')
+        .populate('level_2', 'name')
+        .sort({ warehouse_code: 1 })
         .lean(),
       TrialKitInventory.find(invFilter)
         .populate('warehouse_id', 'warehouse_name warehouse_code address state_name district_name')
@@ -77,6 +80,30 @@ exports.get_stock = async (req, res) => {
       ProjectRange.find({ deleted_at: null }).populate('unit_id').lean().catch(() => []),
       IndustryType.find({ deleted_at: null }).lean().catch(() => []),
     ]);
+
+    // 3. Format Warehouses with human-readable names and geographic locations
+    const formattedWarehouses = (warehouses || []).map((wh) => {
+      const stateName = wh.level_1?.name || wh.state_name || 'Gujarat';
+      const districtName = wh.level_2?.name || wh.district_name || (wh.warehouse_code === 'IND_GUJ_001' ? 'Ahmedabad' : (wh.warehouse_code === 'IND_GUJ_002' ? 'Surat' : ''));
+      const rawName = wh.warehouse_name || '';
+      const fallbackName = wh.warehouse_code === 'IND_GUJ_001'
+        ? 'Ahmedabad Central Warehouse'
+        : (wh.warehouse_code === 'IND_GUJ_002' ? 'Surat Regional Warehouse' : wh.warehouse_code);
+      const cleanName = (rawName && rawName !== wh.warehouse_code) ? rawName : fallbackName;
+      const cleanAddress = (wh.address || '')
+        .replace(/^[A-Z0-9\+]+\s*,\s*/i, '') // strips Google Plus code prefix
+        .trim();
+      const displayLabel = `${cleanName} (${wh.warehouse_code} • ${districtName ? districtName + ', ' : ''}${stateName})`;
+
+      return {
+        ...wh,
+        warehouse_name: cleanName,
+        state_name: stateName,
+        district_name: districtName,
+        clean_address: cleanAddress,
+        display_label: displayLabel
+      };
+    });
 
     // 4. Build Combo Kit Cards
     const comboKitCards = configuredKits.map((kit) => {
@@ -106,7 +133,7 @@ exports.get_stock = async (req, res) => {
       let totalDispatched = 0;
       let totalDelivered = 0;
 
-      const allocations = warehouses.map((wh) => {
+      const allocations = formattedWarehouses.map((wh) => {
         const inv = inventories.find(i =>
           (i.combo_kit_id && i.combo_kit_id.toString() === kit._id.toString() && i.warehouse_id?._id?.toString() === wh._id.toString()) ||
           (i.kit_type === kit.name && i.warehouse_id?._id?.toString() === wh._id.toString())
@@ -181,7 +208,7 @@ exports.get_stock = async (req, res) => {
       success: true,
       data: comboKitCards,
       flat_stock: inventories,
-      warehouses: warehouses,
+      warehouses: formattedWarehouses,
       total: comboKitCards.length
     });
   } catch (err) {
@@ -471,19 +498,133 @@ exports.get_stock_history = async (req, res) => {
 };
 
 /**
- * 6. GET ALL TRIAL KIT ORDERS (Admin, Account, Warehouse, BDE)
- * With filters: warehouse, kit type, date range, EPC GST, state, district, BDE, status.
+ * 6A. GET FILTER OPTIONS & REAL-TIME COUNTS (Account & Warehouse)
+ * For Account Panel Trial Kits Order Filter UI (Screenshot 2)
+ */
+exports.get_filter_options = async (req, res) => {
+  try {
+    const [
+      warehouses,
+      states,
+      districts,
+      industries,
+      projects,
+      orders,
+      comboKits
+    ] = await Promise.all([
+      CompanyWarehouse.find({ deleted_at: null }).select('_id warehouse_name warehouse_code state_name district_name address').lean(),
+      GeoLevel1.find({ is_active: { $ne: false }, deleted_at: null }).sort({ name: 1 }).lean().catch(() => []),
+      GeoLevel2.find({ is_active: { $ne: false }, deleted_at: null }).sort({ name: 1 }).lean().catch(() => []),
+      IndustryType.find({ deleted_at: null }).lean().catch(() => []),
+      ProjectType.find({ deleted_at: null }).lean().catch(() => []),
+      TrialKitOrder.find({}).lean(),
+      ComboKit.find({ deleted_at: null, is_custom: false }).select('name capacity').lean().catch(() => [])
+    ]);
+
+    // Unique kit types
+    const kitTypeSet = new Set(['1 kW Trial Kit', '2 kW Trial Kit', '3 kW Trial Kit', '5 kW Trial Kit']);
+    comboKits.forEach(k => { if (k.name) kitTypeSet.add(k.name); });
+    orders.forEach(o => { if (o.kit_type) kitTypeSet.add(o.kit_type); });
+
+    // Compute live counts across orders
+    const filterCounts = {
+      total: orders.length,
+      by_mode: {
+        offline: orders.filter(o => (o.order_type || 'offline').toLowerCase() === 'offline').length,
+        online: orders.filter(o => (o.order_type || '').toLowerCase() === 'online').length
+      },
+      by_origin: {
+        epc: orders.filter(o => (o.order_origin || 'epc').toLowerCase() === 'epc').length,
+        franchisee: orders.filter(o => (o.order_origin || '').toLowerCase() === 'franchisee').length,
+        company: orders.filter(o => (o.order_origin || '').toLowerCase() === 'company').length
+      },
+      by_category: {
+        govt_tender: orders.filter(o => (o.order_category || '').toLowerCase() === 'govt_tender').length,
+        industry_kit: orders.filter(o => (o.order_category || 'industry_kit').toLowerCase() === 'industry_kit').length
+      },
+      by_warehouse: {},
+      by_state: {},
+      by_district: {},
+      by_destination: {
+        all: orders.length,
+        epc: orders.filter(o => (o.delivery_destination_type || 'epc').toLowerCase() === 'epc').length,
+        franchisee: orders.filter(o => (o.delivery_destination_type || '').toLowerCase() === 'franchisee').length,
+        company: orders.filter(o => (o.delivery_destination_type || '').toLowerCase() === 'company').length
+      },
+      by_industry: {},
+      by_project: {},
+      by_kit: {}
+    };
+
+    orders.forEach(o => {
+      const whId = o.warehouse_id?.toString();
+      if (whId) filterCounts.by_warehouse[whId] = (filterCounts.by_warehouse[whId] || 0) + 1;
+
+      const st = o.delivery_details?.shipping_address?.state || o.shipping_address?.state;
+      if (st) filterCounts.by_state[st] = (filterCounts.by_state[st] || 0) + 1;
+
+      const dist = o.delivery_details?.shipping_address?.district || o.shipping_address?.district;
+      if (dist) filterCounts.by_district[dist] = (filterCounts.by_district[dist] || 0) + 1;
+
+      const ind = o.industry_type || 'General Solar';
+      filterCounts.by_industry[ind] = (filterCounts.by_industry[ind] || 0) + 1;
+
+      const prj = o.project_type || 'Rooftop Solar';
+      filterCounts.by_project[prj] = (filterCounts.by_project[prj] || 0) + 1;
+
+      const kt = o.kit_type || 'Solar Trial Kit';
+      filterCounts.by_kit[kt] = (filterCounts.by_kit[kt] || 0) + 1;
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        warehouses,
+        states: states.map(s => ({ _id: s._id, name: s.name })),
+        districts: districts.map(d => ({ _id: d._id, name: d.name, state_id: d.level_1 || d.state_id })),
+        kit_types: Array.from(kitTypeSet),
+        industry_types: industries.length > 0 ? industries.map(i => i.name || i.title) : ['Residential Rooftop', 'Commercial & Industrial', 'Agricultural Solar', 'Ground Mounted Solar'],
+        project_types: projects.length > 0 ? projects.map(p => p.name || p.title) : ['Rooftop Solar', 'Ground Mount', 'Solar Pump', 'Floating Solar'],
+        origins: ['Solar EPC', 'Franchisee Store', 'Company Store'],
+        order_modes: ['Offline Orders', 'Online Orders'],
+        order_categories: ['Govt. Tenders Order', 'Industry Kits'],
+        delivery_destinations: ['All Destinations', 'EPC Location', 'Franchisee Store', 'Company Store'],
+        filter_counts: filterCounts
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error fetching trial kit filter options:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * 6B. GET ALL TRIAL KIT ORDERS (Admin, Account, Warehouse, BDE)
+ * Comprehensive Multi-Facet Filtering matching Screenshot 2
  */
 exports.get_orders = async (req, res) => {
   try {
     const {
       warehouse_id,
+      order_mode,
+      order_type,
+      order_origin,
+      order_category,
+      industry_type,
+      project_type,
       kit_type,
-      gst_number,
+      states,
+      districts,
+      pincode,
+      pincodes,
+      delivery_destination,
+      account_workflow_status,
+      is_grouped,
+      group_id,
       order_status,
+      gst_number,
       bde_id,
-      state,
-      district,
+      search,
       startDate,
       endDate,
       limit = 50,
@@ -495,28 +636,149 @@ exports.get_orders = async (req, res) => {
     // Scoping for warehouse users (own warehouse only)
     if (req.user?.is_warehouse_user && req.user.warehouse_id) {
       filter.warehouse_id = req.user.warehouse_id;
-    } else if (warehouse_id && mongoose.Types.ObjectId.isValid(warehouse_id)) {
+    } else if (warehouse_id && warehouse_id !== 'all' && mongoose.Types.ObjectId.isValid(warehouse_id)) {
       filter.warehouse_id = warehouse_id;
     }
 
-    if (kit_type && kit_type !== 'all') {
+    const mode = order_mode || order_type;
+    if (mode && mode !== 'all') {
+      filter.order_type = mode.toLowerCase();
+    }
+
+    if (order_origin && order_origin !== 'all') {
+      filter.order_origin = order_origin.toLowerCase();
+    }
+
+    if (order_category && order_category !== 'all') {
+      filter.order_category = order_category.toLowerCase();
+    }
+
+    if (industry_type && industry_type !== 'all' && industry_type.trim() !== '') {
+      filter.industry_type = industry_type;
+    }
+
+    if (project_type && project_type !== 'all' && project_type.trim() !== '') {
+      filter.project_type = project_type;
+    }
+
+    if (kit_type && kit_type !== 'all' && kit_type.trim() !== '') {
       filter.kit_type = kit_type;
     }
+
     if (gst_number) {
       filter.gst_number = new RegExp(gst_number.trim(), 'i');
     }
+
     if (order_status && order_status !== 'all') {
       filter.order_status = order_status;
     }
-    if (bde_id && mongoose.Types.ObjectId.isValid(bde_id)) {
+
+    if (account_workflow_status && account_workflow_status !== 'all') {
+      filter.account_workflow_status = account_workflow_status;
+    }
+
+    if (is_grouped !== undefined && is_grouped !== 'all' && is_grouped !== '') {
+      filter.is_grouped = is_grouped === 'true' || is_grouped === true;
+    }
+
+    if (group_id && group_id !== 'all' && group_id.trim() !== '') {
+      filter.group_id = new RegExp(group_id.trim(), 'i');
+    }
+
+    if (delivery_destination && delivery_destination !== 'all') {
+      filter.delivery_destination_type = delivery_destination;
+    }
+
+    if (bde_id === 'unassigned' || req.query.is_unassigned === 'true') {
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { bde_id: null },
+          { bde_id: { $exists: false } }
+        ]
+      });
+    } else if (bde_id && mongoose.Types.ObjectId.isValid(bde_id)) {
       filter.bde_id = bde_id;
     }
-    if (state && state !== 'all') {
-      filter['delivery_details.shipping_address.state'] = new RegExp(`^${state}$`, 'i');
+
+    if (req.query.future_purchase_mode && req.query.future_purchase_mode !== 'all') {
+      filter['future_intent.future_purchase_mode'] = req.query.future_purchase_mode;
     }
-    if (district && district !== 'all') {
-      filter['delivery_details.shipping_address.district'] = new RegExp(`^${district}$`, 'i');
+
+    if (req.query.has_future_intent === 'true') {
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { 'future_intent.expected_quantity': { $gt: 0 } },
+          { 'future_intent.loose_quantity': { $gt: 0 } },
+          { 'future_intent.po_quantity': { $gt: 0 } }
+        ]
+      });
     }
+
+    // State filter (supports single or comma-separated list)
+    const stateList = (states || req.query.state || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (stateList.length > 0 && !stateList.includes('all')) {
+      const stateRegexes = stateList.map(s => new RegExp(`^${s}$`, 'i'));
+      filter.$or = [
+        { 'delivery_details.shipping_address.state': { $in: stateRegexes } },
+        { 'shipping_address.state': { $in: stateRegexes } }
+      ];
+    }
+
+    // District filter
+    const districtList = (districts || req.query.district || '')
+      .split(',')
+      .map(d => d.trim())
+      .filter(Boolean);
+    if (districtList.length > 0 && !districtList.includes('all')) {
+      const distRegexes = districtList.map(d => new RegExp(`^${d}$`, 'i'));
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { 'delivery_details.shipping_address.district': { $in: distRegexes } },
+          { 'shipping_address.district': { $in: distRegexes } }
+        ]
+      });
+    }
+
+    // Pincode filter
+    const pin = pincode || pincodes;
+    if (pin && pin.trim() !== '') {
+      const pinRegex = new RegExp(pin.trim(), 'i');
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { 'delivery_details.shipping_address.pincode': pinRegex },
+          { 'shipping_address.pincode': pinRegex }
+        ]
+      });
+    }
+
+    // Text search
+    if (search && search.trim() !== '') {
+      const sRegex = new RegExp(search.trim(), 'i');
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { order_number: sRegex },
+          { epc_name: sRegex },
+          { epc_company_name: sRegex },
+          { gst_number: sRegex },
+          { group_id: sRegex },
+          { group_name: sRegex },
+          { kit_type: sRegex },
+          { 'delivery_details.shipping_address.contact_name': sRegex },
+          { 'delivery_details.shipping_address.phone': sRegex },
+          { 'delivery_details.shipping_address.district': sRegex },
+          { 'delivery_details.shipping_address.state': sRegex },
+        ]
+      });
+    }
+
     if (startDate || endDate) {
       filter.order_date = {};
       if (startDate) filter.order_date.$gte = new Date(startDate);
@@ -527,26 +789,299 @@ exports.get_orders = async (req, res) => {
       }
     }
 
-    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
-    const total = await TrialKitOrder.countDocuments(filter);
-    const orders = await TrialKitOrder.find(filter)
-      .populate('epc_id', 'name email whatsapp gstin state_name district_name')
-      .populate('warehouse_id', 'warehouse_name warehouse_code')
-      .populate('bde_id', 'full_name bde_id_code mobile')
-      .sort({ order_date: -1 })
-      .skip(skip)
-      .limit(parseInt(limit, 10))
-      .lean();
+    const parsedLimit = parseInt(limit, 10) || 50;
+    const parsedPage = parseInt(page, 10) || 1;
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    const [total, orders, allForCounts] = await Promise.all([
+      TrialKitOrder.countDocuments(filter),
+      TrialKitOrder.find(filter)
+        .populate('epc_id', 'name email whatsapp gstin state_name district_name company_name')
+        .populate('warehouse_id', 'warehouse_name warehouse_code state_name district_name address')
+        .populate('bde_id', 'full_name bde_id_code mobile')
+        .sort({ order_date: -1 })
+        .skip(skip)
+        .limit(parsedLimit)
+        .lean(),
+      TrialKitOrder.find({}).select('order_type order_origin order_category warehouse_id kit_type delivery_details shipping_address industry_type project_type delivery_destination_type').lean()
+    ]);
+
+    // Live counts calculation for filter tabs
+    const filterCounts = {
+      total: allForCounts.length,
+      by_mode: {
+        offline: allForCounts.filter(o => (o.order_type || 'offline').toLowerCase() === 'offline').length,
+        online: allForCounts.filter(o => (o.order_type || '').toLowerCase() === 'online').length
+      },
+      by_origin: {
+        epc: allForCounts.filter(o => (o.order_origin || 'epc').toLowerCase() === 'epc').length,
+        franchisee: allForCounts.filter(o => (o.order_origin || '').toLowerCase() === 'franchisee').length,
+        company: allForCounts.filter(o => (o.order_origin || '').toLowerCase() === 'company').length
+      },
+      by_category: {
+        govt_tender: allForCounts.filter(o => (o.order_category || '').toLowerCase() === 'govt_tender').length,
+        industry_kit: allForCounts.filter(o => (o.order_category || 'industry_kit').toLowerCase() === 'industry_kit').length
+      },
+      by_warehouse: {},
+      by_state: {},
+      by_district: {},
+      by_destination: {
+        all: allForCounts.length,
+        epc: allForCounts.filter(o => (o.delivery_destination_type || 'epc').toLowerCase() === 'epc').length,
+        franchisee: allForCounts.filter(o => (o.delivery_destination_type || '').toLowerCase() === 'franchisee').length,
+        company: allForCounts.filter(o => (o.delivery_destination_type || '').toLowerCase() === 'company').length
+      },
+      by_industry: {},
+      by_project: {},
+      by_kit: {}
+    };
+
+    allForCounts.forEach(o => {
+      const whId = o.warehouse_id?.toString();
+      if (whId) filterCounts.by_warehouse[whId] = (filterCounts.by_warehouse[whId] || 0) + 1;
+
+      const st = o.delivery_details?.shipping_address?.state || o.shipping_address?.state;
+      if (st) filterCounts.by_state[st] = (filterCounts.by_state[st] || 0) + 1;
+
+      const dist = o.delivery_details?.shipping_address?.district || o.shipping_address?.district;
+      if (dist) filterCounts.by_district[dist] = (filterCounts.by_district[dist] || 0) + 1;
+
+      const ind = o.industry_type || 'General Solar';
+      filterCounts.by_industry[ind] = (filterCounts.by_industry[ind] || 0) + 1;
+
+      const prj = o.project_type || 'Rooftop Solar';
+      filterCounts.by_project[prj] = (filterCounts.by_project[prj] || 0) + 1;
+
+      const kt = o.kit_type || 'Solar Trial Kit';
+      filterCounts.by_kit[kt] = (filterCounts.by_kit[kt] || 0) + 1;
+    });
+
+    const formattedOrders = orders.map(o => {
+      const resolvedWhName = o.warehouse_id?.warehouse_name || (o.warehouse_name && !o.warehouse_name.startsWith('IND_') ? o.warehouse_name : null) || 'Ahmedabad Central Warehouse';
+      const resolvedWhCode = o.warehouse_id?.warehouse_code || (o.warehouse_name && o.warehouse_name.startsWith('IND_') ? o.warehouse_name : null) || 'IND_GUJ_001';
+      return {
+        ...o,
+        warehouse_name: resolvedWhName,
+        warehouse_code: resolvedWhCode
+      };
+    });
 
     return res.status(200).json({
       success: true,
-      data: orders,
+      data: formattedOrders,
       total,
-      page: parseInt(page, 10),
-      totalPages: Math.ceil(total / parseInt(limit, 10))
+      page: parsedPage,
+      limit: parsedLimit,
+      totalPages: Math.ceil(total / parsedLimit),
+      filter_counts: filterCounts
     });
   } catch (err) {
     console.error('❌ Error fetching trial kit orders:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * 6C. GROUP AND SEND TRIAL KIT ORDERS DIRECT TO WAREHOUSE
+ * Allows Account Manager to group multiple orders or send individually.
+ * Bypasses Procurement completely.
+ */
+exports.group_and_send_orders = async (req, res) => {
+  try {
+    const { order_ids, dispatch_mode = 'group', group_name, warehouse_id, notes } = req.body;
+
+    if (!Array.isArray(order_ids) || order_ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'Please select at least one order.' });
+    }
+
+    const validIds = order_ids.filter(id => mongoose.Types.ObjectId.isValid(id));
+    if (validIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid order IDs provided.' });
+    }
+
+    const isGroup = dispatch_mode === 'group';
+    let generatedGroupId = null;
+
+    if (isGroup) {
+      const year = new Date().getFullYear();
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const count = await TrialKitOrder.countDocuments({ is_grouped: true });
+      const seq = String(count + 1).padStart(3, '0');
+      generatedGroupId = `TK-GRP-${year}-${seq}-${randomSuffix}`;
+    }
+
+    const updateFields = {
+      is_grouped: isGroup,
+      account_workflow_status: 'sent_to_warehouse',
+      order_status: 'sent_to_warehouse',
+      grouped_at: isGroup ? new Date() : null,
+      grouped_by: req.user?._id || req.user?.id || null
+    };
+
+    if (isGroup) {
+      updateFields.group_id = generatedGroupId;
+      updateFields.group_name = group_name && group_name.trim() !== '' ? group_name.trim() : generatedGroupId;
+    } else {
+      updateFields.group_id = null;
+      updateFields.group_name = '';
+    }
+
+    // Origin Warehouse Preserved: Always keep each order's allocated warehouse where the order was created.
+    // Warehouse override removed per strict requirement.
+
+    const updateOps = { $set: updateFields };
+    if (notes && notes.trim() !== '') {
+      updateOps.$set['delivery_details.delivery_notes'] = notes.trim();
+    }
+
+    const result = await TrialKitOrder.updateMany(
+      { _id: { $in: validIds } },
+      updateOps
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: isGroup
+        ? `Successfully grouped ${result.modifiedCount} trial order(s) into Batch [${generatedGroupId}] and sent directly to Warehouse!`
+        : `Successfully sent ${result.modifiedCount} individual trial order(s) directly to Warehouse!`,
+      group_id: generatedGroupId,
+      modified_count: result.modifiedCount
+    });
+  } catch (err) {
+    console.error('❌ Error grouping/sending trial kit orders:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * 6D. DIRECT OUT FOR DELIVERY (Warehouse Panel)
+ * Direct dispatch of trial kit orders without procurement or assembly delay.
+ */
+exports.direct_out_for_delivery = async (req, res) => {
+  try {
+    const {
+      order_id,
+      order_ids,
+      group_id,
+      courier_name = 'Local Fleet / Transporter',
+      tracking_number,
+      tracking_url,
+      vehicle_number,
+      driver_name,
+      driver_phone,
+      delivery_notes
+    } = req.body;
+
+    const query = {};
+    if (order_id && mongoose.Types.ObjectId.isValid(order_id)) {
+      query._id = order_id;
+    } else if (Array.isArray(order_ids) && order_ids.length > 0) {
+      query._id = { $in: order_ids.filter(id => mongoose.Types.ObjectId.isValid(id)) };
+    } else if (group_id) {
+      query.group_id = group_id;
+    } else {
+      return res.status(400).json({ success: false, message: 'Please specify an order_id, order_ids, or group_id.' });
+    }
+
+    const generatedTracking = tracking_number && tracking_number.trim() !== ''
+      ? tracking_number.trim()
+      : `TRK-TK-${Date.now().toString().slice(-6)}`;
+
+    const ordersToUpdate = await TrialKitOrder.find(query);
+    if (!ordersToUpdate || ordersToUpdate.length === 0) {
+      return res.status(404).json({ success: false, message: 'No matching orders found to dispatch.' });
+    }
+
+    const updated = await TrialKitOrder.updateMany(query, {
+      $set: {
+        order_status: 'out_for_delivery',
+        'delivery_details.courier_name': courier_name,
+        'delivery_details.tracking_number': generatedTracking,
+        'delivery_details.tracking_url': tracking_url || '',
+        'delivery_details.dispatched_at': new Date(),
+        'delivery_details.dispatched_by': req.user?._id || req.user?.id || null,
+        'delivery_details.delivery_notes': delivery_notes || '',
+        'delivery_details.vehicle_number': vehicle_number || '',
+        'delivery_details.driver_name': driver_name || '',
+        'delivery_details.driver_phone': driver_phone || '',
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully set ${updated.modifiedCount} order(s) to Out for Delivery!`,
+      tracking_number: generatedTracking,
+      modified_count: updated.modifiedCount
+    });
+  } catch (err) {
+    console.error('❌ Error updating trial kit out for delivery:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * 6E. MARK DELIVERED (Warehouse Panel)
+ */
+exports.mark_delivered = async (req, res) => {
+  try {
+    const { order_id, order_ids, group_id, delivery_notes } = req.body;
+
+    const query = {};
+    if (order_id && mongoose.Types.ObjectId.isValid(order_id)) {
+      query._id = order_id;
+    } else if (Array.isArray(order_ids) && order_ids.length > 0) {
+      query._id = { $in: order_ids.filter(id => mongoose.Types.ObjectId.isValid(id)) };
+    } else if (group_id) {
+      query.group_id = group_id;
+    } else {
+      return res.status(400).json({ success: false, message: 'Please specify an order_id, order_ids, or group_id.' });
+    }
+
+    const updated = await TrialKitOrder.updateMany(query, {
+      $set: {
+        order_status: 'delivered',
+        'delivery_details.delivered_at': new Date(),
+        'delivery_details.delivered_by': req.user?._id || req.user?.id || null,
+        ...(delivery_notes ? { 'delivery_details.delivery_notes': delivery_notes } : {}),
+        'feedback.feedback_status': 'pending',
+        'funnel.current_stage': 'feedback_pending',
+        'funnel.stage_updated_at': new Date()
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully marked ${updated.modifiedCount} order(s) as Delivered!`,
+      modified_count: updated.modifiedCount
+    });
+  } catch (err) {
+    console.error('❌ Error marking trial kit delivered:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * 6F. GET BADGE COUNT (Account & Warehouse Sidebar)
+ */
+exports.get_badge_count = async (req, res) => {
+  try {
+    const [pendingAccount, readyWarehouse, outForDelivery] = await Promise.all([
+      TrialKitOrder.countDocuments({ account_workflow_status: { $in: ['pending_account', null] } }),
+      TrialKitOrder.countDocuments({ account_workflow_status: 'sent_to_warehouse', order_status: { $in: ['sent_to_warehouse', 'ready_for_warehouse'] } }),
+      TrialKitOrder.countDocuments({ order_status: 'out_for_delivery' })
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        pending_account: pendingAccount,
+        ready_warehouse: readyWarehouse,
+        out_for_delivery: outForDelivery,
+        total_active: pendingAccount + readyWarehouse + outForDelivery
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error getting trial kit badge count:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -730,13 +1265,49 @@ exports.reassign_bde = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Trial kit order not found.' });
     }
 
+    // Assign BDE to order and lock status
     order.bde_id = bde._id;
     order.bde_name = bde.full_name;
+    order.is_bde_assigned = true;
+    order.bde_assigned_at = new Date();
+
+    // Ensure funnel stage is initialized so lead appears immediately in BDE Funnel
+    if (!order.funnel) {
+      order.funnel = {
+        current_stage: 'interested_in_purchase',
+        stage_history: [],
+        call_notes: []
+      };
+    }
+    if (!order.funnel.current_stage) {
+      order.funnel.current_stage = 'interested_in_purchase';
+    }
+    order.funnel.stage_updated_at = new Date();
+    order.funnel.bde_assigned_at = new Date();
+    if (!order.funnel.stage_history) order.funnel.stage_history = [];
+    order.funnel.stage_history.push({
+      stage: order.funnel.current_stage,
+      entered_at: new Date(),
+      remarks: `Trial kit intent lead assigned to BDE ${bde.full_name} (${bde.bde_id || 'BDE'}) by Admin.`
+    });
+
     await order.save();
+
+    // Officially link the EPC Account to this BDE so all future communications and orders route to them
+    if (order.epc_id) {
+      try {
+        await EpcAccount.findByIdAndUpdate(order.epc_id, {
+          onboarded_by_bde_id: bde._id,
+          bde_assigned_date: new Date()
+        });
+      } catch (epcErr) {
+        console.error('Error linking BDE to EPC Account during trial kit assignment:', epcErr);
+      }
+    }
 
     return res.status(200).json({
       success: true,
-      message: `Lead reassigned to BDE: ${bde.full_name}`,
+      message: `Lead successfully assigned to BDE: ${bde.full_name}`,
       data: order
     });
   } catch (err) {
