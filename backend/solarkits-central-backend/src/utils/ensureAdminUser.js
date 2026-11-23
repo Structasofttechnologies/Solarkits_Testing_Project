@@ -22,6 +22,7 @@ async function ensureAdminUser(targetEmail = 'rahil.sunnovative@gmail.com') {
       'rahil.sunnovative@gmail.com': '9913421453',
       'sushilpiprotar@gmail.com': '9876543211',
       'rahil@solarkits.com': '9876543212',
+      'ravi.s@sunnovative.com': '9876543210',
     };
     const targetPhone = emailToPhone[normalizedEmail] || ('9913' + Math.floor(100000 + Math.random() * 900000));
 

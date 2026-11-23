@@ -67,6 +67,13 @@ const seedCMS = async () => {
       is_active: true,
       is_deleted: false,
     },
+    {
+      name: 'Marketing Management Panel',
+      slug: 'marketing-panel',
+      url_prefix: '/marketing-panel',
+      is_active: true,
+      is_deleted: false,
+    },
   ];
 
   const seededPanelDocs = [];
@@ -136,68 +143,78 @@ const seedCMS = async () => {
   // 4. Seed cms_users (Developer Quick Access Admin Accounts)
   const defaultAdminUsers = [
     {
-      name: process.env.SUPER_ADMIN_NAME || 'Super Admin',
-      email: (process.env.SUPER_ADMIN_EMAIL || 'ravi.s@sunnovative.com').toLowerCase().trim(),
-      phone: process.env.SUPER_ADMIN_PHONE || '9913421453',
-      passcode: '4404',
+      name: 'Rahil Sunnovative',
+      email: 'rahil.sunnovative@gmail.com',
+      phone: '9913421453',
+      passcode: '1111',
     },
     {
       name: 'Accountant',
       email: 'sushilpiprotar@gmail.com',
       phone: '9876543211',
-      passcode: '1234',
+      passcode: '2222',
     },
     {
       name: 'Account Manager',
       email: 'rahil@solarkits.com',
       phone: '9876543212',
-      passcode: '1234',
+      passcode: '3333',
     },
     {
-      name: 'Rahil Sunnovative',
-      email: 'rahil.sunnovative@gmail.com',
-      phone: '9913421450',
+      name: 'Ravi Harsoda',
+      email: 'ravi.s@sunnovative.com',
+      phone: '9876543210',
       passcode: '4404',
     },
   ];
 
   for (const admin of defaultAdminUsers) {
-    const adminPasscodeHash = await bcrypt.hash(admin.passcode || '1234', 10);
-    let exists = await CmsUser.findOne({ email: admin.email });
-    if (!exists && admin.phone) {
-      exists = await CmsUser.findOne({ phone: admin.phone });
-    }
+    try {
+      const adminPasscodeHash = await bcrypt.hash(admin.passcode || '1234', 10);
+      let exists = await CmsUser.findOne({ email: admin.email });
+      if (!exists && admin.phone) {
+        exists = await CmsUser.findOne({ phone: admin.phone });
+      }
 
-    if (!exists) {
-      await CmsUser.create({
-        name: admin.name,
-        email: admin.email,
-        phone_code: '+91',
-        phone: admin.phone,
-        parent_user_id: null,
-        role_id: superAdminRole._id,
-        passcode: adminPasscodeHash,
-        is_verified: true,
-        is_system: true,
-        is_protected: true,
-        is_active: true
-      });
-      console.log(`  ✓ Admin user seeded for email: ${admin.email}`);
-    } else {
-      const updateData = {
-        name: admin.name,
-        email: admin.email,
-        phone: admin.phone,
-        phone_code: '+91',
-        is_verified: true,
-        is_active: true,
-        role_id: superAdminRole._id,
-        is_system: true,
-        is_protected: true,
-        passcode: adminPasscodeHash
-      };
-      await CmsUser.findByIdAndUpdate(exists._id, { $set: updateData });
-      console.log(`  ✓ Verified & updated admin account: ${admin.email}`);
+      if (!exists) {
+        await CmsUser.create({
+          name: admin.name,
+          email: admin.email,
+          phone_code: '+91',
+          phone: admin.phone,
+          parent_user_id: null,
+          role_id: superAdminRole._id,
+          passcode: adminPasscodeHash,
+          is_verified: true,
+          is_system: true,
+          is_protected: true,
+          is_active: true
+        });
+        console.log(`  ✓ Admin user seeded for email: ${admin.email}`);
+      } else {
+        const updateData = {
+          name: admin.name,
+          email: admin.email,
+          phone_code: '+91',
+          is_verified: true,
+          is_active: true,
+          role_id: superAdminRole._id,
+          is_system: true,
+          is_protected: true,
+          passcode: adminPasscodeHash
+        };
+        // Only update phone if there is no collision with another user's phone
+        if (admin.phone) {
+          const phoneConflict = await CmsUser.findOne({ phone: admin.phone, _id: { $ne: exists._id } });
+          if (!phoneConflict) {
+            updateData.phone = admin.phone;
+          }
+        }
+        await CmsUser.findByIdAndUpdate(exists._id, { $set: updateData });
+        console.log(`  ✓ Verified & updated admin account: ${admin.email}`);
+      }
+    } catch (userSeedErr) {
+      console.warn(`  ⚠️ [cms.seeder] Notice seeding ${admin.email}:`, userSeedErr.message);
     }
   }
 

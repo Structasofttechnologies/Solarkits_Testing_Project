@@ -10,7 +10,11 @@ import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
 
+ 
+import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck, FaBullhorn, FaEnvelope, FaWhatsapp } from "react-icons/fa";
+ 
 import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck, FaCreditCard } from "react-icons/fa";
+ 
 
 import {
   MdAccountTree,
@@ -66,6 +70,16 @@ const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrders
 const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
 const TrialKitProcurementPage = lazy(() => import("../pages/trial-kits/TrialKitProcurementPage"));
 
+/* ===================== Marketing Management Module Pages ===================== */
+const MarketingDashboard = lazy(() => import("../pages/marketing/MarketingDashboard"));
+const CampaignsListPage = lazy(() => import("../pages/marketing/CampaignsListPage"));
+const CreateCampaignWizard = lazy(() => import("../pages/marketing/CreateCampaignWizard"));
+const EmailSettingsPage = lazy(() => import("../pages/marketing/EmailSettingsPage"));
+const WhatsAppSettingsPage = lazy(() => import("../pages/marketing/WhatsAppSettingsPage"));
+const WebsiteFormMappingPage = lazy(() => import("../pages/marketing/WebsiteFormMappingPage"));
+const UtmTrackingPage = lazy(() => import("../pages/marketing/UtmTrackingPage"));
+const MarketingReportsPage = lazy(() => import("../pages/marketing/MarketingReportsPage"));
+
 
 /* ===================== MENU CONFIG ===================== */
 
@@ -116,6 +130,12 @@ const menus = [
     { name: "Operations Dashboard", icon: <MdEngineering />, path: "/admin-panel/operations-dashboard", unique_id: "00000000" },
     { name: "Store Dashboard", icon: <FaStore />, path: "/admin-panel/store-dashboard", unique_id: "00000000" },
     { name: "EPC Analytics", icon: <FaChartLine />, path: "/admin-panel/epc-analytics", unique_id: "00000000" },
+    {
+      name: "Marketing Overview",
+      icon: <FaBullhorn />,
+      path: "/marketing-panel/dashboard",
+      unique_id: "00000000"
+    },
     // {
     //   name: "Trial Kit Management",
     //   icon: <FaBoxes />,
@@ -881,6 +901,17 @@ export default function Dashboard() {
                     }
                   />
                   <Route path="/trial-kits" element={<Navigate to="/admin-panel/trial-kits/inventory" replace />} />
+
+                  {/* Marketing Management Module Routes */}
+                  <Route path="/marketing" element={<Navigate to="/admin-panel/marketing/dashboard" replace />} />
+                  <Route path="/marketing/dashboard" element={<Suspense fallback={<Loader text="Loading Marketing Dashboard..." />}><MarketingDashboard /></Suspense>} />
+                  <Route path="/marketing/campaigns" element={<Suspense fallback={<Loader text="Loading Campaigns..." />}><CampaignsListPage /></Suspense>} />
+                  <Route path="/marketing/create-campaign" element={<Suspense fallback={<Loader text="Loading Campaign Setup..." />}><CreateCampaignWizard /></Suspense>} />
+                  <Route path="/marketing/email-settings" element={<Suspense fallback={<Loader text="Loading Email Settings..." />}><EmailSettingsPage /></Suspense>} />
+                  <Route path="/marketing/whatsapp-settings" element={<Suspense fallback={<Loader text="Loading WhatsApp Settings..." />}><WhatsAppSettingsPage /></Suspense>} />
+                  <Route path="/marketing/form-mapping" element={<Suspense fallback={<Loader text="Loading Form Mappings..." />}><WebsiteFormMappingPage /></Suspense>} />
+                  <Route path="/marketing/utm-tracking" element={<Suspense fallback={<Loader text="Loading UTM Tracking..." />}><UtmTrackingPage /></Suspense>} />
+                  <Route path="/marketing/reports" element={<Suspense fallback={<Loader text="Loading Marketing Reports..." />}><MarketingReportsPage /></Suspense>} />
 
                   <Route
                     path="/profile"

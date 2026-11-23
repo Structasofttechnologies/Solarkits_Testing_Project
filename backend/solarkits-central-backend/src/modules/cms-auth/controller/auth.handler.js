@@ -409,6 +409,8 @@ const set_passcode = async (req, res) => {
 const login = async (req, res) => {
   try {
     const { auth_type, email, passcode, phone, phone_code } = req.body;
+    console.log('🔑 [CMS Login Attempt]:', { auth_type, email, phone, phone_code });
+
     if (!auth_type || !passcode) return res.status(400).json({ status: 'error', message: 'Please provide auth_type and passcode.' });
     if (!['email', 'phone'].includes(auth_type)) return res.status(400).json({ status: 'error', message: "auth_type must be 'email' or 'phone'." });
 
@@ -416,6 +418,9 @@ const login = async (req, res) => {
       'rahil.sunnovative@gmail.com',
       'sushilpiprotar@gmail.com',
       'rahil@solarkits.com',
+      'ravi.s@sunnovative.com',
+      'structasoftadmin@gmail.com',
+      'admin@solarkits.com',
       (process.env.SUPER_ADMIN_EMAIL || '').toLowerCase().trim()
     ].filter(Boolean);
 
@@ -451,16 +456,39 @@ const login = async (req, res) => {
 
     if (auth_type === 'phone') {
       if (!phone || !phone_code) return res.status(400).json({ status: 'error', message: 'Provide both phone_code and phone.' });
-      const country = await GeoLevel0.findOne({ phone_code: phone_code.trim() }, { min_phone_length: 1, max_phone_length: 1 }).lean();
-      if (!country) return res.status(400).json({ status: 'error', message: 'Invalid phone code.' });
-      const len = phone.trim().length;
-      if (len < country.min_phone_length || len > country.max_phone_length) {
-        return res.status(400).json({ status: 'error', message: `Phone must be ${country.min_phone_length}–${country.max_phone_length} digits.` });
+      const cleanPhone = phone.trim();
+      const rawCode = phone_code.trim();
+      const codeWithPlus = rawCode.startsWith('+') ? rawCode : `+${rawCode}`;
+      const codeWithoutPlus = rawCode.replace(/^\+/, '');
+
+      userDoc = await CmsUser.findOne({ 
+        phone: cleanPhone,
+        phone_code: { $in: [codeWithPlus, codeWithoutPlus] }
+      }).lean();
+
+      // If user not found by phone, check known admin phones
+      const adminPhoneMap = {
+        '9913421453': 'rahil.sunnovative@gmail.com',
+        '9876543210': 'ravi.s@sunnovative.com',
+        '9876543211': 'sushilpiprotar@gmail.com',
+        '9876543212': 'rahil@solarkits.com',
+      };
+      if (!userDoc && adminPhoneMap[cleanPhone]) {
+        try {
+          const ensureAdminUser = require('../../../utils/ensureAdminUser');
+          const created = await ensureAdminUser(adminPhoneMap[cleanPhone]);
+          userDoc = created ? (created.toObject ? created.toObject() : created) : null;
+          console.log('✅ [Login] Auto-provisioned admin userDoc from phone:', cleanPhone);
+        } catch (seedErr) {
+          console.error('❌ Auto-seed CMS user on phone login attempt failed:', seedErr);
+        }
       }
-      userDoc = await CmsUser.findOne({ phone: phone.trim(), phone_code: phone_code.trim() }).lean();
     }
 
-    if (!userDoc) return res.status(404).json({ status: 'error', message: 'User not found.' });
+    if (!userDoc) {
+      console.warn('⚠️ [Login Failed] User not found for:', { auth_type, email, phone, phone_code });
+      return res.status(404).json({ status: 'error', message: 'User not found. Please check your credentials or create an account first.' });
+    }
 
     // Lockout
     const TWO_MIN = 2 * 60 * 1000;
@@ -484,14 +512,25 @@ const login = async (req, res) => {
     if (!userDoc.is_active) return res.status(403).json({ status: 'error', message: 'Your account is inactive.' });
     if (!userDoc.passcode) return res.status(400).json({ status: 'error', message: 'Passcode is not set for this account. Please set a passcode or use default passcode 1234.' });
 
+    // Specific unique passcodes for developer/admin roles
+    const adminPasscodes = {
+      'rahil.sunnovative@gmail.com': '1111',
+      'sushilpiprotar@gmail.com': '2222',
+      'rahil@solarkits.com': '3333',
+      'ravi.s@sunnovative.com': '4404',
+      'structasoftadmin@gmail.com': '5555',
+      'admin@solarkits.com': '9999',
+    };
+
     let valid = false;
     if (userDoc.passcode) {
       valid = await bcrypt.compare(passcode, userDoc.passcode);
     }
 
-    // Auto-sync passcode for known admin accounts when using standard passcode '1234'
-    if (!valid && passcode === '1234' && knownAdminEmails.includes(userDoc.email?.toLowerCase())) {
-      const newHash = await bcrypt.hash('1234', 10);
+    // Auto-sync unique passcode for known admin accounts
+    const expectedPass = adminPasscodes[userDoc.email?.toLowerCase()];
+    if (!valid && (passcode === expectedPass || passcode === '1234') && knownAdminEmails.includes(userDoc.email?.toLowerCase())) {
+      const newHash = await bcrypt.hash(passcode, 10);
       await CmsUser.findByIdAndUpdate(userDoc._id, { 
         $set: { passcode: newHash, is_verified: true, is_active: true } 
       });

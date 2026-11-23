@@ -101,8 +101,67 @@ const menus = [
     [
         { step: "01", badgeKey: "01", name: "Dashboard", icon: <FaHome />, path: "/admin-panel/solar-shop/home", unique_id: "00000000" },
 
+ 
+       // { 
+        //    step: "01B", 
+        //    badgeKey: "ACC_M", 
+        //    name: "Accounting Overview", 
+        //    icon: <FaFileInvoiceDollar />, 
+        //    path: "/admin-panel/solar-shop/accounting-overview", 
+        //    unique_id: "00000000"
+       // },
+       // {
+       //     step: "01C",
+       //     badgeKey: "WH_F",
+       //     name: "Warehouse Loan & Expansion",
+       //     icon: <FaWarehouse />,
+       //     path: "/admin-panel/solar-shop/warehouse-finance",
+       //     unique_id: "00000000"
+       // },
+       // {
+       //     step: "01D",
+       //     badgeKey: "EXEC_F",
+       //     name: "Executive Finance Dashboard",
+       //     icon: <FaChartLine />,
+       //     path: "/admin-panel/solar-shop/executive-finance",
+       //     unique_id: "00000000"
+       // },
+       // {
+       //     step: "01E",
+        //    badgeKey: "DELIV_DASH",
+        //    name: "Delivery & Logistics Dashboard",
+        //    icon: <FaTruck />,
+        //    path: "/admin-panel/solar-shop/delivery-management/dashboard",
+        //    unique_id: "00000000"
+       // }
+        // { 
+        //     step: "01B", 
+        //     badgeKey: "ACC_M", 
+        //     name: "Accounting Overview", 
+        //     icon: <FaFileInvoiceDollar />, 
+        //     path: "/admin-panel/solar-shop/accounting-overview", 
+        //     unique_id: "00000000"
+        // },
+        // {
+        //     step: "01C",
+        //     badgeKey: "WH_F",
+        //     name: "Warehouse Loan & Expansion",
+        //     icon: <FaWarehouse />,
+        //     path: "/admin-panel/solar-shop/warehouse-finance",
+        //     unique_id: "00000000"
+        // },
+        // {
+        //     step: "01D",
+        //     badgeKey: "EXEC_F",
+        //     name: "Executive Finance Dashboard",
+        //     icon: <FaChartLine />,
+        //     path: "/admin-panel/solar-shop/executive-finance",
+        //     unique_id: "00000000"
+        // }
+ 
 
 
+ 
     ],
     [
         { step: "02", badgeKey: "02", name: "Approve New EPC", icon: <FaUsers />, path: "/admin-panel/solar-shop/approve-new-epc", unique_id: "ADM_APPROVE_EPC" },

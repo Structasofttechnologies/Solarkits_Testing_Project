@@ -1,7 +1,7 @@
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import Header from "../components/Header"
 import Drawer from "../components/Drawer";
-import { FaHome } from "react-icons/fa"
+import { FaHome, FaEnvelope } from "react-icons/fa"
 import { lazy, Suspense, useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import { MdEngineering, MdViewModule } from "react-icons/md";
@@ -15,6 +15,7 @@ const UserPanels = lazy(() => import("../pages/UserPanels"));
 const Modules = lazy(() => import("../pages/Modules"));
 const Profile = lazy(() => import("../pages/Profile"));
 const AccountSettings = lazy(() => import("../pages/AccountSettings"));
+const DeveloperEmailDispatchersPage = lazy(() => import("../pages/DeveloperEmailDispatchersPage"));
 
 const menus = [
   [
@@ -22,6 +23,12 @@ const menus = [
       name: "Dashboard",
       icon: <FaHome />,
       path: "/developer-panel/home",
+      unique_id: "00000000"
+    },
+    {
+      name: "Email Dispatchers",
+      icon: <FaEnvelope />,
+      path: "/developer-panel/email-dispatchers",
       unique_id: "00000000"
     },
   ],
@@ -189,6 +196,14 @@ export default function Dashboard() {
                     element={
                       <Suspense fallback={<Loader text="Loading settings..." />}>
                         <AccountSettings />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/email-dispatchers"
+                    element={
+                      <Suspense fallback={<Loader text="Loading email dispatchers..." />}>
+                        <DeveloperEmailDispatchersPage />
                       </Suspense>
                     }
                   />

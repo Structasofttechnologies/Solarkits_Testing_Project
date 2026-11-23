@@ -33,8 +33,10 @@ const ExecutiveFinanceDashboard = lazy(() => import("../pages/executive/Executiv
 const CompanyProfileAndFy = lazy(() => import("../pages/company-profile/CompanyProfileAndFy"));
 const StatutoryRegistersHub = lazy(() => import("../pages/registers/StatutoryRegistersHub"));
 const AccountsTrialKitStockPage = lazy(() => import("../pages/trial-kits/AccountsTrialKitStockPage"));
+ 
 const TrialKitsOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitsOrdersPage"));
 const TrialKitsProcurementPage = lazy(() => import("../pages/trial-kits/TrialKitsProcurementPage"));
+ 
 
 const getMenusWithBadges = (badgeCounts = {}) => [
   [

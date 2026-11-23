@@ -39,10 +39,27 @@ export const loginUser = createAsyncThunk(
   'auth/loginUser',
   async (credentials, { rejectWithValue }) => {
     try {
+      console.log('[Auth] Attempting login with credentials for:', credentials.email || credentials.phone);
       const res = await api.post(`/login`, credentials);
       return res.data;
     } catch (err) {
-      const message = err.response?.data?.message || err.message || 'Login failed';
+      console.warn('[Auth] Primary login attempt failed:', err.response?.status, err.response?.data || err.message);
+      
+      // Resilient fallback: Try direct backend auth endpoint if port or prefix fluctuated
+      if (!err.response || err.response.status === 404 || err.response.status === 502) {
+        try {
+          const fallbackBase = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          console.log('[Auth] Retrying via fallback URL:', `${fallbackBase}/auth-api/login`);
+          const fallbackRes = await axios.post(`${fallbackBase}/auth-api/login`, credentials, { withCredentials: true });
+          if (fallbackRes?.data) {
+            return fallbackRes.data;
+          }
+        } catch (fallbackErr) {
+          console.warn('[Auth] Fallback login failed:', fallbackErr.message);
+        }
+      }
+
+      const message = err.response?.data?.message || err.message || 'Login failed. Please check backend connection.';
       return rejectWithValue(message);
     }
   }
