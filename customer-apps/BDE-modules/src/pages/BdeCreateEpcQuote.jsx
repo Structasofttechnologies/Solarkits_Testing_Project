@@ -32,6 +32,7 @@ import {
   X,
 } from 'lucide-react';
 import api from '../services/api';
+import StoreKitCard from '../components/StoreKitCard';
 
 const STEPS = [
   { num: 1, title: 'EPC Buyer', desc: 'Client & Franchisee attribution', icon: Users },
@@ -50,11 +51,30 @@ function formatINR(paise) {
 export default function BdeCreateEpcQuote() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const initialQuoteType = searchParams.get('quote_type') === 'trial_kit' || searchParams.get('is_trial') === 'true' ? 'trial_kit' : 'standard';
   const paramEpcId = searchParams.get('epc_id');
   const paramKitId = searchParams.get('combo_kit_id') || searchParams.get('kit_id');
 
-  const [quoteType, setQuoteType] = useState(initialQuoteType); // 'standard' | 'trial_kit'
+  // Commercial Standard quote only (Trial Kit quotes are handled exclusively on /trial-kit-quotes/create)
+  const [quoteType, setQuoteType] = useState('standard');
+  const [selectedQuoteMode, setSelectedQuoteMode] = useState('loose_quote');
+  const [backendQuotePermissions, setBackendQuotePermissions] = useState(null);
+  const effectiveQuotePermissions = useMemo(() => {
+    if (Array.isArray(backendQuotePermissions) && backendQuotePermissions.length > 0) {
+      return backendQuotePermissions.filter((p) => p !== 'trial_quote');
+    }
+    return ['po_quote', 'loose_quote'];
+  }, [backendQuotePermissions]);
+
+  // If accessed with trial_kit param, gracefully redirect to the dedicated trial kit quotation page
+  useEffect(() => {
+    if (searchParams.get('quote_type') === 'trial_kit' || searchParams.get('is_trial') === 'true') {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('quote_type');
+      newParams.delete('is_trial');
+      const queryStr = newParams.toString() ? `?${newParams.toString()}` : '';
+      navigate(`/trial-kit-quotes/create${queryStr}`, { replace: true });
+    }
+  }, [searchParams, navigate]);
   const [currentStep, setCurrentStep] = useState(1);
   const [error, setError] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -187,6 +207,9 @@ export default function BdeCreateEpcQuote() {
 
       const res = await api.get('/quotes/eligible-kits', { params });
       if (res.data?.status === 'success') {
+        if (Array.isArray(res.data?.quote_permissions)) {
+          setBackendQuotePermissions(res.data.quote_permissions);
+        }
         const raw = res.data.data;
         const list = Array.isArray(raw)
           ? raw
@@ -252,12 +275,9 @@ export default function BdeCreateEpcQuote() {
       const found = kitList.find((k) => (k._id || k.id) === paramKitId);
       if (found) {
         setSelectedKit(found);
-        if (quoteType === 'trial_kit') {
-          setQuantity(Number(found.trial_kit_quantity) || 10);
-        }
       }
     }
-  }, [paramKitId, kitList, selectedKit, quoteType]);
+  }, [paramKitId, kitList, selectedKit]);
 
   // Recalculate price
   useEffect(() => {
@@ -370,9 +390,10 @@ export default function BdeCreateEpcQuote() {
         epc_id: selectedEpc._id,
         franchisee_id: selectedFranchisee?._id || undefined,
         quote_source: selectedFranchisee ? 'bde_for_franchisee' : 'bde_direct',
-        is_trial_kit: quoteType === 'trial_kit',
-        quote_type: quoteType,
-        trial_kit_quantity: quoteType === 'trial_kit' ? Number(selectedKit?.trial_kit_quantity || quantity || 10) : undefined,
+        is_trial_kit: false,
+        quote_type: 'standard',
+        quote_mode: selectedQuoteMode || (quantity >= 200 ? 'po_quote' : 'loose_quote'),
+        trial_kit_quantity: undefined,
         delivery_type: deliveryType,
         delivery_address: deliveryDetails,
         delivery_address_snapshot: deliveryDetails,
@@ -978,11 +999,6 @@ export default function BdeCreateEpcQuote() {
 
   const filteredKits = safeKitList.filter((k) => {
     if (!k) return false;
-
-    // Trial Kit Proposal mode: only show kits authorized by Admin for trial
-    if (quoteType === 'trial_kit' && !k.allow_trial_kit) {
-      return false;
-    }
 
     // 1. Industry filter
     if (quickFilters.industryType !== 'all') {
@@ -1738,67 +1754,33 @@ export default function BdeCreateEpcQuote() {
         {/* STEP 3: COMBOKIT (DIRECT DISPLAY WITH INDUSTRY & PROJECT TYPE) */}
         {currentStep === 3 && (
           <div className="space-y-4">
-            {/* Proposal Mode Switcher: Standard Commercial vs Trial Kit */}
-            <div className="p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-50 via-purple-50/50 to-indigo-50/50 border-slate-200">
+            {/* Commercial Proposal Mode Banner & Dedicated Trial Quote Navigation */}
+            <div className="p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-50 via-slate-100/60 to-slate-50 border-slate-200">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-900 text-white">
                     Quotation Mode
                   </span>
-                  {quoteType === 'trial_kit' ? (
-                    <span className="text-xs font-bold text-purple-700 flex items-center gap-1">
-                      <Box className="w-3.5 h-3.5" /> Trial Kit Proposal (Admin Enforced)
-                    </span>
-                  ) : (
-                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                      <DollarSign className="w-3.5 h-3.5" /> Commercial Proposal (Standard)
-                    </span>
-                  )}
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                    <DollarSign className="w-3.5 h-3.5 text-slate-700" /> Commercial Proposal (Loose & Bulk PO)
+                  </span>
                 </div>
                 <p className="text-xs text-slate-600 mt-1">
-                  {quoteType === 'trial_kit'
-                    ? 'Orders generated in Trial Mode are strictly locked to the quantity configured by Admin on the ComboKit.'
-                    : 'Standard commercial quotation allowing flexible loose-pack quantities.'}
+                  Standard commercial quotation for full batch requirements and flexible loose-pack quantities.
                 </p>
               </div>
 
-              <div className="inline-flex p-1 bg-white rounded-xl border border-slate-200 shadow-2xs shrink-0 self-start md:self-auto">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuoteType('standard');
-                    if (selectedKit) {
-                      const loose = selectedKit.loose_order_quantities?.[0] || 1;
-                      setQuantity(Number(loose));
-                    }
-                  }}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    quoteType === 'standard'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <DollarSign className="w-3.5 h-3.5" />
-                  <span>Commercial Quote</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuoteType('trial_kit');
-                    if (selectedKit) {
-                      setQuantity(Number(selectedKit.trial_kit_quantity) || 10);
-                    }
-                  }}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    quoteType === 'trial_kit'
-                      ? 'bg-purple-700 text-white shadow-xs ring-2 ring-purple-600/30'
-                      : 'text-purple-700 hover:bg-purple-50'
-                  }`}
-                >
-                  <Box className="w-3.5 h-3.5" />
-                  <span>Trial Kit Quote</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const queryStr = selectedEpc?._id ? `?epc_id=${selectedEpc._id}` : '';
+                  navigate(`/trial-kit-quotes/create${queryStr}`);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition shadow-2xs shrink-0 self-start md:self-auto"
+              >
+                <Box className="w-3.5 h-3.5" />
+                <span>Need a Trial Kit? Create Trial Quote &rarr;</span>
+              </button>
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100">
@@ -1995,157 +1977,26 @@ export default function BdeCreateEpcQuote() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredKits.map((kit) => {
-                  const isSel = selectedKit?._id === kit._id;
-                  const pricePaise = kit.price_paise || kit.mrp_paise || (kit.selling_price_cached ? kit.selling_price_cached * 100 : 0);
-                  const looseQtys = (Array.isArray(kit.loose_order_quantities) && kit.loose_order_quantities.length > 0)
-                    ? kit.loose_order_quantities
-                    : [5, 10, 25, 50];
-
-                  return (
-                    <div
-                      key={kit._id}
-                      onClick={() => {
-                        setSelectedKit(kit);
-                        if (quoteType === 'trial_kit') {
-                          setQuantity(Number(kit.trial_kit_quantity) || 10);
-                        } else if (!selectedKit || selectedKit._id !== kit._id) {
-                          setQuantity(Number(looseQtys[0]) || 1);
-                        }
-                      }}
-                      className={`p-4 rounded-2xl border-2 cursor-pointer transition flex flex-col justify-between hover:shadow-md ${isSel
-                        ? (quoteType === 'trial_kit' ? 'border-purple-600 bg-purple-50/40 shadow-md ring-2 ring-purple-500/20' : 'border-indigo-600 bg-indigo-50/40 shadow-md ring-2 ring-indigo-500/20')
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                    >
-                      <div>
-                        {/* Tags: Industry Type & Project Type badges */}
-                        <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
-                          {quoteType === 'trial_kit' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                              <Box className="w-3 h-3 text-purple-600" /> Trial Authorized
-                            </span>
-                          )}
-                          {kit.industry_type_name && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                              <Layers className="w-3 h-3 text-amber-600" /> {kit.industry_type_name}
-                            </span>
-                          )}
-                          {kit.project_type_name && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                              <FileText className="w-3 h-3 text-blue-600" /> {kit.project_type_name}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-900 text-white">
-                            {kit.capacity || kit.kit_capacity_kw || 3} kW System
-                          </span>
-                          {isSel ? (
-                            <div className={`w-5 h-5 rounded-full text-white flex items-center justify-center shadow-sm ${quoteType === 'trial_kit' ? 'bg-purple-600' : 'bg-indigo-600'}`}>
-                              <Check className="w-3 h-3" />
-                            </div>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <CheckCircle2 className="w-2.5 h-2.5" /> Authorized
-                            </span>
-                          )}
-                        </div>
-
-                        <h4 className="font-bold text-sm text-slate-900 line-clamp-1">{kit.name || kit.kit_name}</h4>
-                        <div className="flex items-center gap-2 mt-0.5 text-[11px] font-mono text-slate-400">
-                          <span>Code: {kit.code || kit.kit_code || 'SK-KIT'}</span>
-                          {kit.brand_name && <span className="font-semibold text-slate-600">• {kit.brand_name}</span>}
-                        </div>
-
-                        <div className="mt-3 text-xs text-slate-600 space-y-1 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                          <div className="truncate">• <span className="font-semibold">Panels:</span> {kit.panel_brand || 'Tier-1 Mono PERC / TOPCon'}</div>
-                          <div className="truncate">• <span className="font-semibold">Inverter:</span> {kit.inverter_brand || 'High-Efficiency Inverter'}</div>
-                          <div className="truncate">• <span className="font-semibold">BOS:</span> {kit.bos_details || 'Full AC/DC DB, Structure & Cables'}</div>
-                        </div>
-                      </div>
-
-                      {/* Quantity Selection Area: Admin locked for Trial Kit, flexible loose for Commercial */}
-                      {quoteType === 'trial_kit' ? (
-                        <div className="mt-3.5 pt-3 border-t border-slate-100">
-                          <div className="bg-purple-50 border border-purple-200 rounded-xl p-2.5 flex items-center justify-between text-xs text-purple-950">
-                            <span className="font-bold flex items-center gap-1.5">
-                              <ShieldCheck className="w-4 h-4 text-purple-600 shrink-0" />
-                              Admin Trial Qty:
-                            </span>
-                            <span className="font-black px-2.5 py-0.5 rounded-md bg-purple-700 text-white text-xs">
-                              {kit.trial_kit_quantity || 10} Kits (Locked)
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-purple-600 mt-1 pl-1">
-                            Pre-configured in Admin ComboKit Settings. Alteration disabled.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="mt-3.5 pt-3 border-t border-slate-100">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-sky-700 flex items-center gap-1">
-                              <Package className="w-3 h-3 text-sky-600" /> Loose Qty:
-                            </span>
-                            {isSel && (
-                              <span className="text-[10px] font-bold text-indigo-600">
-                                Selected: {quantity} {quantity === 1 ? 'Kit' : 'Kits'}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {looseQtys.map((q) => {
-                              const isQtyActive = isSel && Number(quantity) === Number(q);
-                              return (
-                                <button
-                                  key={q}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedKit(kit);
-                                    setQuantity(Number(q));
-                                  }}
-                                  className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${isQtyActive
-                                    ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-500/30 border border-indigo-700'
-                                    : 'bg-sky-500/10 text-sky-700 border border-sky-500/25 hover:bg-sky-600 hover:text-white'
-                                    }`}
-                                  title={`Select ${q} Kits`}
-                                >
-                                  {isQtyActive && <Check className="w-3 h-3 stroke-[3]" />}
-                                  <span>{q} Kits</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Pricing and Selected Qty Controls */}
-                      <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <div>
-                          <span className="text-[10px] text-slate-400 block font-medium">Unit Price (excl. GST)</span>
-                          <div className="flex items-baseline gap-1.5 flex-wrap">
-                            <span className="text-base font-black text-slate-900">{formatINR(pricePaise)}</span>
-                            {isSel && quantity > 1 && (
-                              <span className="text-[11px] font-bold text-indigo-600">
-                                ({quantity} × {formatINR(pricePaise)} = {formatINR(pricePaise * quantity)})
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {isSel && (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 font-extrabold text-xs">
-                            <Check className="w-3.5 h-3.5 text-indigo-600 stroke-[2.5]" />
-                            <span>{quantity} Kits Selected</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredKits.map((kit) => (
+                  <StoreKitCard
+                    key={kit._id}
+                    kit={kit}
+                    isSelected={selectedKit?._id === kit._id}
+                    selectedQuantity={selectedKit?._id === kit._id ? quantity : null}
+                    selectedQuoteMode={
+                      selectedKit?._id === kit._id
+                        ? (selectedQuoteMode || (quantity >= 200 ? 'po_quote' : 'loose_quote'))
+                        : null
+                    }
+                    quotePermissions={effectiveQuotePermissions}
+                    onSelectKit={(k, q, mode) => {
+                      setSelectedKit(k);
+                      setQuantity(q);
+                      setSelectedQuoteMode(mode || (q >= 200 ? 'po_quote' : 'loose_quote'));
+                    }}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -2229,9 +2080,9 @@ export default function BdeCreateEpcQuote() {
                 <h2 className="text-lg font-bold text-slate-900">Quotation Summary & Pricing</h2>
                 <p className="text-xs text-slate-500">Confirm commercial details before issuing formal quotation</p>
               </div>
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black ${quoteType === 'trial_kit' ? 'bg-purple-100 text-purple-900 border border-purple-200' : 'bg-slate-100 text-slate-800'}`}>
-                {quoteType === 'trial_kit' ? <Box className="w-3.5 h-3.5 text-purple-700" /> : <DollarSign className="w-3.5 h-3.5 text-slate-700" />}
-                {quoteType === 'trial_kit' ? `Trial Kit Proposal (${quantity} Kits Locked)` : 'Standard Commercial Proposal'}
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-800 border border-slate-200">
+                <DollarSign className="w-3.5 h-3.5 text-slate-700" />
+                Standard Commercial Proposal
               </span>
             </div>
 

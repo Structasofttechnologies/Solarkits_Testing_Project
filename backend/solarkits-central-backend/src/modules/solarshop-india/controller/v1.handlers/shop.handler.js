@@ -961,10 +961,10 @@ const get_combo_kits_by_district = async (req, res) => {
     });
     const uniqueAllSkuIds = [...new Set(allSkuIds.map(id => id.toString()))].map(id => new mongoose.Types.ObjectId(id));
 
-    // Bulk fetch SKUs + prices + attributes
+    // Bulk fetch SKUs + prices + attributes (look up prices across all matching clusters)
     const [skuDocs, skuPriceDocs, attrDefs] = await Promise.all([
       ProductSku.find({ _id: { $in: uniqueAllSkuIds }, deleted_at: null }).lean(),
-      ProductSkuPrice.find({ sku_id: { $in: uniqueAllSkuIds }, cluster_id: clusterId }).lean(),
+      ProductSkuPrice.find({ sku_id: { $in: uniqueAllSkuIds } }).lean(),
       SubtypeAttribute.find({}).lean()
     ]);
 
@@ -1293,11 +1293,30 @@ const get_combo_kits_by_district = async (req, res) => {
       }
     }
 
-    // Fetch prices for these SKUs in the current cluster
+    // Fetch prices for these SKUs in the current cluster (prioritizing district cluster, then warehouse cluster, then general cluster)
     const priceMap = {};
+    const clusterIdStr = clusterId ? clusterId.toString() : null;
+    const warehouseClusterIdSet = new Set(
+      (warehouses || []).map(w => (w.cluster_id || w.cluster)?.toString()).filter(Boolean)
+    );
+    const skuScoreMap = {};
+
     skuPriceDocs.forEach(record => {
-      if (record.sku_id) {
-        priceMap[record.sku_id.toString()] = record.price || 0;
+      if (!record.sku_id) return;
+      const skuKey = record.sku_id.toString();
+      const recClusterStr = record.cluster_id ? record.cluster_id.toString() : null;
+
+      // Score: 3 = exact district cluster, 2 = fulfillment warehouse cluster, 1 = any other cluster
+      let score = 1;
+      if (clusterIdStr && recClusterStr === clusterIdStr) {
+        score = 3;
+      } else if (recClusterStr && warehouseClusterIdSet.has(recClusterStr)) {
+        score = 2;
+      }
+
+      if ((skuScoreMap[skuKey] === undefined || score > skuScoreMap[skuKey]) && Number(record.price) > 0) {
+        skuScoreMap[skuKey] = score;
+        priceMap[skuKey] = Number(record.price);
       }
     });
 
@@ -1336,9 +1355,15 @@ const get_combo_kits_by_district = async (req, res) => {
         });
       }
 
-      // Fallback base price if priceMap yields 0
+      // Fallback base price if priceMap yields 0 (prioritize cached base price and selling price)
       if (totalBasePrice === 0) {
-        if (kit.base_price_paise) {
+        if (Number(kit.base_price_cached) > 0) {
+          totalBasePrice = Number(kit.base_price_cached);
+        } else if (Number(activation?.base_price_cached) > 0) {
+          totalBasePrice = Number(activation.base_price_cached);
+        } else if (Number(kit.selling_price_cached) > 0) {
+          totalBasePrice = Math.round(Number(kit.selling_price_cached) / 1.07);
+        } else if (kit.base_price_paise) {
           totalBasePrice = kit.base_price_paise / 100;
         } else if (kit.base_price) {
           totalBasePrice = kit.base_price;
@@ -1372,7 +1397,14 @@ const get_combo_kits_by_district = async (req, res) => {
 
       const gstRate = marginDoc?.gst_rate ?? shopSettings.gst_rate ?? 13.8;
 
-      const standardPrice = calculatePriceWithMarginAndGst(totalBasePrice, standardMargin, gstRate);
+      // When kit has selling_price_cached and totalBasePrice aligns with base_price_cached,
+      // standardPrice before GST should strictly be kit.selling_price_cached to align 100% with quotation engine
+      let standardPrice;
+      if (Number(kit.selling_price_cached) > 0 && (totalBasePrice === 0 || Math.abs(totalBasePrice - Number(kit.base_price_cached || 0)) < 1)) {
+        standardPrice = Math.round(Number(kit.selling_price_cached) * (1 + (gstRate / 100)));
+      } else {
+        standardPrice = calculatePriceWithMarginAndGst(totalBasePrice, standardMargin, gstRate);
+      }
       const premiumPrice = calculatePriceWithMarginAndGst(totalBasePrice, showcaseMargin, gstRate);
       const basicPrice = calculatePriceWithMarginAndGst(totalBasePrice, poDiscountedMargin, gstRate);
 
@@ -2748,6 +2780,10 @@ const confirm_order = async (req, res) => {
             price: bPrice
           });
         }
+      }
+
+      if (totalBasePrice === 0 && Number(kit.base_price_cached) > 0) {
+        totalBasePrice = Number(kit.base_price_cached);
       }
 
       // Calculate selling price

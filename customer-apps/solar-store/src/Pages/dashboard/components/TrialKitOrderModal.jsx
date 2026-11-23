@@ -202,9 +202,8 @@ export default function TrialKitOrderModal({
     }
   };
 
-  // Grand total calculation
-  const deliveryFreight = deliveryData ? Number(deliveryData.delivery_cost || 0) : 0;
-  const grandTotal = kitSubtotal + deliveryFreight;
+  // Grand total calculation (freight + product aligned with commercial quotation taxation)
+  const rawDeliveryCost = deliveryData ? Number(deliveryData.delivery_cost || 0) : 0;
   const gstRate = useMemo(() => {
     const rawRate =
       deliveryData?.pricing?.gst_rate ??
@@ -216,8 +215,13 @@ export default function TrialKitOrderModal({
       kit?.pricing?.gst_rate;
     return rawRate !== undefined && rawRate !== null && !isNaN(Number(rawRate))
       ? Number(rawRate)
-      : 13.8;
+      : 5;
   }, [deliveryData, currentVariant, kit]);
+
+  const deliveryFreight = rawDeliveryCost > 0
+    ? Math.round(rawDeliveryCost * (1 + gstRate / 100))
+    : 0;
+  const grandTotal = kitSubtotal + deliveryFreight;
 
   const gstIncludedAmount =
     grandTotal > 0 ? Math.round(grandTotal - grandTotal / (1 + gstRate / 100)) : 0;
@@ -661,8 +665,8 @@ export default function TrialKitOrderModal({
                   Delivery Charge ({deliveryData.pincode}):
                 </span>
                 <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-sm">
-                  {deliveryData.delivery_cost > 0
-                    ? `+₹${deliveryData.delivery_cost.toLocaleString("en-IN")}`
+                  {deliveryFreight > 0
+                    ? `+₹${deliveryFreight.toLocaleString("en-IN")}`
                     : "FREE Delivery"}
                 </span>
               </div>

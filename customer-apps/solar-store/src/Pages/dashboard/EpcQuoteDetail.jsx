@@ -21,6 +21,7 @@ import {
   FiHelpCircle,
   FiInfo,
   FiCheck,
+  FiShoppingCart,
 } from 'react-icons/fi';
 import { FaWhatsapp } from 'react-icons/fa';
 import toast from 'react-hot-toast';
@@ -165,7 +166,7 @@ export default function EpcQuoteDetail() {
           <span>Back to All Quotations</span>
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {bdeMobile && (
             <a
               href={`https://wa.me/91${bdeMobile.replace(/\D/g, '')}?text=Hi%20${encodeURIComponent(bdeName)},%20I%20am%20reviewing%20Quotation%20${encodeURIComponent(refNumber)}.`}
@@ -181,11 +182,36 @@ export default function EpcQuoteDetail() {
           <button
             onClick={handleDownloadPdf}
             disabled={downloading}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-primary text-white hover:bg-primary-hover shadow-sm transition"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-surface text-text-primary hover:bg-bg border border-border shadow-xs transition"
           >
-            {downloading ? <FiRefreshCw className="w-4 h-4 animate-spin" /> : <FiDownload className="w-4 h-4" />}
-            <span>Download Official PDF</span>
+            {downloading ? <FiRefreshCw className="w-4 h-4 animate-spin text-primary" /> : <FiDownload className="w-4 h-4 text-primary" />}
+            <span>Download PDF</span>
           </button>
+
+          {/* Accept & Checkout CTA */}
+          {quote.status === 'converted' ? (
+            <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+              <FiCheckCircle className="w-4 h-4 text-emerald-600" />
+              <span>Order Converted</span>
+            </span>
+          ) : quote.status === 'expired' ? (
+            <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200">
+              <FiClock className="w-4 h-4" />
+              <span>Proposal Expired</span>
+            </span>
+          ) : isDraft ? (
+            <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+              <span>BDE Preparing</span>
+            </span>
+          ) : (
+            <button
+              onClick={() => navigate(`/checkout?quote_id=${quote._id}`)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-primary hover:bg-primary-hover text-white shadow-sm transition transform active:scale-95"
+            >
+              <FiShoppingCart className="w-4 h-4" />
+              <span>Accept & Checkout</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -536,16 +562,42 @@ export default function EpcQuoteDetail() {
               </div>
             </div>
 
+            {/* Accept & Checkout Proposal Button */}
+            {quote.status === 'converted' ? (
+              <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs mt-4">
+                <FiCheckCircle className="w-4 h-4 text-emerald-600" />
+                <span>Proposal Converted to Order</span>
+              </div>
+            ) : quote.status === 'expired' ? (
+              <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs mt-4">
+                <FiClock className="w-4 h-4" />
+                <span>Quotation Expired</span>
+              </div>
+            ) : isDraft ? (
+              <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 font-bold text-xs mt-4">
+                <FiAlertCircle className="w-4 h-4 text-amber-600" />
+                <span>Draft Preview (BDE is finalizing)</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => navigate(`/checkout?quote_id=${quote._id}`)}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-primary hover:bg-primary-hover text-white font-extrabold text-sm shadow-md transition transform active:scale-95 mt-4"
+              >
+                <FiShoppingCart className="w-4 h-4" />
+                <span>Accept & Proceed to Checkout</span>
+              </button>
+            )}
+
             {/* Download PDF Action */}
             <button
               onClick={handleDownloadPdf}
               disabled={downloading}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-primary text-white font-bold text-sm hover:bg-primary-hover shadow-xs transition mt-4"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-surface hover:bg-bg border border-border text-text-primary font-bold text-xs shadow-2xs transition mt-2"
             >
               {downloading ? (
-                <FiRefreshCw className="w-4 h-4 animate-spin" />
+                <FiRefreshCw className="w-4 h-4 animate-spin text-primary" />
               ) : (
-                <FiDownload className="w-4 h-4" />
+                <FiDownload className="w-4 h-4 text-primary" />
               )}
               <span>Download PDF Quotation</span>
             </button>

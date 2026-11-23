@@ -228,6 +228,25 @@ CLAUSE 6 — GOVERNING LAW & JURISDICTION
 By digitally signing below, the Franchise Partner certifies that they have read, understood, and accept all terms and conditions of this Franchise Agreement.`,
   },
 
+  // ── Franchise Agreement Types & Legal Templates Configured by Store/Franchise Type ──
+  franchise_agreement_types: [
+    {
+      type_key: { type: String, required: true, trim: true },
+      name: { type: String, required: true, trim: true },
+      store_type_id: { type: mongoose.Schema.Types.ObjectId, ref: 'reseller_plans', default: null },
+      store_type_slug: { type: String, default: null, trim: true },
+      store_type_name: { type: String, default: null, trim: true },
+      title: { type: String, default: 'SolarKits Authorized Franchise Partner Agreement', trim: true },
+      version: { type: String, default: '2.0', trim: true },
+      default_duration_years: { type: Number, default: 2 },
+      document_url: { type: String, default: null, trim: true },
+      document_name: { type: String, default: null, trim: true },
+      template_content: { type: String, default: null },
+      is_active: { type: Boolean, default: true },
+      updated_at: { type: Date, default: Date.now },
+    }
+  ],
+
   // ── Flagship Store / Excluded Districts (Territories blocked for prospective franchisees) ──
   flagship_excluded_districts: [
     {
@@ -253,6 +272,7 @@ By digitally signing below, the Franchise Partner certifies that they have read,
     account_number: { type: String, trim: true, default: '' },
     ifsc_code: { type: String, trim: true, uppercase: true, default: '' },
     account_holder_name: { type: String, trim: true, default: '' },
+    bank_name: { type: String, trim: true, default: '' },
     updated_at: { type: Date, default: Date.now },
     updated_by: { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
   },

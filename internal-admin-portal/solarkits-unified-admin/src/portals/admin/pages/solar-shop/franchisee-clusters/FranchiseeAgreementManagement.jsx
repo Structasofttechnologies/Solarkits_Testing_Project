@@ -31,6 +31,16 @@ export default function FranchiseeAgreementManagement() {
   const dispatch = useDispatch();
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+  const resolveDocUrl = (url) => {
+    if (!url) return '#';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+      return url;
+    }
+    const cleanPath = url.replace(/^[\\/]+/, '').replace(/\\/g, '/');
+    const baseUrl = (API_URL || '').replace(/\/admin-api\/?$/, '');
+    return `${baseUrl}/${cleanPath}`;
+  };
+
   const [agreements, setAgreements] = useState([]);
   const [counts, setCounts] = useState({
     all: 0,
@@ -46,24 +56,67 @@ export default function FranchiseeAgreementManagement() {
   // Status Tab
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterAgreementType, setFilterAgreementType] = useState('all');
 
   // Masters
   const [clusters, setClusters] = useState([]);
   const [resellers, setResellers] = useState([]);
   const [bdes, setBdes] = useState([]);
+  const [storeTypes, setStoreTypes] = useState([]);
+  const [agreementTypes, setAgreementTypes] = useState([
+    {
+      type_key: 'district_franchise_agreement',
+      name: 'District Franchise Agreement',
+      store_type_name: 'District Franchise Store',
+      title: 'SolarKits Authorized District Franchise Partner Agreement',
+      version: '2.0',
+      default_duration_years: 2,
+      document_url: null,
+      document_name: null,
+      renewal_conditions: 'Standard renewal subject to annual EPC onboarding goal and monthly kit sales quota achievement.',
+    },
+    {
+      type_key: 'flagship_agreement',
+      name: 'Flagship Store Agreement',
+      store_type_name: 'Flagship store',
+      title: 'SolarKits Flagship Franchise Partner & Institutional Agreement',
+      version: '2.0',
+      default_duration_years: 3,
+      document_url: null,
+      document_name: null,
+      renewal_conditions: 'Exclusive flagship territory renewal subject to regional warehouse operations, institutional compliance, and tender fulfillment targets.',
+    },
+    {
+      type_key: 'company_store_agreement',
+      name: 'Company Store Operational Agreement',
+      store_type_name: 'Company Store',
+      title: 'SolarKits Company Store Operational Governance & MoU',
+      version: '1.0',
+      default_duration_years: 1,
+      document_url: null,
+      document_name: null,
+      renewal_conditions: 'Annual company store operational review, inventory audit, and compliance check.',
+    },
+  ]);
 
   // Create Agreement Modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [selectedClusterId, setSelectedClusterId] = useState('');
   const [selectedFranchiseeId, setSelectedFranchiseeId] = useState('');
+  const [selectedAgreementTypeKey, setSelectedAgreementTypeKey] = useState('district_franchise_agreement');
+  const [selectedAgreementTypeName, setSelectedAgreementTypeName] = useState('District Franchise Agreement');
+  const [detectedFranchiseType, setDetectedFranchiseType] = useState('District Franchise Store');
+  const [detectedStoreTypeId, setDetectedStoreTypeId] = useState(null);
+  const [agreementTitle, setAgreementTitle] = useState('SolarKits Authorized District Franchise Partner Agreement');
+  const [agreementVersion, setAgreementVersion] = useState('2.0');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(
     new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
   const [durationYears, setDurationYears] = useState(2);
-  const [setupFeeAmount, setSetupFeeAmount] = useState(100000);
-  const [renewalFeeAmount, setRenewalFeeAmount] = useState(10000);
+  const [setupFeeAmount, setSetupFeeAmount] = useState(250000);
+  const [renewalFeeAmount, setRenewalFeeAmount] = useState(25000);
   const [agreementPdfFile, setAgreementPdfFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const createFileInputRef = useRef(null);
@@ -85,23 +138,85 @@ export default function FranchiseeAgreementManagement() {
     }
     const partner = resellers.find((r) => String(r._id || r.id) === String(partnerId));
     if (partner) {
+      // 1. Detect Franchise Store Type
+      let franchiseType = 'District Franchise Store';
+      if (partner.store_category === 'company_store') {
+        franchiseType = 'Company Store';
+      } else if (partner.franchisee_subtype_id?.name) {
+        franchiseType = partner.franchisee_subtype_id.name;
+      } else if (partner.store_type_name) {
+        franchiseType = partner.store_type_name;
+      } else if (partner.plan_name) {
+        franchiseType = partner.plan_name;
+      }
+      setDetectedFranchiseType(franchiseType);
+
+      // Match with Store Types list if available
+      const matchedStore = storeTypes.find(
+        (st) =>
+          st.name?.toLowerCase() === franchiseType.toLowerCase() ||
+          st.slug === partner.store_type_slug ||
+          (partner.store_category === 'company_store' && st.store_category === 'company_store')
+      );
+      if (matchedStore) {
+        setDetectedStoreTypeId(matchedStore.id || matchedStore._id);
+      }
+
+      // 2. Auto-select matching Agreement Type defined for this Franchise Store Type
+      const matchedAgType = agreementTypes.find(
+        (t) =>
+          (t.store_type_name && t.store_type_name.toLowerCase() === franchiseType.toLowerCase()) ||
+          (t.store_type_slug && partner.store_type_slug && t.store_type_slug === partner.store_type_slug) ||
+          (partner.store_category === 'company_store' && t.type_key.includes('company'))
+      ) || agreementTypes[0];
+
+      if (matchedAgType) {
+        setSelectedAgreementTypeKey(matchedAgType.type_key);
+        setSelectedAgreementTypeName(matchedAgType.name);
+        setAgreementTitle(matchedAgType.title || `SolarKits Authorized ${matchedAgType.name}`);
+        setAgreementVersion(matchedAgType.version || '2.0');
+        if (matchedAgType.default_duration_years) {
+          handleDurationChange(matchedAgType.default_duration_years);
+        }
+        if (matchedAgType.renewal_conditions) {
+          setRenewalConditions(matchedAgType.renewal_conditions);
+        }
+      }
+
+      // 3. Cluster association & cluster fee configuration (Fees are defined Cluster-wise)
       if (partner.cluster_id) {
         const clusterIdStr = String(partner.cluster_id._id || partner.cluster_id);
         setSelectedClusterId(clusterIdStr);
         const clu = clusters.find((c) => String(c._id) === clusterIdStr);
-        if (clu?.setup_fee_config?.setup_fee) {
+        if (clu?.setup_fee_config?.setup_fee !== undefined) {
           setSetupFeeAmount(clu.setup_fee_config.setup_fee);
-        } else if (partner.cluster_setup_fee) {
+        } else if (partner.cluster_setup_fee !== undefined) {
           setSetupFeeAmount(partner.cluster_setup_fee);
         }
-        if (clu?.setup_fee_config?.renewal_fee) {
+        if (clu?.setup_fee_config?.renewal_fee !== undefined) {
           setRenewalFeeAmount(clu.setup_fee_config.renewal_fee);
-        } else if (partner.cluster_renewal_fee) {
+        } else if (partner.cluster_renewal_fee !== undefined) {
           setRenewalFeeAmount(partner.cluster_renewal_fee);
         }
         if (clu?.assigned_bde_id || partner.cluster_assigned_bde_id) {
           setSelectedBdeId(clu?.assigned_bde_id?._id || clu?.assigned_bde_id || partner.cluster_assigned_bde_id);
         }
+      }
+    }
+  };
+
+  const handleAgreementTypeChange = (typeKey) => {
+    setSelectedAgreementTypeKey(typeKey);
+    const agType = agreementTypes.find((t) => t.type_key === typeKey);
+    if (agType) {
+      setSelectedAgreementTypeName(agType.name);
+      setAgreementTitle(agType.title || `SolarKits Authorized ${agType.name}`);
+      setAgreementVersion(agType.version || '2.0');
+      if (agType.default_duration_years) {
+        handleDurationChange(agType.default_duration_years);
+      }
+      if (agType.renewal_conditions) {
+        setRenewalConditions(agType.renewal_conditions);
       }
     }
   };
@@ -130,7 +245,7 @@ export default function FranchiseeAgreementManagement() {
 
   const fetchMasters = async () => {
     try {
-      const [cluRes, resRes, bdeRes] = await Promise.all([
+      const [cluRes, resRes, bdeRes, settingsRes, plansRes] = await Promise.all([
         axios.get(`${API_URL}/franchise-clusters/list`, authHeaderObj()).catch(() => ({ data: { data: [] } })),
         axios
           .get(`${API_URL}/franchise-clusters/resellers`, authHeaderObj())
@@ -141,12 +256,20 @@ export default function FranchiseeAgreementManagement() {
           .catch(() => axios.get(`${API_URL}/franchise-clusters/bde/mappings`, authHeaderObj()))
           .catch(() => axios.get(`${API_URL}/store-management/bde/list?unique_id=RSL_MGMT&req_for=view`, authHeaderObj()))
           .catch(() => axios.get(`${API_URL}/bde/list?unique_id=ADM_BDE_MGMT&req_for=view&limit=500`, authHeaderObj())),
+        axios.get(`${API_URL}/reseller-mgmt/settings`, authHeaderObj()).catch(() => null),
+        axios.get(`${API_URL}/resellers/plans/list?req_for=view&unique_id=RSL_PLAN`, authHeaderObj()).catch(() => null),
       ]);
       if (cluRes?.data?.data) setClusters(cluRes.data.data);
       const rList = resRes?.data?.data || resRes?.data?.resellers || [];
       if (Array.isArray(rList)) setResellers(rList);
       const bList = bdeRes?.data?.data || bdeRes?.data?.bdes || [];
       if (Array.isArray(bList)) setBdes(bList);
+      if (settingsRes?.data?.data?.franchise_agreement_types && Array.isArray(settingsRes.data.data.franchise_agreement_types)) {
+        setAgreementTypes(settingsRes.data.data.franchise_agreement_types);
+      }
+      if (plansRes?.data?.data && Array.isArray(plansRes.data.data)) {
+        setStoreTypes(plansRes.data.data);
+      }
     } catch (err) {
       console.error('Error fetching masters:', err);
     }
@@ -236,10 +359,22 @@ export default function FranchiseeAgreementManagement() {
       formData.append('duration_months', Number(durationYears) * 12);
       formData.append('setup_fee', Number(setupFeeAmount));
       formData.append('renewal_fee', Number(renewalFeeAmount));
+      formData.append('agreement_type', selectedAgreementTypeName);
+      formData.append('agreement_type_key', selectedAgreementTypeKey);
+      formData.append('franchise_type', detectedFranchiseType);
+      if (detectedStoreTypeId) formData.append('store_type_id', detectedStoreTypeId);
+      if (agreementTitle) formData.append('title', agreementTitle);
+      if (agreementVersion) formData.append('version', agreementVersion);
       if (selectedBdeId) formData.append('assigned_bde_id', selectedBdeId);
       formData.append('renewal_conditions', renewalConditions);
+      const matchedAgType = agreementTypes.find((t) => t.type_key === selectedAgreementTypeKey);
       if (agreementPdfFile) {
         formData.append('agreement_pdf', agreementPdfFile);
+      } else if (matchedAgType?.document_url) {
+        formData.append('document_url', matchedAgType.document_url);
+        if (matchedAgType.document_name) {
+          formData.append('document_name', matchedAgType.document_name);
+        }
       }
 
       await axios.post(`${API_URL}/franchise-clusters/agreements/create`, formData, {
@@ -322,14 +457,24 @@ export default function FranchiseeAgreementManagement() {
   // Filtered agreements
   const filteredAgreements = useMemo(() => {
     return agreements.filter((ag) => {
+      if (filterAgreementType !== 'all') {
+        const agType = (ag.agreement_type || '').toLowerCase();
+        const fType = (ag.franchise_type || '').toLowerCase();
+        const target = filterAgreementType.toLowerCase();
+        if (!agType.includes(target) && !fType.includes(target)) {
+          return false;
+        }
+      }
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       const numMatch = ag.agreement_number?.toLowerCase().includes(q);
       const nameMatch = ag.franchisee_id?.business_name?.toLowerCase().includes(q);
       const cluMatch = ag.cluster_id?.cluster_name?.toLowerCase().includes(q);
-      return numMatch || nameMatch || cluMatch;
+      const typeMatch = ag.agreement_type?.toLowerCase().includes(q);
+      const storeMatch = ag.franchise_type?.toLowerCase().includes(q);
+      return numMatch || nameMatch || cluMatch || typeMatch || storeMatch;
     });
-  }, [agreements, searchQuery]);
+  }, [agreements, searchQuery, filterAgreementType]);
 
   return (
     <div className="space-y-6">
@@ -388,6 +533,37 @@ export default function FranchiseeAgreementManagement() {
         ))}
       </div>
 
+      {/* ── Search & Agreement Type Filter Bar ─────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="relative flex-1">
+          <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search agreement #, store name, agreement type, cluster..."
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-500 whitespace-nowrap flex items-center gap-1">
+            <FiLayers size={14} className="text-blue-600" /> Agreement Type:
+          </span>
+          <select
+            value={filterAgreementType}
+            onChange={(e) => setFilterAgreementType(e.target.value)}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Agreement Types</option>
+            {agreementTypes.map((t) => (
+              <option key={t.type_key} value={t.name}>
+                {t.name} ({t.store_type_name || 'Store'})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Agreements Data Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         {loading ? (
@@ -406,7 +582,7 @@ export default function FranchiseeAgreementManagement() {
               <thead className="bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase tracking-wider">
                 <tr>
                   <th className="px-5 py-4">Agreement No. & Version</th>
-                  <th className="px-5 py-4">Franchisee Store</th>
+                  <th className="px-5 py-4">Franchisee Store & Type</th>
                   <th className="px-5 py-4">Cluster & Territory</th>
                   <th className="px-5 py-4">Validity Period</th>
                   <th className="px-5 py-4">Status & SLA</th>
@@ -438,7 +614,7 @@ export default function FranchiseeAgreementManagement() {
                         {ag.document_url ? (
                           <div className="mt-1">
                             <a
-                              href={ag.document_url}
+                              href={resolveDocUrl(ag.document_url)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline"
@@ -453,12 +629,20 @@ export default function FranchiseeAgreementManagement() {
                         )}
                       </td>
 
-                      {/* Franchisee Store */}
+                      {/* Franchisee Store & Type */}
                       <td className="px-5 py-4">
                         <div className="font-extrabold text-slate-900">
                           {ag.franchisee_id?.business_name || 'Unassigned'}
                         </div>
                         <div className="text-xs text-slate-500 font-medium">{ag.franchisee_id?.mobile}</div>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                            {ag.agreement_type || 'District Franchise Agreement'}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            {ag.franchise_type || (ag.franchisee_id?.store_category === 'company_store' ? 'Company Store' : 'District Franchise Store')}
+                          </span>
+                        </div>
                       </td>
 
                       {/* Cluster */}
@@ -607,27 +791,86 @@ export default function FranchiseeAgreementManagement() {
 
                 {/* Auto-detect Notification Badge */}
                 {selectedPartner && (
-                  <div className="mt-1.5 p-2 rounded-lg bg-blue-50 border border-blue-200/80 text-[11px] flex items-center justify-between">
-                    {selectedPartner.cluster_name ? (
-                      <div className="flex items-center gap-1.5 text-blue-900">
-                        <FiCheckCircle className="text-emerald-600 shrink-0" size={14} />
-                        <span>
-                          <strong>Applicant's Chosen Cluster:</strong> {selectedPartner.cluster_name}{' '}
-                          {selectedPartner.cluster_code ? `(${selectedPartner.cluster_code})` : ''} —{' '}
-                          <span className="text-emerald-700 font-bold">Auto Selected</span>
+                  <div className="space-y-1.5 mt-2">
+                    <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200/80 text-[11px] flex items-center justify-between">
+                      {selectedPartner.cluster_name ? (
+                        <div className="flex items-center gap-1.5 text-blue-900">
+                          <FiCheckCircle className="text-emerald-600 shrink-0" size={14} />
+                          <span>
+                            <strong>Applicant's Chosen Cluster:</strong> {selectedPartner.cluster_name}{' '}
+                            {selectedPartner.cluster_code ? `(${selectedPartner.cluster_code})` : ''} —{' '}
+                            <span className="text-emerald-700 font-bold">Auto Selected</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-slate-600">
+                          <FiAlertTriangle className="text-amber-500 shrink-0" size={14} />
+                          <span>Applicant did not pre-select a cluster. Please choose a cluster below.</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Detected Franchise Store Type Badge */}
+                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-emerald-900">Store Franchise Type:</span>
+                        <span className="px-2.5 py-0.5 rounded-md text-xs font-black bg-emerald-600 text-white shadow-xs">
+                          {detectedFranchiseType}
                         </span>
                       </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 text-slate-600">
-                        <FiAlertTriangle className="text-amber-500 shrink-0" size={14} />
-                        <span>Applicant did not pre-select a cluster. Please choose a cluster below.</span>
-                      </div>
-                    )}
+                      <span className="text-emerald-700 font-semibold text-[10px]">
+                        Auto-detected from Partner Profile
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* 2. Select Cluster (Auto-populated or Manually Chosen) */}
+              {/* 2. Select Franchise Agreement Type (Configured per Franchise Type) */}
+              <div>
+                <label className="block text-slate-700 uppercase mb-1 font-bold flex items-center justify-between">
+                  <span>Franchise Agreement Type *</span>
+                  <span className="text-[11px] text-blue-600 font-semibold normal-case">
+                    Terms defined per Franchise Type
+                  </span>
+                </label>
+                <select
+                  required
+                  value={selectedAgreementTypeKey}
+                  onChange={(e) => handleAgreementTypeChange(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+                >
+                  {agreementTypes.map((t) => (
+                    <option key={t.type_key} value={t.type_key}>
+                      {t.name} (Mapped: {t.store_type_name || 'General Franchise Store'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2b. Agreement Title & Version */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-slate-700 uppercase mb-1 font-bold">Formal Agreement Title</label>
+                  <input
+                    type="text"
+                    value={agreementTitle}
+                    onChange={(e) => setAgreementTitle(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 uppercase mb-1 font-bold">Version</label>
+                  <input
+                    type="text"
+                    value={agreementVersion}
+                    onChange={(e) => setAgreementVersion(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              {/* 3. Select Cluster (Auto-populated or Manually Chosen) */}
               <div>
                 <label className="block text-slate-700 uppercase mb-1 font-bold flex items-center justify-between">
                   <span>Select Cluster *</span>
@@ -726,6 +969,36 @@ export default function FranchiseeAgreementManagement() {
                 <label className="block text-slate-700 uppercase mb-1 font-bold">
                   Agreement PDF Document <span className="text-slate-400 font-normal lowercase">(PDF only, max 25MB)</span>
                 </label>
+
+                {(() => {
+                  const matchedAgType = agreementTypes.find((t) => t.type_key === selectedAgreementTypeKey);
+                  if (matchedAgType?.document_url && !agreementPdfFile) {
+                    return (
+                      <div className="mb-2.5 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200 flex items-center justify-between">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <FiFileText className="text-red-500 shrink-0" size={16} />
+                          <div className="min-w-0">
+                            <span className="font-bold text-blue-900 text-xs truncate block" title={matchedAgType.document_name || 'Official Template.pdf'}>
+                              Default Template Attached: {matchedAgType.document_name || 'Official Template.pdf'}
+                            </span>
+                            <span className="text-[10px] text-blue-600">
+                              Linked from {matchedAgType.name}. Upload signed copy below to override.
+                            </span>
+                          </div>
+                        </div>
+                        <a
+                          href={resolveDocUrl(matchedAgType.document_url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold shrink-0 inline-flex items-center gap-1 transition"
+                        >
+                          <FiEye size={11} /> View Template
+                        </a>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {!agreementPdfFile ? (
                   <div
@@ -1051,6 +1324,18 @@ export default function FranchiseeAgreementManagement() {
             <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs font-semibold text-slate-700">
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-2">
                 <div className="flex justify-between py-1 border-b border-slate-200/50">
+                  <span className="text-slate-500">Agreement Type</span>
+                  <span className="font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    {selectedAgreementDetail.agreement_type || 'District Franchise Agreement'}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-200/50">
+                  <span className="text-slate-500">Franchise Store Type</span>
+                  <span className="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    {selectedAgreementDetail.franchise_type || (selectedAgreementDetail.franchisee_id?.store_category === 'company_store' ? 'Company Store' : 'District Franchise Store')}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-200/50">
                   <span className="text-slate-500">Franchisee</span>
                   <span className="font-extrabold text-slate-900">{selectedAgreementDetail.franchisee_id?.business_name}</span>
                 </div>
@@ -1094,7 +1379,7 @@ export default function FranchiseeAgreementManagement() {
                       </div>
                     </div>
                     <a
-                      href={selectedAgreementDetail.document_url}
+                      href={resolveDocUrl(selectedAgreementDetail.document_url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs inline-flex items-center gap-1.5 transition-colors shrink-0"
@@ -1131,7 +1416,7 @@ export default function FranchiseeAgreementManagement() {
                         {h.document_url && (
                           <div className="pt-1">
                             <a
-                              href={h.document_url}
+                              href={resolveDocUrl(h.document_url)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:underline inline-flex items-center gap-1 text-[11px] font-semibold"

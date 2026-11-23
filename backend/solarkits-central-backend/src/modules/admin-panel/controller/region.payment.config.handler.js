@@ -9,6 +9,7 @@
 const mongoose = require('mongoose');
 const { RegionPaymentConfig, EpcOrder, FpoOrder, SolarShopSettings } = require('../models/india_solarshop_db');
 const { GeoLevel1, GeoLevel2 } = require('../models/geolocation_db');
+const { resolveBankNameFromIfsc } = require('../utils/ifsc.bank.resolver');
 
 // ── 1. LIST REGION CONFIGS (Admin) ───────────────────────────────────────────
 const list_configs = async (req, res) => {
@@ -282,9 +283,12 @@ const resolve_payment_config = async (req, res) => {
 
     // Fetch configured offline company bank details from SolarShopSettings
     const settings = await SolarShopSettings.findOne().lean();
+    const ifsc = settings?.offline_bank_details?.ifsc_code || '';
+    const bankName = settings?.offline_bank_details?.bank_name || resolveBankNameFromIfsc(ifsc) || '';
     const offlineBankDetails = {
       account_number: settings?.offline_bank_details?.account_number || '',
-      ifsc_code: settings?.offline_bank_details?.ifsc_code || '',
+      ifsc_code: ifsc,
+      bank_name: bankName,
       account_holder_name: settings?.offline_bank_details?.account_holder_name || '',
     };
 
@@ -656,9 +660,12 @@ const reject_offline_order = async (req, res) => {
 const get_bank_account_details = async (req, res) => {
   try {
     const settings = await SolarShopSettings.findOne().lean();
+    const ifsc = settings?.offline_bank_details?.ifsc_code || '';
+    const bankName = settings?.offline_bank_details?.bank_name || resolveBankNameFromIfsc(ifsc) || '';
     const bankDetails = {
       account_number: settings?.offline_bank_details?.account_number || '',
-      ifsc_code: settings?.offline_bank_details?.ifsc_code || '',
+      ifsc_code: ifsc,
+      bank_name: bankName,
       account_holder_name: settings?.offline_bank_details?.account_holder_name || '',
       updated_at: settings?.offline_bank_details?.updated_at || null,
     };
@@ -675,7 +682,7 @@ const get_bank_account_details = async (req, res) => {
 // ── 11. UPDATE OFFLINE BANK ACCOUNT DETAILS (Admin) ──────────────────────────
 const update_bank_account_details = async (req, res) => {
   try {
-    const { account_number, ifsc_code, account_holder_name } = req.body;
+    const { account_number, ifsc_code, account_holder_name, bank_name } = req.body;
 
     if (!account_number || typeof account_number !== 'string' || !account_number.trim()) {
       return res.status(400).json({ status: 'error', message: 'Account Number is required.' });
@@ -698,6 +705,10 @@ const update_bank_account_details = async (req, res) => {
       });
     }
 
+    const resolvedBankName = (bank_name && typeof bank_name === 'string' && bank_name.trim())
+      ? bank_name.trim()
+      : (resolveBankNameFromIfsc(cleanedIfsc) || '');
+
     let settings = await SolarShopSettings.findOne({});
     if (!settings) {
       settings = new SolarShopSettings({});
@@ -707,6 +718,7 @@ const update_bank_account_details = async (req, res) => {
       account_number: cleanedAccountNumber,
       ifsc_code: cleanedIfsc,
       account_holder_name: cleanedHolderName,
+      bank_name: resolvedBankName,
       updated_at: new Date(),
       updated_by: req.user?._id || req.user?.id || null,
     };

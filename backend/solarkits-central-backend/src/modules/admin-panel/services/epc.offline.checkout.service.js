@@ -23,6 +23,8 @@ const {
   TrialKitInventory,
   TrialKitStockHistory,
   TrialKitOrder,
+  EpcQuote,
+  EpcQuoteActivity,
 } = require('../models/india_solarshop_db');
 const { CompanyWarehouse } = require('../models/company_warehouse_db');
 const { calculateCheckoutPrice } = require('./reseller.pricing.service');
@@ -31,6 +33,7 @@ const { routeEpcOrderToReseller } = require('./epc.order.service');
 const { logAudit } = require('../utils/audit.service');
 const { creditResellerMargin, creditEpcMargin } = require('./wallet.settlement.service');
 const { resolveVariationCommission } = require('./franchisee.commission.service');
+const { resolveBankNameFromIfsc } = require('../utils/ifsc.bank.resolver');
 
 // Company Escrow Bank Account Details (Default / Fallback)
 const COMPANY_BANK_DETAILS = {
@@ -54,11 +57,14 @@ const getDynamicCompanyBankDetails = async () => {
   try {
     const settings = await SolarShopSettings.findOne().lean();
     if (settings?.offline_bank_details?.account_number) {
+      const ifsc = settings.offline_bank_details.ifsc_code || COMPANY_BANK_DETAILS.ifsc_code;
+      const bankName = settings.offline_bank_details.bank_name || resolveBankNameFromIfsc(ifsc) || COMPANY_BANK_DETAILS.bank_name;
       return {
         ...COMPANY_BANK_DETAILS,
         account_name: settings.offline_bank_details.account_holder_name || COMPANY_BANK_DETAILS.account_name,
+        bank_name: bankName,
         account_number: settings.offline_bank_details.account_number,
-        ifsc_code: settings.offline_bank_details.ifsc_code || COMPANY_BANK_DETAILS.ifsc_code,
+        ifsc_code: ifsc,
       };
     }
   } catch (err) {
@@ -211,9 +217,26 @@ async function createEpcOfflineOrder({
   req = null,
   fulfillment_mode = 'direct_site',
   order_load_metrics = null,
+  quote_id = null,
+  quote_number = null,
 }) {
   if (!items || items.length === 0) {
     throw new Error('Cart must contain at least one item');
+  }
+
+  // Look up quotation if this checkout is for an official quote
+  let quoteDoc = null;
+  const rawQuoteId = quote_id || (items && items[0]?.quote_id) || null;
+  if (rawQuoteId && mongoose.Types.ObjectId.isValid(rawQuoteId)) {
+    quoteDoc = await EpcQuote.findOne({ _id: rawQuoteId, deleted_at: null });
+    if (quoteDoc) {
+      if (quoteDoc.status === 'converted' || quoteDoc.converted_order_id) {
+        throw new Error(`Quotation ${quoteDoc.quote_number || ''} has already been converted to an order.`);
+      }
+      if (quoteDoc.status === 'expired') {
+        throw new Error(`Quotation ${quoteDoc.quote_number || ''} has expired. Please request a revision from your BDE.`);
+      }
+    }
   }
 
   const { utr_number, amount_paid, payment_date, receipt_url, receipt_filename, sender_bank_name, account_holder_name } = offline_payment_data;
@@ -705,6 +728,8 @@ async function createEpcOfflineOrder({
     epcOrder = await EpcOrder.create({
       order_number: orderNumber,
       order_request_id: `REQ-EPC-${orderNumber.replace(/^ORD-EPC-/, '')}`,
+      quote_id: quoteDoc ? quoteDoc._id : (rawQuoteId && mongoose.Types.ObjectId.isValid(rawQuoteId) ? rawQuoteId : null),
+      quote_number: quoteDoc ? (quoteDoc.quote_number || quote_number) : (quote_number || null),
       is_official_order_generated: false,
       order_type: detectedOrderType,
       is_trial_order: detectedOrderType === 'trial_order' || Boolean(processedItems.some(it => it.is_trial_kit)),
@@ -989,6 +1014,51 @@ async function createEpcOfflineOrder({
       },
       req,
     });
+
+    // 7. If this order originated from an official EPC Quotation, atomically convert the quotation
+    if (quoteDoc) {
+      try {
+        await EpcQuote.findByIdAndUpdate(quoteDoc._id, {
+          status: 'converted',
+          converted_order_id: epcOrder._id,
+          converted_order_type: 'epc_order',
+          converted_at: new Date(),
+          updated_by: actor_id || epc_id,
+        });
+
+        if (EpcQuoteActivity) {
+          await EpcQuoteActivity.create({
+            quote_id: quoteDoc._id,
+            quote_number: quoteDoc.quote_number,
+            action: 'CONVERTED_ORDER',
+            old_status: quoteDoc.status,
+            new_status: 'converted',
+            performed_by: actor_id || epc_id,
+            performed_by_role: 'epc',
+            performed_by_name: epc?.name || epc?.company_name || 'EPC Buyer',
+            metadata: {
+              order_type: 'epc_order',
+              order_id: epcOrder._id,
+              order_number: epcOrder.order_number,
+            },
+          });
+        }
+
+        const { sendAdminNotification } = require('./admin.notification.service');
+        if (typeof sendAdminNotification === 'function') {
+          sendAdminNotification({
+            title: `Quotation ${quoteDoc.quote_number} Converted to Order!`,
+            message: `EPC buyer has completed checkout for Quotation ${quoteDoc.quote_number} (Order #${epcOrder.order_number}).`,
+            category: 'orders',
+            priority: 'high',
+            action_url: '/admin-panel/solar-shop/po-orders',
+            metadata: { order_id: epcOrder._id, quote_id: quoteDoc._id, epc_id }
+          }).catch(() => { });
+        }
+      } catch (convErr) {
+        console.warn('[createEpcOfflineOrder] Error updating converted quotation status:', convErr.message);
+      }
+    }
   } catch (creationErr) {
     if (epcOrder?._id) {
       await EpcOrder.findByIdAndDelete(epcOrder._id).catch(() => { });
