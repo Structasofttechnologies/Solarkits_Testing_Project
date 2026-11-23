@@ -283,5 +283,8 @@ module.exports = {
   TrialKitInventory: require('./trial_kit_inventories.schema'),
   TrialKitStockHistory: require('./trial_kit_stock_histories.schema'),
   TrialKitOrder: require('./trial_kit_orders.schema'),
+ 
+ 
   TrialKitProcurement: require('./trial_kit_procurements.schema'),
+ 
 };

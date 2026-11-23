@@ -63,8 +63,20 @@ app.use(require('./modules/admin-panel/middlewares/mongo.sanitize'));
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/public/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
-// 1. CMS Auth routes
-app.use('/auth-api', require('./modules/cms-auth/routes/auth.route'));
+// Request Logger for Auth & Key System calls
+app.use((req, res, next) => {
+  if (req.originalUrl && (req.originalUrl.includes('login') || req.originalUrl.includes('auth') || req.originalUrl.includes('franchise-cluster'))) {
+    console.log(`[API REQUEST] ${req.method} ${req.originalUrl} from origin: ${req.headers.origin || 'direct'}`);
+  }
+  next();
+});
+
+// 1. CMS Auth routes (Mounted across all aliases to ensure 100% path coverage)
+const authRouter = require('./modules/cms-auth/routes/auth.route');
+app.use('/auth-api', authRouter);
+app.use('/api/auth-api', authRouter);
+app.use('/admin-api/auth', authRouter);
+app.use('/auth', authRouter);
 
 // 2. Admin Panel routes
 const adminRouter = express.Router();
@@ -227,6 +239,18 @@ adminRouter.use('/registers', require('./modules/account-panel/routes/registers.
 
 // ─── SOLARKITS: Trial Kit Management Module ───
 adminRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
+ 
+
+// ─── SOLARKITS: Email & WhatsApp Marketing & Campaign Automation Engine ───
+adminRouter.use('/marketing', require('./modules/admin-panel/marketing/routes/marketing.route'));
+try {
+  const { initScheduler } = require('./modules/admin-panel/marketing/services/scheduler.service');
+  initScheduler();
+} catch (schedErr) {
+  console.warn('⚠️ Marketing scheduler startup notice:', schedErr.message);
+}
+ 
+ 
 
 app.use('/admin-api', adminRouter);
 app.use('/api', adminRouter);
