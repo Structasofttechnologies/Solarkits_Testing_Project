@@ -4,6 +4,7 @@ import {
   FaTag, FaMobileAlt, FaDesktop, FaTimes
 } from 'react-icons/fa';
 import EmailStudio from './components/EmailStudio';
+import { generateResponsiveEmailHtml, DEFAULT_EXECUTIVE_CREATIVE } from './services/emailTemplateGenerator';
 
 export default function EmailTemplatesPage() {
   const [search, setSearch] = useState('');
@@ -41,6 +42,24 @@ export default function EmailTemplatesPage() {
   });
 
   const [templates, setTemplates] = useState([
+    {
+      _id: 'et_qbits_solarkits_exec',
+      name: 'Solar EPCs, This One is For You (Executive Qbits & SolarKits Layout)',
+      subject: 'Solar EPCs, this one is for you - SolarKits B2B Wholesale Pricing',
+      category: 'Executive Format',
+      tags: ['Executive', 'Hybrid Backup', 'Qbits Layout', 'High Value'],
+      updated_at: new Date().toISOString().slice(0, 10),
+      sent_count: 14250,
+      open_rate: '52.4%',
+      click_rate: '24.8%',
+      html: generateResponsiveEmailHtml({
+        emailSubject: 'Solar EPCs, this one is for you - SolarKits B2B Wholesale Pricing',
+        emailPreviewText: "Quote solar plus battery backup in one system. Don't just sell solar, sell complete backup with direct depot dispatch.",
+        ctaText: 'Get SolarKits Pricing Today →',
+        destinationUrl: 'https://solarkits.in/solar-kits',
+        customCreative: DEFAULT_EXECUTIVE_CREATIVE
+      })
+    },
     {
       _id: 'et1',
       name: 'Commercial Kit 3kW Diwali Slashed Price Announcement',
@@ -118,30 +137,15 @@ export default function EmailTemplatesPage() {
     const cr = modalFormData.customCreative || {};
     const newTmpl = {
       _id: `et_${Date.now()}`,
-      name: cr.headline || 'Custom Designed Promotional Email',
-      subject: modalFormData.emailSubject || 'Exclusive Solar Wholesale Offer',
-      category: 'Promotional',
-      tags: ['Custom', 'Wholesale'],
+      name: cr.headline || 'Custom Designed Executive Promotional Email',
+      subject: modalFormData.emailSubject || 'Solar EPCs, this one is for you - SolarKits B2B Wholesale Pricing',
+      category: 'Executive Format',
+      tags: ['Custom', 'Wholesale', 'Executive Layout'],
       updated_at: new Date().toISOString().slice(0, 10),
       sent_count: 0,
       open_rate: '0%',
       click_rate: '0%',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-          <div style="background-color: ${cr.themeColor || '#2563eb'}; color: white; padding: 20px; border-radius: 8px;">
-            <h2 style="margin: 0;">${cr.headline || 'SolarKits B2B Wholesale'}</h2>
-            <p style="margin: 5px 0 0 0; opacity: 0.9;">${cr.subheading || ''}</p>
-          </div>
-          <div style="padding: 20px 0;">
-            <p>${cr.customBodyText || ''}</p>
-            <div style="text-align: center; margin: 20px 0;">
-              <a href="${modalFormData.destinationUrl || '#'}" style="background-color: ${cr.themeColor || '#2563eb'}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                ${modalFormData.ctaText || 'Claim Offer'}
-              </a>
-            </div>
-          </div>
-        </div>
-      `
+      html: generateResponsiveEmailHtml(modalFormData)
     };
     setTemplates([newTmpl, ...templates]);
     setShowBuilderModal(false);

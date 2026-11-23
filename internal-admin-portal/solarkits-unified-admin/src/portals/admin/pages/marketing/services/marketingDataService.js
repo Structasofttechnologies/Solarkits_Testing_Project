@@ -882,6 +882,16 @@ export const PRESET_WHATSAPP_TEMPLATES = [
 
 export const PRESET_EMAIL_TEMPLATES = [
   {
+    id: 'em-qbits-solarkits-executive',
+    name: 'Solar EPCs, This One is For You (Executive Qbits & SolarKits Layout)',
+    category: 'High-Converting EPC Format',
+    subject: 'Solar EPCs, this one is for you - SolarKits Wholesale Pricing',
+    preview_snippet: "Quote solar plus battery backup in one system. Don't just sell solar, sell complete backup with direct depot dispatch.",
+    theme_color: '#263880',
+    accent_color: '#f59e0b',
+    strip_color: '#ea580c'
+  },
+  {
     id: 'em-hero-card',
     name: 'SolarKits Dark High-Conversion Hero Banner',
     category: 'Wholesale Promotion',

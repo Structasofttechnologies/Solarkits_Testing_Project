@@ -128,22 +128,35 @@ export default function CreateCampaignWizard() {
     // Step 4: Creative & Message Template Studio
     templateMode: 'preset', // 'preset' | 'custom'
     selectedWhatsAppTemplateId: 'wa-wholesale-flash',
-    selectedEmailTemplateId: 'em-hero-card',
+    selectedEmailTemplateId: 'em-qbits-solarkits-executive',
     customCreative: {
-      headline: 'Diwali Mega B2B Solar Dhamaka',
-      subheading: 'Flat ₹5,000 Off per Kit with Zero Delay Dispatches',
-      themeColor: '#2563eb',
-      mediaType: 'image', // 'image' | 'video'
-      heroImageUrl: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=800&auto=format&fit=crop&q=80',
-      videoUrl: 'https://www.youtube.com/watch?v=kYJqA3oFk7o',
-      customBodyText: 'Exclusive wholesale allocation for verified EPC contractors. Claim pre-booked subsidy approved kits directly from certified regional depots with guaranteed zero dispatch delay.',
-      bulletPoints: [
-        'MNRE & ALMM Approved Tier-1 High Efficiency Modules',
-        'Instant Depot Dispatch within 24 Hours with Transit Insurance',
-        'Special Festive Cashback Credited Directly to B2B Wallet',
-        'End-to-End Subsidy Portal Documentation Assistance'
+      headline: "DON'T JUST SELL SOLAR. SELL COMPLETE BACKUP.",
+      subheading: 'Tier-1 ALMM Modules + High-Efficiency Inverters + Pre-Engineered Structure in One Single Dispatch.',
+      themeColor: '#263880',
+      accentColor: '#f59e0b',
+      stripColor: '#ea580c',
+      contactPhone: '+91 99134 21453',
+      contactWebsite: 'solarkits.in',
+      categoryTag: 'B2B WHOLESALE KITS BY SOLARKITS',
+      h1Title: 'Solar EPCs, this one is for you.',
+      mediaType: 'banner',
+      heroImageUrl: '',
+      videoUrl: '',
+      customBodyText: 'Your customers want rooftop solar that keeps the power running during grid outages too. With SolarKits Pre-Engineered Hybrid & DCR Combos, quote solar plus battery storage in one complete package and win projects that on-grid-only EPCs lose.',
+      valuePills: [
+        '1. Add Backup to Quotes',
+        '2. Higher Ticket Size',
+        '3. Depot Support'
       ],
-      footerDisclaimer: 'Valid for verified GST-registered EPC contractors only. Minimum order quantity applies as per Solar Shop rules. Stock reserved on first-come basis.'
+      bulletPoints: [
+        'Higher Project Value & Margin: Sell complete combo (Panels + Inverter + Battery + Structure) in one order and maximize ticket size.',
+        'Win More Quotes Against Competitors: Deliver unmatched power cut reliability with up to 98% inverter efficiency and guaranteed MNRE & ALMM compliance.',
+        'Free Engineering Tools & Technical Helpdesk: Instant access to CAD drawings, SLDs, datasheets, sizing tools, and direct dedicated technical support.',
+        'Regional Depots & Fast Dispatch Across India: Dispatches within 24 hours from regional warehouses (Bhiwandi, Surat, Ahmedabad, Pune, Jaipur) with full transit insurance.'
+      ],
+      closingPitch: 'Sell complete solar power, not just panels. Choose SolarKits.',
+      secondaryCtaText: 'Explore Wholesale Solar Kits →',
+      footerDisclaimer: '*Exclusive wholesale rates applicable for verified GST-registered EPC contractors only.'
     },
 
     // Step 5: MIS Target Reference (Connected directly to Step 3 kits)

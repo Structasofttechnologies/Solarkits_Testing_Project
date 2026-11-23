@@ -74,23 +74,57 @@ const dispatchCampaignBatch = async (campaign) => {
   const trackingBase = campaign.tracking_full_url ||
     `https://solarkits.in?utm_source=${campaign.utm_source}&utm_medium=${campaign.utm_medium}&utm_campaign=${campaign.utm_campaign}&utm_content=${campaign.utm_content}`;
 
+  const { MarketingCampaign, MarketingTemplate, MarketingSender, UtmVisit, MarketingUnsubscribe } = require('../models');
+  let unsubSet = new Set();
+  try {
+    const unsubRecords = await MarketingUnsubscribe.find({ is_active: true }).select('email').lean();
+    unsubSet = new Set(unsubRecords.map(u => u.email.toLowerCase().trim()));
+  } catch (err) {
+    console.warn('⚠️ Could not load unsubscribed list:', err.message);
+  }
+
+  const backendBase = process.env.UNSUBSCRIBE_BASE_URL
+    ? process.env.UNSUBSCRIBE_BASE_URL.replace('/api/admin/marketing/unsubscribe', '')
+    : (process.env.BACKEND_PUBLIC_URL || process.env.IPV4 || 'http://10.252.78.244:5000');
+  const rateLimitDelayMs = parseInt(process.env.EMAIL_RATE_LIMIT_DELAY_MS || '350', 10);
+  console.log(`🚀 [CAMPAIGN_QUEUE] Starting sequential dispatch for ${campaign.recipients.length} recipients (Pacing: ${rateLimitDelayMs}ms between sends)...`);
+
   for (let i = 0; i < campaign.recipients.length; i++) {
+    // Pacing delay between recipients so emails go out sequentially one-by-one
+    if (i > 0 && rateLimitDelayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, rateLimitDelayMs));
+    }
+
     const recipient = campaign.recipients[i];
+    const cleanEmail = (recipient.email || '').toLowerCase().trim();
+
+    // Skip unsubscribed EPCs automatically
+    if (cleanEmail && unsubSet.has(cleanEmail)) {
+      console.log(`🔕 [EMAIL_QUEUE] Skipping unsubscribed recipient: ${cleanEmail}`);
+      recipient.status = 'skipped_unsubscribed';
+      recipient.error_message = 'Recipient previously unsubscribed from SolarKits emails';
+      continue;
+    }
+
     let emailSent = false;
     let waSent = false;
+
+    const unsubsUrl = `${backendBase}/api/admin/marketing/unsubscribe?email=${encodeURIComponent(recipient.email || '')}&c=${campaign._id}`;
 
     const vars = {
       name: recipient.name || 'Solar Partner',
       company: 'Solar Partner EPC',
       kit_name: campaign.kit_category || 'Solar Commercial Kit',
       campaign_price: campaign.campaign_price ? `₹${campaign.campaign_price.toLocaleString('en-IN')}` : '',
-      tracking_url: trackingBase
+      tracking_url: trackingBase,
+      unsubscribe_url: unsubsUrl
     };
 
     // Dispatch Email
     if ((channel === 'email' || channel === 'both') && recipient.email && emailTemplate) {
       const emailRes = await emailService.sendEmail({
         senderId: campaign.email_sender_id?._id,
+        purpose: campaign.purpose || 'marketing',
         to: recipient.email,
         subject: emailTemplate.subject || campaign.campaign_name,
         htmlContent: emailTemplate.html_content || `<p>Hello {{name}}, check out our latest offer on {{kit_name}}: <a href="{{tracking_url}}">View Details</a></p>`,

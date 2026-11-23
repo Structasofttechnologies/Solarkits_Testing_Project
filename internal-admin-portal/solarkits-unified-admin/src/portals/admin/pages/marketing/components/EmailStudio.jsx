@@ -4,6 +4,7 @@ import {
   Minus, Share2, AlignLeft, Link2, Variable, Sparkles, Smartphone, Monitor,
   Plus, Trash2, X, Check, ExternalLink, Play, Smile, Phone, Layers, ShieldCheck
 } from 'lucide-react';
+import { DEFAULT_EXECUTIVE_CREATIVE, PURPOSE_BASED_PRESETS } from '../services/emailTemplateGenerator';
 
 const DYNAMIC_VARS = [
   { key: 'name', label: 'Partner Name', preview: 'Aarav Patel' },
@@ -55,22 +56,13 @@ export default function EmailStudio({
     return '3 K.W. & 5 K.W. Commercial Solar Kits';
   }, [selectedKitObjects]);
 
-  // Form creative state with fallback to Step 3 values
-  const creative = formData.customCreative || {
-    headline: 'Diwali Mega B2B Solar Dhamaka',
+  // Form creative state with fallback to Step 3 values and official Cloudinary logo
+  const creative = {
+    ...DEFAULT_EXECUTIVE_CREATIVE,
+    logoUrl: 'https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png',
     subheading: `Flat ${dynamicDiscountStr} per Kit with Zero Delay Dispatches`,
-    themeColor: '#2563eb',
-    mediaType: 'image',
-    heroImageUrl: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=800&auto=format&fit=crop&q=80',
-    videoUrl: 'https://www.youtube.com/watch?v=kYJqA3oFk7o',
     customBodyText: `Exclusive wholesale allocation for verified EPC contractors on ${dynamicKitNames}. Claim pre-booked subsidy approved kits directly from certified ${activeWarehouseName} with guaranteed zero dispatch delay.`,
-    bulletPoints: [
-      'MNRE & ALMM Approved Tier-1 High Efficiency Modules',
-      'Instant Depot Dispatch within 24 Hours with Transit Insurance',
-      'Special Festive Cashback Credited Directly to B2B Wallet',
-      'End-to-End Subsidy Portal Documentation Assistance'
-    ],
-    footerDisclaimer: 'Valid for verified GST-registered EPC contractors only. Minimum order quantity applies as per Solar Shop rules. Stock reserved on first-come basis.'
+    ...(formData.customCreative || {})
   };
 
   // Selected products to display in the email (defaults to all Step 3 selected kits)
@@ -199,7 +191,7 @@ export default function EmailStudio({
     <div className="space-y-5">
       {/* Top Controls Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveTab('custom')}
@@ -221,6 +213,26 @@ export default function EmailStudio({
             }`}
           >
             📋 Use Saved Template
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setFormData(prev => ({
+                ...prev,
+                emailSubject: 'Solar EPCs, this one is for you - SolarKits B2B Wholesale Pricing',
+                emailPreviewText: "Quote solar plus battery backup in one system. Don't just sell solar, sell complete backup.",
+                ctaText: 'Get SolarKits Pricing Today →',
+                destinationUrl: 'https://solarkits.in/solar-kits',
+                customCreative: {
+                  ...DEFAULT_EXECUTIVE_CREATIVE
+                }
+              }));
+              setActiveTab('custom');
+            }}
+            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-700 via-indigo-600 to-amber-600 text-white text-xs font-extrabold shadow-xs hover:shadow-md flex items-center gap-1.5 cursor-pointer transition-all hover:scale-[1.02]"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>Load Boss / Qbits Style Preset</span>
           </button>
         </div>
 
@@ -248,6 +260,58 @@ export default function EmailStudio({
           >
             <Smartphone className="w-3.5 h-3.5" /> Mobile
           </button>
+        </div>
+      </div>
+
+      {/* ── 5 PURPOSE-BASED TEMPLATE PRESETS (1-CLICK LOAD) ── */}
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 p-4 rounded-2xl text-white shadow-md border border-blue-700/40 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            <span className="text-xs font-black uppercase tracking-wider text-amber-300">
+              Purpose-Based Email Templates (1-Click Switch)
+            </span>
+          </div>
+          <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">5 Commercial Presets</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1">
+          {PURPOSE_BASED_PRESETS.map((pst) => (
+            <button
+              key={pst.id}
+              type="button"
+              onClick={() => {
+                setFormData(prev => ({
+                  ...prev,
+                  emailSubject: pst.h1Title ? `${pst.h1Title} - SolarKits B2B Pricing` : prev.emailSubject,
+                  emailPreviewText: pst.subheading || prev.emailPreviewText,
+                  ctaText: pst.primaryCtaText || prev.ctaText,
+                  customCreative: {
+                    ...DEFAULT_EXECUTIVE_CREATIVE,
+                    headline: pst.headline,
+                    subheading: pst.subheading,
+                    categoryTag: pst.categoryTag,
+                    h1Title: pst.h1Title,
+                    customBodyText: pst.customBodyText,
+                    primaryCtaText: pst.primaryCtaText,
+                    valuePills: pst.valuePills || DEFAULT_EXECUTIVE_CREATIVE.valuePills,
+                    bulletPoints: pst.bulletPoints || DEFAULT_EXECUTIVE_CREATIVE.bulletPoints,
+                    closingPitch: pst.closingPitch || DEFAULT_EXECUTIVE_CREATIVE.closingPitch,
+                    secondaryCtaText: pst.secondaryCtaText || DEFAULT_EXECUTIVE_CREATIVE.secondaryCtaText
+                  }
+                }));
+                setActiveTab('custom');
+              }}
+              className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-left transition-all hover:scale-[1.02] cursor-pointer group"
+            >
+              <div className="text-[11px] font-extrabold text-white truncate group-hover:text-amber-300">
+                {pst.label}
+              </div>
+              <p className="text-[9px] text-slate-300 line-clamp-2 mt-1 leading-snug">
+                {pst.headline}
+              </p>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -383,11 +447,158 @@ export default function EmailStudio({
           ) : (
             /* Custom Email Designer */
             <div className="space-y-4">
-              {/* Subject & Preheader */}
+
+              {/* ── CARD 1: 📌 1. HEADER (FIXED - TOP) ── */}
+              <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border-2 border-blue-500/40 dark:border-blue-700/60 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-blue-600 text-white text-xs font-black flex items-center justify-center">1</span>
+                    <div>
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-blue-600" /> Header Section (Fixed at Top)
+                      </h4>
+                      <p className="text-[10px] text-slate-500">Official logo, brand subtitle, helpline strip & theme colors.</p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 uppercase tracking-wider">
+                    🔒 Pinned at Top
+                  </span>
+                </div>
+
+                {/* Header Logo Upload/URL */}
+                <div className="bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                      Header Brand Logo *
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateCreative({
+                        logoUrl: 'https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png'
+                      })}
+                      className="text-[10px] font-bold text-blue-600 hover:text-blue-700 underline cursor-pointer"
+                    >
+                      Reset Official Logo
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-28 h-12 bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
+                      {creative.logoUrl ? (
+                        <img
+                          src={creative.logoUrl}
+                          alt="SolarKits Logo"
+                          className="max-h-full max-w-full object-contain"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png';
+                          }}
+                        />
+                      ) : (
+                        <span className="text-[9px] text-slate-400 font-bold">No Logo</span>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <input
+                        type="text"
+                        value={creative.logoUrl || ''}
+                        onChange={(e) => updateCreative({ logoUrl: e.target.value })}
+                        placeholder="https://res.cloudinary.com/.../solarkits_official_logo.png"
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-mono bg-white dark:bg-slate-900 font-medium"
+                      />
+                      <p className="text-[10px] text-slate-400">
+                        Official SolarKits Cloudinary CDN logo is auto-loaded. Paste your custom logo URL anytime.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Logo Tagline, Helpline & Website */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1 uppercase">
+                      Header Brand Tagline
+                    </label>
+                    <input
+                      type="text"
+                      value={creative.headerTagline || 'B2B SOLAR KITS STORE'}
+                      onChange={(e) => updateCreative({ headerTagline: e.target.value })}
+                      placeholder="B2B SOLAR KITS STORE"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1 uppercase">
+                      Contact Helpline Phone
+                    </label>
+                    <input
+                      type="text"
+                      value={creative.contactPhone || '+91 99134 21453'}
+                      onChange={(e) => updateCreative({ contactPhone: e.target.value })}
+                      placeholder="+91..."
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1 uppercase">
+                      Website URL
+                    </label>
+                    <input
+                      type="text"
+                      value={creative.contactWebsite || 'solarkits.in'}
+                      onChange={(e) => updateCreative({ contactWebsite: e.target.value })}
+                      placeholder="solarkits.in"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                    />
+                  </div>
+                </div>
+
+                {/* Brand Colors */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700 text-xs">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase">Executive Brand Styling Colors</span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5" title="Primary Theme (Deep Blue)">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Blue:</span>
+                      <input
+                        type="color"
+                        value={creative.themeColor || '#263880'}
+                        onChange={(e) => updateCreative({ themeColor: e.target.value })}
+                        className="w-6 h-6 p-0.5 rounded-lg border border-slate-200 cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5" title="Sunburst Accent (Amber)">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Amber:</span>
+                      <input
+                        type="color"
+                        value={creative.accentColor || '#f59e0b'}
+                        onChange={(e) => updateCreative({ accentColor: e.target.value })}
+                        className="w-6 h-6 p-0.5 rounded-lg border border-slate-200 cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5" title="Contact Strip (Orange)">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Strip:</span>
+                      <input
+                        type="color"
+                        value={creative.stripColor || '#ea580c'}
+                        onChange={(e) => updateCreative({ stripColor: e.target.value })}
+                        className="w-6 h-6 p-0.5 rounded-lg border border-slate-200 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── CARD 2: ✉️ 2. EMAIL INBOX ENVELOPE ── */}
               <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-3">
-                <span className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Email Inbox Envelope
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white text-xs font-black flex items-center justify-center">2</span>
+                  <div>
+                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white">
+                      Email Inbox Envelope
+                    </h4>
+                    <p className="text-[10px] text-slate-500">Subject line and inbox preview snippet visible before opening email.</p>
+                  </div>
+                </div>
 
                 <div className="space-y-2">
                   <div>
@@ -418,50 +629,61 @@ export default function EmailStudio({
                 </div>
               </div>
 
-              {/* Header & Media */}
-              <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
+              {/* ── CARD 3: 🎨 3. EMAIL BODY CONTENT & ELEMENTS (CUSTOMIZABLE / POSITIONABLE) ── */}
+              <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Creative Header & Banner Media
-                  </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase">Theme Accent:</span>
-                    <input
-                      type="color"
-                      value={creative.themeColor || '#2563eb'}
-                      onChange={(e) => updateCreative({ themeColor: e.target.value })}
-                      className="w-7 h-7 p-0.5 rounded-lg border border-slate-200 cursor-pointer"
-                    />
+                    <span className="w-6 h-6 rounded-lg bg-amber-600 text-white text-xs font-black flex items-center justify-center">3</span>
+                    <div>
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white">
+                        Email Body Content & Elements
+                      </h4>
+                      <p className="text-[10px] text-slate-500">Hero banner, headline, pitch, value cards, CTAs, and solar kits catalog.</p>
+                    </div>
                   </div>
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                    Flexible / Positionable
+                  </span>
                 </div>
 
-                {/* Media Type Switcher: Image vs Video */}
-                <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+                {/* Media Type Switcher: Gradient Banner vs Image vs Video */}
+                <div className="grid grid-cols-3 gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => updateCreative({ mediaType: 'banner' })}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      creative.mediaType === 'banner' || !creative.mediaType
+                        ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Executive Banner
+                  </button>
                   <button
                     type="button"
                     onClick={() => updateCreative({ mediaType: 'image' })}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       creative.mediaType === 'image'
                         ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
                         : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
-                    <ImageIcon className="w-3.5 h-3.5" /> Photo / Image Banner
+                    <ImageIcon className="w-3.5 h-3.5" /> Photo / Image
                   </button>
                   <button
                     type="button"
                     onClick={() => updateCreative({ mediaType: 'video' })}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       creative.mediaType === 'video'
                         ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
                         : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
-                    <Video className="w-3.5 h-3.5 text-red-500" /> Explainer Video
+                    <Video className="w-3.5 h-3.5 text-red-500" /> Video
                   </button>
                 </div>
 
-                {creative.mediaType === 'image' ? (
+                {creative.mediaType === 'image' && (
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">
                       Hero Banner Image URL:
@@ -474,7 +696,8 @@ export default function EmailStudio({
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono"
                     />
                   </div>
-                ) : (
+                )}
+                {creative.mediaType === 'video' && (
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">
                       Explainer Video URL (YouTube / MP4):
@@ -489,7 +712,7 @@ export default function EmailStudio({
                   </div>
                 )}
 
-                {/* Headline & Subheading */}
+                {/* Banner Headline & Subheading */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1 uppercase">
@@ -497,7 +720,7 @@ export default function EmailStudio({
                     </label>
                     <input
                       type="text"
-                      value={creative.headline || 'Diwali Mega B2B Solar Dhamaka'}
+                      value={creative.headline || "DON'T JUST SELL SOLAR. SELL COMPLETE BACKUP."}
                       onChange={(e) => updateCreative({ headline: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold"
                     />
@@ -508,9 +731,35 @@ export default function EmailStudio({
                     </label>
                     <input
                       type="text"
-                      value={creative.subheading || `Flat ${dynamicDiscountStr} per Kit with Zero Delay Dispatches`}
+                      value={creative.subheading || 'Tier-1 ALMM Modules + High-Efficiency Inverters + Pre-Engineered Structure in One Single Dispatch.'}
                       onChange={(e) => updateCreative({ subheading: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Category Eyebrow & Main H1 Title */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1 uppercase">
+                      Category Tag (Eyebrow)
+                    </label>
+                    <input
+                      type="text"
+                      value={creative.categoryTag || 'B2B WHOLESALE KITS BY SOLARKITS'}
+                      onChange={(e) => updateCreative({ categoryTag: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1 uppercase">
+                      Main H1 Pitch Title *
+                    </label>
+                    <input
+                      type="text"
+                      value={creative.h1Title || 'Solar EPCs, this one is for you.'}
+                      onChange={(e) => updateCreative({ h1Title: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold"
                     />
                   </div>
                 </div>
@@ -518,7 +767,7 @@ export default function EmailStudio({
                 {/* Body Content */}
                 <div className="space-y-2">
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">
-                    Email Body Typography
+                    Email Body Typography / Pitch Description
                   </label>
                   <textarea
                     rows={4}
@@ -528,27 +777,27 @@ export default function EmailStudio({
                   />
                 </div>
 
-                {/* Feature Bullet Highlights */}
+                {/* Feature Bullet Highlights (4 Card Boxes) */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">
-                      Feature Highlights (4 Key Bullet Points)
+                      Feature Benefit Cards (Executive Boxes)
                     </label>
                     <button
                       type="button"
                       onClick={() => {
                         const pts = creative.bulletPoints || [];
-                        updateCreative({ bulletPoints: [...pts, 'New Feature Guarantee / Specification'] });
+                        updateCreative({ bulletPoints: [...pts, 'New Feature Point: Add detail and specification here'] });
                       }}
                       className="text-[10px] font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
                     >
-                      + Add Point
+                      + Add Card Point
                     </button>
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {(creative.bulletPoints || []).map((bp, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <div key={idx} className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/40 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: idx % 2 === 0 ? (creative.themeColor || '#263880') : (creative.accentColor || '#f59e0b') }} />
                         <input
                           type="text"
                           value={bp}
@@ -645,6 +894,99 @@ export default function EmailStudio({
                   </button>
                 </div>
               </div>
+
+              {/* ── CARD 4: 📌 4. EMAIL FOOTER (FIXED - BOTTOM) ── */}
+              <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border-2 border-blue-500/40 dark:border-blue-700/60 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-blue-600 text-white text-xs font-black flex items-center justify-center">4</span>
+                    <div>
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <AlignLeft className="w-4 h-4 text-blue-600" /> Footer Section (Fixed at Bottom)
+                      </h4>
+                      <p className="text-[10px] text-slate-500">Official company address, depot logistics, and 1-click unsubscribe button.</p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 uppercase tracking-wider">
+                    🔒 Pinned at Bottom
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1 uppercase">
+                      Footer Brand Title
+                    </label>
+                    <input
+                      type="text"
+                      value={creative.footerTitle || 'SOLARKITS INDIA'}
+                      onChange={(e) => updateCreative({ footerTitle: e.target.value })}
+                      placeholder="SOLARKITS INDIA"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1 uppercase">
+                      Network Subtitle / Tagline
+                    </label>
+                    <input
+                      type="text"
+                      value={creative.footerTagline || "Powering India's Leading Solar EPC Network"}
+                      onChange={(e) => updateCreative({ footerTagline: e.target.value })}
+                      placeholder="Powering India's Leading Solar EPC Network"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1 uppercase">
+                    Registered Logistics Depot & Copyright Text
+                  </label>
+                  <input
+                    type="text"
+                    value={creative.footerAddress || '© 2026 SolarKits (India) Pvt. Ltd. • All Rights Reserved. Central Depot: Bhiwandi Logistics Hub, Maharashtra, India.'}
+                    onChange={(e) => updateCreative({ footerAddress: e.target.value })}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50/60 dark:bg-amber-950/20 p-3 rounded-xl border border-amber-200/60 dark:border-amber-900">
+                  <div>
+                    <label className="block text-[10px] font-bold text-amber-900 dark:text-amber-300 mb-1 uppercase flex items-center gap-1">
+                      <span>🔕 Unsubscribe Button Label</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={creative.unsubscribeBtnText || '🔕 Unsubscribe from this list'}
+                      onChange={(e) => updateCreative({ unsubscribeBtnText: e.target.value })}
+                      placeholder="🔕 Unsubscribe from this list"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 dark:border-amber-800 text-xs font-bold bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-amber-900 dark:text-amber-300 mb-1 uppercase">
+                      Unsubscribe Action Status
+                    </label>
+                    <div className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-200">
+                      ✓ Auto-records to DB & Excludes from Future Sends
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1 uppercase">
+                    Footer Disclaimer / Terms Note
+                  </label>
+                  <input
+                    type="text"
+                    value={creative.footerDisclaimer || '*Exclusive wholesale rates applicable for verified GST-registered EPC contractors only.'}
+                    onChange={(e) => updateCreative({ footerDisclaimer: e.target.value })}
+                    placeholder="*Exclusive wholesale rates applicable for verified GST-registered EPC contractors only."
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                  />
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -674,134 +1016,257 @@ export default function EmailStudio({
                   </div>
                 </div>
 
-                {/* Email Canvas */}
-                <div className="bg-white text-slate-800 max-h-[520px] overflow-y-auto">
-                  {/* Email Branded Header */}
-                  <div
-                    className="p-4 text-white"
-                    style={{ backgroundColor: creative.themeColor || '#2563eb' }}
-                  >
-                    <span className="text-[9px] font-black tracking-widest uppercase bg-white/20 px-2 py-0.5 rounded-full">
-                      SOLARKITS B2B WHOLESALE
-                    </span>
-                    <h3 className="text-base font-black mt-1 leading-snug">
-                      {creative.headline || 'Diwali Mega B2B Solar Dhamaka'}
-                    </h3>
-                    <p className="text-xs text-white/80 mt-0.5 font-medium">
-                      {creative.subheading || `Flat ${dynamicDiscountStr} per Kit`}
-                    </p>
+                {/* Email Canvas with PINNED Top Header and PINNED Bottom Footer */}
+                <div className="bg-white text-slate-800 flex flex-col rounded-xl overflow-hidden shadow-xs border border-slate-200">
+                  
+                  {/* 1. PINNED FIXED HEADER (Permanently at Top) */}
+                  <div className="bg-white border-b border-slate-200 shrink-0 text-center z-10 shadow-2xs">
+                    <div className="bg-blue-900 text-white text-[8px] font-black uppercase tracking-widest py-0.5 flex items-center justify-center gap-1">
+                      <ShieldCheck className="w-2.5 h-2.5 text-amber-300" />
+                      <span>Pinned Header • Fixed at Top</span>
+                    </div>
+                    <div className="py-2.5 px-4 bg-white">
+                      {creative.logoUrl ? (
+                        <img
+                          src={creative.logoUrl}
+                          alt="SolarKits Official Logo"
+                          className="h-9 mx-auto object-contain block"
+                          style={{ maxHeight: '38px' }}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png';
+                          }}
+                        />
+                      ) : (
+                        <div>
+                          <div className="text-lg font-black tracking-widest leading-none" style={{ color: creative.themeColor || '#263880' }}>
+                            SOLAR<span style={{ color: creative.accentColor || '#f59e0b' }}>KITS</span>
+                            <span className="text-[10px] align-super text-slate-400 font-bold ml-0.5">™</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="text-[8px] font-extrabold tracking-widest uppercase mt-0.5" style={{ color: creative.stripColor || '#ea580c' }}>
+                        {creative.headerTagline || 'B2B SOLAR KITS STORE'}
+                      </div>
+                    </div>
+
+                    {/* Orange Contact Helpline Strip Bar */}
+                    <div className="py-1 px-3 text-center text-white font-extrabold text-[10px] tracking-wide" style={{ backgroundColor: creative.stripColor || '#ea580c' }}>
+                      📞 {creative.contactPhone || '+91 99134 21453'} &nbsp;|&nbsp; 🌐 {creative.contactWebsite || 'solarkits.in'}
+                    </div>
                   </div>
 
-                  {/* Hero Media: Photo or Video */}
-                  {creative.mediaType === 'image' ? (
-                    <img
-                      src={creative.heroImageUrl || 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=800'}
-                      alt="Banner"
-                      className="w-full h-36 object-cover"
-                    />
-                  ) : (
-                    <div className="relative w-full h-36 bg-slate-900 flex items-center justify-center text-white">
-                      <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
-                        <Play className="w-5 h-5 text-white ml-0.5 fill-white" />
-                      </div>
-                      <span className="absolute bottom-2 left-3 text-[10px] font-bold bg-black/70 px-2 py-0.5 rounded-md">
-                        45s Explainer Video
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="p-4 space-y-3.5">
-                    {/* Substituted Body Text */}
-                    <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">
-                      {getSubstitutedText(creative.customBodyText)}
-                    </p>
-
-                    {/* DYNAMIC MULTI-PRODUCTS CARDS */}
-                    {previewProducts.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-[10px] font-bold uppercase text-slate-500 tracking-wider">
-                          <span>Featured Solar Kits ({previewProducts.length})</span>
-                          <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                            {activeWarehouseName}
-                          </span>
+                  {/* 2. SCROLLABLE MIDDLE EMAIL CONTENT */}
+                  <div className="bg-white text-slate-800 max-h-[380px] overflow-y-auto">
+                    {/* Hero Banner */}
+                    {creative.mediaType === 'image' && creative.heroImageUrl ? (
+                      <img
+                        src={creative.heroImageUrl}
+                        alt="Banner"
+                        className="w-full h-auto max-h-48 object-cover block"
+                      />
+                    ) : creative.mediaType === 'video' ? (
+                      <div className="relative w-full h-36 bg-slate-900 flex items-center justify-center text-white">
+                        <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
+                          <Play className="w-5 h-5 text-white ml-0.5 fill-white" />
                         </div>
-
-                        {previewProducts.map((k) => (
-                          <div key={k.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-                            <div className="flex items-center justify-between font-bold text-slate-900">
-                              <span>{k.name}</span>
-                              <span className="text-blue-600 font-extrabold">
-                                ₹{Number(k.base_price || 89317).toLocaleString('en-IN')} / kit
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 line-clamp-2">
-                              {k.components_summary || k.sub_title}
-                            </p>
-                            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-200/60">
-                              <span>• 12-Yr Warranty • MOQ: {formData.kitMoqs?.[k.id] ?? k.moq ?? formData.minOrderQty ?? 25} Kits</span>
-                              <span className="text-emerald-600 font-bold">Fast Dispatch</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Coupon Promo Card */}
-                    {formData.hasCoupon && (
-                      <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between">
-                        <div>
-                          <span className="text-[9px] uppercase font-bold text-amber-700">Promo Voucher</span>
-                          <p className="text-sm font-black font-mono text-amber-900">
-                            {formData.couponCode || 'SOLARDIWALI5000'}
-                          </p>
-                          <span className="text-[10px] text-amber-800 block">
-                            Valid on Orders ≥ {formData.minOrderQty || 25} Kits in Solar Shop
-                          </span>
-                        </div>
-                        <span className="text-xs font-bold text-amber-800 bg-amber-200/80 px-2.5 py-1 rounded-lg">
-                          {dynamicDiscountStr}
+                        <span className="absolute bottom-2 left-3 text-[10px] font-bold bg-black/70 px-2 py-0.5 rounded-md">
+                          45s Explainer Video
                         </span>
                       </div>
-                    )}
-
-                    {/* Bullet Highlights */}
-                    {(creative.bulletPoints || []).length > 0 && (
-                      <div className="space-y-1 text-xs">
-                        {(creative.bulletPoints || []).map((pt, i) => (
-                          <div key={i} className="flex items-start gap-1.5 text-slate-700">
-                            <span className="text-emerald-600 font-bold">✓</span>
-                            <span>{pt}</span>
-                          </div>
-                        ))}
+                    ) : (
+                      <div
+                        className="p-5 text-center text-white"
+                        style={{
+                          background: `linear-gradient(135deg, #1e2d66 0%, ${creative.themeColor || '#263880'} 60%, #3a56c9 100%)`
+                        }}
+                      >
+                        <div className="inline-block bg-white px-3 py-1 rounded-full mb-2.5 shadow-xs border-l-4" style={{ borderColor: creative.accentColor || '#f59e0b' }}>
+                          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: creative.themeColor || '#263880' }}>
+                            ⚡ SolarKits Hybrid & On-Grid Combos
+                          </span>
+                        </div>
+                        <h3 className="text-lg font-black leading-tight tracking-tight text-white mb-1.5">
+                          {creative.headline || "DON'T JUST SELL SOLAR. SELL COMPLETE BACKUP."}
+                        </h3>
+                        <p className="text-[11px] text-slate-200 line-clamp-2 max-w-xs mx-auto mb-3">
+                          {creative.subheading || 'Tier-1 ALMM Modules + High-Efficiency Inverters + Pre-Engineered Structure in One Single Dispatch.'}
+                        </p>
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          {(creative.valuePills || ['1. Add Backup to Quotes', '2. Higher Ticket Size', '3. Depot Support']).map((pill, i) => (
+                            <span key={i} className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-white/15 border border-white/20 text-white">
+                              {pill}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
 
-                    {/* MULTIPLE CTA ACTION BUTTONS */}
-                    <div className="pt-2 space-y-2">
-                      {ctaButtons.map((btn, idx) => (
-                        <a
-                          key={btn.id}
-                          href={btn.url || '#'}
-                          onClick={(e) => e.preventDefault()}
-                          className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs text-center block transition-transform hover:scale-[1.01] ${
-                            idx === 0
-                              ? 'text-white shadow-md'
-                              : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
-                          }`}
-                          style={idx === 0 ? { backgroundColor: creative.themeColor || '#2563eb' } : {}}
-                        >
-                          <span>{btn.text}</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      ))}
-                    </div>
+                    {/* Body Content & Pitch */}
+                    <div className="p-4 space-y-4 text-center">
+                      <div>
+                        <span className="text-[10px] font-extrabold tracking-widest uppercase block mb-1" style={{ color: creative.stripColor || '#ea580c' }}>
+                          {creative.categoryTag || 'B2B WHOLESALE KITS BY SOLARKITS'}
+                        </span>
+                        <h4 className="text-base font-black leading-snug" style={{ color: creative.themeColor || '#263880' }}>
+                          {creative.h1Title || 'Solar EPCs, this one is for you.'}
+                        </h4>
+                        <p className="text-xs text-slate-600 mt-2 leading-relaxed text-center">
+                          {getSubstitutedText(creative.customBodyText)}
+                        </p>
+                      </div>
 
-                    {/* Footer Compliance */}
-                    <div className="pt-3 border-t border-slate-100 text-[10px] text-slate-400 space-y-1 text-center">
-                      <p>{creative.footerDisclaimer || 'Valid for verified GST-registered EPC contractors only.'}</p>
-                      <p>SolarKits India Pvt. Ltd. • All Rights Reserved • <span className="underline cursor-pointer">Unsubscribe</span></p>
+                      {/* Primary CTA Action Button */}
+                      <div className="py-1">
+                        <a
+                          href={formData.destinationUrl || '#'}
+                          onClick={(e) => e.preventDefault()}
+                          className="inline-block py-2.5 px-6 rounded-lg font-extrabold text-xs text-white shadow-md transition-transform hover:scale-[1.02]"
+                          style={{ backgroundColor: creative.themeColor || '#263880' }}
+                        >
+                          {formData.ctaText || 'Get SolarKits Pricing Today →'}
+                        </a>
+                      </div>
+
+                      {/* Featured Solar Kits (If selected) */}
+                      {previewProducts.length > 0 && (
+                        <div className="space-y-2 text-left pt-2">
+                          <div className="flex items-center justify-between text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+                            <span>Featured Solar Kits ({previewProducts.length})</span>
+                            <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded font-bold">
+                              {activeWarehouseName}
+                            </span>
+                          </div>
+
+                          {previewProducts.map((k) => (
+                            <div key={k.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                              <div className="flex items-center justify-between font-bold text-slate-900">
+                                <span>{k.name}</span>
+                                <span className="text-blue-600 font-extrabold">
+                                  ₹{Number(k.base_price || 89317).toLocaleString('en-IN')} / kit
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 line-clamp-2">
+                                {k.components_summary || k.sub_title}
+                              </p>
+                              <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-200/60">
+                                <span>• 12-Yr Warranty • MOQ: {formData.kitMoqs?.[k.id] ?? k.moq ?? formData.minOrderQty ?? 25} Kits</span>
+                                <span className="text-emerald-600 font-bold">Fast Dispatch</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Coupon Promo Card (If enabled) */}
+                      {formData.hasCoupon && (
+                        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between text-left">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-amber-700">Promo Voucher</span>
+                            <p className="text-sm font-black font-mono text-amber-900">
+                              {formData.couponCode || 'SOLARDIWALI5000'}
+                            </p>
+                            <span className="text-[10px] text-amber-800 block">
+                              Valid on Orders ≥ {formData.minOrderQty || 25} Kits in Solar Shop
+                            </span>
+                          </div>
+                          <span className="text-xs font-bold text-amber-800 bg-amber-200/80 px-2.5 py-1 rounded-lg">
+                            {dynamicDiscountStr}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Feature Benefit Cards */}
+                      <div className="space-y-2.5 text-left pt-2">
+                        {(creative.bulletPoints || []).map((pt, i) => {
+                          const str = String(pt);
+                          const hasColon = str.includes(':');
+                          const title = hasColon ? str.split(':')[0].trim() : `Feature Point ${i + 1}`;
+                          const desc = hasColon ? str.split(':').slice(1).join(':').trim() : str;
+                          const borderCol = i % 2 === 0 ? (creative.themeColor || '#263880') : (creative.accentColor || '#f59e0b');
+
+                          return (
+                            <div
+                              key={i}
+                              className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200/80 dark:border-slate-700 shadow-2xs"
+                              style={{ borderLeft: `4px solid ${borderCol}` }}
+                            >
+                              <div className="text-xs font-extrabold" style={{ color: creative.themeColor || '#263880' }}>
+                                {title}
+                              </div>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-snug">
+                                {desc}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Secondary Closing Pitch & CTA */}
+                      <div className="pt-2 text-center space-y-2">
+                        <p className="text-xs font-extrabold" style={{ color: creative.themeColor || '#263880' }}>
+                          {creative.closingPitch || 'Sell complete solar power, not just panels. Choose SolarKits.'}
+                        </p>
+                        <a
+                          href={formData.destinationUrl || '#'}
+                          onClick={(e) => e.preventDefault()}
+                          className="inline-block py-2 px-5 rounded-lg font-bold text-xs text-white shadow-xs"
+                          style={{ backgroundColor: creative.stripColor || '#ea580c' }}
+                        >
+                          {creative.secondaryCtaText || 'Explore Wholesale Solar Kits →'}
+                        </a>
+                      </div>
+
+                      {/* Additional Custom CTA Buttons */}
+                      {ctaButtons.length > 1 && (
+                        <div className="pt-2 space-y-1.5">
+                          {ctaButtons.slice(1).map((btn) => (
+                            <a
+                              key={btn.id}
+                              href={btn.url || '#'}
+                              onClick={(e) => e.preventDefault()}
+                              className="w-full py-2 px-3 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center gap-1.5"
+                            >
+                              <span>{btn.text}</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  {/* 3. PINNED FIXED FOOTER (Permanently at Bottom) */}
+                  <div
+                    className="shrink-0 p-3.5 text-center text-white z-10 shadow-lg border-t-2"
+                    style={{
+                      backgroundColor: '#1a2552',
+                      borderTopColor: creative.accentColor || '#f59e0b'
+                    }}
+                  >
+                    <div className="bg-blue-950/80 text-amber-300 text-[8px] font-black uppercase tracking-widest py-0.5 rounded mb-1 flex items-center justify-center gap-1">
+                      <AlignLeft className="w-2.5 h-2.5" />
+                      <span>Pinned Footer • Fixed at Bottom</span>
+                    </div>
+                    <div className="text-xs font-black tracking-wider text-white">
+                      {creative.footerTitle || 'SOLARKITS INDIA'}
+                    </div>
+                    <p className="text-[10px] text-slate-300 mt-0.5 leading-tight">
+                      {creative.footerTagline || "Powering India's Leading Solar EPC Network"}
+                    </p>
+                    <p className="text-[9px] text-slate-400 mt-1 leading-snug">
+                      {creative.footerAddress || '© 2026 SolarKits (India) Pvt. Ltd. • Central Depot: Bhiwandi Logistics Hub, Maharashtra.'}
+                    </p>
+                    <p className="text-[9px] text-slate-400 mt-1 italic">
+                      {creative.footerDisclaimer || '*Terms and conditions apply.'}
+                    </p>
+                    <div className="pt-2">
+                      <span className="inline-block px-3 py-1 rounded text-[10px] font-bold border border-amber-400/50 text-amber-300 bg-white/5 shadow-2xs">
+                        {creative.unsubscribeBtnText || '🔕 Unsubscribe from this list'}
+                      </span>
+                    </div>
+                  </div>
+
                 </div>
               </div>
             </div>

@@ -26,11 +26,23 @@ const marketing_auth = async (req, res, next) => {
   });
 };
 
-// ── Public Short URL Tracking ──
+const { upload_files } = require('../../../account-panel/utils/upload.files');
+
+// ── Public Routes (Tracking & Unsubscribe) ──
 router.get('/t/:code', controller.handleShortUrl);
+router.get('/unsubscribe', controller.handleUnsubscribe);
 
 // ── Protected Admin Marketing Endpoints ──
 router.use(marketing_auth);
+
+// Audience Hub Unsubscribed List
+router.get('/audience/unsubscribed', controller.getUnsubscribedList);
+
+// Media Upload to Cloudinary (for email banners, logos, and attachments)
+router.post('/media/upload', upload_files('marketing-creatives', 10, 'file', 1), controller.uploadMarketingMedia);
+
+// Email Queue Status Monitoring
+router.get('/queue/status', controller.getMarketingQueueStatus);
 
 // Dashboard & Analytics
 router.get('/analytics', controller.getDashboardAnalytics);
@@ -56,6 +68,8 @@ router.post('/audience/preview', controller.previewAudience);
 // Email & WhatsApp Senders
 router.get('/senders', controller.getSenders);
 router.post('/senders', controller.createSender);
+router.put('/senders/:id', controller.updateSender);
+router.delete('/senders/:id', controller.deleteSender);
 router.post('/senders/test', controller.testSender);
 
 // Templates

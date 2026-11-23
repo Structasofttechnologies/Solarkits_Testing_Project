@@ -763,6 +763,31 @@ const createSender = async (req, res) => {
   }
 };
 
+const updateSender = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = req.body;
+    if (data.is_default) {
+      await MarketingSender.updateMany({ type: data.type, _id: { $ne: id } }, { $set: { is_default: false } });
+    }
+    const sender = await MarketingSender.findByIdAndUpdate(id, data, { new: true });
+    if (!sender) return res.status(404).json({ success: false, message: 'Sender not found' });
+    res.json({ success: true, data: sender });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const deleteSender = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await MarketingSender.findByIdAndDelete(id);
+    res.json({ success: true, message: 'Sender deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 const testSender = async (req, res) => {
   try {
     const { sender_id, test_target } = req.body;
@@ -1486,6 +1511,164 @@ const getAudienceClustersSummary = async (req, res) => {
   }
 };
 
+// ── 12. Cloudinary Media Upload Handler ──────────────────────────────────
+const uploadMarketingMedia = async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, message: 'No media file uploaded.' });
+    }
+    const uploadedFile = req.files[0];
+    return res.json({
+      success: true,
+      url: uploadedFile.path, // Cloudinary secure_url
+      public_id: uploadedFile.filename,
+      original_name: uploadedFile.originalname,
+      size: uploadedFile.size
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ── 13. Queue Status ───────────────────────────────────────────────────────
+const emailQueueService = require('../services/emailQueue.service');
+const getMarketingQueueStatus = async (req, res) => {
+  try {
+    const stats = emailQueueService.getStats();
+    return res.json({ success: true, queue: stats });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ── 14. Unsubscribe & Compliance Engine ────────────────────────────────────
+const { MarketingUnsubscribe } = require('../models');
+
+const handleUnsubscribe = async (req, res) => {
+  try {
+    const rawEmail = req.query.email || req.body?.email;
+    const campaignId = req.query.c || req.body?.campaign_id;
+    const action = req.query.action || 'unsubscribe';
+
+    if (!rawEmail) {
+      return res.status(400).send(`
+        <!DOCTYPE html><html><head><title>Unsubscribe | SolarKits</title></head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 40px; background: #f8fafc;">
+          <h2>Invalid Request</h2><p>No email address specified.</p>
+        </body></html>
+      `);
+    }
+
+    const email = String(rawEmail).toLowerCase().trim();
+
+    if (action === 'resubscribe') {
+      await MarketingUnsubscribe.findOneAndUpdate(
+        { email },
+        { $set: { is_active: false } }
+      );
+      if (EpcAccount) {
+        await EpcAccount.updateMany({ email }, { $set: { is_marketing_unsubscribed: false } });
+      }
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Resubscribed | SolarKits India</title>
+          <style>body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f1f5f9; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 15px; box-sizing: border-box; }</style>
+        </head>
+        <body>
+          <div style="max-width: 460px; width: 100%; background: #ffffff; border-radius: 12px; padding: 35px 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; border: 1px solid #e2e8f0;">
+            <img src="https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png" width="160" style="margin-bottom: 20px;" />
+            <div style="font-size: 40px; margin-bottom: 10px;">✅</div>
+            <h2 style="color: #263880; margin: 0 0 10px;">Preferences Updated!</h2>
+            <p style="color: #475569; font-size: 14px; line-height: 22px;"><strong>${email}</strong> has been re-subscribed to SolarKits B2B offers and wholesale updates.</p>
+            <a href="https://solarkits.in" style="display: inline-block; margin-top: 15px; padding: 10px 24px; background: #263880; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 13px;">Return to SolarKits.in</a>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+
+    // Default: Process Unsubscribe
+    const ip = req.ip || req.connection?.remoteAddress;
+    const ua = req.headers['user-agent'] || null;
+
+    await MarketingUnsubscribe.findOneAndUpdate(
+      { email },
+      {
+        $set: {
+          email,
+          campaign_id: campaignId && mongoose.Types.ObjectId.isValid(campaignId) ? campaignId : null,
+          source: 'email_footer_click',
+          ip_address: ip,
+          user_agent: ua,
+          is_active: true,
+          unsubscribed_at: new Date()
+        }
+      },
+      { upsert: true, new: true }
+    );
+
+    if (EpcAccount) {
+      await EpcAccount.updateMany({ email }, { $set: { is_marketing_unsubscribed: true } });
+    }
+
+    const resubscribeUrl = `/api/admin/marketing/unsubscribe?email=${encodeURIComponent(email)}&action=resubscribe`;
+
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Unsubscribe Confirmed | SolarKits India</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        </style>
+      </head>
+      <body>
+        <div style="max-width: 480px; width: 100%; background: #ffffff; border-radius: 14px; padding: 40px 30px; box-shadow: 0 4px 25px rgba(15, 23, 42, 0.08); text-align: center; border: 1px solid #e2e8f0;">
+          <img src="https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png" alt="SolarKits" width="170" style="margin-bottom: 22px;" />
+          
+          <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background: #fee2e2; color: #dc2626; font-size: 26px; margin-bottom: 16px;">
+            🔕
+          </div>
+
+          <h2 style="color: #1e293b; margin: 0 0 10px; font-size: 22px; font-weight: 800;">You're Unsubscribed</h2>
+          
+          <p style="color: #475569; font-size: 14px; line-height: 22px; margin: 0 0 18px;">
+            <strong>${email}</strong> has been successfully removed from SolarKits promotional marketing and wholesale campaign lists.
+          </p>
+
+          <div style="background: #f1f5f9; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 12px; color: #64748b; line-height: 18px; text-align: left;">
+            ℹ️ You will no longer receive bulk marketing emails or offers. Important transactional messages (order confirmations, delivery tracking, and invoices) will still be sent if you place orders.
+          </div>
+
+          <p style="font-size: 12px; color: #94a3b8; margin: 0 0 10px;">
+            Clicked by accident?
+          </p>
+          <a href="${resubscribeUrl}" style="display: inline-block; padding: 8px 20px; background: #ffffff; color: #263880; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 700; font-size: 12px; text-decoration: none;">
+            ↩ Re-subscribe to SolarKits Offers
+          </a>
+        </div>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    res.status(500).send(`<h2>Error processing request</h2><p>${error.message}</p>`);
+  }
+};
+
+const getUnsubscribedList = async (req, res) => {
+  try {
+    const list = await MarketingUnsubscribe.find({ is_active: true }).sort({ unsubscribed_at: -1 }).lean();
+    res.json({ success: true, total: list.length, unsubscribes: list });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   getDashboardAnalytics,
   getTerritoryMapAnalytics,
@@ -1499,6 +1682,8 @@ module.exports = {
   previewAudience,
   getSenders,
   createSender,
+  updateSender,
+  deleteSender,
   testSender,
   getTemplates,
   createTemplate,
@@ -1510,5 +1695,9 @@ module.exports = {
   getAudienceList,
   importDynamicCsvLeads,
   getAudienceClustersSummary,
-  classifyEpcPartner
+  classifyEpcPartner,
+  uploadMarketingMedia,
+  getMarketingQueueStatus,
+  handleUnsubscribe,
+  getUnsubscribedList
 };

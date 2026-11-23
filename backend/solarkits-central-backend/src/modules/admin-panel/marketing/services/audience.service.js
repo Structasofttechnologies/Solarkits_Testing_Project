@@ -61,6 +61,20 @@ const resolveAudience = async (filterConfig = {}) => {
     };
   }
 
+  // 1.5 Fetch all active unsubscribed emails to guarantee automatic exclusion
+  let unsubscribedEmailSet = new Set();
+  let unsubscribedPhoneSet = new Set();
+  try {
+    const { MarketingUnsubscribe } = require('../models');
+    const unsubs = await MarketingUnsubscribe.find({ is_active: true }).select('email phone').lean();
+    for (const u of unsubs) {
+      if (u.email) unsubscribedEmailSet.add(u.email.toLowerCase().trim());
+      if (u.phone) unsubscribedPhoneSet.add(u.phone.trim());
+    }
+  } catch (err) {
+    console.warn('⚠️ Notice reading unsubscribed list in audience.service:', err.message);
+  }
+
   // 2. Identify Buyer EPC IDs by querying epc_orders
   let buyerEpcIdSet = new Set();
   let buyerLastOrderMap = new Map();
@@ -112,6 +126,13 @@ const resolveAudience = async (filterConfig = {}) => {
       continue;
     }
     if (exclude_groups.includes('registered_epc') && isRegistered && !isVerified && !isBuyer) {
+      excludedCount++;
+      continue;
+    }
+
+    // Check Automatic Unsubscribe Filter (Never send to EPCs who clicked Unsubscribe)
+    const cleanEmail = (epc.email || '').toLowerCase().trim();
+    if (cleanEmail && unsubscribedEmailSet.has(cleanEmail)) {
       excludedCount++;
       continue;
     }

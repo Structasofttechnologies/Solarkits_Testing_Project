@@ -1,54 +1,18 @@
 const nodemailer = require('nodemailer');
+const axios = require('axios');
 const { MarketingSender } = require('../models');
 
 /**
- * Creates Nodemailer Transporter from MarketingSender config or environment variables
+ * Log helper for audit trail
  */
-const getTransporter = async (senderId = null) => {
-  let sender = null;
-  if (senderId) {
-    sender = await MarketingSender.findById(senderId).lean();
-  }
-  if (!sender) {
-    sender = await MarketingSender.findOne({ type: 'email', is_default: true, status: 'active' }).lean();
-  }
-
-  if (sender && sender.smtp_host && sender.smtp_user) {
-    return {
-      transporter: nodemailer.createTransport({
-        host: sender.smtp_host,
-        port: sender.smtp_port || 587,
-        secure: sender.smtp_port === 465 || sender.smtp_secure,
-        auth: {
-          user: sender.smtp_user,
-          pass: sender.smtp_pass
-        }
-      }),
-      fromEmail: sender.sender_email || sender.smtp_user,
-      fromName: sender.sender_name || 'SolarKits India',
-      replyTo: sender.reply_to_email || sender.sender_email
-    };
-  }
-
-  // Fallback to process.env or development console transporter
-  return {
-    transporter: nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_PORT === '465',
-      auth: {
-        user: process.env.SMTP_USER || 'noreply@solarkits.in',
-        pass: process.env.SMTP_PASS || 'dummy_pass'
-      }
-    }),
-    fromEmail: process.env.FROM_EMAIL || 'noreply@solarkits.in',
-    fromName: process.env.FROM_NAME || 'SolarKits India',
-    replyTo: process.env.REPLY_TO_EMAIL || 'support@solarkits.in'
-  };
+const logEmailEvent = (provider, status, details) => {
+  const time = new Date().toISOString();
+  const icon = status === 'SUCCESS' ? '✅' : status === 'SIMULATED' ? '✉️' : '❌';
+  console.log(`${icon} [${time}] [EMAIL_${provider.toUpperCase()}] [${status}] ${details}`);
 };
 
 /**
- * Interpolate dynamic placeholders in template text
+ * Interpolate dynamic placeholders in template text (e.g. {{name}}, {{company_name}})
  */
 const interpolate = (text, variables = {}) => {
   if (!text) return '';
@@ -61,11 +25,145 @@ const interpolate = (text, variables = {}) => {
 };
 
 /**
- * Send a single email (for tests or campaign item)
+ * 1. RESEND API Dispatcher
+ * Directly calls Resend API (https://api.resend.com/emails)
  */
-const sendEmail = async ({ senderId, to, subject, htmlContent, variables = {}, trackingUrl = null }) => {
+const sendViaResend = async ({ apiKey, fromEmail, fromName, to, subject, htmlContent, replyTo }) => {
+  const cleanFrom = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
+  const url = 'https://api.resend.com/emails';
+
   try {
-    const { transporter, fromEmail, fromName, replyTo } = await getTransporter(senderId);
+    const response = await axios.post(
+      url,
+      {
+        from: cleanFrom,
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        html: htmlContent,
+        reply_to: replyTo || fromEmail
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 15000
+      }
+    );
+
+    const messageId = response.data?.id || `resend_${Date.now()}`;
+    logEmailEvent('RESEND', 'SUCCESS', `To: ${to} | Subject: "${subject}" | MessageId: ${messageId}`);
+
+    return {
+      success: true,
+      provider: 'resend',
+      messageId,
+      simulated: false
+    };
+  } catch (error) {
+    const errMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+    logEmailEvent('RESEND', 'FAILED', `To: ${to} | Error: ${errMsg}`);
+    return {
+      success: false,
+      provider: 'resend',
+      error: errMsg
+    };
+  }
+};
+
+/**
+ * 2. AWS SES Dispatcher (via AWS SES SMTP Credentials or Nodemailer)
+ */
+const sendViaAwsSes = async ({ host, port, secure, user, pass, fromEmail, fromName, to, subject, htmlContent, replyTo }) => {
+  const sesHost = host || process.env.AWS_SES_SMTP_HOST || 'email-smtp.ap-south-1.amazonaws.com';
+  const sesPort = parseInt(port || process.env.AWS_SES_SMTP_PORT || '587');
+  const sesUser = user || process.env.AWS_SES_SMTP_USER;
+  const sesPass = pass || process.env.AWS_SES_SMTP_PASS;
+
+  if (!sesUser || !sesPass) {
+    throw new Error('AWS SES SMTP credentials missing (User / Password).');
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: sesHost,
+    port: sesPort,
+    secure: sesPort === 465 || secure === true,
+    auth: {
+      user: sesUser,
+      pass: sesPass
+    }
+  });
+
+  const info = await transporter.sendMail({
+    from: fromName ? `"${fromName}" <${fromEmail}>` : fromEmail,
+    to,
+    replyTo: replyTo || fromEmail,
+    subject,
+    html: htmlContent
+  });
+
+  const messageId = info.messageId || `ses_${Date.now()}`;
+  logEmailEvent('AWS_SES', 'SUCCESS', `To: ${to} | Subject: "${subject}" | MessageId: ${messageId}`);
+
+  return {
+    success: true,
+    provider: 'aws_ses',
+    messageId,
+    simulated: false
+  };
+};
+
+/**
+ * 3. Standard SMTP Dispatcher (Gmail, Zoho, Hostinger, Custom)
+ */
+const sendViaSmtp = async ({ host, port, secure, user, pass, fromEmail, fromName, to, subject, htmlContent, replyTo }) => {
+  const transporter = nodemailer.createTransport({
+    host: host || 'smtp.gmail.com',
+    port: parseInt(port || '587'),
+    secure: port === 465 || secure === true,
+    auth: {
+      user,
+      pass
+    }
+  });
+
+  const info = await transporter.sendMail({
+    from: fromName ? `"${fromName}" <${fromEmail}>` : fromEmail,
+    to,
+    replyTo: replyTo || fromEmail,
+    subject,
+    html: htmlContent
+  });
+
+  const messageId = info.messageId || `smtp_${Date.now()}`;
+  logEmailEvent('SMTP', 'SUCCESS', `To: ${to} | Subject: "${subject}" | MessageId: ${messageId}`);
+
+  return {
+    success: true,
+    provider: 'smtp',
+    messageId,
+    simulated: false
+  };
+};
+
+/**
+ * Unified sendEmail function: automatically routes through Resend, AWS SES, or SMTP
+ */
+const sendEmail = async ({ senderId, purpose, to, subject, htmlContent, variables = {}, trackingUrl = null }) => {
+  try {
+    let sender = null;
+    if (senderId) {
+      sender = await MarketingSender.findById(senderId).lean();
+    }
+    if (!sender && purpose) {
+      sender = await MarketingSender.findOne({ type: 'email', purpose, status: 'active' }).lean();
+    }
+    if (!sender) {
+      sender = await MarketingSender.findOne({ type: 'email', is_default: true, status: 'active' }).lean();
+    }
+    if (!sender) {
+      sender = await MarketingSender.findOne({ type: 'email', status: 'active' }).lean();
+    }
 
     const mergedVars = {
       ...variables,
@@ -76,29 +174,86 @@ const sendEmail = async ({ senderId, to, subject, htmlContent, variables = {}, t
     const finalSubject = interpolate(subject, mergedVars);
     const finalHtml = interpolate(htmlContent, mergedVars);
 
-    // If in development and dummy credentials, simulate send safely
-    if (process.env.NODE_ENV !== 'production' && (!process.env.SMTP_PASS || process.env.SMTP_PASS === 'dummy_pass')) {
-      console.log(`✉️ [SIMULATED EMAIL] To: ${to} | Subject: "${finalSubject}"`);
-      return { success: true, messageId: `sim_email_${Date.now()}`, simulated: true };
+    // Determine Provider:
+    // 1. Resend API
+    const resendApiKey = sender?.resend_api_key || process.env.RESEND_API_KEY;
+    const isResend = (sender?.email_provider === 'resend') || (!sender && resendApiKey);
+
+    if (isResend && resendApiKey) {
+      const fromEmail = sender?.sender_email || process.env.RESEND_FROM_EMAIL || 'orders@solarkits.in';
+      const fromName = sender?.sender_name || 'SolarKits India';
+      const replyTo = sender?.reply_to_email || 'support@solarkits.in';
+
+      return await sendViaResend({
+        apiKey: resendApiKey,
+        fromEmail,
+        fromName,
+        to,
+        subject: finalSubject,
+        htmlContent: finalHtml,
+        replyTo
+      });
     }
 
-    const info = await transporter.sendMail({
-      from: `"${fromName}" <${fromEmail}>`,
-      to,
-      replyTo,
-      subject: finalSubject,
-      html: finalHtml
-    });
+    // 2. AWS SES (via SMTP or SES config)
+    const isAwsSes = sender?.email_provider === 'aws_ses' ||
+      sender?.smtp_host?.includes('amazonaws.com') ||
+      process.env.AWS_SES_SMTP_USER;
 
-    return { success: true, messageId: info.messageId, simulated: false };
+    if (isAwsSes && (sender?.smtp_user || process.env.AWS_SES_SMTP_USER)) {
+      return await sendViaAwsSes({
+        host: sender?.smtp_host || process.env.AWS_SES_SMTP_HOST,
+        port: sender?.smtp_port || process.env.AWS_SES_SMTP_PORT,
+        secure: sender?.smtp_secure,
+        user: sender?.smtp_user || process.env.AWS_SES_SMTP_USER,
+        pass: sender?.smtp_pass || process.env.AWS_SES_SMTP_PASS,
+        fromEmail: sender?.sender_email || process.env.FROM_EMAIL || 'orders@solarkits.in',
+        fromName: sender?.sender_name || 'SolarKits India',
+        to,
+        subject: finalSubject,
+        htmlContent: finalHtml,
+        replyTo: sender?.reply_to_email || 'support@solarkits.in'
+      });
+    }
+
+    // 3. Custom SMTP / Environment SMTP
+    const smtpHost = sender?.smtp_host || process.env.SMTP_HOST || process.env.NODEMAILER_HOST || 'smtp.gmail.com';
+    const smtpPort = parseInt(sender?.smtp_port || process.env.SMTP_PORT || process.env.NODEMAILER_PORT || '465');
+    const smtpSecure = (smtpPort === 465) || (sender?.smtp_secure === true) || (process.env.SMTP_SECURE === 'true') || (process.env.NODEMAILER_SECURE === 'true');
+    const smtpUser = sender?.smtp_user || process.env.SMTP_USER || process.env.NODEMAILER_USER || process.env.EMAIL_USER;
+    const smtpPass = sender?.smtp_pass || process.env.SMTP_PASS || process.env.NODEMAILER_PASS || process.env.EMAIL_PASS;
+
+    if (smtpUser && smtpPass) {
+      return await sendViaSmtp({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        user: smtpUser,
+        pass: smtpPass,
+        fromEmail: sender?.sender_email || process.env.FROM_EMAIL || process.env.NODEMAILER_FROM || smtpUser,
+        fromName: sender?.sender_name || process.env.FROM_NAME || 'SolarKits India',
+        to,
+        subject: finalSubject,
+        htmlContent: finalHtml,
+        replyTo: sender?.reply_to_email || process.env.REPLY_TO_EMAIL
+      });
+    }
+
+    // 4. Fallback / Dev Simulator (Safe non-breaking fallback)
+    const isDev = process.env.NODE_ENV !== 'production';
+    logEmailEvent('SIMULATOR', 'SIMULATED', `To: ${to} | Subject: "${finalSubject}"`);
+    return { success: true, provider: 'simulator', messageId: `sim_${Date.now()}`, simulated: true };
+
   } catch (error) {
-    console.error('Email send error:', error.message);
+    logEmailEvent('UNKNOWN', 'FAILED', `To: ${to} | Error: ${error.message}`);
     return { success: false, error: error.message };
   }
 };
 
 module.exports = {
-  getTransporter,
   interpolate,
+  sendViaResend,
+  sendViaAwsSes,
+  sendViaSmtp,
   sendEmail
 };

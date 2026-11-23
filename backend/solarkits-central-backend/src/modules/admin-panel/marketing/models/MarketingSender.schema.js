@@ -12,15 +12,44 @@ const schema = new mongoose.Schema(
       default: 'active'
     },
 
-    // ── Email Account Specifics (SMTP / Nodemailer) ──
+    // ── Email Account Specifics (SMTP / Resend / AWS SES) ──
+    // Purpose Tagging for Purpose-Wise Routing
+    purpose: {
+      type: String,
+      enum: [
+        'all',
+        'marketing',
+        'wholesale',
+        'product_launch',
+        'festive_offer',
+        'price_drop',
+        'onboarding',
+        'transactional',
+        'system_alerts',
+        'support'
+      ],
+      default: 'marketing'
+    },
     sender_name: { type: String, trim: true },
     sender_email: { type: String, trim: true, lowercase: true },
     reply_to_email: { type: String, trim: true, lowercase: true },
+    email_provider: { type: String, enum: ['smtp', 'resend', 'aws_ses'], default: 'smtp' },
+
+    // SMTP specifics
     smtp_host: { type: String, trim: true },
     smtp_port: { type: Number, default: 587 },
     smtp_secure: { type: Boolean, default: false },
     smtp_user: { type: String, trim: true },
     smtp_pass: { type: String }, // In real deployment can be encrypted
+
+    // Resend specifics
+    resend_api_key: { type: String, trim: true },
+
+    // AWS SES specifics
+    aws_region: { type: String, default: 'ap-south-1', trim: true },
+    aws_access_key_id: { type: String, trim: true },
+    aws_secret_access_key: { type: String, trim: true },
+
     email_signature: { type: String, default: '<p>Best Regards,<br><strong>SolarKits India Team</strong></p>' },
 
     // ── WhatsApp Account Specifics (Meta Cloud API) ──
