@@ -11,6 +11,7 @@ import {
   FiLayers,
   FiDollarSign,
   FiSend,
+  FiCpu,
 } from 'react-icons/fi';
 
 const SECTIONS = [
@@ -23,6 +24,7 @@ const SECTIONS = [
   { id: 'section-demand', label: 'Kit Demand', icon: FiBox },
   { id: 'section-geography', label: 'State Map', icon: FiMap },
   { id: 'section-cluster-geography', label: 'Cluster Map', icon: FiLayers },
+  { id: 'section-insights-ai', label: 'Insights & AI', icon: FiCpu },
   { id: 'section-revenue', label: 'Revenue & Margin', icon: FiDollarSign },
   { id: 'section-campaign', label: 'Campaigns', icon: FiSend },
 ];

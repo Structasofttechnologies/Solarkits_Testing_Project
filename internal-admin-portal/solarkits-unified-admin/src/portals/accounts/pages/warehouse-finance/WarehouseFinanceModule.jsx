@@ -3,17 +3,9 @@ import {
   FaWarehouse,
   FaCoins,
   FaChartLine,
-  FaCog,
   FaCheckCircle,
   FaPlus,
-  FaPercentage,
-  FaBalanceScale,
-  FaHandHoldingUsd,
-  FaMapMarkedAlt,
   FaExclamationTriangle,
-  FaTruck,
-  FaBoxes,
-  FaClock,
   FaFilter,
   FaBolt
 } from "react-icons/fa";
@@ -23,67 +15,8 @@ import {
   getWarehouseOpportunities,
   createWarehouseOpportunity,
   updateOpportunityStatus,
-  getStates,
-  getClusters,
   getFranchiseClustersList
 } from "../../api/accounts";
-
-const STATE_CLUSTER_MAP = {
-  "Uttar Pradesh": [
-    "Lucknow-Awadh Cluster",
-    "Varanasi-Purvanchal Cluster",
-    "Kanpur-Bundelkhand Cluster",
-    "Agra-Braj Cluster",
-    "Noida-NCR Industrial Cluster",
-    "Prayagraj Cluster",
-    "Gorakhpur Cluster"
-  ],
-  "Gujarat": [
-    "Porbandar Cluster",
-    "Devbhumi Dwarka cluster",
-    "Rajkot Cluster",
-    "Ahmedabad-Sanand Logistics Cluster",
-    "Surat-South Gujarat Cluster",
-    "Vadodara Cluster"
-  ],
-  "Maharashtra": [
-    "Pune & Western Maharashtra Cluster",
-    "Bhiwandi-Thane Logistics Hub",
-    "Pune-PCMC Industrial Cluster",
-    "Nagpur-Vidarbha Cluster",
-    "Nashik-Khandesh Cluster",
-    "Aurangabad Hub"
-  ],
-  "Rajasthan": [
-    "Jaipur-Marwar Cluster",
-    "Jodhpur Solar Belt Cluster",
-    "Kota-Hadoti Cluster",
-    "Udaipur-Mewar Cluster"
-  ],
-  "Madhya Pradesh": [
-    "Indore-Malwa Cluster",
-    "Bhopal-Narmada Cluster",
-    "Jabalpur-Mahakoshal Cluster",
-    "Gwalior-Chambal Cluster"
-  ],
-  "Delhi NCR": [
-    "Central Delhi - Okhla Hub",
-    "Gurgaon-Manesar Tech Hub",
-    "Faridabad Industrial Cluster"
-  ],
-  "Bihar": [
-    "Patna-Magadh Cluster",
-    "Muzaffarpur-Tirhut Cluster"
-  ],
-  "Haryana": [
-    "Karnal-GT Road Cluster",
-    "Hisar-Rohtak Cluster"
-  ],
-  "Punjab": [
-    "Ludhiana-Jalandhar Cluster",
-    "Mohali-Patiala Cluster"
-  ]
-};
 
 export default function WarehouseFinanceModule() {
   const [activeTab, setActiveTab] = useState("opportunities");
@@ -98,28 +31,26 @@ export default function WarehouseFinanceModule() {
   const [filterState, setFilterState] = useState("ALL");
   const [filterStatus, setFilterStatus] = useState("ALL");
 
-  // Dynamic Geography & Live Franchise Clusters
+  // Live Franchise Clusters
   const [franchiseClusters, setFranchiseClusters] = useState([]);
-  const [liveStates, setLiveStates] = useState([]);
-  const [liveClusters, setLiveClusters] = useState([]);
-  const [loadingClusters, setLoadingClusters] = useState(false);
 
-  // New Opportunity Modal
+  // Opportunity Evaluation Modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [newOppData, setNewOppData] = useState({
-    cluster_name: "Lucknow-Awadh Cluster",
-    state: "Uttar Pradesh",
-    district: "Lucknow",
+    cluster_id: "",
+    cluster_name: "",
+    cluster_code: "",
+    state: "",
+    district: "",
     current_monthly_turnover: 2800000,
     current_monthly_kits: 45,
     pipeline_order_value: 4500000,
-    active_epc_count: 18,
-    current_avg_delivery_tat_days: 5.8,
+    active_epc_count: 0,
+    current_avg_delivery_tat_days: 5.5,
     current_delivery_cost_pct: 7.5,
     projected_monthly_delivery_savings: 160000,
     admin_notes: ""
   });
-  const [isCustomCluster, setIsCustomCluster] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -129,17 +60,28 @@ export default function WarehouseFinanceModule() {
         getWarehouseOpportunities().catch(() => null),
         getFranchiseClustersList().catch(() => null)
       ]);
+
       setTriggerConfig(cfgRes?.data || null);
+
       const rawOpps = oppRes?.data || [];
       setOpportunities(rawOpps);
-      if (rawOpps.length > 0 && !selectedOpp) {
-        setSelectedOpp(rawOpps[0]);
+
+      const liveFc = fcRes?.data || fcRes || [];
+      if (Array.isArray(liveFc)) {
+        setFranchiseClusters(liveFc);
       }
-      if (fcRes?.data && Array.isArray(fcRes.data)) {
-        setFranchiseClusters(fcRes.data);
+
+      // Preserve or set selected opportunity
+      if (rawOpps.length > 0) {
+        setSelectedOpp(prev => {
+          if (!prev) return rawOpps[0];
+          const matched = rawOpps.find(o => o._id === prev._id || o.cluster_id === prev.cluster_id || o.cluster_name === prev.cluster_name);
+          return matched || rawOpps[0];
+        });
       }
     } catch (err) {
-      console.error(err);
+      console.error("Error loading warehouse finance data:", err);
+      setNotice({ type: "error", text: "Failed to load warehouse data." });
     } finally {
       setLoading(false);
     }
@@ -147,77 +89,7 @@ export default function WarehouseFinanceModule() {
 
   useEffect(() => {
     loadData();
-    // Load live states from database
-    getStates()
-      .then((res) => {
-        const states = res?.data || res || [];
-        if (Array.isArray(states) && states.length > 0) {
-          setLiveStates(states);
-          const initial = states.find(s => s.name === "Uttar Pradesh") || states[0];
-          if (initial) {
-            getClusters(initial.id || initial._id)
-              .then(cRes => {
-                const cl = cRes?.data || cRes || [];
-                if (Array.isArray(cl) && cl.length > 0) {
-                  setLiveClusters(cl);
-                  setNewOppData(prev => ({
-                    ...prev,
-                    state: initial.name,
-                    cluster_name: cl[0]?.name || ""
-                  }));
-                } else {
-                  const fallbackList = (STATE_CLUSTER_MAP[initial.name] || []).map(c => ({ name: c }));
-                  setLiveClusters(fallbackList);
-                }
-              })
-              .catch(() => {
-                const fallbackList = (STATE_CLUSTER_MAP[initial.name] || []).map(c => ({ name: c }));
-                setLiveClusters(fallbackList);
-              });
-          }
-        } else {
-          setLiveStates(Object.keys(STATE_CLUSTER_MAP).map(st => ({ name: st })));
-          setLiveClusters((STATE_CLUSTER_MAP["Uttar Pradesh"] || []).map(c => ({ name: c })));
-        }
-      })
-      .catch(() => {
-        setLiveStates(Object.keys(STATE_CLUSTER_MAP).map(st => ({ name: st })));
-        setLiveClusters((STATE_CLUSTER_MAP["Uttar Pradesh"] || []).map(c => ({ name: c })));
-      });
   }, []);
-
-  const handleStateSelect = async (stateName) => {
-    setLoadingClusters(true);
-    setIsCustomCluster(false);
-    try {
-      const stateObj = liveStates.find(s => s.name === stateName);
-      let clList = [];
-      if (stateObj && (stateObj.id || stateObj._id)) {
-        const res = await getClusters(stateObj.id || stateObj._id);
-        clList = res?.data || res || [];
-      }
-      if (!clList || clList.length === 0) {
-        clList = (STATE_CLUSTER_MAP[stateName] || []).map(c => ({ name: c }));
-      }
-      setLiveClusters(clList);
-      const firstCluster = clList[0]?.name || (typeof clList[0] === 'string' ? clList[0] : "");
-      setNewOppData(prev => ({
-        ...prev,
-        state: stateName,
-        cluster_name: firstCluster
-      }));
-    } catch {
-      const fallbackList = (STATE_CLUSTER_MAP[stateName] || []).map(c => ({ name: c }));
-      setLiveClusters(fallbackList);
-      setNewOppData(prev => ({
-        ...prev,
-        state: stateName,
-        cluster_name: fallbackList[0]?.name || ""
-      }));
-    } finally {
-      setLoadingClusters(false);
-    }
-  };
 
   const handleUpdateStatus = async (id, status) => {
     try {
@@ -225,7 +97,7 @@ export default function WarehouseFinanceModule() {
       setNotice({ type: "success", text: `Cluster opportunity status updated to ${status}.` });
       loadData();
     } catch (err) {
-      setNotice({ type: "error", text: err.message });
+      setNotice({ type: "error", text: err.message || "Failed to update status." });
     }
   };
 
@@ -236,19 +108,64 @@ export default function WarehouseFinanceModule() {
       setNotice({ type: "success", text: "Warehouse development triggers updated successfully!" });
       loadData();
     } catch (err) {
-      setNotice({ type: "error", text: err.message });
+      setNotice({ type: "error", text: err.message || "Failed to save configuration." });
     }
+  };
+
+  const handleOpenAddModal = () => {
+    if (franchiseClusters.length > 0) {
+      const firstFc = franchiseClusters[0];
+      const existing = opportunities.find(o => o.cluster_id === firstFc._id || o.cluster_name === firstFc.cluster_name);
+      setNewOppData({
+        cluster_id: firstFc._id,
+        cluster_name: firstFc.cluster_name,
+        cluster_code: firstFc.cluster_code,
+        state: firstFc.state_name || firstFc.state_id?.name || "",
+        district: firstFc.district_names?.[0] || "Main Hub",
+        current_monthly_turnover: existing ? existing.current_monthly_turnover : 2800000,
+        current_monthly_kits: existing ? existing.current_monthly_kits : 45,
+        pipeline_order_value: existing ? existing.pipeline_order_value : 4500000,
+        active_epc_count: existing ? existing.active_epc_count : 0,
+        current_avg_delivery_tat_days: existing ? existing.current_avg_delivery_tat_days : 5.5,
+        current_delivery_cost_pct: existing ? existing.current_delivery_cost_pct : 7.5,
+        projected_monthly_delivery_savings: existing ? existing.projected_monthly_delivery_savings : 160000,
+        admin_notes: ""
+      });
+    }
+    setShowAddModal(true);
+  };
+
+  const handleModalClusterSelect = (clusterId) => {
+    const fc = franchiseClusters.find(c => (c._id || c.id) === clusterId);
+    if (!fc) return;
+
+    const existing = opportunities.find(o => o.cluster_id === fc._id || o.cluster_name === fc.cluster_name);
+    setNewOppData(prev => ({
+      ...prev,
+      cluster_id: fc._id,
+      cluster_name: fc.cluster_name,
+      cluster_code: fc.cluster_code,
+      state: fc.state_name || fc.state_id?.name || "",
+      district: fc.district_names?.[0] || "Main Hub",
+      current_monthly_turnover: existing ? existing.current_monthly_turnover : prev.current_monthly_turnover,
+      current_monthly_kits: existing ? existing.current_monthly_kits : prev.current_monthly_kits,
+      pipeline_order_value: existing ? existing.pipeline_order_value : prev.pipeline_order_value,
+      active_epc_count: existing ? existing.active_epc_count : prev.active_epc_count,
+      current_avg_delivery_tat_days: existing ? existing.current_avg_delivery_tat_days : prev.current_avg_delivery_tat_days,
+      current_delivery_cost_pct: existing ? existing.current_delivery_cost_pct : prev.current_delivery_cost_pct,
+      projected_monthly_delivery_savings: existing ? existing.projected_monthly_delivery_savings : prev.projected_monthly_delivery_savings
+    }));
   };
 
   const handleCreateOpp = async (e) => {
     e.preventDefault();
     try {
       const res = await createWarehouseOpportunity(newOppData);
-      setNotice({ type: "success", text: res.message || "New warehouse opportunity evaluated!" });
+      setNotice({ type: "success", text: res.message || "Cluster opportunity evaluated successfully!" });
       setShowAddModal(false);
       loadData();
     } catch (err) {
-      setNotice({ type: "error", text: err.message });
+      setNotice({ type: "error", text: err.response?.data?.message || err.message || "Failed to evaluate opportunity." });
     }
   };
 
@@ -308,16 +225,22 @@ export default function WarehouseFinanceModule() {
   const criticalClusters = evaluatedOpportunities.filter(o => o.isCritical);
   const criticalCount = criticalClusters.length;
 
-  // Collect unique cluster names and states for Master Filters
-  const allClusterNames = Array.from(new Set([
-    ...evaluatedOpportunities.map(o => o.cluster_name),
-    ...franchiseClusters.map(fc => fc.cluster_name)
-  ])).filter(Boolean);
+  // Max actual values among critical clusters for dynamic alert banner
+  const maxActualTat = criticalClusters.length > 0
+    ? Math.max(...criticalClusters.map(c => Number(c.current_avg_delivery_tat_days || 0))).toFixed(1)
+    : maxTat;
+  const maxActualFreight = criticalClusters.length > 0
+    ? Math.max(...criticalClusters.map(c => Number(c.current_delivery_cost_pct || 0))).toFixed(1)
+    : maxCost;
 
-  const uniqueStates = Array.from(new Set([
-    ...evaluatedOpportunities.map(o => o.state),
-    ...franchiseClusters.map(fc => fc.state_name)
-  ])).filter(Boolean);
+  // Collect unique cluster names and states strictly from live franchise clusters
+  const allClusterNames = Array.from(new Set(
+    evaluatedOpportunities.map(o => o.cluster_name)
+  )).filter(Boolean);
+
+  const uniqueStates = Array.from(new Set(
+    evaluatedOpportunities.map(o => o.state)
+  )).filter(Boolean);
 
   // Filtered Opportunities based on Master Filters
   const filteredOpportunities = evaluatedOpportunities.filter((opp) => {
@@ -326,6 +249,14 @@ export default function WarehouseFinanceModule() {
     if (filterStatus !== "ALL" && opp.trigger_status !== filterStatus) return false;
     return true;
   });
+
+  // Dynamic OPEX calculation for selected opportunity
+  const monthlyRent = triggerConfig?.monthly_rent_estimate || 75000;
+  const monthlyManpower = triggerConfig?.monthly_manpower_estimate || 120000;
+  const monthlyUtility = triggerConfig?.monthly_utility_security_estimate || 45000;
+  const totalMonthlyOpex = selectedOpp?.monthly_opex?.total_monthly_opex || (monthlyRent + monthlyManpower + monthlyUtility);
+  const monthlySavings = Number(selectedOpp?.projected_monthly_delivery_savings || 0);
+  const netLogisticsGain = monthlySavings - totalMonthlyOpex;
 
   return (
     <div className="p-4 md:p-6 space-y-6 bg-slate-50 min-h-screen text-slate-800">
@@ -344,7 +275,7 @@ export default function WarehouseFinanceModule() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={handleOpenAddModal}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-sm transition"
           >
             <FaPlus /> Evaluate Cluster Opportunity
@@ -357,6 +288,14 @@ export default function WarehouseFinanceModule() {
         <div className={`p-4 rounded-xl flex items-center justify-between ${notice.type === "success" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-rose-50 text-rose-800 border border-rose-200"}`}>
           <span>{notice.text}</span>
           <button onClick={() => setNotice(null)} className="font-bold text-sm px-2">✕</button>
+        </div>
+      )}
+
+      {/* Loading state indicator */}
+      {loading && (
+        <div className="p-4 bg-blue-50 text-blue-700 rounded-xl text-xs flex items-center gap-2 border border-blue-200">
+          <span className="animate-spin text-sm">⏳</span>
+          <span>Loading live franchise cluster opportunities...</span>
         </div>
       )}
 
@@ -402,7 +341,7 @@ export default function WarehouseFinanceModule() {
                     </span>
                   </h4>
                   <p className="text-xs text-rose-800 mt-1 leading-relaxed">
-                    Logistics Alert: High solar kit demand reached, but Delivery TAT (up to 6.2 Days &gt; {maxTat}d max) and Freight Cost Ratio (up to 8.4% &gt; {maxCost}% max) exceed national thresholds! Open local warehouses in these clusters to stop delivery delays and logistics loss.
+                    Logistics Alert: High solar kit demand reached, but Delivery TAT (up to {maxActualTat} Days &gt; {maxTat}d max) and Freight Cost Ratio (up to {maxActualFreight}% &gt; {maxCost}% max) exceed national thresholds! Open local warehouses in these clusters to stop delivery delays and logistics loss.
                   </p>
                 </div>
               </div>
@@ -475,81 +414,86 @@ export default function WarehouseFinanceModule() {
                 <span className="text-[11px] text-slate-400">Click to view feasibility</span>
               </div>
 
-              {filteredOpportunities.map((opp) => {
-                const isSelected = selectedOpp?._id === opp._id || selectedOpp?.cluster_name === opp.cluster_name;
-                const isCritical = opp.isCritical;
-                const isHealthy = opp.isHealthy;
+              {filteredOpportunities.length === 0 ? (
+                <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">
+                  No clusters match the selected filter.
+                </div>
+              ) : (
+                filteredOpportunities.map((opp) => {
+                  const isSelected = selectedOpp?._id === opp._id || selectedOpp?.cluster_id === opp.cluster_id || selectedOpp?.cluster_name === opp.cluster_name;
+                  const isCritical = opp.isCritical;
+                  const isHealthy = opp.isHealthy;
 
-                // Highlighting style according to status
-                let cardStyle = "bg-white border-slate-200 hover:border-slate-300";
-                if (isSelected) {
-                  cardStyle = "bg-blue-50/90 border-blue-500 shadow-md ring-2 ring-blue-400";
-                } else if (isCritical) {
-                  cardStyle = "bg-rose-50/60 border-2 border-rose-500 shadow-sm shadow-rose-200 hover:bg-rose-50";
-                } else if (isHealthy) {
-                  cardStyle = "bg-emerald-50/50 border-2 border-emerald-500 shadow-sm shadow-emerald-200 hover:bg-emerald-50";
-                }
+                  let cardStyle = "bg-white border-slate-200 hover:border-slate-300";
+                  if (isSelected) {
+                    cardStyle = "bg-blue-50/90 border-blue-500 shadow-md ring-2 ring-blue-400";
+                  } else if (isCritical) {
+                    cardStyle = "bg-rose-50/60 border-2 border-rose-500 shadow-sm shadow-rose-200 hover:bg-rose-50";
+                  } else if (isHealthy) {
+                    cardStyle = "bg-emerald-50/50 border-2 border-emerald-500 shadow-sm shadow-emerald-200 hover:bg-emerald-50";
+                  }
 
-                return (
-                  <div
-                    key={opp._id || opp.cluster_name}
-                    onClick={() => setSelectedOpp(opp)}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all ${cardStyle}`}
-                  >
-                    <div className="flex justify-between items-start gap-2">
-                      <div>
-                        <span className="font-bold text-slate-900 text-sm block leading-snug">{opp.cluster_name}</span>
-                        <p className="text-xs text-slate-500 mt-0.5">{opp.district}, {opp.state}</p>
-                      </div>
-                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${
-                        isCritical ? "bg-rose-600 text-white animate-pulse" :
-                        isHealthy ? "bg-emerald-600 text-white" :
-                        "bg-slate-200 text-slate-700"
-                      }`}>
-                        Score: {opp.growth_score || 80}/100
-                      </span>
-                    </div>
-
-                    {/* Dynamic Status Pill */}
-                    <div className="mt-2.5">
-                      {isCritical ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold border border-rose-300">
-                          <FaExclamationTriangle className="text-rose-600 text-[10px]" />
-                          🚨 Warehouse Needed (SLA/Cost Breach)
-                        </span>
-                      ) : isHealthy ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-[11px] font-bold border border-emerald-300">
-                          <FaCheckCircle className="text-emerald-600 text-[10px]" />
-                          ✅ Target Met: Healthy Ops (Expansion Ready)
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-[11px] font-medium border border-slate-200">
-                          <FaBolt className="text-amber-500 text-[10px]" />
-                          ⚡ Developing Cluster (Volume Building)
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Operational Benchmarks */}
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-slate-100">
-                      <div>
-                        <span className="text-slate-400 block text-[10px]">Monthly Revenue:</span>
-                        <span className="font-bold text-slate-800">{formatInr(opp.current_monthly_turnover)}</span>
-                        <span className="text-[10px] text-slate-500 block">({opp.current_monthly_kits} Kits/Mo)</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-slate-400 block text-[10px]">Delivery TAT & Freight:</span>
-                        <span className={`font-bold block ${opp.isTatBreached ? "text-rose-600" : "text-emerald-600"}`}>
-                          {opp.current_avg_delivery_tat_days}d TAT {opp.isTatBreached && "⚠️"}
-                        </span>
-                        <span className={`text-[10px] block ${opp.isCostBreached ? "text-rose-600 font-bold" : "text-slate-500"}`}>
-                          {opp.current_delivery_cost_pct}% Freight {opp.isCostBreached && "⚠️"}
+                  return (
+                    <div
+                      key={opp._id || opp.cluster_id || opp.cluster_code}
+                      onClick={() => setSelectedOpp(opp)}
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all ${cardStyle}`}
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <span className="font-bold text-slate-900 text-sm block leading-snug">{opp.cluster_name}</span>
+                          <p className="text-xs text-slate-500 mt-0.5">{opp.district}, {opp.state}</p>
+                        </div>
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full whitespace-nowrap ${
+                          isCritical ? "bg-rose-600 text-white animate-pulse" :
+                          isHealthy ? "bg-emerald-600 text-white" :
+                          "bg-slate-200 text-slate-700"
+                        }`}>
+                          Score: {opp.growth_score || 80}/100
                         </span>
                       </div>
+
+                      {/* Dynamic Status Pill */}
+                      <div className="mt-2.5">
+                        {isCritical ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold border border-rose-300">
+                            <FaExclamationTriangle className="text-rose-600 text-[10px]" />
+                            🚨 Warehouse Needed (SLA/Cost Breach)
+                          </span>
+                        ) : isHealthy ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-[11px] font-bold border border-emerald-300">
+                            <FaCheckCircle className="text-emerald-600 text-[10px]" />
+                            ✅ Target Met: Healthy Ops (Expansion Ready)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-[11px] font-medium border border-slate-200">
+                            <FaBolt className="text-amber-500 text-[10px]" />
+                            ⚡ Developing Cluster (Volume Building)
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Operational Benchmarks */}
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-slate-100">
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Monthly Revenue:</span>
+                          <span className="font-bold text-slate-800">{formatInr(opp.current_monthly_turnover)}</span>
+                          <span className="text-[10px] text-slate-500 block">({opp.current_monthly_kits} Kits/Mo)</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-slate-400 block text-[10px]">Delivery TAT & Freight:</span>
+                          <span className={`font-bold block ${opp.isTatBreached ? "text-rose-600" : "text-emerald-600"}`}>
+                            {opp.current_avg_delivery_tat_days}d TAT {opp.isTatBreached && "⚠️"}
+                          </span>
+                          <span className={`text-[10px] block ${opp.isCostBreached ? "text-rose-600 font-bold" : "text-slate-500"}`}>
+                            {opp.current_delivery_cost_pct}% Freight {opp.isCostBreached && "⚠️"}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
 
             {/* Right: Detailed Financial & Loan Evaluation */}
@@ -573,7 +517,7 @@ export default function WarehouseFinanceModule() {
                         )}
                       </div>
                       <h2 className="text-xl font-bold text-slate-900 mt-0.5">{selectedOpp.cluster_name}</h2>
-                      <p className="text-xs text-slate-500">{selectedOpp.state} • Active EPCs: {selectedOpp.active_epc_count}</p>
+                      <p className="text-xs text-slate-500">{selectedOpp.state} • Active EPCs: {selectedOpp.active_epc_count || 0}</p>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -666,7 +610,9 @@ export default function WarehouseFinanceModule() {
                     </div>
                     <div>
                       <span className="text-slate-400 block">Logistics Cost Ratio</span>
-                      <span className="font-bold text-rose-600 text-sm">{selectedOpp.current_delivery_cost_pct}%</span>
+                      <span className={`font-bold text-sm ${selectedOpp.isCostBreached ? "text-rose-600" : "text-emerald-600"}`}>
+                        {selectedOpp.current_delivery_cost_pct}%
+                      </span>
                       <span className="text-[10px] text-slate-500 block">Threshold: {maxCost}%</span>
                     </div>
                     <div>
@@ -719,27 +665,33 @@ export default function WarehouseFinanceModule() {
                     <div className="space-y-2 text-xs">
                       <div className="flex justify-between">
                         <span className="text-slate-500">Projected Monthly Freight Savings:</span>
-                        <span className="font-bold text-emerald-700">{formatInr(selectedOpp.projected_monthly_delivery_savings)}</span>
+                        <span className="font-bold text-emerald-700">{formatInr(monthlySavings)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-500">Estimated Monthly Warehouse OPEX:</span>
-                        <span className="font-medium text-slate-700">₹65,000</span>
+                        <span className="font-medium text-slate-700">{formatInr(totalMonthlyOpex)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-500">Net Monthly Logistics Gain:</span>
-                        <span className="font-bold text-blue-700">
-                          {formatInr(Math.max(0, (selectedOpp.projected_monthly_delivery_savings || 185000) - 65000))}
+                        <span className="text-slate-500">Net Monthly Logistics Gain / (Loss):</span>
+                        <span className={`font-bold ${netLogisticsGain >= 0 ? "text-emerald-700" : "text-amber-700"}`}>
+                          {netLogisticsGain >= 0 ? `+${formatInr(netLogisticsGain)}` : `-${formatInr(Math.abs(netLogisticsGain))}`}
                         </span>
                       </div>
                       <div className="flex justify-between items-center pt-2 border-t">
                         <span className="text-slate-700 font-bold">Projected Payback Period:</span>
                         <span className="px-2.5 py-0.5 font-bold rounded-md bg-emerald-100 text-emerald-800 text-sm">
-                          {selectedOpp.payback_period_months} Months (High ROI)
+                          {selectedOpp.payback_period_months} Months {selectedOpp.payback_period_months <= 24 ? "(High ROI)" : "(Standard ROI)"}
                         </span>
                       </div>
                       <div className="flex justify-between text-slate-500 text-[11px] pt-1">
                         <span>Operational Viability:</span>
-                        <span className="font-semibold text-emerald-600">✅ Economically Justified Expansion</span>
+                        {selectedOpp.isCritical ? (
+                          <span className="font-semibold text-rose-600">🚨 Critical Need (Cut Freight Leakage)</span>
+                        ) : selectedOpp.isHealthy ? (
+                          <span className="font-semibold text-emerald-600">✅ Economically Justified Expansion</span>
+                        ) : (
+                          <span className="font-semibold text-slate-500">⚡ Developing Volume Target</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -818,126 +770,98 @@ export default function WarehouseFinanceModule() {
         </form>
       )}
 
-      {/* ADD OPPORTUNITY MODAL */}
+      {/* ADD / EVALUATE CLUSTER OPPORTUNITY MODAL */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-xl border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Evaluate New Cluster Expansion</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Evaluate Franchise Cluster Expansion</h3>
             <p className="text-xs text-slate-500 mb-4">
-              Enter target cluster operational metrics to compute CAPEX, delivery savings, and expansion feasibility.
+              Select an official franchise cluster to calculate logistics viability, warehouse CAPEX, and freight savings.
             </p>
             <form onSubmit={handleCreateOpp} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Franchise Cluster *</label>
+                <select
+                  required
+                  value={newOppData.cluster_id}
+                  onChange={(e) => handleModalClusterSelect(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold bg-white"
+                >
+                  <option value="">Select a Franchise Cluster</option>
+                  {franchiseClusters.map((fc) => (
+                    <option key={fc._id || fc.id} value={fc._id || fc.id}>
+                      {fc.cluster_name} ({fc.cluster_code}) — {fc.state_name || fc.state_id?.name || ""}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-slate-400">Only authorized franchise clusters can be evaluated.</span>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">State *</label>
-                  <select
-                    required
+                  <label className="block text-xs font-medium text-slate-600 mb-1">State</label>
+                  <input
+                    type="text"
+                    disabled
                     value={newOppData.state}
-                    onChange={(e) => handleStateSelect(e.target.value)}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold bg-white"
-                  >
-                    {(liveStates.length > 0 ? liveStates : Object.keys(STATE_CLUSTER_MAP).map(st => ({ name: st }))).map((st) => (
-                      <option key={st.id || st._id || st.name} value={st.name}>{st.name}</option>
-                    ))}
-                  </select>
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs bg-slate-50 font-semibold"
+                  />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Cluster Name * {loadingClusters && <span className="text-blue-500 font-normal text-[10px]">(Loading...)</span>}
-                  </label>
-                  {!isCustomCluster ? (
-                    <select
-                      required
-                      value={newOppData.cluster_name}
-                      disabled={loadingClusters}
-                      onChange={(e) => {
-                        if (e.target.value === "__CUSTOM__") {
-                          setIsCustomCluster(true);
-                          setNewOppData({ ...newOppData, cluster_name: "" });
-                        } else {
-                          setNewOppData({ ...newOppData, cluster_name: e.target.value });
-                        }
-                      }}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold bg-white disabled:bg-slate-100"
-                    >
-                      {loadingClusters ? (
-                        <option value="">Fetching clusters from database...</option>
-                      ) : liveClusters.length > 0 ? (
-                        liveClusters.map((cl) => {
-                          const cName = cl.name || (typeof cl === "string" ? cl : "");
-                          return <option key={cl.id || cl._id || cName} value={cName}>{cName}</option>;
-                        })
-                      ) : (
-                        (STATE_CLUSTER_MAP[newOppData.state] || []).map((cl) => (
-                          <option key={cl} value={cl}>{cl}</option>
-                        ))
-                      )}
-                      <option value="__CUSTOM__">+ Other (Enter Custom Cluster)</option>
-                    </select>
-                  ) : (
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Lucknow-Awadh Cluster"
-                        value={newOppData.cluster_name}
-                        onChange={(e) => setNewOppData({ ...newOppData, cluster_name: e.target.value })}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setIsCustomCluster(false)}
-                        className="px-2 py-1 text-xs text-slate-400 hover:text-slate-600 font-bold"
-                        title="Back to dropdown"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Hub District</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={newOppData.district}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs bg-slate-50 font-semibold"
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Monthly Turnover (₹)</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Monthly Turnover (₹) *</label>
                   <input
                     type="number"
+                    required
                     value={newOppData.current_monthly_turnover}
                     onChange={(e) => setNewOppData({ ...newOppData, current_monthly_turnover: Number(e.target.value) })}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Monthly Kit Sales</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Monthly Kit Sales *</label>
                   <input
                     type="number"
+                    required
                     value={newOppData.current_monthly_kits}
                     onChange={(e) => setNewOppData({ ...newOppData, current_monthly_kits: Number(e.target.value) })}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Avg Delivery TAT (Days)</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Avg Delivery TAT (Days) *</label>
                   <input
                     type="number"
                     step="0.1"
+                    required
                     value={newOppData.current_avg_delivery_tat_days}
                     onChange={(e) => setNewOppData({ ...newOppData, current_avg_delivery_tat_days: Number(e.target.value) })}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Delivery Cost Ratio (%)</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Delivery Cost Ratio (%) *</label>
                   <input
                     type="number"
                     step="0.1"
+                    required
                     value={newOppData.current_delivery_cost_pct}
                     onChange={(e) => setNewOppData({ ...newOppData, current_delivery_cost_pct: Number(e.target.value) })}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold"
                   />
                 </div>
               </div>
@@ -952,7 +876,8 @@ export default function WarehouseFinanceModule() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm"
+                  disabled={!newOppData.cluster_id}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold shadow-sm"
                 >
                   Calculate Feasibility
                 </button>

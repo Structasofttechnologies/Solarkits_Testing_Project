@@ -18,6 +18,7 @@ import DashboardConversionSection from './main-dashboard/DashboardConversionSect
 import DashboardDemandSection from './main-dashboard/DashboardDemandSection';
 import DashboardMapSection from './main-dashboard/DashboardMapSection';
 import DashboardClusterMapSection from './main-dashboard/DashboardClusterMapSection';
+import DashboardInsightsAiSection from './main-dashboard/DashboardInsightsAiSection';
 import DashboardRevenueSection from './main-dashboard/DashboardRevenueSection';
 import DashboardCampaignSection from './main-dashboard/DashboardCampaignSection';
 import DashboardDrilldownDrawer from './main-dashboard/DashboardDrilldownDrawer';
@@ -53,6 +54,7 @@ export default function Home() {
   const [clusterGeographyData, setClusterGeographyData] = useState({});
   const [revenueData, setRevenueData] = useState({});
   const [campaignData, setCampaignData] = useState({});
+  const [insightsAiData, setInsightsAiData] = useState({});
 
   // Loading & Metadata States
   const [loading, setLoading] = useState(true);
@@ -111,6 +113,7 @@ export default function Home() {
         clusterGeoRes,
         revRes,
         campRes,
+        insightsRes,
       ] = await Promise.all([
         mainDashboardApi.getOverviewKpis(filters),
         mainDashboardApi.getWebsitePerformance(filters),
@@ -123,6 +126,7 @@ export default function Home() {
         mainDashboardApi.getClusterGeographyAnalytics(filters),
         mainDashboardApi.getRevenueMargin(filters),
         mainDashboardApi.getCampaignPerformance(filters),
+        mainDashboardApi.getInsightsAi(filters),
       ]);
 
       if (kpisRes?.success) setOverviewKpis(kpisRes.data || []);
@@ -136,6 +140,7 @@ export default function Home() {
       if (clusterGeoRes?.success) setClusterGeographyData(clusterGeoRes || {});
       if (revRes?.success) setRevenueData(revRes.data || {});
       if (campRes?.success) setCampaignData(campRes.data || {});
+      if (insightsRes?.success) setInsightsAiData(insightsRes.data || {});
 
       setLastUpdated(new Date().toISOString());
     } catch (err) {
@@ -322,7 +327,13 @@ export default function Home() {
         onDrillDown={handleOpenDrillDown}
       />
 
-      {/* 10. Revenue & Margin */}
+      {/* 10. Insights & Suggestive AI */}
+      <DashboardInsightsAiSection
+        data={insightsAiData}
+        onDrillDown={handleOpenDrillDown}
+      />
+
+      {/* 11. Revenue & Margin */}
       <DashboardRevenueSection
         data={revenueData}
         onDrillDown={handleOpenDrillDown}

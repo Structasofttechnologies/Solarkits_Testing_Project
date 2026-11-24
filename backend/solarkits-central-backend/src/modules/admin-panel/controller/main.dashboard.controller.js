@@ -14,7 +14,12 @@ const {
   Reseller,
   WarehouseComboKit: IndiaComboKit,
   FranchiseeCluster,
+  FranchiseeClusterGoal,
 } = require('../models/india_solarshop_db');
+
+const {
+  sendDeduplicatedAdminAlert,
+} = require('../services/admin.notification.service');
 
 const {
   SolarKit,
@@ -1926,5 +1931,689 @@ exports.get_drill_down_records = async (req, res) => {
   } catch (error) {
     console.error('[MainDashboard] Drill-down records error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch drill-down records', error: error.message });
+  }
+};
+
+/* =========================================================================
+   13. INSIGHTS & SUGGESTIVE AI
+   ========================================================================= */
+
+exports.get_insights_ai = async (req, res) => {
+  try {
+    const { state, district, dateRange, startDate, endDate, minEpcs, epcBenchmark } = req.query;
+    const { currentStart, currentEnd } = getDateRanges(dateRange, startDate, endDate);
+    const benchmarkThreshold = Math.max(1, Number(minEpcs || epcBenchmark) || 50);
+
+    // 1. Fetch Clusters based on optional state filter
+    const clusterQuery = { deleted_at: null, is_active: true };
+    if (state && state !== 'all') {
+      clusterQuery.state_name = new RegExp(`^${state.trim()}$`, 'i');
+    }
+
+    const [
+      clusters,
+      allEpcs,
+      clusterGoals,
+      orders,
+      quotes,
+      leads,
+      websiteLeads,
+      configuredKits,
+    ] = await Promise.all([
+      FranchiseeCluster.find(clusterQuery)
+        .populate('assigned_franchisee_id', 'business_name company_name name phone store_name email reseller_lifecycle_status store_category')
+        .populate('primary_bde_id', 'full_name name employee_id mobile_number')
+        .lean()
+        .catch(() => []),
+      EpcAccount.find({ deleted_at: null }, 'state_name district_name gstin gst_verification_status is_gstin_active last_activity_at created_at company_name name status onboarded_by_reseller_id primary_reseller_id').lean().catch(() => []),
+      FranchiseeClusterGoal.find({ deleted_at: null }).lean().catch(() => []),
+      EpcOrder.find({ order_status: { $ne: 'cancelled' } }, 'delivery_address grand_total_paise order_load_metrics items created_at epc_id order_number').lean().catch(() => []),
+      EpcQuote.find({ status: { $nin: ['cancelled', 'lost', 'expired', 'converted'] } }, 'territory kit_capacity_kw total_kw quantity total_amount_paise combo_kit_id created_at status combo_kit_snapshot quote_number items').lean().catch(() => []),
+      EpcLead.find({}, 'state_name district_name interested_products required_capacity lead_status created_at').lean().catch(() => []),
+      WebsiteEpcLead.find({}, 'state_name district_name created_at').lean().catch(() => []),
+      getConfiguredComboKits(),
+    ]);
+
+    const clean = (s) => (s || '').toLowerCase().replace(/bhoomi/g, 'bhumi').replace(/[^a-z0-9]/g, '');
+
+    // Map of orders by EPC id for quick activity check
+    const epcOrdersMap = new Map();
+    orders.forEach((o) => {
+      const eid = o.epc_id?.toString();
+      if (!eid) return;
+      epcOrdersMap.set(eid, (epcOrdersMap.get(eid) || 0) + 1);
+    });
+
+    const isEpcVerified = (e) => Boolean(
+      e.status === 'approved' ||
+      e.status === 'active' ||
+      e.is_gstin_active ||
+      (e.gstin && e.gstin.length >= 10 && e.gstin !== 'Pending') ||
+      (e.gst_verification_status && e.gst_verification_status !== 'unverified' && e.gst_verification_status.includes('verified'))
+    );
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
+    const isEpcActive = (e) => Boolean(
+      e.status === 'approved' ||
+      e.status === 'active' ||
+      e.is_gstin_active ||
+      (e.last_activity_at && new Date(e.last_activity_at) >= thirtyDaysAgo) ||
+      epcOrdersMap.has(e._id.toString())
+    );
+
+    // Index goals by cluster_id
+    const goalsByCluster = new Map();
+    clusterGoals.forEach((g) => {
+      if (g.cluster_id) goalsByCluster.set(g.cluster_id.toString(), g);
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SECTION B: Cluster & Franchisee Potential Analysis
+    // ─────────────────────────────────────────────────────────────────────────
+    const clusterPotentialList = [];
+    const campaignSuggestionsList = [];
+    const threeMonthGoalsList = [];
+
+    let newFranchiseeOppCount = 0;
+    let campaignSuggestionsCount = 0;
+    let threeMonthGoalsInProgressCount = 0;
+
+    const now = new Date();
+
+    for (const c of clusters) {
+      const assignedDistricts = c.district_names || [];
+      const distCleanSet = new Set(assignedDistricts.map(clean));
+      const clusterStateClean = clean(c.state_name);
+      const hasFranchisee = Boolean(c.status === 'allotted' && c.assigned_franchisee_id);
+      const franchiseeId = c.assigned_franchisee_id ? String(c.assigned_franchisee_id._id || c.assigned_franchisee_id) : null;
+      const franchiseeName = hasFranchisee
+        ? (c.assigned_franchisee_id.business_name || c.assigned_franchisee_id.company_name || c.assigned_franchisee_id.name || 'Allotted Franchisee')
+        : 'Not Available';
+      const storeName = hasFranchisee
+        ? (c.assigned_franchisee_id.store_name || `${c.cluster_name} Store`)
+        : 'N/A';
+
+      // Match EPCs in this cluster territory
+      const territoryEpcs = allEpcs.filter((e) => {
+        const eDist = clean(e.district_name);
+        const eState = clean(e.state_name);
+        const stateMatches = !eState || !clusterStateClean || eState === clusterStateClean;
+        return Boolean(stateMatches && distCleanSet.has(eDist));
+      });
+
+      // Match EPCs attributed to the franchisee (onboarded by or assigned to store)
+      const franchiseeEpcs = franchiseeId ? allEpcs.filter((e) => (
+        (e.onboarded_by_reseller_id && String(e.onboarded_by_reseller_id) === franchiseeId) ||
+        (e.primary_reseller_id && String(e.primary_reseller_id) === franchiseeId)
+      )) : [];
+
+      // For allotted cluster, evaluate the franchisee's actual buyer network;
+      // for unallotted clusters, evaluate territory EPCs
+      const clusterEpcs = (hasFranchisee && franchiseeEpcs.length > 0) ? franchiseeEpcs : territoryEpcs;
+
+      const registeredEpcs = clusterEpcs.length;
+      const verifiedEpcs = clusterEpcs.filter(isEpcVerified).length;
+      const activeEpcs = clusterEpcs.filter(isEpcActive).length;
+
+      // Match Leads & Enquiries in this cluster
+      const clusterLeads = leads.filter((l) => {
+        const lDist = clean(l.district_name);
+        const lState = clean(l.state_name);
+        const stateMatches = !lState || !clusterStateClean || lState === clusterStateClean;
+        return stateMatches && distCleanSet.has(lDist);
+      });
+      const clusterWebLeads = websiteLeads.filter((w) => {
+        const wDist = clean(w.district_name);
+        const wState = clean(w.state_name);
+        const stateMatches = !wState || !clusterStateClean || wState === clusterStateClean;
+        return stateMatches && distCleanSet.has(wDist);
+      });
+
+      // MIS EPC Potential: Total recorded prospective contractors in the territory
+      const misPotential = clusterLeads.length + clusterWebLeads.length + territoryEpcs.length;
+
+      const clusterGoal = goalsByCluster.get(c._id.toString());
+      const epcTarget = clusterGoal?.annual_epc_goal || benchmarkThreshold; // Approved benchmark
+      const epcAchievement = activeEpcs;
+      const epcGap = Math.max(0, epcTarget - epcAchievement);
+      const achievementPct = epcTarget > 0 ? Math.min(100, Math.round((epcAchievement / epcTarget) * 100)) : 0;
+
+      let conditionType = '';
+      let suggestedAction = '';
+      let actionBadge = '';
+
+      if (!hasFranchisee) {
+        // Condition 1: Franchisee Not Available
+        if (misPotential >= benchmarkThreshold || registeredEpcs >= benchmarkThreshold) {
+          conditionType = 'NEW_OPPORTUNITY';
+          actionBadge = 'New Franchisee Opportunity';
+          suggestedAction = `New Franchisee Opportunity: Cluster has reached the ${benchmarkThreshold} EPC benchmark (${registeredEpcs} registered, ${misPotential} prospective). No franchisee is currently assigned. Consider opening a new franchisee in this cluster.`;
+          newFranchiseeOppCount += 1;
+
+          // Dispatch deduplicated Admin Alert
+          sendDeduplicatedAdminAlert({
+            title: `New Franchisee Opportunity: ${c.cluster_name}`,
+            message: `Cluster ${c.cluster_name} (${c.state_name}) has achieved the ${benchmarkThreshold} EPC potential benchmark (${misPotential} potential EPCs). No franchisee is currently assigned.`,
+            category: 'epc',
+            priority: 'high',
+            action_url: '/admin-panel/home',
+            metadata: {
+              alert_type: 'new_franchisee_opportunity',
+              cluster_id: String(c._id),
+              cluster_name: c.cluster_name,
+              state_name: c.state_name,
+              potential_epcs: misPotential,
+              benchmark: benchmarkThreshold,
+            },
+          }).catch(() => {});
+        } else {
+          conditionType = 'BUILDING_PIPELINE';
+          actionBadge = 'Pipeline Building';
+          suggestedAction = `Market Under Development: EPC potential (${misPotential}/${benchmarkThreshold}) is growing towards franchisee viability benchmark.`;
+        }
+      } else {
+        // Franchisee already exists
+        if (activeEpcs >= epcTarget) {
+          // Condition 3: Target Already Achieved
+          conditionType = 'TARGET_ACHIEVED';
+          actionBadge = 'Target Achieved';
+          suggestedAction = `Target Achieved: Existing franchisee has achieved the approved active EPC target (${activeEpcs}/${epcTarget} Active EPCs).`;
+        } else {
+          // Condition 2: Target Pending -> Recommend META Campaign
+          conditionType = 'CAMPAIGN_REQUIRED';
+          actionBadge = 'META Campaign Recommended';
+          suggestedAction = `META Campaign Recommended: Active EPC target gap of ${epcGap} EPCs. Recommend acquiring new EPC registrations for franchisee store ${storeName}.`;
+          campaignSuggestionsCount += 1;
+
+          // Dispatch deduplicated Admin Alert if significant gap exists
+          if (epcGap >= 5) {
+            sendDeduplicatedAdminAlert({
+              title: `EPC Acquisition Required: ${c.cluster_name}`,
+              message: `Franchisee ${franchiseeName} in ${c.cluster_name} has an active EPC target gap of ${epcGap} EPCs (${activeEpcs}/${epcTarget}). META campaign recommended.`,
+              category: 'epc',
+              priority: 'normal',
+              action_url: '/admin-panel/home',
+              metadata: {
+                alert_type: 'franchisee_epc_acquisition',
+                cluster_id: String(c._id),
+                franchisee_id: String(c.assigned_franchisee_id._id),
+                gap: epcGap,
+              },
+            }).catch(() => {});
+          }
+        }
+      }
+
+      clusterPotentialList.push({
+        id: String(c._id),
+        cluster: c.cluster_name,
+        clusterCode: c.cluster_code,
+        state: c.state_name,
+        districts: assignedDistricts,
+        misPotential,
+        registeredEpcs,
+        verifiedEpcs,
+        activeEpcs,
+        franchiseeAvailability: hasFranchisee ? 'Available' : 'Not Available',
+        franchiseeName,
+        storeName,
+        epcTarget,
+        epcAchievement,
+        epcGap,
+        achievementPct,
+        conditionType,
+        actionBadge,
+        suggestedAction,
+      });
+
+      // SECTION C: EPC Growth & META Campaign Suggestions Row
+      if (hasFranchisee && conditionType === 'CAMPAIGN_REQUIRED') {
+        campaignSuggestionsList.push({
+          id: String(c._id),
+          cluster: c.cluster_name,
+          state: c.state_name,
+          franchisee: franchiseeName,
+          franchiseeId: String(c.assigned_franchisee_id._id),
+          store: storeName,
+          registeredEpcs,
+          verifiedEpcs,
+          activeEpcs,
+          activeEpcTarget: epcTarget,
+          remainingEpcTarget: epcGap,
+          targetDuration: '3 Months',
+          suggestedCampaign: 'META Campaign (EPC Acquisition)',
+          campaignObjective: 'New EPC registrations for the franchisee store',
+          recommendation: `Launch targeted META Lead Generation campaigns focused on electrical contractors and solar installers in ${assignedDistricts.slice(0, 3).join(', ')} to bridge the ${epcGap} active EPC gap for ${storeName}.`,
+        });
+      }
+
+      // SECTION D: Three-Month Active EPC Goal Tracking Row
+      if (hasFranchisee) {
+        threeMonthGoalsInProgressCount += 1;
+
+        // Determine Goal Start Date:
+        // Use clusterGoal created_at, or if the franchisee onboarded EPCs in the current cycle prior to goal record creation,
+        // anchor the 90-day goal window to the earliest onboarding date so Month 1 reflects their active onboarding work.
+        let goalStartDate = clusterGoal?.created_at ? new Date(clusterGoal.created_at) : null;
+
+        // Find earliest EPC creation date among cluster EPCs
+        let earliestEpcDate = null;
+        clusterEpcs.forEach((e) => {
+          if (e.created_at) {
+            const d = new Date(e.created_at);
+            if (!isNaN(d.getTime())) {
+              if (!earliestEpcDate || d < earliestEpcDate) {
+                earliestEpcDate = d;
+              }
+            }
+          }
+        });
+
+        if (!goalStartDate || isNaN(goalStartDate.getTime())) {
+          if (earliestEpcDate) {
+            goalStartDate = earliestEpcDate;
+          } else {
+            const qMonth = Math.floor(now.getMonth() / 3) * 3;
+            goalStartDate = new Date(now.getFullYear(), qMonth, 1);
+          }
+        } else if (earliestEpcDate && earliestEpcDate < goalStartDate) {
+          // If EPCs were onboarded within 45 days prior to formal goal setting (e.g. Nov 3 vs Nov 18),
+          // anchor the 90-day goal window to the earliest onboarding date so Month 1 reflects their active onboarding work
+          const diffDays = (goalStartDate.getTime() - earliestEpcDate.getTime()) / 86400000;
+          if (diffDays <= 45) {
+            goalStartDate = earliestEpcDate;
+          }
+        }
+
+        const goalEndDate = new Date(goalStartDate.getTime() + 90 * 86400000); // 90 days / 3 months
+        const remainingDays = Math.max(0, Math.ceil((goalEndDate.getTime() - now.getTime()) / 86400000));
+
+        // Evaluate newly registered, verified, activated within goal window
+        const newEpcsInGoalPeriod = clusterEpcs.filter((e) => e.created_at && new Date(e.created_at) >= goalStartDate);
+        const newlyVerifiedInGoalPeriod = newEpcsInGoalPeriod.filter(isEpcVerified);
+        const newlyActivatedInGoalPeriod = newEpcsInGoalPeriod.filter(isEpcActive);
+
+        // Pre-existing starting active EPCs
+        const startingActiveEpcs = Math.max(0, activeEpcs - newlyActivatedInGoalPeriod.length);
+
+        // 3-Month breakdown: Month 1 (day 1-30), Month 2 (day 31-60), Month 3 (day 61-90)
+        const m1End = new Date(goalStartDate.getTime() + 30 * 86400000);
+        const m2End = new Date(goalStartDate.getTime() + 60 * 86400000);
+
+        const m1Epcs = clusterEpcs.filter((e) => e.created_at && new Date(e.created_at) >= goalStartDate && new Date(e.created_at) < m1End);
+        const m2Epcs = clusterEpcs.filter((e) => e.created_at && new Date(e.created_at) >= m1End && new Date(e.created_at) < m2End);
+        const m3Epcs = clusterEpcs.filter((e) => e.created_at && new Date(e.created_at) >= m2End && new Date(e.created_at) <= goalEndDate);
+
+        // Deadline breach alert trigger
+        if (remainingDays === 0 && activeEpcs < epcTarget) {
+          sendDeduplicatedAdminAlert({
+            title: `3-Month EPC Goal Deadline Breached: ${c.cluster_name}`,
+            message: `Franchisee ${franchiseeName} achieved ${activeEpcs}/${epcTarget} active EPCs within the 90-day goal timeframe. Remaining gap: ${epcGap} EPCs.`,
+            category: 'epc',
+            priority: 'urgent',
+            action_url: '/admin-panel/home',
+            metadata: {
+              alert_type: 'epc_goal_deadline_breached',
+              cluster_id: String(c._id),
+            },
+          }).catch(() => {});
+        }
+
+        threeMonthGoalsList.push({
+          id: String(c._id),
+          franchisee: franchiseeName,
+          franchiseeId: String(c.assigned_franchisee_id._id),
+          cluster: c.cluster_name,
+          state: c.state_name,
+          activeEpcTarget: epcTarget,
+          startingActiveEpcs,
+          currentActiveEpcs: activeEpcs,
+          newEpcRegistrations: newEpcsInGoalPeriod.length,
+          newlyVerifiedEpcs: newlyVerifiedInGoalPeriod.length,
+          newlyActivatedEpcs: newlyActivatedInGoalPeriod.length,
+          remainingEpcTarget: epcGap,
+          achievementPercentage: achievementPct,
+          goalStartDate: goalStartDate.toISOString().slice(0, 10),
+          goalEndDate: goalEndDate.toISOString().slice(0, 10),
+          remainingDays,
+          isOverdue: remainingDays === 0 && activeEpcs < epcTarget,
+          isAchieved: activeEpcs >= epcTarget,
+          monthlyProgress: [
+            {
+              monthLabel: 'Month 1',
+              dayRange: 'Days 1-30',
+              registrations: m1Epcs.length,
+              verifications: m1Epcs.filter(isEpcVerified).length,
+              activations: m1Epcs.filter(isEpcActive).length,
+            },
+            {
+              monthLabel: 'Month 2',
+              dayRange: 'Days 31-60',
+              registrations: m2Epcs.length,
+              verifications: m2Epcs.filter(isEpcVerified).length,
+              activations: m2Epcs.filter(isEpcActive).length,
+            },
+            {
+              monthLabel: 'Month 3',
+              dayRange: 'Days 61-90',
+              registrations: m3Epcs.length,
+              verifications: m3Epcs.filter(isEpcVerified).length,
+              activations: m3Epcs.filter(isEpcActive).length,
+            },
+          ],
+        });
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SECTION E: Kit Sales Potential & Ranking
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Build combo kit registry map
+    const kitCatalogMap = new Map();
+    (configuredKits || []).forEach((k) => {
+      const id = k._id.toString();
+      const capNum = Number(k.kit_capacity_kw || k.capacity || (k.name.match(/(\d+)\s*(?:kw|k\.w)/i)?.[1]) || 1);
+      const sku = k.sku || k.kit_code || `SK-KIT-${capNum}KW`;
+      kitCatalogMap.set(id, {
+        id,
+        kitName: k.name,
+        kitType: k.kit_type || 'Combo Kit',
+        capacity: `${capNum} kW`,
+        capacityKw: capNum,
+        sku,
+      });
+    });
+
+    // Helper: find matched cluster for an address
+    const getClusterForLocation = (districtName, stateName) => {
+      const dClean = clean(districtName);
+      const sClean = clean(stateName);
+      if (!dClean) return null;
+      return clusters.find((c) => {
+        const clusterState = clean(c.state_name);
+        const stateMatches = !sClean || !clusterState || sClean === clusterState;
+        return stateMatches && (c.district_names || []).some((dn) => clean(dn) === dClean);
+      });
+    };
+
+    // Helper: match kit catalog item from order item or quote
+    const matchCatalogKit = (comboKitId, itemName, capKw) => {
+      if (comboKitId && kitCatalogMap.has(comboKitId.toString())) {
+        return kitCatalogMap.get(comboKitId.toString());
+      }
+      if (itemName) {
+        const lower = itemName.toLowerCase();
+        for (const k of kitCatalogMap.values()) {
+          if (lower.includes(k.kitName.toLowerCase())) return k;
+        }
+      }
+      if (capKw) {
+        const num = Number(capKw);
+        for (const k of kitCatalogMap.values()) {
+          if (k.capacityKw === num) return k;
+        }
+      }
+      // Fallback virtual kit descriptor
+      const fallbackCap = Number(capKw || 1);
+      return {
+        id: `virtual-${fallbackCap}kw`,
+        kitName: itemName || `${fallbackCap} kW Solar Kit`,
+        kitType: 'Combo Kit',
+        capacity: `${fallbackCap} kW`,
+        capacityKw: fallbackCap,
+        sku: `SK-KIT-${fallbackCap}KW`,
+      };
+    };
+
+    // Group Active Sales (Cluster x Kit) and (State x Kit)
+    const clusterActiveSales = new Map();
+    const stateActiveSales = new Map();
+
+    orders.forEach((o) => {
+      const oState = o.delivery_address?.state_name || 'Regional';
+      const oDist = o.delivery_address?.district_name || '';
+      const matchedCluster = getClusterForLocation(oDist, oState);
+      const clusterId = matchedCluster ? String(matchedCluster._id) : `unassigned-${clean(oState)}`;
+      const clusterName = matchedCluster ? matchedCluster.cluster_name : `${oState} Regional`;
+
+      (o.items || []).forEach((it) => {
+        const cap = Number(it.kit_capacity_kw || it.capacity_kw || (it.capacity ? String(it.capacity).match(/(\d+)/)?.[1] : 1) || 1);
+        const kit = matchCatalogKit(it.kit_id || it.combo_kit_id, it.item_name || it.name, cap);
+        const qty = Number(it.quantity || 1);
+        const kw = Number(it.quantity ? qty * kit.capacityKw : 1);
+        const val = Math.round((it.total_price_paise || o.grand_total_paise || 0) / 100);
+
+        // Cluster bucket
+        const cKey = `${clusterId}::${kit.id}`;
+        if (!clusterActiveSales.has(cKey)) {
+          clusterActiveSales.set(cKey, {
+            clusterId,
+            cluster: clusterName,
+            state: oState,
+            kitName: kit.kitName,
+            kitType: kit.kitType,
+            capacity: kit.capacity,
+            capacityKw: kit.capacityKw,
+            sku: kit.sku,
+            confirmedOrders: 0,
+            confirmedQuantity: 0,
+            confirmedKw: 0,
+            confirmedOrderValue: 0,
+          });
+        }
+        const cEntry = clusterActiveSales.get(cKey);
+        cEntry.confirmedOrders += 1;
+        cEntry.confirmedQuantity += qty;
+        cEntry.confirmedKw += kw;
+        cEntry.confirmedOrderValue += val;
+
+        // State bucket
+        const sKey = `${oState}::${kit.id}`;
+        if (!stateActiveSales.has(sKey)) {
+          stateActiveSales.set(sKey, {
+            state: oState,
+            kitName: kit.kitName,
+            kitType: kit.kitType,
+            capacity: kit.capacity,
+            capacityKw: kit.capacityKw,
+            sku: kit.sku,
+            confirmedOrders: 0,
+            confirmedQuantity: 0,
+            confirmedKw: 0,
+            confirmedOrderValue: 0,
+          });
+        }
+        const sEntry = stateActiveSales.get(sKey);
+        sEntry.confirmedOrders += 1;
+        sEntry.confirmedQuantity += qty;
+        sEntry.confirmedKw += kw;
+        sEntry.confirmedOrderValue += val;
+      });
+    });
+
+    // Group Potential Demand (Cluster x Kit) and (State x Kit)
+    const clusterPotentialDemand = new Map();
+    const statePotentialDemand = new Map();
+
+    quotes.forEach((q) => {
+      const qState = q.territory?.state_name || 'Regional';
+      const qDist = q.territory?.district_name || '';
+      const matchedCluster = getClusterForLocation(qDist, qState);
+      const clusterId = matchedCluster ? String(matchedCluster._id) : `unassigned-${clean(qState)}`;
+      const clusterName = matchedCluster ? matchedCluster.cluster_name : `${qState} Regional`;
+
+      const cap = Number(q.kit_capacity_kw || q.total_kw || 1);
+      const kit = matchCatalogKit(q.combo_kit_id, q.combo_kit_snapshot?.name, cap);
+      const qty = Number(q.quantity || 1);
+      const kw = Number(q.total_kw || (qty * kit.capacityKw));
+      const val = Math.round((q.total_amount_paise || 0) / 100);
+
+      // Cluster bucket
+      const cKey = `${clusterId}::${kit.id}`;
+      if (!clusterPotentialDemand.has(cKey)) {
+        clusterPotentialDemand.set(cKey, {
+          clusterId,
+          cluster: clusterName,
+          state: qState,
+          kitName: kit.kitName,
+          kitType: kit.kitType,
+          capacity: kit.capacity,
+          capacityKw: kit.capacityKw,
+          sku: kit.sku,
+          enquiryCount: 0,
+          quotationCount: 0,
+          estimatedKitDemand: 0,
+          pendingKitDemand: 0,
+          estimatedDemandKw: 0,
+          potentialOrderValue: 0,
+        });
+      }
+      const cEntry = clusterPotentialDemand.get(cKey);
+      cEntry.quotationCount += 1;
+      cEntry.estimatedKitDemand += qty;
+      cEntry.estimatedDemandKw += kw;
+      cEntry.potentialOrderValue += val;
+
+      // State bucket
+      const sKey = `${qState}::${kit.id}`;
+      if (!statePotentialDemand.has(sKey)) {
+        statePotentialDemand.set(sKey, {
+          state: qState,
+          kitName: kit.kitName,
+          kitType: kit.kitType,
+          capacity: kit.capacity,
+          capacityKw: kit.capacityKw,
+          sku: kit.sku,
+          enquiryCount: 0,
+          quotationCount: 0,
+          estimatedKitDemand: 0,
+          pendingKitDemand: 0,
+          estimatedDemandKw: 0,
+          potentialOrderValue: 0,
+        });
+      }
+      const sEntry = statePotentialDemand.get(sKey);
+      sEntry.quotationCount += 1;
+      sEntry.estimatedKitDemand += qty;
+      sEntry.estimatedDemandKw += kw;
+      sEntry.potentialOrderValue += val;
+    });
+
+    // Attribute recorded lead enquiries to kit demand
+    leads.forEach((l) => {
+      const lState = l.state_name || 'Regional';
+      const lDist = l.district_name || '';
+      const matchedCluster = getClusterForLocation(lDist, lState);
+      const clusterId = matchedCluster ? String(matchedCluster._id) : `unassigned-${clean(lState)}`;
+      const clusterName = matchedCluster ? matchedCluster.cluster_name : `${lState} Regional`;
+
+      const cap = Number(l.required_capacity || 1);
+      const kit = matchCatalogKit(null, null, cap);
+
+      const cKey = `${clusterId}::${kit.id}`;
+      if (clusterPotentialDemand.has(cKey)) {
+        clusterPotentialDemand.get(cKey).enquiryCount += 1;
+      }
+      const sKey = `${lState}::${kit.id}`;
+      if (statePotentialDemand.has(sKey)) {
+        statePotentialDemand.get(sKey).enquiryCount += 1;
+      }
+    });
+
+    // Compute Pending Kit Demand = max(Estimated - Confirmed, 0)
+    clusterPotentialDemand.forEach((pot, key) => {
+      const active = clusterActiveSales.get(key);
+      const confirmed = active ? active.confirmedQuantity : 0;
+      pot.pendingKitDemand = Math.max(0, pot.estimatedKitDemand - confirmed);
+    });
+    statePotentialDemand.forEach((pot, key) => {
+      const active = stateActiveSales.get(key);
+      const confirmed = active ? active.confirmedQuantity : 0;
+      pot.pendingKitDemand = Math.max(0, pot.estimatedKitDemand - confirmed);
+    });
+
+    // ── Build Cluster-wise Active Kit Rankings ──
+    const clusterActiveRows = Array.from(clusterActiveSales.values());
+    const clusterActiveGrouped = {};
+    clusterActiveRows.forEach((row) => {
+      if (!clusterActiveGrouped[row.cluster]) clusterActiveGrouped[row.cluster] = [];
+      clusterActiveGrouped[row.cluster].push(row);
+    });
+    Object.values(clusterActiveGrouped).forEach((list) => {
+      list.sort((a, b) => b.confirmedQuantity - a.confirmedQuantity || b.confirmedOrderValue - a.confirmedOrderValue);
+      list.forEach((item, idx) => { item.rank = idx + 1; });
+    });
+
+    // ── Build Cluster-wise Potential Kit Rankings ──
+    const clusterPotentialRows = Array.from(clusterPotentialDemand.values());
+    const clusterPotentialGrouped = {};
+    clusterPotentialRows.forEach((row) => {
+      if (!clusterPotentialGrouped[row.cluster]) clusterPotentialGrouped[row.cluster] = [];
+      clusterPotentialGrouped[row.cluster].push(row);
+    });
+    Object.values(clusterPotentialGrouped).forEach((list) => {
+      list.sort((a, b) => b.pendingKitDemand - a.pendingKitDemand || b.potentialOrderValue - a.potentialOrderValue);
+      list.forEach((item, idx) => { item.rank = idx + 1; });
+    });
+
+    // ── Build State-wise Active Kit Rankings ──
+    const stateActiveRows = Array.from(stateActiveSales.values());
+    const stateActiveGrouped = {};
+    stateActiveRows.forEach((row) => {
+      if (!stateActiveGrouped[row.state]) stateActiveGrouped[row.state] = [];
+      stateActiveGrouped[row.state].push(row);
+    });
+    Object.values(stateActiveGrouped).forEach((list) => {
+      list.sort((a, b) => b.confirmedQuantity - a.confirmedQuantity || b.confirmedOrderValue - a.confirmedOrderValue);
+      list.forEach((item, idx) => { item.rank = idx + 1; });
+    });
+
+    // ── Build State-wise Potential Kit Rankings ──
+    const statePotentialRows = Array.from(statePotentialDemand.values());
+    const statePotentialGrouped = {};
+    statePotentialRows.forEach((row) => {
+      if (!statePotentialGrouped[row.state]) statePotentialGrouped[row.state] = [];
+      statePotentialGrouped[row.state].push(row);
+    });
+    Object.values(statePotentialGrouped).forEach((list) => {
+      list.sort((a, b) => b.pendingKitDemand - a.pendingKitDemand || b.potentialOrderValue - a.potentialOrderValue);
+      list.forEach((item, idx) => { item.rank = idx + 1; });
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        // Section A: Overview KPI summary badges
+        overview: {
+          newFranchiseeOpportunities: newFranchiseeOppCount,
+          franchiseesRequiringCampaigns: campaignSuggestionsCount,
+          activeGoalsInProgress: threeMonthGoalsInProgressCount,
+          activeKitsCount: new Set(clusterActiveRows.map((r) => r.kitName)).size,
+          potentialKitsCount: new Set(clusterPotentialRows.map((r) => r.kitName)).size,
+          benchmarkThreshold,
+        },
+        // Section B: Cluster & Franchisee Potential Analysis Table
+        clusterPotential: clusterPotentialList,
+        // Section C: EPC Growth & META Campaign Suggestions
+        campaignSuggestions: campaignSuggestionsList,
+        // Section D: Three-Month Active EPC Goal Tracking
+        threeMonthGoals: threeMonthGoalsList,
+        // Section E: Kit Sales Potential & Rankings
+        kitRankings: {
+          clusterActive: clusterActiveRows.sort((a, b) => a.cluster.localeCompare(b.cluster) || a.rank - b.rank),
+          clusterPotential: clusterPotentialRows.sort((a, b) => a.cluster.localeCompare(b.cluster) || a.rank - b.rank),
+          stateActive: stateActiveRows.sort((a, b) => a.state.localeCompare(b.state) || a.rank - b.rank),
+          statePotential: statePotentialRows.sort((a, b) => a.state.localeCompare(b.state) || a.rank - b.rank),
+        },
+      },
+    });
+  } catch (error) {
+    console.error('[MainDashboard] Insights & Suggestive AI aggregation error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to aggregate Insights & Suggestive AI data',
+      error: error.message,
+    });
   }
 };

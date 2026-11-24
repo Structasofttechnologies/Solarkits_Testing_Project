@@ -37,7 +37,9 @@ export default function DeliveryDashboard() {
 
   const basePath = location.pathname.includes('/warehouse-management-panel')
     ? '/warehouse-management-panel/delivery-management'
-    : '/admin-panel/solar-shop/delivery-management';
+    : location.pathname.includes('/admin-panel/delivery-management')
+      ? '/admin-panel/delivery-management'
+      : '/admin-panel/solar-shop/delivery-management';
 
   const [loading, setLoading] = useState(true);
   const [warehouses, setWarehouses] = useState([]);
@@ -572,11 +574,10 @@ export default function DeliveryDashboard() {
                     <button
                       key={t.id}
                       onClick={() => setBreakdownTab(t.id)}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all ${
-                        breakdownTab === t.id
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all ${breakdownTab === t.id
                           ? 'bg-white text-amber-600 shadow-sm'
                           : 'text-slate-600 hover:text-slate-900'
-                      }`}
+                        }`}
                     >
                       <Icon className="text-xs" /> {t.label}
                     </button>
@@ -625,9 +626,8 @@ export default function DeliveryDashboard() {
                             <span className={`font-bold ${item.is_tat_breach ? "text-rose-600" : "text-emerald-700"}`}>
                               {item.tat_days} Days
                             </span>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              item.is_tat_breach ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"
-                            }`}>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${item.is_tat_breach ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"
+                              }`}>
                               {item.is_tat_breach ? "🚨 SLA Breach" : "🟢 On-Time"}
                             </span>
                           </div>
@@ -876,11 +876,10 @@ export default function DeliveryDashboard() {
                           </td>
                           <td className="px-4 py-3">
                             <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                isConsolidated
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${isConsolidated
                                   ? 'bg-purple-100 text-purple-700'
                                   : 'bg-blue-100 text-blue-700'
-                              }`}
+                                }`}
                             >
                               {isConsolidated ? <FaRoute /> : <FaBoxes />}
                               {isConsolidated ? 'Consolidated' : 'Single'}

@@ -98,4 +98,9 @@ export const mainDashboardApi = {
   getDrillDownRecords: async (params = {}) => {
     return getReq('drill-down', params);
   },
+
+  // 13. Insights & Suggestive AI
+  getInsightsAi: async (params = {}) => {
+    return getReq('insights-ai', params);
+  },
 };

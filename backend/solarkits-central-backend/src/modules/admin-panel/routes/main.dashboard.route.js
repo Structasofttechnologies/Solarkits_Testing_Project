@@ -50,4 +50,7 @@ router.get('/campaign-performance', permissiveAuth, controller.get_campaign_perf
 // 12. In-Page Drill-Down Detailed Records
 router.get('/drill-down', permissiveAuth, controller.get_drill_down_records);
 
+// 13. Insights & Suggestive AI
+router.get('/insights-ai', permissiveAuth, controller.get_insights_ai);
+
 module.exports = router;
