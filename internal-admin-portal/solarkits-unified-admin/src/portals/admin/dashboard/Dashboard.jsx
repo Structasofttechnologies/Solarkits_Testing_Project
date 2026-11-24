@@ -10,11 +10,9 @@ import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
 
- 
-import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck, FaBullhorn, FaEnvelope, FaWhatsapp } from "react-icons/fa";
- 
-import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck, FaCreditCard } from "react-icons/fa";
- 
+
+import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck, FaBullhorn, FaEnvelope, FaWhatsapp, FaCreditCard } from "react-icons/fa";
+
 
 import {
   MdAccountTree,
@@ -69,6 +67,7 @@ const TrialKitInventoryPage = lazy(() => import("../pages/trial-kits/TrialKitInv
 const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrdersPage"));
 const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
 const TrialKitProcurementPage = lazy(() => import("../pages/trial-kits/TrialKitProcurementPage"));
+const TrialKitFeedbackConfigPage = lazy(() => import("../pages/solar-shop/combokit-configurations/TrialKitFeedbackConfigPage"));
 
 /* ===================== Marketing Management Module Pages ===================== */
 const MarketingDashboard = lazy(() => import("../pages/marketing/MarketingDashboard"));
@@ -130,12 +129,12 @@ const menus = [
     { name: "Operations Dashboard", icon: <MdEngineering />, path: "/admin-panel/operations-dashboard", unique_id: "00000000" },
     { name: "Store Dashboard", icon: <FaStore />, path: "/admin-panel/store-dashboard", unique_id: "00000000" },
     { name: "EPC Analytics", icon: <FaChartLine />, path: "/admin-panel/epc-analytics", unique_id: "00000000" },
-    {
-      name: "Marketing Overview",
-      icon: <FaBullhorn />,
-      path: "/marketing-panel/dashboard",
-      unique_id: "00000000"
-    },
+    // {
+    //   name: "Marketing Overview",
+    //   icon: <FaBullhorn />,
+    //   path: "/marketing-panel/dashboard",
+    //   unique_id: "00000000"
+    // },
     // {
     //   name: "Trial Kit Management",
     //   icon: <FaBoxes />,
@@ -897,6 +896,22 @@ export default function Dashboard() {
                     element={
                       <Suspense fallback={<Loader text="Loading Conversion BI Analytics..." />}>
                         <TrialKitAnalyticsPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/trial-kits/feedback-settings"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}>
+                        <TrialKitFeedbackConfigPage />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/solar-shop/combokit-configurations/feedback-settings"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}>
+                        <TrialKitFeedbackConfigPage />
                       </Suspense>
                     }
                   />

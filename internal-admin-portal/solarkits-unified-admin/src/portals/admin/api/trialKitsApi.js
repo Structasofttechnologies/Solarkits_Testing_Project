@@ -149,3 +149,40 @@ export const getTrialKitProcurementBadgeCounts = async () => {
   return res.data;
 };
 
+// ── State & District Wise Feedback Configuration APIs ────────────────────────
+export const getFeedbackConfigStates = async () => {
+  const res = await axios.get(`${BASE_URL}/feedback-configs/states`, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const getFeedbackConfigDistricts = async (stateId) => {
+  const res = await axios.get(`${BASE_URL}/feedback-configs/districts?state_id=${stateId}`, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const saveDistrictFeedbackConfig = async (districtId, data) => {
+  const res = await axios.put(`${BASE_URL}/feedback-configs/district/${districtId}`, data, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const saveStateDefaultFeedbackConfig = async (stateId, data) => {
+  const res = await axios.put(`${BASE_URL}/feedback-configs/state-default/${stateId}`, data, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+export const resetDistrictFeedbackConfig = async (districtId) => {
+  const res = await axios.delete(`${BASE_URL}/feedback-configs/district/${districtId}`, {
+    headers: authHeaderObj(),
+  });
+  return res.data;
+};
+
+

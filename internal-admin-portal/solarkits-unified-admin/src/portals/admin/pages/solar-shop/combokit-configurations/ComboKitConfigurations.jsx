@@ -12,6 +12,7 @@ const BosKitManager = lazy(() => import("./bos-kits/BosKitManager"));
 const PincodeDeliveryCosts = lazy(() => import("./pincode-delivery-costs/PincodeDeliveryCosts"));
 const BestSellerConfiguration = lazy(() => import("./best-seller-configuration/BestSellerConfiguration"));
 const ProductDatasheets = lazy(() => import("./product-datasheets/ProductDatasheets"));
+const TrialKitFeedbackConfigPage = lazy(() => import("./TrialKitFeedbackConfigPage"));
 
 function ComboKitConfigurations() {
     return (
@@ -90,6 +91,16 @@ function ComboKitConfigurations() {
                         <ProductDatasheets moduleUniqueId="ADM_COMBO_KITS" />
                     </Suspense>
                 </PermissionGuard>
+            } />
+            <Route path="/feedback-settings" element={
+                <Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}>
+                    <TrialKitFeedbackConfigPage />
+                </Suspense>
+            } />
+            <Route path="/feedback-configuration" element={
+                <Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}>
+                    <TrialKitFeedbackConfigPage />
+                </Suspense>
             } />
         </Routes>
     )

@@ -84,13 +84,69 @@ export default function TrialKitOrderModal({
     return combined.length > 0 ? combined : [200, 500, 1000];
   }, [kit?.orderQuantities, kit?.order_quantities, kit?.po_order_pricing]);
 
-  // Future Purchase Intent Questionnaire State (Trial Kit Special Form - Only 'loose' or 'bulk_po')
-  const [purchaseMode, setPurchaseMode] = useState("loose"); // 'loose' | 'bulk_po'
+  // Regional Feedback Policy (Admin-configured state/district mode: 'loose_only' | 'po_only' | 'both')
+  const [regionalConfig, setRegionalConfig] = useState(null);
+  const [loadingConfig, setLoadingConfig] = useState(false);
+
+  // Future Purchase Intent Questionnaire State (Trial Kit Special Form - 'loose' | 'bulk_po')
+  const [purchaseMode, setPurchaseMode] = useState("loose");
   const [selectedQuantity, setSelectedQuantity] = useState(() => looseOrderQuantities[0] || 25);
   const [timeline, setTimeline] = useState("within_15_days");
   const [remarks, setRemarks] = useState("");
 
+  // Fetch regional feedback policy
+  const fetchRegionalFeedbackConfig = useCallback(async (stateName, districtName, pin) => {
+    try {
+      setLoadingConfig(true);
+      const params = {};
+      if (stateName) params.state_name = stateName;
+      if (districtName) params.district_name = districtName;
+      if (pin) params.pincode = pin;
+
+      const res = await axiosInstance.get('/india/v1/shop/trial-kits/feedback-config', { params });
+      if (res.data?.success && res.data?.data) {
+        setRegionalConfig(res.data.data);
+      }
+    } catch (err) {
+      console.warn("Could not fetch regional feedback config, using defaults:", err.message);
+    } finally {
+      setLoadingConfig(false);
+    }
+  }, []);
+
+  // Trigger regional config fetch when modal opens or location updates
+  useEffect(() => {
+    if (isOpen) {
+      const sName = deliveryData?.state_name || user?.state_name || user?.state || "";
+      const dName = deliveryData?.district_name || user?.district_name || user?.district || "";
+      const pin = pincode || user?.pincode || "";
+      fetchRegionalFeedbackConfig(sName, dName, pin);
+    }
+  }, [
+    isOpen,
+    deliveryData?.state_name,
+    deliveryData?.district_name,
+    user?.state_name,
+    user?.district_name,
+    user?.pincode,
+    pincode,
+    fetchRegionalFeedbackConfig,
+  ]);
+
+  // When regional configuration arrives, enforce feedback mode if region restricts it
+  useEffect(() => {
+    if (regionalConfig?.feedback_mode === "loose_only") {
+      setPurchaseMode("loose");
+    } else if (regionalConfig?.feedback_mode === "po_only") {
+      setPurchaseMode("bulk_po");
+    }
+  }, [regionalConfig?.feedback_mode]);
+
   const handleSelectMode = (mode) => {
+    // If region enforces single mode, do not allow switching
+    if (regionalConfig?.feedback_mode === "loose_only" && mode !== "loose") return;
+    if (regionalConfig?.feedback_mode === "po_only" && mode !== "bulk_po") return;
+
     setPurchaseMode(mode);
     if (mode === "loose") {
       setSelectedQuantity(looseOrderQuantities[0] || 25);
@@ -490,50 +546,96 @@ export default function TrialKitOrderModal({
 
           {/* Question 1: Loose vs Bulk PO */}
           <div>
-            <label className="text-xs font-black text-text-secondary uppercase tracking-wider block mb-2 flex items-center gap-1.5">
-              <FaLayerGroup className="text-amber-500" />
-              1. Which Purchase Option Will You Choose in the Future? *
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => handleSelectMode("loose")}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  purchaseMode === "loose"
-                    ? "bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs"
-                    : "bg-surface border-border hover:bg-surface-hover text-text-secondary"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-xs">Loose Kits</span>
-                  {purchaseMode === "loose" && <FaCheckCircle className="text-amber-600 dark:text-amber-400 text-xs" />}
-                </div>
-                <p className="text-[10px] text-text-muted mt-1">
-                  Flexible on-demand order ({looseOrderQuantities[0]} - {looseOrderQuantities[looseOrderQuantities.length - 1]} Kits)
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectMode("bulk_po")}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  purchaseMode === "bulk_po"
-                    ? "bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs"
-                    : "bg-surface border-border hover:bg-surface-hover text-text-secondary"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-xs">Bulk PO</span>
-                  {purchaseMode === "bulk_po" && <FaCheckCircle className="text-amber-600 dark:text-amber-400 text-xs" />}
-                </div>
-                <p className="text-[10px] text-text-muted mt-1">
-                  Commercial Bulk PO ({poOrderQuantities[0]}+ Kits scheduled deliveries)
-                </p>
-              </button>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-2">
+              <label className="text-xs font-black text-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+                <FaLayerGroup className="text-amber-500" />
+                1. Which Purchase Option Will You Choose in the Future? *
+              </label>
+              {regionalConfig?.feedback_mode === "loose_only" && (
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                  Regional Policy: Loose Kits Only ({regionalConfig.district_name || regionalConfig.state_name || "Your Region"})
+                </span>
+              )}
+              {regionalConfig?.feedback_mode === "po_only" && (
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                  Regional Policy: Bulk PO Only ({regionalConfig.district_name || regionalConfig.state_name || "Your Region"})
+                </span>
+              )}
             </div>
+
+            {regionalConfig?.feedback_mode === "loose_only" ? (
+              /* Enforced Loose Only Card */
+              <div className="p-3.5 rounded-xl border bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-xs">Loose Kits Model</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-500 text-white uppercase">
+                      Admin Policy
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-text-muted mt-1">
+                    Flexible on-demand batch order ({looseOrderQuantities[0]} - {looseOrderQuantities[looseOrderQuantities.length - 1]} Kits) enabled for {regionalConfig.district_name ? `${regionalConfig.district_name}, ` : ""}{regionalConfig.state_name || "your region"}.
+                  </p>
+                </div>
+                <FaCheckCircle className="text-amber-600 dark:text-amber-400 text-base" />
+              </div>
+            ) : regionalConfig?.feedback_mode === "po_only" ? (
+              /* Enforced Bulk PO Only Card */
+              <div className="p-3.5 rounded-xl border bg-blue-500/15 border-blue-500 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-xs">Bulk PO Model</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-blue-500 text-white uppercase">
+                      Admin Policy
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-text-muted mt-1">
+                    Commercial Bulk PO ({poOrderQuantities[0]}+ Kits scheduled factory deliveries) enabled for {regionalConfig.district_name ? `${regionalConfig.district_name}, ` : ""}{regionalConfig.state_name || "your region"}.
+                  </p>
+                </div>
+                <FaCheckCircle className="text-blue-600 dark:text-blue-400 text-base" />
+              </div>
+            ) : (
+              /* Both Options Selectable */
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleSelectMode("loose")}
+                  className={`p-3 rounded-xl border text-left transition-all ${purchaseMode === "loose"
+                      ? "bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs"
+                      : "bg-surface border-border hover:bg-surface-hover text-text-secondary"
+                    }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-xs">Loose Kits</span>
+                    {purchaseMode === "loose" && <FaCheckCircle className="text-amber-600 dark:text-amber-400 text-xs" />}
+                  </div>
+                  <p className="text-[10px] text-text-muted mt-1">
+                    Flexible on-demand order ({looseOrderQuantities[0]} - {looseOrderQuantities[looseOrderQuantities.length - 1]} Kits)
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectMode("bulk_po")}
+                  className={`p-3 rounded-xl border text-left transition-all ${purchaseMode === "bulk_po"
+                      ? "bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs"
+                      : "bg-surface border-border hover:bg-surface-hover text-text-secondary"
+                    }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-xs">Bulk PO</span>
+                    {purchaseMode === "bulk_po" && <FaCheckCircle className="text-amber-600 dark:text-amber-400 text-xs" />}
+                  </div>
+                  <p className="text-[10px] text-text-muted mt-1">
+                    Commercial Bulk PO ({poOrderQuantities[0]}+ Kits scheduled deliveries)
+                  </p>
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Question 2: Expected Quantities (Configured Pills Only - No Manual Text Input) */}
+          {/* Question 2: Expected Quantities (Configured Pills Only - Directly from Kit Configuration) */}
           <div className="space-y-3 pt-1">
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -553,11 +655,10 @@ export default function TrialKitOrderModal({
                       key={qty}
                       type="button"
                       onClick={() => setSelectedQuantity(qty)}
-                      className={`px-4 py-2.5 rounded-xl font-black text-xs transition-all flex items-center gap-2 border shadow-xs ${
-                        isSelected
+                      className={`px-4 py-2.5 rounded-xl font-black text-xs transition-all flex items-center gap-2 border shadow-xs ${isSelected
                           ? "bg-amber-500 text-white border-amber-600 ring-2 ring-amber-500/30 scale-[1.02]"
                           : "bg-surface hover:bg-surface-hover text-text-primary border-border"
-                      }`}
+                        }`}
                     >
                       <span>{qty} Kits</span>
                       {isSelected && <FaCheckCircle className="text-white text-xs" />}

@@ -269,20 +269,12 @@ By digitally signing below, the Franchise Partner certifies that they have read,
 
   // ── Company Offline Bank Account Details Configuration ─────────────────────
   offline_bank_details: {
- 
-    account_number:       { type: String, trim: true, default: '' },
-    ifsc_code:            { type: String, trim: true, uppercase: true, default: '' },
-    account_holder_name:  { type: String, trim: true, default: '' },
-    updated_at:           { type: Date, default: Date.now },
-    updated_by:           { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
- 
     account_number: { type: String, trim: true, default: '' },
     ifsc_code: { type: String, trim: true, uppercase: true, default: '' },
     account_holder_name: { type: String, trim: true, default: '' },
     bank_name: { type: String, trim: true, default: '' },
     updated_at: { type: Date, default: Date.now },
     updated_by: { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
- 
   },
 
   created_at: { type: Date, default: Date.now },
