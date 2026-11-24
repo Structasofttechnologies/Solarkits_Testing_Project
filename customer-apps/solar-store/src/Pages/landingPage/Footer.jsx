@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import axiosInstance from "../../utils/axiosInstance";
 import {
@@ -300,22 +300,7 @@ export default function Footer({ footerConfig }) {
                         </p>
                       </div>
 
-                      {/* Pincode or Quantity (Optional) */}
- 
-                      {/* <div className="sm:col-span-2">
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-1">
-                          Pincode / Bulk Quantity (Optional)
-                        </label>
-                        <input
-                          type="text"
-                          name="pincode"
-                          value={formData.pincode}
-                          onChange={handleInputChange}
-                          placeholder="e.g. 360001 or 5x 3kW Kits"
-                          className="w-full rounded-xl border border-white/25 bg-white px-3.5 py-2.5 text-xs text-navy outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-accent"
-                        />
-                      </div> */}
- 
+
                     </div>
 
                     <div className="mt-3.5 flex items-center justify-between gap-3 pt-1 border-t border-white/10">
@@ -416,11 +401,6 @@ export default function Footer({ footerConfig }) {
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 text-xs text-white/45 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <span>{copyright}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2" aria-label="Payment methods">
-            {['UPI', 'Visa', 'Mastercard', 'Net Banking', 'EMI'].map((method) => (
-              <span key={method} className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold tracking-wide text-white/55">{method}</span>
-            ))}
           </div>
         </div>
       </div>

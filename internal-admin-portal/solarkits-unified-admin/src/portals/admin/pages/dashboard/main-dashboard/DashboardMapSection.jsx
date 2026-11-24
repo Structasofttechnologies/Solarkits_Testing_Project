@@ -163,12 +163,14 @@ export default function DashboardMapSection({ data = [], onDrillDown, onExport }
       distList.forEach((d) => {
         const dKey = clean(d.district || d.name);
         if (dKey) {
-          map.set(dKey, {
+          const entry = {
             ...d,
             state: st.state,
             totalEpcs: d.registeredEpcs || d.activeEpcs || 0,
             activeEpcs: d.activeEpcs || 0,
-          });
+          };
+          map.set(`${clean(st.state)}_${dKey}`, entry);
+          if (!map.has(dKey)) map.set(dKey, entry);
         }
       });
     });
@@ -184,7 +186,8 @@ export default function DashboardMapSection({ data = [], onDrillDown, onExport }
       const distName = feat.properties?.district || '';
       const stName = feat.properties?.st_nm || '';
       const dKey = clean(distName);
-      const distInfo = districtDataMap.get(dKey);
+      const compositeKey = `${clean(stName)}_${dKey}`;
+      const distInfo = districtDataMap.get(compositeKey) || districtDataMap.get(dKey);
       const epcCount = distInfo?.totalEpcs || 0;
 
       // Show if district has EPCs, and if state is selected, match state

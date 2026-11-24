@@ -182,9 +182,11 @@ export default function DashboardClusterMapSection({ data = {}, onDrillDown }) {
 
     clusters.forEach((c) => {
       const cluDistClean = new Set((c.districts || []).map(clean));
-      const matchingFeatures = districtFeatures.filter((f) =>
-        cluDistClean.has(clean(f.properties?.district))
-      );
+      const matchingFeatures = districtFeatures.filter((f) => {
+        const distMatch = cluDistClean.has(clean(f.properties?.district));
+        const stateMatch = !c.state || clean(f.properties?.st_nm) === clean(c.state);
+        return distMatch && stateMatch;
+      });
 
       if (matchingFeatures.length > 0) {
         let sumX = 0;
@@ -231,10 +233,14 @@ export default function DashboardClusterMapSection({ data = {}, onDrillDown }) {
 
     districtFeatures.forEach((feat) => {
       const dName = feat.properties?.district || '';
+      const stName = feat.properties?.st_nm || '';
       const dKey = clean(dName);
       const meta = districtClusterMap[dKey];
 
       if (meta) {
+        if (meta.clusterState && stName && clean(meta.clusterState) !== clean(stName)) {
+          return;
+        }
         const clu = clusters.find((c) => c.id === meta.clusterId);
         const distMetric = (clu?.districtMetrics || []).find(
           (dm) => clean(dm.district) === dKey

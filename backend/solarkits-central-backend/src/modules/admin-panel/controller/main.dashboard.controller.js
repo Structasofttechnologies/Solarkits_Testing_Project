@@ -372,12 +372,17 @@ exports.get_overview_kpis = async (req, res) => {
 
     // 3. EPC Network Metrics
     const registeredEpcsCount = allEpcs.length;
-    const verifiedEpcsCount = allEpcs.filter(e => e.gst_verification_status?.includes('verified') || e.is_gstin_active || (e.gstin && e.gstin.length >= 10)).length;
+    const isEpcVerified = (e) => Boolean(
+      e.is_gstin_active ||
+      (e.gstin && e.gstin.length >= 10 && e.gstin !== 'Pending') ||
+      (e.gst_verification_status && e.gst_verification_status !== 'unverified' && e.gst_verification_status.includes('verified'))
+    );
+    const verifiedEpcsCount = allEpcs.filter(isEpcVerified).length;
 
     // Approved definition: Verified EPCs with activity in last 30 days OR at least 1 order
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
     const activeEpcsCount = allEpcs.filter(e => {
-      const isVerified = e.gst_verification_status?.includes('verified') || (e.gstin && e.gstin.length >= 10);
+      const isVerified = isEpcVerified(e);
       const isRecent = e.last_activity_at && new Date(e.last_activity_at) >= thirtyDaysAgo;
       return isVerified && (isRecent || e.behavior_status === 'active' || e.behavior_status === 'loyal_repeat');
     }).length;
@@ -812,9 +817,14 @@ exports.get_epc_network = async (req, res) => {
     ]);
 
     const totalEpcs = allEpcs.length;
-    const verifiedEpcs = allEpcs.filter(e => e.gst_verification_status?.includes('verified') || (e.gstin && e.gstin.length >= 10)).length;
+    const isEpcVerified = (e) => Boolean(
+      e.is_gstin_active ||
+      (e.gstin && e.gstin.length >= 10 && e.gstin !== 'Pending') ||
+      (e.gst_verification_status && e.gst_verification_status !== 'unverified' && e.gst_verification_status.includes('verified'))
+    );
+    const verifiedEpcs = allEpcs.filter(isEpcVerified).length;
     const pendingVerification = allEpcs.filter(e => e.gst_verification_status === 'pending_admin' || (!e.gst_verification_status && !e.gstin)).length;
-    const rejectedEpcs = allEpcs.filter(e => e.status === 'rejected' || e.gst_verification_status === 'unverified').length;
+    const rejectedEpcs = allEpcs.filter(e => e.status === 'rejected' || (!isEpcVerified(e) && e.gst_verification_status === 'unverified')).length;
 
     // Order mapping per EPC
     const epcOrdersMap = new Map();
@@ -836,7 +846,7 @@ exports.get_epc_network = async (req, res) => {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000);
     const activeEpcs = allEpcs.filter(e => {
       const isRecent = e.last_activity_at && new Date(e.last_activity_at) >= thirtyDaysAgo;
-      return (e.gst_verification_status?.includes('verified') || e.gstin) && (isRecent || epcOrdersMap.has(e._id.toString()));
+      return isEpcVerified(e) && (isRecent || epcOrdersMap.has(e._id.toString()));
     }).length;
 
     const inactiveEpcs = Math.max(0, totalEpcs - activeEpcs);
@@ -1171,10 +1181,17 @@ exports.get_kit_demand = async (req, res) => {
     const totalConfirmedKw = reportRows.reduce((sum, r) => sum + r.confirmedKw, 0);
     const pendingKw = Math.max(0, totalEstimatedKw - totalConfirmedKw);
 
+    const totalEstimatedQty = reportRows.reduce((sum, r) => sum + (r.estimatedQuantity || 0), 0);
+    const totalConfirmedQty = reportRows.reduce((sum, r) => sum + (r.confirmedQuantity || 0), 0);
+    const pendingQty = Math.max(0, totalEstimatedQty - totalConfirmedQty);
+
     return res.status(200).json({
       success: true,
       data: {
         summary: {
+          totalEstimatedDemandQty: totalEstimatedQty,
+          confirmedKitDemandQty: totalConfirmedQty,
+          pendingKitDemandQty: pendingQty,
           totalEstimatedDemandKw: totalEstimatedKw,
           confirmedKitDemandKw: totalConfirmedKw,
           pendingKitDemandKw: pendingKw,
@@ -1199,7 +1216,7 @@ exports.get_geography_analytics = async (req, res) => {
 
     const [states, epcs, leads, orders, quotes] = await Promise.all([
       GeoLevel1.find({ is_active: { $ne: false } }).lean().catch(() => []),
-      EpcAccount.find({}, 'state_name district_name gstin gst_verification_status').lean().catch(() => []),
+      EpcAccount.find({ deleted_at: null }, 'state_name district_name gstin gst_verification_status is_gstin_active').lean().catch(() => []),
       EpcLead.find({}, 'state_name district_name lead_status').lean().catch(() => []),
       EpcOrder.find({ order_status: { $ne: 'cancelled' } }, 'delivery_address grand_total_paise order_load_metrics items').lean().catch(() => []),
       EpcQuote.find({}, 'territory total_kw kit_capacity_kw quantity').lean().catch(() => []),
@@ -1252,7 +1269,11 @@ exports.get_geography_analytics = async (req, res) => {
         stateMap[s] = { state: s, code: s.slice(0, 2).toUpperCase(), visitors: 0, enquiries: 0, registeredEpcs: 0, activeEpcs: 0, estimatedDemandKw: 0, confirmedOrders: 0, revenue: 0, districts: {} };
       }
       stateMap[s].registeredEpcs += 1;
-      const isVerified = e.gst_verification_status?.includes('verified') || (e.gstin && e.gstin.length >= 10);
+      const isVerified = Boolean(
+        e.is_gstin_active ||
+        (e.gstin && e.gstin.length >= 10 && e.gstin !== 'Pending') ||
+        (e.gst_verification_status && e.gst_verification_status !== 'unverified' && e.gst_verification_status.includes('verified'))
+      );
       if (isVerified) stateMap[s].activeEpcs += 1;
 
       if (!stateMap[s].districts[d]) {
@@ -1347,7 +1368,7 @@ exports.get_cluster_geography_analytics = async (req, res) => {
         .populate('primary_bde_id', 'full_name name employee_id mobile_number')
         .lean()
         .catch(() => []),
-      EpcAccount.find({}, 'state_name district_name gstin gst_verification_status created_at').lean().catch(() => []),
+      EpcAccount.find({ deleted_at: null }, 'state_name district_name gstin gst_verification_status is_gstin_active created_at').lean().catch(() => []),
       EpcLead.find({}, 'state_name district_name lead_status required_capacity created_at').lean().catch(() => []),
       EpcOrder.find({ order_status: { $ne: 'cancelled' } }, 'delivery_address grand_total_paise order_load_metrics items created_at').lean().catch(() => []),
     ]);
@@ -1391,10 +1412,14 @@ exports.get_cluster_geography_analytics = async (req, res) => {
         };
       });
 
-      // Match Orders
+      const clusterStateClean = clean(c.state_name);
+
+      // Match Orders (matching district AND state to prevent cross-state collision)
       orders.forEach((o) => {
         const oDist = clean(o.delivery_address?.district_name);
-        if (distCleanSet.has(oDist)) {
+        const oState = clean(o.delivery_address?.state_name);
+        const stateMatches = !oState || !clusterStateClean || oState === clusterStateClean;
+        if (stateMatches && distCleanSet.has(oDist)) {
           const rev = Math.round((o.grand_total_paise || 0) / 100);
           const kw = o.order_load_metrics?.total_kw ||
             (o.items || []).reduce((acc, it) => acc + (it.kit_capacity_kw || it.capacity_kw || 1) * (it.quantity || 1), 0) || 0;
@@ -1413,10 +1438,12 @@ exports.get_cluster_geography_analytics = async (req, res) => {
         }
       });
 
-      // Match Leads / Enquiries
+      // Match Leads / Enquiries (matching district AND state)
       leads.forEach((l) => {
         const lDist = clean(l.district_name);
-        if (distCleanSet.has(lDist)) {
+        const lState = clean(l.state_name);
+        const stateMatches = !lState || !clusterStateClean || lState === clusterStateClean;
+        if (stateMatches && distCleanSet.has(lDist)) {
           clusterEnquiries += 1;
           const matchedDistrict = assignedDistricts.find((d) => clean(d) === lDist);
           if (matchedDistrict && districtMetrics[matchedDistrict]) {
@@ -1425,12 +1452,18 @@ exports.get_cluster_geography_analytics = async (req, res) => {
         }
       });
 
-      // Match EPCs
+      // Match EPCs (matching district AND state to prevent cross-state collision)
       epcs.forEach((e) => {
         const eDist = clean(e.district_name);
-        if (distCleanSet.has(eDist)) {
+        const eState = clean(e.state_name);
+        const stateMatches = !eState || !clusterStateClean || eState === clusterStateClean;
+        if (stateMatches && distCleanSet.has(eDist)) {
           clusterRegisteredEpcs += 1;
-          const isVerified = e.gst_verification_status?.includes('verified') || (e.gstin && e.gstin.length >= 10);
+          const isVerified = Boolean(
+            e.is_gstin_active ||
+            (e.gstin && e.gstin.length >= 10 && e.gstin !== 'Pending') ||
+            (e.gst_verification_status && e.gst_verification_status !== 'unverified' && e.gst_verification_status.includes('verified'))
+          );
           if (isVerified) clusterActiveEpcs += 1;
 
           const matchedDistrict = assignedDistricts.find((d) => clean(d) === eDist);
