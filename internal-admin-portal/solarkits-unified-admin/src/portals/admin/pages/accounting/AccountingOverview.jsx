@@ -102,7 +102,7 @@ export default function AccountingOverview() {
       return opportunities.map((opp) => {
         const revenue = Number(opp.current_monthly_turnover || 0);
         const kits = Number(opp.current_monthly_kits || 0);
-        const freightPct = Number(opp.current_delivery_cost_pct || 7.1);
+        const freightPct = revenue > 0 ? Number(opp.current_delivery_cost_pct || 6.2) : 0;
         const freight = Math.round(revenue * (freightPct / 100));
         const grossSurplus = Math.round(revenue * 0.18);
         const gstCollected = Math.round(revenue * 0.12);
@@ -110,6 +110,13 @@ export default function AccountingOverview() {
           opp.district_names && opp.district_names.length > 0
             ? opp.district_names.join(", ")
             : opp.district || "Main Hub";
+
+        let complianceStatus = "AUDITED_CLEAN";
+        if (revenue === 0 && kits === 0) {
+          complianceStatus = "UNALLOCATED_NO_ORDERS";
+        } else if (opp.isCritical || opp.is_tat_breached) {
+          complianceStatus = "AUDIT_FLAG_PENDING";
+        }
 
         return {
           cluster_id: opp.cluster_id || opp._id,
@@ -123,7 +130,7 @@ export default function AccountingOverview() {
           freight_pct: freightPct,
           gross_surplus: grossSurplus,
           gst_collected: gstCollected,
-          compliance_status: opp.isCritical ? "AUDIT_FLAG_PENDING" : "AUDITED_CLEAN"
+          compliance_status: complianceStatus
         };
       });
     }
@@ -137,11 +144,11 @@ export default function AccountingOverview() {
         districts: Array.isArray(fc.district_names) ? fc.district_names.join(", ") : "Main Hub",
         kits_dispatched: Number(fc.total_orders || fc.kits_dispatched || 0),
         revenue: Number(fc.total_revenue || 0),
-        freight_incurred: Math.round(Number(fc.total_revenue || 0) * 0.071),
-        freight_pct: 7.1,
-        gross_surplus: Math.round(Number(fc.total_revenue || 0) * 0.18),
-        gst_collected: Math.round(Number(fc.total_revenue || 0) * 0.12),
-        compliance_status: "AUDITED_CLEAN"
+        freight_incurred: 0,
+        freight_pct: 0,
+        gross_surplus: 0,
+        gst_collected: 0,
+        compliance_status: "UNALLOCATED_NO_ORDERS"
       }));
     }
 
@@ -437,11 +444,10 @@ export default function AccountingOverview() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`py-3.5 px-4 font-semibold text-sm border-b-2 whitespace-nowrap transition-colors flex items-center gap-2 ${
-              activeTab === tab.id
+            className={`py-3.5 px-4 font-semibold text-sm border-b-2 whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === tab.id
                 ? "border-indigo-600 text-indigo-700 font-bold"
                 : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
-            }`}
+              }`}
           >
             {tab.icon} {tab.label}
           </button>
@@ -497,24 +503,36 @@ export default function AccountingOverview() {
                         <span className="font-semibold text-slate-800">{row.state}</span>
                         <p className="text-[10px] text-slate-400 truncate" title={row.districts}>{row.districts}</p>
                       </td>
-                      <td className="py-3 px-4 text-center font-bold text-blue-700">
-                        <span className="px-2.5 py-1 bg-blue-50 rounded-lg">{row.kits_dispatched} Kits</span>
+                      <td className="py-3 px-4 text-center font-bold">
+                        {row.kits_dispatched > 0 ? (
+                          <span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg">{row.kits_dispatched} Kits</span>
+                        ) : (
+                          <span className="text-slate-400 font-medium">0 Kits</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right font-bold text-slate-900">
-                        {formatInr(row.revenue)}
+                        {row.revenue > 0 ? formatInr(row.revenue) : <span className="text-slate-400 font-normal">₹0</span>}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <span className={row.freight_pct > 6.5 ? "text-rose-600 font-bold" : "text-slate-700 font-medium"}>
-                          {formatInr(row.freight_incurred)} ({row.freight_pct}%)
-                        </span>
+                        {row.freight_incurred > 0 ? (
+                          <span className={row.freight_pct > 6.5 ? "text-rose-600 font-bold" : "text-slate-700 font-medium"}>
+                            {formatInr(row.freight_incurred)} ({row.freight_pct}%)
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">₹0 (0.0%)</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right font-bold text-emerald-700">
-                        {formatInr(row.gross_surplus)}
+                        {row.gross_surplus > 0 ? formatInr(row.gross_surplus) : <span className="text-slate-400 font-normal">₹0</span>}
                       </td>
                       <td className="py-3 px-4 text-center">
                         {row.compliance_status === "AUDITED_CLEAN" ? (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
                             Audited Clean ✓
+                          </span>
+                        ) : row.compliance_status === "UNALLOCATED_NO_ORDERS" ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                            Unallocated / No Orders
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 animate-pulse">
@@ -605,8 +623,8 @@ export default function AccountingOverview() {
                       typeof h.current_balance === "object" && h.current_balance !== null
                         ? h.current_balance.amount || 0
                         : typeof h.current_balance === "number"
-                        ? h.current_balance
-                        : h.current || 0;
+                          ? h.current_balance
+                          : h.current || 0;
 
                     return (
                       <tr key={h._id || hCode} className="hover:bg-slate-50/80 transition-colors">
@@ -614,12 +632,11 @@ export default function AccountingOverview() {
                         <td className="py-2.5 px-4 font-bold text-slate-900">{hName}</td>
                         <td className="py-2.5 px-4 text-slate-600">{hCat}</td>
                         <td className="py-2.5 px-4">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            hType === "Income" ? "bg-emerald-100 text-emerald-800" :
-                            hType === "Expense" ? "bg-rose-100 text-rose-800" :
-                            hType === "Asset" ? "bg-blue-100 text-blue-800" :
-                            "bg-amber-100 text-amber-800"
-                          }`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${hType === "Income" ? "bg-emerald-100 text-emerald-800" :
+                              hType === "Expense" ? "bg-rose-100 text-rose-800" :
+                                hType === "Asset" ? "bg-blue-100 text-blue-800" :
+                                  "bg-amber-100 text-amber-800"
+                            }`}>
                             {hType}
                           </span>
                         </td>
@@ -751,11 +768,10 @@ export default function AccountingOverview() {
                           {inv.mismatch_issue || inv.validation_error || "Flagged for verification"}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            inv.status === "APPROVED_OVERRIDE" ? "bg-emerald-100 text-emerald-800" :
-                            inv.status === "REJECTED" ? "bg-rose-100 text-rose-800" :
-                            "bg-amber-100 text-amber-800"
-                          }`}>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${inv.status === "APPROVED_OVERRIDE" ? "bg-emerald-100 text-emerald-800" :
+                              inv.status === "REJECTED" ? "bg-rose-100 text-rose-800" :
+                                "bg-amber-100 text-amber-800"
+                            }`}>
                             {inv.status || "PENDING_AUDIT"}
                           </span>
                         </td>
