@@ -228,6 +228,7 @@ adminRouter.use('/business-profiles', require('./modules/admin-panel/routes/busi
 adminRouter.use('/operations-dashboard', require('./modules/admin-panel/routes/operations.dashboard.route'));
 adminRouter.use('/store-dashboard', require('./modules/admin-panel/routes/store.dashboard.route'));
 adminRouter.use('/epc-analytics', require('./modules/admin-panel/routes/epc.analytics.route'));
+adminRouter.use('/main-dashboard', require('./modules/admin-panel/routes/main.dashboard.route'));
 adminRouter.use('/knowledge-center', require('./modules/solarshop-india/routes/v1.routes/knowledge_center.route'));
 
 // ─── Franchisee Cluster & Business Model Module ───
