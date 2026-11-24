@@ -27,16 +27,15 @@ import {
   FaBuilding,
   FaCalculator
 } from 'react-icons/fa';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   getAccountingHeads,
   createAccountingHead,
   updateAccountingHead,
   toggleAccountingHeadStatus,
-  seedDefaultAccountingHeads,
   getAccountingVouchers,
   createAccountingVoucher,
-  getVoucherDetail,
   cancelAccountingVoucher,
   getLedgerStatement,
   getBankCashBook,
@@ -315,13 +314,18 @@ export default function AccountingModule() {
     }
   }, [activeTab, voucherTypeFilter, voucherSearch, voucherFromDate, voucherToDate, ledgerSubTab, selectedLedgerHeadId, reportSubTab]);
 
-  // Seed Default Heads
-  const handleSeedDefaults = async () => {
+  // Refresh Live Module Data
+  const handleRefreshData = async () => {
     try {
       setLoading(true);
-      const res = await seedDefaultAccountingHeads();
-      showAlert(res.message || 'Seeded standard accounting heads successfully!');
-      loadHeads();
+      if (activeTab === 'heads') {
+        await loadHeads();
+      } else if (activeTab === 'vouchers') {
+        await loadVouchers();
+      } else if (activeTab === 'reports') {
+        await loadReports();
+      }
+      showAlert('Accounting data refreshed.');
     } catch (err) {
       showAlert(err.response?.data?.message || err.message, 'error');
     } finally {
@@ -556,12 +560,12 @@ export default function AccountingModule() {
 
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={handleSeedDefaults}
+              onClick={handleRefreshData}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 backdrop-blur-md transition-all cursor-pointer shadow-sm active:scale-95"
-              title="Seed all standard accounting categories and suggested heads"
+              title="Refresh live accounting data"
             >
               <FaSync className={loading ? 'animate-spin' : ''} />
-              <span>Seed Standard Heads</span>
+              <span>Refresh</span>
             </button>
             <button
               onClick={() => {
@@ -713,7 +717,7 @@ export default function AccountingModule() {
                       <td colSpan="10" className="py-12 text-center text-slate-400">
                         <FaBook className="mx-auto text-4xl mb-3 text-slate-300" />
                         <p className="font-bold text-sm">No accounting heads found.</p>
-                        <p className="text-xs mt-1">Click "Seed Standard Heads" or "New Accounting Head" to add heads.</p>
+                        <p className="text-xs mt-1">Click "+ New Accounting Head" to configure dynamic Chart of Accounts heads for your organization.</p>
                       </td>
                     </tr>
                   ) : (
