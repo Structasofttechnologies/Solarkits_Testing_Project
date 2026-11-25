@@ -4154,7 +4154,11 @@ const get_current_agreement = async (req, res) => {
       .lean();
 
     const settings = await SolarShopSettings.findOne().lean();
+<<<<<<< HEAD
     const masterTemplate = settings?.franchise_agreement_template || `SOLARKITS AUTHORIZED FRANCHISE PARTNER AGREEMENT
+=======
+    let masterTemplate = settings?.franchise_agreement_template || `SOLARKITS AUTHORIZED FRANCHISE PARTNER AGREEMENT
+>>>>>>> origin/main
 
 This Franchise Distribution & Commercial Channel Agreement ("Agreement") is formally entered into and effective as of {{AGREEMENT_DATE}} by and between:
 
@@ -4166,7 +4170,11 @@ SolarKits Clean Energy Solutions Private Limited, having its corporate fulfillme
 
 RECITALS & PURPOSE:
 WHEREAS the Company is engaged in the manufacturing, assembly, and turnkey supply of pre-engineered Solar BOS Combo Kits, mono PERC / TopCon panels, on-grid/hybrid inverters, module mounting structures, and associated electrical accessories.
+<<<<<<< HEAD
 WHEREAS the Franchise Partner desires to obtain authorized distribution, retail demonstration, and local EPC contractor procurement fulfillment rights for the Designated Territory of {{TERRITORY}}.
+=======
+WHEREAS the Franchise Partner desires to obtain authorized distribution, retail demonstration, and local EPC contractor procurement fulfillment rights for the Designated Territory of {{TERRITORY}} under store model {{STORE_TYPE}}.
+>>>>>>> origin/main
 
 NOW THEREFORE, the parties mutually agree as follows:
 
@@ -4197,6 +4205,24 @@ CLAUSE 6 — GOVERNING LAW & JURISDICTION
 [DIGITAL EXECUTION DECLARATION]
 By digitally signing below, the Franchise Partner certifies that they have read, understood, and accept all terms and conditions of this Franchise Agreement.`;
 
+<<<<<<< HEAD
+=======
+    if (settings?.franchise_agreement_types && Array.isArray(settings.franchise_agreement_types) && settings.franchise_agreement_types.length > 0) {
+      const targetKey = franchiseeAg?.agreement_type_key || franchiseeAg?.agreement_type;
+      const matched = settings.franchise_agreement_types.find(t =>
+        (targetKey && (t.type_key === targetKey || t.name?.toLowerCase() === String(targetKey).toLowerCase())) ||
+        (agreement?.agreement_type && t.name?.toLowerCase() === agreement.agreement_type.toLowerCase())
+      ) || settings.franchise_agreement_types.find(t =>
+        (reseller.store_category === 'company_store' && t.type_key?.includes('company')) ||
+        (t.store_type_slug && reseller.store_type_slug === t.store_type_slug)
+      ) || settings.franchise_agreement_types[0];
+
+      if (matched && matched.template_content) {
+        masterTemplate = matched.template_content;
+      }
+    }
+
+>>>>>>> origin/main
     const agreementNumber =
       franchiseeAg?.agreement_number ||
       agreement?.agreement_number ||
@@ -4219,6 +4245,13 @@ By digitally signing below, the Franchise Partner certifies that they have read,
         ? 'Upfront Wholesale Margin Discount Mode'
         : 'Commission Settlement Mode';
 
+<<<<<<< HEAD
+=======
+    const storeTypeLabel =
+      franchiseeAg?.franchise_type ||
+      (reseller.store_category === 'company_store' ? 'Company Store' : 'District Franchise Store');
+
+>>>>>>> origin/main
     const renderTemplate = (rawText) => {
       return (rawText || masterTemplate)
         .replace(/\{\{AGREEMENT_DATE\}\}/g, formattedDate)
@@ -4226,6 +4259,10 @@ By digitally signing below, the Franchise Partner certifies that they have read,
         .replace(/\{\{BUSINESS_NAME\}\}/g, reseller.business_name || 'Solar Enterprise')
         .replace(/\{\{PARTNER_NAME\}\}/g, reseller.contact_person || 'Authorized Signatory')
         .replace(/\{\{TERRITORY\}\}/g, territory)
+<<<<<<< HEAD
+=======
+        .replace(/\{\{STORE_TYPE\}\}/g, storeTypeLabel)
+>>>>>>> origin/main
         .replace(/\{\{GSTIN\}\}/g, reseller.gst_number || 'Not Provided / Application Pending')
         .replace(/\{\{COMMERCIAL_MODE\}\}/g, commMode)
         .replace(/\{\{EMAIL\}\}/g, reseller.email || '')
@@ -4245,6 +4282,11 @@ By digitally signing below, the Franchise Partner certifies that they have read,
         _id: franchiseeAg._id,
         agreement_number: franchiseeAg.agreement_number,
         title: franchiseeAg.title || 'SolarKits Authorized Franchise Partner Agreement',
+<<<<<<< HEAD
+=======
+        agreement_type: franchiseeAg.agreement_type || 'District Franchise Agreement',
+        franchise_type: franchiseeAg.franchise_type || storeTypeLabel,
+>>>>>>> origin/main
         version: franchiseeAg.version || '2.0',
         document_url: franchiseeAg.document_url || agreement?.document_url || agreement?.pdf_storage_key || null,
         document_name: franchiseeAg.document_name || 'Franchise_Partner_Agreement.pdf',
@@ -4493,9 +4535,19 @@ const get_fee_payment_info = async (req, res) => {
     const feeAmount = setupFee;
 
     const settings = await SolarShopSettings.findOne().lean();
+<<<<<<< HEAD
     const companyBankDetails = {
       account_number: settings?.offline_bank_details?.account_number || '',
       ifsc_code: settings?.offline_bank_details?.ifsc_code || '',
+=======
+    const ifsc = settings?.offline_bank_details?.ifsc_code || '';
+    const { resolveBankNameFromIfsc } = require('../../admin-panel/utils/ifsc.bank.resolver');
+    const bankName = settings?.offline_bank_details?.bank_name || resolveBankNameFromIfsc(ifsc) || '';
+    const companyBankDetails = {
+      account_number: settings?.offline_bank_details?.account_number || '',
+      ifsc_code: ifsc,
+      bank_name: bankName,
+>>>>>>> origin/main
       account_holder_name: settings?.offline_bank_details?.account_holder_name || '',
     };
 

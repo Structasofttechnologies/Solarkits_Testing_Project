@@ -164,6 +164,7 @@ const schema = new mongoose.Schema({
 
 schema.index({ state_name: 1, status: 1 });
 schema.index({ assigned_bde_id: 1, status: 1 });
+<<<<<<< HEAD
 schema.index({ deleted_at: 1, created_at: -1 });
 schema.index({ deleted_at: 1, status: 1, created_at: -1 });
 schema.index({ deleted_at: 1, lead_status: 1, created_at: -1 });
@@ -171,5 +172,7 @@ schema.index({ deleted_at: 1, assigned_bde_id: 1, created_at: -1 });
 schema.index({ deleted_at: 1, state_name: 1, created_at: -1 });
 schema.index({ created_at: -1 });
 schema.index({ company_name: 1 });
+=======
+>>>>>>> origin/main
 
 module.exports = india_solarshop_db.model('website_epc_leads', schema);

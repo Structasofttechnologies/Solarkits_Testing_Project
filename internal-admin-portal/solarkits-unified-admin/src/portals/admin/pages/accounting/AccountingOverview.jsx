@@ -6,6 +6,7 @@ import {
   FaBalanceScale,
   FaFileInvoiceDollar,
   FaClipboardCheck,
+<<<<<<< HEAD
   FaMoneyBillWave,
   FaBook,
   FaExchangeAlt,
@@ -21,11 +22,23 @@ import {
   FaEye,
   FaCheck,
   FaTimes,
+=======
+  FaBook,
+  FaExternalLinkAlt,
+  FaCheckCircle,
+  FaFilter,
+  FaBoxes,
+  FaTruck,
+  FaSearch,
+  FaEye,
+  FaCheck,
+>>>>>>> origin/main
   FaReceipt,
   FaHandshake,
   FaWarehouse
 } from "react-icons/fa";
 import {
+<<<<<<< HEAD
   getAccountingSummary,
   getGstSummary,
   getComplianceAlerts,
@@ -193,6 +206,15 @@ const INITIAL_AUDIT_EXCEPTIONS = [
   }
 ];
 
+=======
+  getAccountingHeads,
+  getGstSummary,
+  getPurchaseInvoices,
+  getFranchiseClustersList,
+  getWarehouseOpportunities
+} from "../../../accounts/api/accounts";
+
+>>>>>>> origin/main
 export default function AccountingOverview() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("clusters");
@@ -204,6 +226,7 @@ export default function AccountingOverview() {
   const [selectedPeriod, setSelectedPeriod] = useState("FY 2026-27");
   const [headSearch, setHeadSearch] = useState("");
 
+<<<<<<< HEAD
   // Live Lists from API
   const [franchiseClusters, setFranchiseClusters] = useState([]);
   const [liveStates, setLiveStates] = useState([]);
@@ -258,11 +281,148 @@ export default function AccountingOverview() {
   // Filtered Cluster Rollup
   const filteredClusters = useMemo(() => {
     return CLUSTER_FINANCIAL_ROLLUP.filter((item) => {
+=======
+  // Live Data Lists
+  const [opportunities, setOpportunities] = useState([]);
+  const [franchiseClusters, setFranchiseClusters] = useState([]);
+  const [accountingHeads, setAccountingHeads] = useState([]);
+  const [gstSummary, setGstSummary] = useState(null);
+  const [auditExceptions, setAuditExceptions] = useState([]);
+  const [registersSummary, setRegistersSummary] = useState(null);
+  const [overrideNotice, setOverrideNotice] = useState(null);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [oppRes, fcRes, headsRes, gstRes, invoicesRes] = await Promise.all([
+        getWarehouseOpportunities().catch(() => null),
+        getFranchiseClustersList().catch(() => null),
+        getAccountingHeads().catch(() => null),
+        getGstSummary().catch(() => null),
+        getPurchaseInvoices({ status: "FLAGGED" }).catch(() => null)
+      ]);
+
+      if (oppRes?.data && Array.isArray(oppRes.data)) {
+        setOpportunities(oppRes.data);
+      }
+      if (fcRes?.data && Array.isArray(fcRes.data)) {
+        setFranchiseClusters(fcRes.data);
+      }
+      if (headsRes?.data && Array.isArray(headsRes.data)) {
+        setAccountingHeads(headsRes.data);
+      }
+      if (gstRes?.data) {
+        setGstSummary(gstRes.data);
+      }
+      if (invoicesRes?.data && Array.isArray(invoicesRes.data)) {
+        setAuditExceptions(invoicesRes.data);
+      }
+
+      // Fetch live 19 Statutory Registers summary
+      const regRes = await axios.get(
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000/admin-api"}/registers/summary`,
+        { headers: authHeaderObj() }
+      ).catch(() => null);
+
+      if (regRes?.data?.status === "success" && regRes.data.data) {
+        setRegistersSummary(regRes.data.data);
+      }
+    } catch (err) {
+      console.error("Error loading executive accounting overview data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const formatInr = (val) => `₹${Number(val || 0).toLocaleString("en-IN")}`;
+
+  // Rollup list dynamically derived from verified Franchise Clusters & Opportunities
+  const clustersList = useMemo(() => {
+    if (opportunities.length > 0) {
+      return opportunities.map((opp) => {
+        const revenue = Number(opp.current_monthly_turnover || 0);
+        const kits = Number(opp.current_monthly_kits || 0);
+        const freightPct = revenue > 0 ? Number(opp.current_delivery_cost_pct || 6.2) : 0;
+        const freight = Math.round(revenue * (freightPct / 100));
+        const grossSurplus = Math.round(revenue * 0.18);
+        const gstCollected = Math.round(revenue * 0.12);
+        const districts =
+          opp.district_names && opp.district_names.length > 0
+            ? opp.district_names.join(", ")
+            : opp.district || "Main Hub";
+
+        let complianceStatus = "AUDITED_CLEAN";
+        if (revenue === 0 && kits === 0) {
+          complianceStatus = "UNALLOCATED_NO_ORDERS";
+        } else if (opp.isCritical || opp.is_tat_breached) {
+          complianceStatus = "AUDIT_FLAG_PENDING";
+        }
+
+        return {
+          cluster_id: opp.cluster_id || opp._id,
+          cluster_name: opp.cluster_name,
+          cluster_code: opp.cluster_code || "CLU-REG",
+          state: opp.state,
+          districts,
+          kits_dispatched: kits,
+          revenue,
+          freight_incurred: freight,
+          freight_pct: freightPct,
+          gross_surplus: grossSurplus,
+          gst_collected: gstCollected,
+          compliance_status: complianceStatus
+        };
+      });
+    }
+
+    if (franchiseClusters.length > 0) {
+      return franchiseClusters.map((fc) => ({
+        cluster_id: fc._id || fc.id,
+        cluster_name: fc.cluster_name,
+        cluster_code: fc.cluster_code,
+        state: fc.state_name || fc.state_id?.name || "Gujarat",
+        districts: Array.isArray(fc.district_names) ? fc.district_names.join(", ") : "Main Hub",
+        kits_dispatched: Number(fc.total_orders || fc.kits_dispatched || 0),
+        revenue: Number(fc.total_revenue || 0),
+        freight_incurred: 0,
+        freight_pct: 0,
+        gross_surplus: 0,
+        gst_collected: 0,
+        compliance_status: "UNALLOCATED_NO_ORDERS"
+      }));
+    }
+
+    return [];
+  }, [opportunities, franchiseClusters]);
+
+  // Master Filter Options
+  const allClusterOptions = useMemo(() => {
+    const names = new Set(clustersList.map((c) => c.cluster_name));
+    return Array.from(names).filter(Boolean);
+  }, [clustersList]);
+
+  const allStateOptions = useMemo(() => {
+    const states = new Set(clustersList.map((c) => c.state));
+    return Array.from(states).filter(Boolean);
+  }, [clustersList]);
+
+  // Filtered Cluster Rollup
+  const filteredClusters = useMemo(() => {
+    return clustersList.filter((item) => {
+>>>>>>> origin/main
       if (selectedCluster !== "ALL" && item.cluster_name !== selectedCluster) return false;
       if (selectedState !== "ALL" && item.state !== selectedState) return false;
       return true;
     });
+<<<<<<< HEAD
   }, [selectedCluster, selectedState]);
+=======
+  }, [clustersList, selectedCluster, selectedState]);
+>>>>>>> origin/main
 
   // Executive Rollup Totals based on filtered clusters
   const totalKitsSold = filteredClusters.reduce((sum, c) => sum + c.kits_dispatched, 0);
@@ -271,6 +431,7 @@ export default function AccountingOverview() {
   const totalGrossSurplus = filteredClusters.reduce((sum, c) => sum + c.gross_surplus, 0);
   const totalGstCollected = filteredClusters.reduce((sum, c) => sum + c.gst_collected, 0);
 
+<<<<<<< HEAD
   // Filtered Accounting Heads
   const filteredHeads = useMemo(() => {
     if (!headSearch.trim()) return MASTER_ACCOUNTING_HEADS;
@@ -284,6 +445,34 @@ export default function AccountingOverview() {
 
   const handleAdminOverride = (id, newStatus) => {
     setAuditExceptions(prev => prev.map(inv => inv.id === id ? { ...inv, status: newStatus } : inv));
+=======
+  // Dynamic Accounting Heads Breakdown by ledger_type
+  const incomeCount = accountingHeads.filter((h) => (h.ledger_type || h.type) === "Income").length;
+  const expenseCount = accountingHeads.filter((h) => (h.ledger_type || h.type) === "Expense").length;
+  const assetCount = accountingHeads.filter((h) => (h.ledger_type || h.type) === "Asset").length;
+  const liabilityCount = accountingHeads.filter((h) => (h.ledger_type || h.type) === "Liability").length;
+  const equityCount = accountingHeads.filter((h) => (h.ledger_type || h.type) === "Equity").length;
+
+  // Filtered Accounting Heads for Tab 2
+  const filteredHeads = useMemo(() => {
+    if (!headSearch.trim()) return accountingHeads;
+    const q = headSearch.toLowerCase();
+    return accountingHeads.filter((h) =>
+      (h.name || h.head_name || "").toLowerCase().includes(q) ||
+      (h.head_code || h.code || "").toLowerCase().includes(q) ||
+      (h.category || "").toLowerCase().includes(q)
+    );
+  }, [accountingHeads, headSearch]);
+
+  // Dynamic GST positions
+  const inputItcClaim = gstSummary?.total_input_itc || Math.round(totalGstCollected * 0.45);
+  const netGstLiability = Math.max(0, totalGstCollected - inputItcClaim);
+
+  const handleAdminOverride = (id, newStatus) => {
+    setAuditExceptions((prev) =>
+      prev.map((inv) => (inv.id === id || inv._id === id ? { ...inv, status: newStatus } : inv))
+    );
+>>>>>>> origin/main
     setOverrideNotice(`Executive Override Applied: Invoice ${id} marked as ${newStatus}!`);
     setTimeout(() => setOverrideNotice(null), 4000);
   };
@@ -300,7 +489,11 @@ export default function AccountingOverview() {
             <h1 className="text-2xl font-bold text-slate-900">Executive Accounting & Financial Control Overview</h1>
           </div>
           <p className="text-sm text-slate-500 mt-1">
+<<<<<<< HEAD
             Consolidated financial oversight across all States, Districts, Franchisee Clusters, Dynamic Heads, GST returns, and Invoice audits.
+=======
+            Consolidated financial oversight across live States, Districts, Franchisee Clusters, Dynamic Heads, GST returns, and Invoice audits.
+>>>>>>> origin/main
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -314,6 +507,17 @@ export default function AccountingOverview() {
         </div>
       </div>
 
+<<<<<<< HEAD
+=======
+      {/* Loading state indicator */}
+      {loading && (
+        <div className="p-4 bg-indigo-50 text-indigo-700 rounded-xl text-xs flex items-center gap-2 border border-indigo-200">
+          <span className="animate-spin text-sm">⏳</span>
+          <span>Loading live accounting, franchise clusters, and ledger data...</span>
+        </div>
+      )}
+
+>>>>>>> origin/main
       {/* Override Notice */}
       {overrideNotice && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center justify-between text-xs font-semibold shadow-sm">
@@ -379,6 +583,10 @@ export default function AccountingOverview() {
 
       {/* 5 CONSOLIDATED EXECUTIVE METRICS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+<<<<<<< HEAD
+=======
+        {/* Total Solar Kits Card */}
+>>>>>>> origin/main
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
           <div className="flex justify-between items-center text-slate-400">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Total Solar Kits</span>
@@ -389,21 +597,39 @@ export default function AccountingOverview() {
           <span className="text-[10px] text-slate-400 block">Surplus: {formatInr(totalGrossSurplus)}</span>
         </div>
 
+<<<<<<< HEAD
+=======
+        {/* Dynamic Heads Card */}
+>>>>>>> origin/main
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
           <div className="flex justify-between items-center text-slate-400">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Dynamic Heads</span>
             <FaBook className="text-indigo-500" />
           </div>
+<<<<<<< HEAD
           <p className="text-2xl font-bold text-slate-900">42 Heads</p>
           <span className="text-xs text-slate-600 block">Income: 6 • Expense: 21</span>
           <span className="text-[10px] text-slate-400 block">Assets: 8 • Liabilities: 6 • Equity: 1</span>
         </div>
 
+=======
+          <p className="text-2xl font-bold text-slate-900">{accountingHeads.length} Heads</p>
+          <span className="text-xs text-slate-600 block">
+            Income: {incomeCount} • Expense: {expenseCount}
+          </span>
+          <span className="text-[10px] text-slate-400 block">
+            Assets: {assetCount} • Liabilities: {liabilityCount} • Equity: {equityCount}
+          </span>
+        </div>
+
+        {/* Net GST Tax Position Card */}
+>>>>>>> origin/main
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
           <div className="flex justify-between items-center text-slate-400">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Net GST Tax Position</span>
             <FaFileInvoiceDollar className="text-amber-500" />
           </div>
+<<<<<<< HEAD
           <p className="text-2xl font-bold text-amber-600">{formatInr(totalGstCollected - 1120000)}</p>
           <span className="text-xs text-emerald-600 font-semibold block">Output: {formatInr(totalGstCollected)}</span>
           <span className="text-[10px] text-slate-500 block">Input ITC: {formatInr(1120000)}</span>
@@ -419,6 +645,29 @@ export default function AccountingOverview() {
           <span className="text-[10px] text-rose-600 block">Requires Admin Override / Action</span>
         </div>
 
+=======
+          <p className="text-2xl font-bold text-amber-600">{formatInr(netGstLiability)}</p>
+          <span className="text-xs text-emerald-600 font-semibold block">Output: {formatInr(totalGstCollected)}</span>
+          <span className="text-[10px] text-slate-500 block">Input ITC: {formatInr(inputItcClaim)}</span>
+        </div>
+
+        {/* Invoice Audit Control Card */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+          <div className="flex justify-between items-center text-slate-400">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Invoice Audit Control</span>
+            <FaClipboardCheck className={auditExceptions.length > 0 ? "text-rose-500" : "text-emerald-500"} />
+          </div>
+          <p className={`text-2xl font-bold ${auditExceptions.length > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+            {auditExceptions.length} Exceptions
+          </p>
+          <span className="text-xs text-emerald-600 font-semibold block">
+            {auditExceptions.length === 0 ? "100% Validated Clean" : "Requires Admin Review"}
+          </span>
+          <span className="text-[10px] text-slate-400 block">PO & 2B Compliance Checked</span>
+        </div>
+
+        {/* Direct Freight Logistics Card */}
+>>>>>>> origin/main
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
           <div className="flex justify-between items-center text-slate-400">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Direct Freight Logistics</span>
@@ -426,7 +675,11 @@ export default function AccountingOverview() {
           </div>
           <p className="text-2xl font-bold text-slate-900">{formatInr(totalFreight)}</p>
           <span className="text-xs text-purple-600 font-semibold block">
+<<<<<<< HEAD
             Ratio: {totalRevenue > 0 ? ((totalFreight / totalRevenue) * 100).toFixed(1) : "0"}% of Sales
+=======
+            Ratio: {totalRevenue > 0 ? ((totalFreight / totalRevenue) * 100).toFixed(1) : "0.0"}% of Sales
+>>>>>>> origin/main
           </span>
           <span className="text-[10px] text-slate-400 block">Across {filteredClusters.length} Target Clusters</span>
         </div>
@@ -456,25 +709,41 @@ export default function AccountingOverview() {
             <div className="bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80">
               <span className="text-slate-400 text-[10px] block">Sales Invoices</span>
               <span className="font-bold text-emerald-400 font-mono">
+<<<<<<< HEAD
                 {registersSummary?.sales?.total_invoices || 310} Tax Bills
+=======
+                {registersSummary?.sales?.total_invoices || 0} Tax Bills
+>>>>>>> origin/main
               </span>
             </div>
             <div className="bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80">
               <span className="text-slate-400 text-[10px] block">Customer AR (Due)</span>
               <span className="font-bold text-amber-400 font-mono">
+<<<<<<< HEAD
                 ₹{((registersSummary?.sales?.customer_outstanding_total || 4280500) / 100000).toFixed(2)}L
+=======
+                ₹{(((registersSummary?.sales?.customer_outstanding_total || 0) / 100000)).toFixed(2)}L
+>>>>>>> origin/main
               </span>
             </div>
             <div className="bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80">
               <span className="text-slate-400 text-[10px] block">Supplier AP (Due)</span>
               <span className="font-bold text-rose-400 font-mono">
+<<<<<<< HEAD
                 ₹{((registersSummary?.purchase?.supplier_payables_total || 2950000) / 100000).toFixed(2)}L
+=======
+                ₹{(((registersSummary?.purchase?.supplier_payables_total || 0) / 100000)).toFixed(2)}L
+>>>>>>> origin/main
               </span>
             </div>
             <div className="bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80">
               <span className="text-slate-400 text-[10px] block">Stock Valuation</span>
               <span className="font-bold text-purple-400 font-mono">
+<<<<<<< HEAD
                 ₹{((registersSummary?.stock?.stock_valuation_total || 38450000) / 10000000).toFixed(2)} Cr
+=======
+                ₹{(((registersSummary?.stock?.stock_valuation_total || 0) / 10000000)).toFixed(2)} Cr
+>>>>>>> origin/main
               </span>
             </div>
             <button
@@ -499,11 +768,18 @@ export default function AccountingOverview() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
+<<<<<<< HEAD
             className={`py-3.5 px-4 font-semibold text-sm border-b-2 whitespace-nowrap transition-colors flex items-center gap-2 ${
               activeTab === tab.id
                 ? "border-indigo-600 text-indigo-700 font-bold"
                 : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
             }`}
+=======
+            className={`py-3.5 px-4 font-semibold text-sm border-b-2 whitespace-nowrap transition-colors flex items-center gap-2 ${activeTab === tab.id
+                ? "border-indigo-600 text-indigo-700 font-bold"
+                : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+              }`}
+>>>>>>> origin/main
           >
             {tab.icon} {tab.label}
           </button>
@@ -517,7 +793,11 @@ export default function AccountingOverview() {
             <div>
               <h3 className="font-bold text-slate-900 text-base">Territory & Cluster Financial Summary</h3>
               <p className="text-xs text-slate-500">
+<<<<<<< HEAD
                 Performance rollup showing Solar Kits sold, Revenue generated, Logistics expenditure, and Tax contribution by cluster.
+=======
+                Performance rollup showing Solar Kits sold, Revenue generated, Logistics expenditure, and Tax contribution across authorized franchise clusters.
+>>>>>>> origin/main
               </p>
             </div>
             <button
@@ -534,14 +814,20 @@ export default function AccountingOverview() {
                 <tr className="bg-slate-50 border-y border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                   <th className="py-3 px-4">Cluster & Code</th>
                   <th className="py-3 px-4">State & Districts Covered</th>
+<<<<<<< HEAD
                   <th className="py-3 px-4 text-center">Kits Sold</th>
                   <th className="py-3 px-4 text-right">Kit Revenue (₹)</th>
+=======
+                  <th className="py-3 px-4 text-center">Kits Demand</th>
+                  <th className="py-3 px-4 text-right">Kit Turnover (₹)</th>
+>>>>>>> origin/main
                   <th className="py-3 px-4 text-right">Freight Cost (₹)</th>
                   <th className="py-3 px-4 text-right">Gross Surplus (₹)</th>
                   <th className="py-3 px-4 text-center">Audit Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+<<<<<<< HEAD
                 {filteredClusters.map((row) => (
                   <tr key={row.cluster_code} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3 px-4 font-bold text-slate-900">
@@ -579,17 +865,84 @@ export default function AccountingOverview() {
                     </td>
                   </tr>
                 ))}
+=======
+                {filteredClusters.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-400">
+                      No franchise clusters match the selected filter.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredClusters.map((row) => (
+                    <tr key={row.cluster_id || row.cluster_code} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-4 font-bold text-slate-900">
+                        <div>{row.cluster_name}</div>
+                        <span className="text-[10px] text-indigo-600 font-semibold">{row.cluster_code}</span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 max-w-xs">
+                        <span className="font-semibold text-slate-800">{row.state}</span>
+                        <p className="text-[10px] text-slate-400 truncate" title={row.districts}>{row.districts}</p>
+                      </td>
+                      <td className="py-3 px-4 text-center font-bold">
+                        {row.kits_dispatched > 0 ? (
+                          <span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg">{row.kits_dispatched} Kits</span>
+                        ) : (
+                          <span className="text-slate-400 font-medium">0 Kits</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold text-slate-900">
+                        {row.revenue > 0 ? formatInr(row.revenue) : <span className="text-slate-400 font-normal">₹0</span>}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        {row.freight_incurred > 0 ? (
+                          <span className={row.freight_pct > 6.5 ? "text-rose-600 font-bold" : "text-slate-700 font-medium"}>
+                            {formatInr(row.freight_incurred)} ({row.freight_pct}%)
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">₹0 (0.0%)</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold text-emerald-700">
+                        {row.gross_surplus > 0 ? formatInr(row.gross_surplus) : <span className="text-slate-400 font-normal">₹0</span>}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {row.compliance_status === "AUDITED_CLEAN" ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            Audited Clean ✓
+                          </span>
+                        ) : row.compliance_status === "UNALLOCATED_NO_ORDERS" ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                            Unallocated / No Orders
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 animate-pulse">
+                            Audit Flag Pending ⚠️
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+>>>>>>> origin/main
               </tbody>
               <tfoot>
                 <tr className="bg-slate-50 border-t-2 border-slate-300 font-bold text-slate-900 text-xs">
                   <td className="py-3 px-4" colSpan={2}>
+<<<<<<< HEAD
                     National Total ({filteredClusters.length} Clusters)
+=======
+                    National Total ({filteredClusters.length} Franchise Clusters)
+>>>>>>> origin/main
                   </td>
                   <td className="py-3 px-4 text-center text-blue-800">{totalKitsSold} Kits</td>
                   <td className="py-3 px-4 text-right">{formatInr(totalRevenue)}</td>
                   <td className="py-3 px-4 text-right text-rose-700">{formatInr(totalFreight)}</td>
                   <td className="py-3 px-4 text-right text-emerald-800">{formatInr(totalGrossSurplus)}</td>
+<<<<<<< HEAD
                   <td className="py-3 px-4 text-center text-slate-500">100% Tracked</td>
+=======
+                  <td className="py-3 px-4 text-center text-slate-500">100% Verified</td>
+>>>>>>> origin/main
                 </tr>
               </tfoot>
             </table>
@@ -602,9 +955,15 @@ export default function AccountingOverview() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
+<<<<<<< HEAD
               <h3 className="font-bold text-slate-900 text-base">Dynamic Chart of Accounts Balance Rollup</h3>
               <p className="text-xs text-slate-500">
                 Centralized account head ledger balances configured by Admin across Sales, Purchases, Logistics, and Statutory Taxes.
+=======
+              <h3 className="font-bold text-slate-900 text-base">Dynamic Chart of Accounts Balance Rollup ({accountingHeads.length} Heads)</h3>
+              <p className="text-xs text-slate-500">
+                Centralized account head ledger balances from live MongoDB master across Sales, Purchases, Logistics, and Statutory Taxes.
+>>>>>>> origin/main
               </p>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -641,6 +1000,7 @@ export default function AccountingOverview() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+<<<<<<< HEAD
                 {filteredHeads.map((h) => (
                   <tr key={h.code} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-2.5 px-4 font-mono font-bold text-indigo-700">{h.code}</td>
@@ -661,6 +1021,50 @@ export default function AccountingOverview() {
                     <td className="py-2.5 px-4 text-right font-bold text-slate-900">{formatInr(h.current)}</td>
                   </tr>
                 ))}
+=======
+                {filteredHeads.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-400">
+                      No accounting heads found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredHeads.map((h) => {
+                    const hCode = h.head_code || h.code;
+                    const hName = h.name || h.head_name || "Account Head";
+                    const hCat = h.category || "General";
+                    const hType = h.ledger_type || h.type || "Expense";
+                    const debits = h.total_debits || h.debit || 0;
+                    const credits = h.total_credits || h.credit || 0;
+                    const currentBal =
+                      typeof h.current_balance === "object" && h.current_balance !== null
+                        ? h.current_balance.amount || 0
+                        : typeof h.current_balance === "number"
+                          ? h.current_balance
+                          : h.current || 0;
+
+                    return (
+                      <tr key={h._id || hCode} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-2.5 px-4 font-mono font-bold text-indigo-700">{hCode}</td>
+                        <td className="py-2.5 px-4 font-bold text-slate-900">{hName}</td>
+                        <td className="py-2.5 px-4 text-slate-600">{hCat}</td>
+                        <td className="py-2.5 px-4">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${hType === "Income" ? "bg-emerald-100 text-emerald-800" :
+                              hType === "Expense" ? "bg-rose-100 text-rose-800" :
+                                hType === "Asset" ? "bg-blue-100 text-blue-800" :
+                                  "bg-amber-100 text-amber-800"
+                            }`}>
+                            {hType}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-right font-medium text-slate-700">{formatInr(debits)}</td>
+                        <td className="py-2.5 px-4 text-right font-medium text-slate-700">{formatInr(credits)}</td>
+                        <td className="py-2.5 px-4 text-right font-bold text-slate-900">{formatInr(currentBal)}</td>
+                      </tr>
+                    );
+                  })
+                )}
+>>>>>>> origin/main
               </tbody>
             </table>
           </div>
@@ -690,7 +1094,11 @@ export default function AccountingOverview() {
               <span className="text-xs font-bold text-slate-600">GSTR-1 Outward Sales Register</span>
               <p className="text-xl font-bold text-slate-900">{formatInr(totalRevenue)}</p>
               <div className="text-xs text-slate-500 flex justify-between">
+<<<<<<< HEAD
                 <span>Output Tax Generated:</span>
+=======
+                <span>Output Tax Generated (12%):</span>
+>>>>>>> origin/main
                 <span className="font-bold text-emerald-700">{formatInr(totalGstCollected)}</span>
               </div>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 inline-block mt-1">
@@ -700,6 +1108,7 @@ export default function AccountingOverview() {
 
             <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
               <span className="text-xs font-bold text-slate-600">GSTR-2B Inward ITC Claim</span>
+<<<<<<< HEAD
               <p className="text-xl font-bold text-slate-900">{formatInr(1120000)}</p>
               <div className="text-xs text-slate-500 flex justify-between">
                 <span>Eligible Supplier Credits:</span>
@@ -707,12 +1116,25 @@ export default function AccountingOverview() {
               </div>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 inline-block mt-1">
                 92.8% Verified with 2B Match
+=======
+              <p className="text-xl font-bold text-slate-900">{formatInr(inputItcClaim)}</p>
+              <div className="text-xs text-slate-500 flex justify-between">
+                <span>Eligible Supplier Credits:</span>
+                <span className="font-bold text-blue-700">{formatInr(Math.round(inputItcClaim * 0.95))}</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 inline-block mt-1">
+                Matched with GST Portal Records
+>>>>>>> origin/main
               </span>
             </div>
 
             <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
               <span className="text-xs font-bold text-slate-600">Net GST Cash Liability (GSTR-3B)</span>
+<<<<<<< HEAD
               <p className="text-xl font-bold text-amber-600">{formatInr(totalGstCollected - 1120000)}</p>
+=======
+              <p className="text-xl font-bold text-amber-600">{formatInr(netGstLiability)}</p>
+>>>>>>> origin/main
               <div className="text-xs text-slate-500 flex justify-between">
                 <span>Due Date:</span>
                 <span className="font-bold text-slate-800">20th of Current Month</span>
@@ -744,6 +1166,7 @@ export default function AccountingOverview() {
           </div>
 
           <div className="overflow-x-auto">
+<<<<<<< HEAD
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-y border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
@@ -807,6 +1230,81 @@ export default function AccountingOverview() {
                 ))}
               </tbody>
             </table>
+=======
+            {auditExceptions.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200 text-slate-500 text-xs">
+                <FaCheckCircle className="text-emerald-500 text-2xl mx-auto mb-2" />
+                <span className="font-bold text-slate-800 block">No Flagged Exceptions Found</span>
+                <span>All supplier purchase invoices are validated clean against PO & GSTR-2B compliance rules.</span>
+              </div>
+            ) : (
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-y border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                    <th className="py-3 px-4">Invoice # & Date</th>
+                    <th className="py-3 px-4">Supplier & GSTIN</th>
+                    <th className="py-3 px-4 text-right">Taxable (₹)</th>
+                    <th className="py-3 px-4 text-right">Total (₹)</th>
+                    <th className="py-3 px-4">Mismatch / Exception Reason</th>
+                    <th className="py-3 px-4 text-center">Audit Status</th>
+                    <th className="py-3 px-4 text-center">Admin Override Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                  {auditExceptions.map((inv) => {
+                    const invId = inv._id || inv.id;
+                    return (
+                      <tr key={invId} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4">
+                          <span className="font-mono font-bold text-slate-900 block">{inv.invoice_number}</span>
+                          <span className="text-[10px] text-slate-400">{inv.date || "Recent"}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-bold text-slate-800 block">{inv.supplier_name}</span>
+                          <span className="text-[10px] text-indigo-600 font-mono">{inv.supplier_gstin || "N/A"}</span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-medium text-slate-700">{formatInr(inv.taxable_amount)}</td>
+                        <td className="py-3 px-4 text-right font-bold text-slate-900">{formatInr(inv.total_amount)}</td>
+                        <td className="py-3 px-4 max-w-xs text-rose-700 text-[11px] font-semibold">
+                          {inv.mismatch_issue || inv.validation_error || "Flagged for verification"}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${inv.status === "APPROVED_OVERRIDE" ? "bg-emerald-100 text-emerald-800" :
+                              inv.status === "REJECTED" ? "bg-rose-100 text-rose-800" :
+                                "bg-amber-100 text-amber-800"
+                            }`}>
+                            {inv.status || "PENDING_AUDIT"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {inv.status === "APPROVED_OVERRIDE" ? (
+                            <span className="text-emerald-700 font-bold text-[11px] flex items-center justify-center gap-1">
+                              <FaCheck size={10} /> Overridden & Approved
+                            </span>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleAdminOverride(invId, "APPROVED_OVERRIDE")}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold shadow-sm transition"
+                              >
+                                Approve Override
+                              </button>
+                              <button
+                                onClick={() => handleAdminOverride(invId, "REJECTED")}
+                                className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[10px] font-bold transition"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+>>>>>>> origin/main
           </div>
         </div>
       )}
@@ -842,11 +1340,19 @@ export default function AccountingOverview() {
                 <FaFileInvoiceDollar size={16} />
               </div>
               <div className="space-y-1.5 text-xs text-slate-700">
+<<<<<<< HEAD
                 <div className="flex justify-between"><span>Tax Invoices:</span><strong className="font-mono">{registersSummary?.sales?.total_invoices || 310}</strong></div>
                 <div className="flex justify-between"><span>Sales Orders:</span><strong className="font-mono">{registersSummary?.sales?.total_orders || 284}</strong></div>
                 <div className="flex justify-between"><span>Proforma Invoices:</span><strong className="font-mono">{registersSummary?.sales?.total_proforma || 92}</strong></div>
                 <div className="flex justify-between"><span>Delivery Challans (DO):</span><strong className="font-mono">{registersSummary?.sales?.total_delivery_challans || 312}</strong></div>
                 <div className="flex justify-between"><span>Customer Outstanding:</span><strong className="font-mono text-amber-700">₹{formatInr(registersSummary?.sales?.customer_outstanding_total || 4280500)}</strong></div>
+=======
+                <div className="flex justify-between"><span>Tax Invoices:</span><strong className="font-mono">{registersSummary?.sales?.total_invoices || 0}</strong></div>
+                <div className="flex justify-between"><span>Sales Orders:</span><strong className="font-mono">{registersSummary?.sales?.total_orders || 0}</strong></div>
+                <div className="flex justify-between"><span>Proforma Invoices:</span><strong className="font-mono">{registersSummary?.sales?.total_proforma || 0}</strong></div>
+                <div className="flex justify-between"><span>Delivery Challans (DO):</span><strong className="font-mono">{registersSummary?.sales?.total_delivery_challans || 0}</strong></div>
+                <div className="flex justify-between"><span>Customer Outstanding:</span><strong className="font-mono text-amber-700">{formatInr(registersSummary?.sales?.customer_outstanding_total || 0)}</strong></div>
+>>>>>>> origin/main
               </div>
             </div>
 
@@ -857,11 +1363,19 @@ export default function AccountingOverview() {
                 <FaHandshake size={16} />
               </div>
               <div className="space-y-1.5 text-xs text-slate-700">
+<<<<<<< HEAD
                 <div className="flex justify-between"><span>Purchase Orders (PO):</span><strong className="font-mono">{registersSummary?.purchase?.total_pos || 124}</strong></div>
                 <div className="flex justify-between"><span>Purchase Invoices:</span><strong className="font-mono">{registersSummary?.purchase?.total_purchase_invoices || 96}</strong></div>
                 <div className="flex justify-between"><span>Debit Notes:</span><strong className="font-mono">{registersSummary?.purchase?.total_debit_notes || 8}</strong></div>
                 <div className="flex justify-between"><span>Supplier Payables:</span><strong className="font-mono text-rose-700">₹{formatInr(registersSummary?.purchase?.supplier_payables_total || 2950000)}</strong></div>
                 <div className="flex justify-between"><span>Advances Paid:</span><strong className="font-mono text-blue-700">₹{formatInr(registersSummary?.purchase?.supplier_advances_paid || 1200000)}</strong></div>
+=======
+                <div className="flex justify-between"><span>Purchase Orders (PO):</span><strong className="font-mono">{registersSummary?.purchase?.total_pos || 0}</strong></div>
+                <div className="flex justify-between"><span>Purchase Invoices:</span><strong className="font-mono">{registersSummary?.purchase?.total_purchase_invoices || 0}</strong></div>
+                <div className="flex justify-between"><span>Debit Notes:</span><strong className="font-mono">{registersSummary?.purchase?.total_debit_notes || 0}</strong></div>
+                <div className="flex justify-between"><span>Supplier Payables:</span><strong className="font-mono text-rose-700">{formatInr(registersSummary?.purchase?.supplier_payables_total || 0)}</strong></div>
+                <div className="flex justify-between"><span>Advances Paid:</span><strong className="font-mono text-blue-700">{formatInr(registersSummary?.purchase?.supplier_advances_paid || 0)}</strong></div>
+>>>>>>> origin/main
               </div>
             </div>
 
@@ -872,11 +1386,19 @@ export default function AccountingOverview() {
                 <FaReceipt size={16} />
               </div>
               <div className="space-y-1.5 text-xs text-slate-700">
+<<<<<<< HEAD
                 <div className="flex justify-between"><span>Receipt Vouchers:</span><strong className="font-mono">{registersSummary?.accounts?.total_receipts || 142}</strong></div>
                 <div className="flex justify-between"><span>Payment Vouchers:</span><strong className="font-mono">{registersSummary?.accounts?.total_payments || 118}</strong></div>
                 <div className="flex justify-between"><span>Journal Vouchers (JV):</span><strong className="font-mono">{registersSummary?.accounts?.total_journals || 64}</strong></div>
                 <div className="flex justify-between"><span>Contra Transfers:</span><strong className="font-mono">{registersSummary?.accounts?.total_contra || 32}</strong></div>
                 <div className="flex justify-between"><span>Expense Vouchers:</span><strong className="font-mono">{registersSummary?.accounts?.total_expenses || 86}</strong></div>
+=======
+                <div className="flex justify-between"><span>Receipt Vouchers:</span><strong className="font-mono">{registersSummary?.accounts?.total_receipts || 0}</strong></div>
+                <div className="flex justify-between"><span>Payment Vouchers:</span><strong className="font-mono">{registersSummary?.accounts?.total_payments || 0}</strong></div>
+                <div className="flex justify-between"><span>Journal Vouchers (JV):</span><strong className="font-mono">{registersSummary?.accounts?.total_journals || 0}</strong></div>
+                <div className="flex justify-between"><span>Contra Transfers:</span><strong className="font-mono">{registersSummary?.accounts?.total_contra || 0}</strong></div>
+                <div className="flex justify-between"><span>Expense Vouchers:</span><strong className="font-mono">{registersSummary?.accounts?.total_expenses || 0}</strong></div>
+>>>>>>> origin/main
               </div>
             </div>
 
@@ -887,9 +1409,15 @@ export default function AccountingOverview() {
                 <FaWarehouse size={16} />
               </div>
               <div className="space-y-1.5 text-xs text-slate-700">
+<<<<<<< HEAD
                 <div className="flex justify-between"><span>Active Warehouses:</span><strong className="font-mono">{registersSummary?.stock?.total_warehouses || 18} WHs</strong></div>
                 <div className="flex justify-between"><span>Reconciled SKUs:</span><strong className="font-mono">146 Active</strong></div>
                 <div className="flex justify-between"><span>Stock Valuation:</span><strong className="font-mono text-purple-700">₹{formatInr(registersSummary?.stock?.stock_valuation_total || 38450000)}</strong></div>
+=======
+                <div className="flex justify-between"><span>Active Warehouses:</span><strong className="font-mono">{registersSummary?.stock?.total_warehouses || 0} WHs</strong></div>
+                <div className="flex justify-between"><span>Reconciled SKUs:</span><strong className="font-mono">{registersSummary?.stock?.reconciled_skus || "Active"}</strong></div>
+                <div className="flex justify-between"><span>Stock Valuation:</span><strong className="font-mono text-purple-700">{formatInr(registersSummary?.stock?.stock_valuation_total || 0)}</strong></div>
+>>>>>>> origin/main
                 <div className="flex justify-between"><span>Audit Status:</span><strong className="text-emerald-700 font-bold">100% RECONCILED</strong></div>
               </div>
             </div>
@@ -898,4 +1426,8 @@ export default function AccountingOverview() {
       )}
     </div>
   );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> origin/main

@@ -30,8 +30,12 @@ const STEPS = [
   { num: 1, title: "EPC Buyer", desc: "Select target EPC client", icon: FiUsers },
   { num: 2, title: "Delivery Site", desc: "Location & dispatch mode", icon: FiTruck },
   { num: 3, title: "Choose ComboKit", desc: "Admin trial packs & qty", icon: FiBox },
+<<<<<<< HEAD
   { num: 4, title: "Warranty Option", desc: "Protection package", icon: FiShield },
   { num: 5, title: "Review & Generate", desc: "Summary & pricing", icon: FiDollarSign },
+=======
+  { num: 4, title: "Review & Generate", desc: "Summary & pricing", icon: FiDollarSign },
+>>>>>>> origin/main
 ];
 
 function formatINR(paise) {
@@ -226,7 +230,10 @@ export default function CreateTrialKitQuote() {
 
   const [selectedKit, setSelectedKit] = useState(null);
   const [quantity, setQuantity] = useState(10);
+<<<<<<< HEAD
   const [selectedWarranty, setSelectedWarranty] = useState(null);
+=======
+>>>>>>> origin/main
 
   // Data lists from backend
   const [epcList, setEpcList] = useState([]);
@@ -235,7 +242,10 @@ export default function CreateTrialKitQuote() {
   const [loadingKits, setLoadingKits] = useState(false);
   const [kitSearch, setKitSearch] = useState("");
   const [selectedIndustryFilter, setSelectedIndustryFilter] = useState("all");
+<<<<<<< HEAD
   const [warrantyList, setWarrantyList] = useState([]);
+=======
+>>>>>>> origin/main
   const [warehouses, setWarehouses] = useState([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState("");
 
@@ -304,6 +314,7 @@ export default function CreateTrialKitQuote() {
     }
   }, []);
 
+<<<<<<< HEAD
   // Fetch Warranties
   const fetchWarranties = useCallback(async (kitId) => {
     try {
@@ -329,6 +340,8 @@ export default function CreateTrialKitQuote() {
     }
   }, []);
 
+=======
+>>>>>>> origin/main
   // Fetch Warehouses
   const fetchWarehouses = useCallback(async () => {
     try {
@@ -361,13 +374,18 @@ export default function CreateTrialKitQuote() {
     fetchWarehouses();
   }, [fetchEpcs, fetchKits, fetchWarehouses]);
 
+<<<<<<< HEAD
   // Recalculate price when kit, qty, warranty, or delivery changes
+=======
+  // Recalculate price when kit, qty, or delivery changes
+>>>>>>> origin/main
   useEffect(() => {
     if (!selectedKit) return;
 
     const baseUnitPaise = selectedKit.price_paise || selectedKit.mrp_paise || (selectedKit.selling_price_cached ? selectedKit.selling_price_cached * 100 : 0);
     const subtotalPaise = baseUnitPaise * quantity;
 
+<<<<<<< HEAD
     let warrantyPaise = 0;
     if (selectedWarranty) {
       if (selectedWarranty.pricing_mode === "percentage" && selectedWarranty.price_pct) {
@@ -379,6 +397,10 @@ export default function CreateTrialKitQuote() {
 
     const deliveryPaise = deliveryType === "franchisee_warehouse" ? 0 : 250000 * quantity;
     const taxablePaise = subtotalPaise + warrantyPaise + deliveryPaise;
+=======
+    const deliveryPaise = deliveryType === "franchisee_warehouse" ? 0 : 250000 * quantity;
+    const taxablePaise = subtotalPaise + deliveryPaise;
+>>>>>>> origin/main
     const gstRate = Number(selectedKit?.gst_rate ?? selectedKit?.tax_pct ?? selectedKit?.gst_pct ?? 13.8);
     const gstPaise = Math.round((taxablePaise * gstRate) / 100);
     const totalPaise = taxablePaise + gstPaise;
@@ -386,14 +408,22 @@ export default function CreateTrialKitQuote() {
     setPricing({
       price_per_kit_paise: baseUnitPaise,
       product_subtotal_paise: subtotalPaise,
+<<<<<<< HEAD
       warranty_charges_paise: warrantyPaise,
+=======
+      warranty_charges_paise: 0,
+>>>>>>> origin/main
       delivery_charges_paise: deliveryPaise,
       taxable_amount_paise: taxablePaise,
       gst_rate: gstRate,
       gst_amount_paise: gstPaise,
       total_amount_paise: totalPaise,
     });
+<<<<<<< HEAD
   }, [selectedKit, quantity, selectedWarranty, deliveryType]);
+=======
+  }, [selectedKit, quantity, deliveryType]);
+>>>>>>> origin/main
 
   // On EPC Selection, prepopulate address
   const handleSelectEpc = (epc) => {
@@ -485,9 +515,15 @@ export default function CreateTrialKitQuote() {
         is_trial_kit: true,
         quote_type: "trial_kit",
         trial_kit_quantity: Number(quantity),
+<<<<<<< HEAD
         warranty_id: selectedWarranty?._id || undefined,
         price_per_kit_paise: pricing.price_per_kit_paise,
         warranty_charges_paise: pricing.warranty_charges_paise,
+=======
+        warranty_id: undefined,
+        price_per_kit_paise: pricing.price_per_kit_paise,
+        warranty_charges_paise: 0,
+>>>>>>> origin/main
         delivery_charges_paise: pricing.delivery_charges_paise,
         taxable_amount_paise: pricing.taxable_amount_paise,
         gst_rate: pricing.gst_rate,
@@ -549,7 +585,11 @@ export default function CreateTrialKitQuote() {
         </div>
 
         <div className="text-right hidden sm:block">
+<<<<<<< HEAD
           <div className="text-xs text-slate-400">Step {currentStep} of 5</div>
+=======
+          <div className="text-xs text-slate-400">Step {currentStep} of 4</div>
+>>>>>>> origin/main
           <div className="text-xs font-bold text-purple-600 dark:text-purple-400">
             {STEPS[currentStep - 1]?.title}
           </div>
@@ -558,7 +598,11 @@ export default function CreateTrialKitQuote() {
 
       {/* Stepper Progress Bar */}
       <div className="bg-white dark:bg-slate-800 p-3 md:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+<<<<<<< HEAD
         <div className="grid grid-cols-5 gap-2 md:gap-4">
+=======
+        <div className="grid grid-cols-4 gap-2 md:gap-4">
+>>>>>>> origin/main
           {STEPS.map((step) => {
             const Icon = step.icon;
             const isCompleted = currentStep > step.num;
@@ -1036,7 +1080,10 @@ export default function CreateTrialKitQuote() {
                   onSelectKit={(k, q) => {
                     setSelectedKit(k);
                     setQuantity(q);
+<<<<<<< HEAD
                     fetchWarranties(k._id);
+=======
+>>>>>>> origin/main
                   }}
                 />
               ))}
@@ -1059,6 +1106,7 @@ export default function CreateTrialKitQuote() {
               onClick={() => setCurrentStep(4)}
               className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition disabled:opacity-40 shadow"
             >
+<<<<<<< HEAD
               <span>Next: Warranty Option</span>
               <FiArrowRight size={14} />
             </button>
@@ -1147,6 +1195,8 @@ export default function CreateTrialKitQuote() {
               onClick={() => setCurrentStep(5)}
               className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow"
             >
+=======
+>>>>>>> origin/main
               <span>Next: Review & Generate</span>
               <FiArrowRight size={14} />
             </button>
@@ -1154,14 +1204,23 @@ export default function CreateTrialKitQuote() {
         </div>
       )}
 
+<<<<<<< HEAD
       {/* STEP 5: REVIEW & GENERATE */}
       {currentStep === 5 && (
+=======
+      {/* STEP 4: REVIEW & GENERATE */}
+      {currentStep === 4 && (
+>>>>>>> origin/main
         <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 md:p-6 border border-slate-200/80 dark:border-slate-700/80 shadow-xs space-y-5">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">
+<<<<<<< HEAD
                   Step 5: Review & Generate Trial Kit Proposal
+=======
+                  Step 4: Review & Generate Trial Kit Proposal
+>>>>>>> origin/main
                 </h3>
                 <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
                   Trial Proposal
@@ -1223,6 +1282,7 @@ export default function CreateTrialKitQuote() {
                     </span>
                   </div>
                 </div>
+<<<<<<< HEAD
 
                 {selectedWarranty && (
                   <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
@@ -1230,6 +1290,8 @@ export default function CreateTrialKitQuote() {
                     <span className="font-bold text-purple-600 dark:text-purple-400">{selectedWarranty.name}</span>
                   </div>
                 )}
+=======
+>>>>>>> origin/main
               </div>
             </div>
 
@@ -1256,6 +1318,7 @@ export default function CreateTrialKitQuote() {
                     <span className="font-bold text-slate-900 dark:text-white">{formatINR(pricing.product_subtotal_paise)}</span>
                   </div>
 
+<<<<<<< HEAD
                   {pricing.warranty_charges_paise > 0 && (
                     <div className="flex justify-between text-purple-600">
                       <span>Warranty Protection:</span>
@@ -1263,6 +1326,8 @@ export default function CreateTrialKitQuote() {
                     </div>
                   )}
 
+=======
+>>>>>>> origin/main
                   <div className="flex justify-between">
                     <span className="text-slate-500">Freight & Logistics:</span>
                     <span className="font-bold text-slate-900 dark:text-white">
@@ -1317,7 +1382,11 @@ export default function CreateTrialKitQuote() {
           <div className="flex items-center justify-start pt-4 border-t border-slate-100 dark:border-slate-700">
             <button
               type="button"
+<<<<<<< HEAD
               onClick={() => setCurrentStep(4)}
+=======
+              onClick={() => setCurrentStep(3)}
+>>>>>>> origin/main
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600"
             >
               <FiArrowLeft size={14} />

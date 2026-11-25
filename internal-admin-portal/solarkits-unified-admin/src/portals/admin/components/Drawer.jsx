@@ -575,16 +575,28 @@ function NavigationDrawer({
                     title={item.name}
                     className={`flex items-center justify-between w-full ${
                       depth > 0 ? "px-3 py-2 pl-3.5 rounded-lg" : "px-3.5 py-2.5 rounded-xl"
+<<<<<<< HEAD
                     } transition-all duration-300 whitespace-nowrap group cursor-pointer
                     ${isLeafActive
                         ? "bg-gradient-to-r from-blue-700 to-indigo-800 text-white shadow-md shadow-blue-900/30 font-bold"
                         : "text-text-secondary bg-transparent hover:bg-primary/10 hover:text-primary dark:hover:bg-white/5"
                       }`}
+=======
+                    } transition-all duration-200 whitespace-nowrap group cursor-pointer ${
+                      isLeafActive
+                        ? "bg-gradient-to-r from-blue-700 to-indigo-800 text-white shadow-md shadow-blue-900/30 font-bold"
+                        : "text-text-secondary bg-transparent hover:bg-primary/10 hover:text-primary dark:hover:bg-white/5"
+                    }`}
+>>>>>>> origin/main
                   >
                     <div className="flex gap-2.5 items-center min-w-0 flex-1 mr-1.5 text-left">
                       <span
                         className={`${depth > 0 ? "text-lg min-w-5" : "text-xl min-w-6"} flex justify-center transition-all ${
+<<<<<<< HEAD
                           isLeafActive ? "text-white" : "text-primary group-hover:scale-110"
+=======
+                          isLeafActive ? "text-white" : "text-primary group-hover:text-primary group-hover:scale-110"
+>>>>>>> origin/main
                         }`}
                       >
                         {item.icon}
@@ -669,10 +681,18 @@ function NavigationDrawer({
             animate={{ x: 0 }}
             exit={{ x: isMobile ? "-100%" : 0 }}
             transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+<<<<<<< HEAD
             className={`shadow-xl flex flex-col transition-colors duration-300 ${isMobile
                 ? "fixed top-0 left-0 h-screen z-1000 bg-surface w-72"
                 : "h-screen w-72 bg-surface border-r border-border shrink-0"
               }`}
+=======
+            className={`shadow-xl flex flex-col transition-colors duration-300 ${
+              isMobile
+                ? "fixed top-0 left-0 h-screen z-1000 bg-surface w-72"
+                : "h-screen w-72 bg-surface border-r border-border shrink-0"
+            }`}
+>>>>>>> origin/main
  
           >
             {/* Logo */}

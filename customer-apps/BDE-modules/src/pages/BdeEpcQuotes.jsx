@@ -3,6 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   FileText,
   Plus,
+<<<<<<< HEAD
+=======
+  Box,
+>>>>>>> origin/main
   Search,
   Calendar,
   Clock,
@@ -294,6 +298,17 @@ export default function BdeEpcQuotes() {
           </button>
 
           <Link
+<<<<<<< HEAD
+=======
+            to="/trial-kit-quotes/create"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl font-bold text-sm shadow-sm transition active:scale-95"
+          >
+            <Box className="w-4 h-4" />
+            Create Trial Kit Quote
+          </Link>
+
+          <Link
+>>>>>>> origin/main
             to="/epc-quotes/create"
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm shadow-sm transition active:scale-95"
           >
@@ -470,12 +485,26 @@ export default function BdeEpcQuotes() {
                     ? 'No quotations match your current filter conditions.'
                     : 'Generate your first quotation to kickstart deal closures.'}
                 </p>
+<<<<<<< HEAD
                 <div className="mt-4">
+=======
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  <Link
+                    to="/trial-kit-quotes/create"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-700 text-white rounded-xl text-xs font-semibold shadow-sm hover:bg-purple-800 transition"
+                  >
+                    <Box className="w-4 h-4" /> Create Trial Kit Quote
+                  </Link>
+>>>>>>> origin/main
                   <Link
                     to="/epc-quotes/create"
                     className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold shadow-sm hover:bg-indigo-700 transition"
                   >
+<<<<<<< HEAD
                     <Plus className="w-4 h-4" /> Create Quotation
+=======
+                    <Plus className="w-4 h-4" /> Create Commercial Quote
+>>>>>>> origin/main
                   </Link>
                 </div>
               </div>

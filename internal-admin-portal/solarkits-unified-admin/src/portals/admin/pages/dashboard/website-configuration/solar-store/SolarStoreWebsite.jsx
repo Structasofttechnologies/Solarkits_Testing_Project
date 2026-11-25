@@ -32,9 +32,12 @@ import {
   FiCheck,
   FiChevronDown,
   FiHeart,
+<<<<<<< HEAD
   FiFileText,
   FiDollarSign,
   FiTruck,
+=======
+>>>>>>> origin/main
 } from "react-icons/fi";
 import { FaStore, FaBoxOpen, FaHandshake, FaComments, FaFire, FaBolt, FaSyncAlt } from "react-icons/fa";
 import axios from "axios";
@@ -301,6 +304,7 @@ const DEFAULT_SOLAR_STORE_STATE = {
       label: "",
     },
   },
+<<<<<<< HEAD
   policies: {
     privacy_policy: {
       title: "Privacy Policy",
@@ -421,11 +425,16 @@ const DEFAULT_SOLAR_STORE_STATE = {
       ],
     },
   },
+=======
+>>>>>>> origin/main
 };
 
 export default function SolarStoreWebsite() {
   const [activeTab, setActiveTab] = useState("hero");
+<<<<<<< HEAD
   const [activePolicyTab, setActivePolicyTab] = useState("privacy_policy");
+=======
+>>>>>>> origin/main
   const [sections, setSections] = useState(DEFAULT_SOLAR_STORE_STATE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -433,6 +442,7 @@ export default function SolarStoreWebsite() {
   const [uploadingSlideIdx, setUploadingSlideIdx] = useState(null);
   const [uploadingGlobalBg, setUploadingGlobalBg] = useState(false);
 
+<<<<<<< HEAD
   // ── Policy Clause Helpers ──────────────────────────────────────────────────
   const handleAddPolicyClause = (policyKey) => {
     const newClause = {
@@ -484,6 +494,8 @@ export default function SolarStoreWebsite() {
     }));
   };
 
+=======
+>>>>>>> origin/main
   // ── Best Seller Matrix & Catalog Kits Integration ──────────────────────────
   const [bestSellerKits, setBestSellerKits] = useState([]);
   const [loadingBestSellers, setLoadingBestSellers] = useState(false);
@@ -1430,7 +1442,11 @@ export default function SolarStoreWebsite() {
       )}
 
       {/* Section Navigation Tabs */}
+<<<<<<< HEAD
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+=======
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+>>>>>>> origin/main
         {[
           { id: "hero", label: "1. Hero Slides", icon: <FiMonitor /> },
           { id: "categories", label: "2. Categories", icon: <FaBoxOpen /> },
@@ -1439,7 +1455,10 @@ export default function SolarStoreWebsite() {
           { id: "brands", label: "5. Brands", icon: <FaHandshake /> },
           { id: "testimonials", label: "6. Reviews", icon: <FaComments /> },
           { id: "footer", label: "7. Footer & Desk", icon: <FiPhone /> },
+<<<<<<< HEAD
           { id: "policies", label: "8. Legal & Policies", icon: <FiShield /> },
+=======
+>>>>>>> origin/main
         ].map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -3429,6 +3448,7 @@ export default function SolarStoreWebsite() {
           </div>
         </div>
       )}
+<<<<<<< HEAD
 
       {/* ── Tab 8: Legal & Policy Pages (Privacy, Terms, Refund, Shipping) ──── */}
       {activeTab === "policies" && (
@@ -3632,6 +3652,8 @@ export default function SolarStoreWebsite() {
           })()}
         </div>
       )}
+=======
+>>>>>>> origin/main
     </div>
   );
 }

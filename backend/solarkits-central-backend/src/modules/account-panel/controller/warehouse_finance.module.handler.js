@@ -1,9 +1,19 @@
 const { WarehouseTriggerConfig, WarehouseOpportunity } = require('../models/india_solarshop_db/warehouse_finance.schema');
 let FranchiseeCluster = null;
+<<<<<<< HEAD
 try {
   FranchiseeCluster = require('../../admin-panel/models/india_solarshop_db').FranchiseeCluster;
 } catch (e) {
   console.warn("Notice loading FranchiseeCluster in warehouse_finance.module.handler:", e.message);
+=======
+let EpcAccount = null;
+try {
+  const indiaDb = require('../../admin-panel/models/india_solarshop_db');
+  FranchiseeCluster = indiaDb.FranchiseeCluster;
+  EpcAccount = indiaDb.EpcAccount;
+} catch (e) {
+  console.warn("Notice loading models in warehouse_finance.module.handler:", e.message);
+>>>>>>> origin/main
 }
 
 // Initial seed default triggers & cluster opportunities if empty
@@ -28,6 +38,7 @@ const DEFAULT_TRIGGER_CONFIG = {
   min_dscr_threshold: 1.35
 };
 
+<<<<<<< HEAD
 const SEED_OPPORTUNITIES = [
   {
     cluster_name: 'Varanasi-Purvanchal Cluster',
@@ -150,6 +161,8 @@ const SEED_OPPORTUNITIES = [
   }
 ];
 
+=======
+>>>>>>> origin/main
 async function ensureTriggerData() {
   const cfgCount = await WarehouseTriggerConfig.countDocuments();
   if (cfgCount === 0) {
@@ -157,6 +170,7 @@ async function ensureTriggerData() {
   }
   const cfg = await WarehouseTriggerConfig.findOne().lean() || DEFAULT_TRIGGER_CONFIG;
 
+<<<<<<< HEAD
   // Sync Franchisee Clusters if model exists
   if (FranchiseeCluster) {
     try {
@@ -189,12 +203,91 @@ async function ensureTriggerData() {
           };
           calculateOpportunityFinancials(newOpp, cfg);
           await WarehouseOpportunity.create(newOpp);
+=======
+  // Sync strictly with live Franchisee Clusters
+  if (FranchiseeCluster) {
+    try {
+      const liveClusters = await FranchiseeCluster.find({ deleted_at: null }).lean();
+      const liveClusterIds = liveClusters.map(fc => fc._id.toString());
+      const liveClusterNames = liveClusters.map(fc => fc.cluster_name);
+
+      // Clean out any opportunities that do not correspond to active Franchise Clusters
+      await WarehouseOpportunity.deleteMany({
+        $or: [
+          { cluster_id: { $nin: liveClusterIds } },
+          { cluster_name: { $nin: liveClusterNames } }
+        ]
+      });
+
+      for (const fc of liveClusters) {
+        let epcCount = 0;
+        if (EpcAccount) {
+          try {
+            epcCount = await EpcAccount.countDocuments({
+              districts: { $in: fc.district_ids || [] },
+              status: 'approved',
+              deleted_at: null
+            });
+          } catch (e) { }
+        }
+
+        let opp = await WarehouseOpportunity.findOne({ cluster_id: fc._id });
+        if (!opp) {
+          opp = await WarehouseOpportunity.findOne({ cluster_name: fc.cluster_name });
+        }
+
+        if (!opp) {
+          const newOpp = {
+            cluster_id: fc._id,
+            cluster_code: fc.cluster_code,
+            cluster_name: fc.cluster_name,
+            state: fc.state_name || 'Gujarat',
+            district: fc.district_names?.[0] || 'Main Hub',
+            district_names: fc.district_names || [],
+            current_monthly_turnover: 0,
+            current_monthly_kits: 0,
+            pipeline_order_value: 0,
+            active_epc_count: epcCount,
+            current_avg_delivery_tat_days: 0,
+            current_delivery_cost_pct: 0,
+            projected_monthly_delivery_savings: 0,
+            projected_tat_reduction_days: 0,
+            growth_score: 0,
+            status: 'DEVELOPING',
+            admin_notes: `Live synced with Franchise Cluster Management (${fc.cluster_code}).`
+          };
+          calculateOpportunityFinancials(newOpp, cfg);
+          await WarehouseOpportunity.create(newOpp);
+        } else {
+          let changed = false;
+          if (!opp.cluster_id || opp.cluster_id.toString() !== fc._id.toString()) {
+            opp.cluster_id = fc._id;
+            changed = true;
+          }
+          if (opp.cluster_code !== fc.cluster_code) {
+            opp.cluster_code = fc.cluster_code;
+            changed = true;
+          }
+          if (opp.state !== fc.state_name) {
+            opp.state = fc.state_name;
+            changed = true;
+          }
+          if (epcCount > 0 && opp.active_epc_count !== epcCount) {
+            opp.active_epc_count = epcCount;
+            changed = true;
+          }
+          if (changed) {
+            calculateOpportunityFinancials(opp, cfg);
+            await opp.save();
+          }
+>>>>>>> origin/main
         }
       }
     } catch (err) {
       console.warn("Notice syncing FranchiseeCluster in ensureTriggerData:", err.message);
     }
   }
+<<<<<<< HEAD
 
   const oppCount = await WarehouseOpportunity.countDocuments();
   if (oppCount === 0) {
@@ -203,6 +296,8 @@ async function ensureTriggerData() {
       await WarehouseOpportunity.create(opp);
     }
   }
+=======
+>>>>>>> origin/main
 }
 
 function calculateOpportunityFinancials(opp, cfg) {
@@ -293,7 +388,11 @@ exports.get_warehouse_opportunities = async (req, res) => {
   try {
     await ensureTriggerData();
     const cfg = await WarehouseTriggerConfig.findOne({ is_active: true }).lean() || DEFAULT_TRIGGER_CONFIG;
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> origin/main
     const filter = {};
     if (req.query.state && req.query.state !== 'ALL') {
       filter.state = req.query.state;
@@ -369,11 +468,16 @@ exports.get_warehouse_opportunities = async (req, res) => {
   }
 };
 
+<<<<<<< HEAD
 // 4. Create / Evaluate New Warehouse Opportunity
+=======
+// 4. Create / Evaluate New Warehouse Opportunity (Restricted to Franchise Clusters)
+>>>>>>> origin/main
 exports.create_warehouse_opportunity = async (req, res) => {
   try {
     const cfg = await WarehouseTriggerConfig.findOne({ is_active: true }).lean() || DEFAULT_TRIGGER_CONFIG;
     const oppData = { ...req.body };
+<<<<<<< HEAD
     calculateOpportunityFinancials(oppData, cfg);
 
     const opportunity = await WarehouseOpportunity.create(oppData);
@@ -411,6 +515,36 @@ exports.create_warehouse_opportunity = async (req, res) => {
     calculateOpportunityFinancials(oppData, cfg);
 
     const opportunity = await WarehouseOpportunity.create(oppData);
+=======
+
+    if (!oppData.cluster_id && FranchiseeCluster) {
+      const fc = await FranchiseeCluster.findOne({
+        $or: [{ cluster_name: oppData.cluster_name }, { cluster_code: oppData.cluster_code }],
+        deleted_at: null
+      }).lean();
+      if (fc) {
+        oppData.cluster_id = fc._id;
+        oppData.cluster_code = fc.cluster_code;
+        oppData.state = fc.state_name;
+        oppData.district = fc.district_names?.[0] || 'Main Hub';
+        oppData.district_names = fc.district_names || [];
+      } else {
+        return res.status(400).json({
+          status: 'error',
+          message: `Cluster "${oppData.cluster_name}" does not exist in Franchise Clusters. Only franchise clusters can be evaluated.`
+        });
+      }
+    }
+
+    calculateOpportunityFinancials(oppData, cfg);
+
+    const opportunity = await WarehouseOpportunity.findOneAndUpdate(
+      { cluster_id: oppData.cluster_id },
+      oppData,
+      { upsert: true, new: true, runValidators: true }
+    );
+
+>>>>>>> origin/main
     return res.status(201).json({
       status: 'success',
       message: `Warehouse opportunity for ${opportunity.cluster_name} evaluated successfully!`,

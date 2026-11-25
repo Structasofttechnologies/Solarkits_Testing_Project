@@ -20,6 +20,10 @@ import {
   FiUser,
   FiShield,
   FiExternalLink,
+<<<<<<< HEAD
+=======
+  FiShoppingCart,
+>>>>>>> origin/main
 } from 'react-icons/fi';
 import { FaWhatsapp } from 'react-icons/fa';
 import toast from 'react-hot-toast';
@@ -443,11 +447,16 @@ export default function EpcQuotations() {
                       </div>
                     </div>
 
+<<<<<<< HEAD
                     <div className="flex items-center gap-2 w-full sm:w-auto">
+=======
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+>>>>>>> origin/main
                       {/* Download PDF button */}
                       <button
                         onClick={(e) => handleDownloadPdf(e, q)}
                         disabled={downloadingId === q._id}
+<<<<<<< HEAD
                         className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-primary-50 text-primary hover:bg-primary-100 dark:bg-primary-900/30 dark:hover:bg-primary-900/50 transition border border-primary/20 shadow-2xs"
                         title="Download official PDF quotation"
                       >
@@ -457,16 +466,63 @@ export default function EpcQuotations() {
                           <FiDownload className="w-4 h-4 text-primary" />
                         )}
                         <span>Download PDF</span>
+=======
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-primary-50 text-primary hover:bg-primary-100 dark:bg-primary-900/30 dark:hover:bg-primary-900/50 transition border border-primary/20 shadow-2xs"
+                        title="Download official PDF quotation"
+                      >
+                        {downloadingId === q._id ? (
+                          <FiRefreshCw className="w-3.5 h-3.5 animate-spin text-primary" />
+                        ) : (
+                          <FiDownload className="w-3.5 h-3.5 text-primary" />
+                        )}
+                        <span>PDF</span>
+>>>>>>> origin/main
                       </button>
 
                       {/* View Details */}
                       <button
                         onClick={() => navigate(`/my-quotes/${q._id}`)}
+<<<<<<< HEAD
                         className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-primary text-white hover:bg-primary-hover transition shadow-2xs"
                       >
                         <span>View Details</span>
                         <FiArrowRight className="w-3.5 h-3.5" />
                       </button>
+=======
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-surface text-text-primary hover:bg-bg border border-border transition shadow-2xs"
+                        title="View complete proposal details"
+                      >
+                        <FiEye className="w-3.5 h-3.5 text-text-muted" />
+                        <span>Details</span>
+                      </button>
+
+                      {/* Checkout Quotation Button */}
+                      {q.status === 'converted' ? (
+                        <span className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <FiCheckCircle className="w-3.5 h-3.5" />
+                          <span>Ordered</span>
+                        </span>
+                      ) : q.status === 'expired' ? (
+                        <span className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-200">
+                          <FiClock className="w-3.5 h-3.5" />
+                          <span>Expired</span>
+                        </span>
+                      ) : isDraft ? (
+                        <span className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                          <span>BDE Review</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => navigate(`/checkout?quote_id=${q._id}`)}
+                          className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-primary hover:bg-primary-hover text-white transition shadow-sm hover:shadow active:scale-95"
+                          title="Checkout this quotation"
+                        >
+                          <FiShoppingCart className="w-3.5 h-3.5" />
+                          <span>Checkout</span>
+                          <FiArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+>>>>>>> origin/main
                     </div>
                   </div>
                 </div>

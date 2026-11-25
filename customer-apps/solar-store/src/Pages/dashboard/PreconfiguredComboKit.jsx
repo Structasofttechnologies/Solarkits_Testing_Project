@@ -65,16 +65,22 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
   const urlCategory = searchParams.get("category");
   const urlCapacity = searchParams.get("kw") || searchParams.get("capacity");
   const urlSearch = searchParams.get("search") || searchParams.get("q");
+<<<<<<< HEAD
   const urlFilter = searchParams.get("filter");
   const urlTender = searchParams.get("govt_tender");
   const isGovtTenderUrl = urlFilter === "govt-tender" || urlFilter === "govt_tender" || urlTender === "true";
+=======
+>>>>>>> origin/main
 
   const [filters, setFilters] = useState({
  
     capacityKW: "all",
     industryType: urlIndustry || "all",
     category: urlCategory || "all",
+<<<<<<< HEAD
     govtTender: isGovtTenderUrl ? "govt_tender_only" : "all",
+=======
+>>>>>>> origin/main
  
     subCategory: "all",
     systemType: "all",
@@ -117,10 +123,14 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
     if (urlSearch) {
       setSearchTerm(urlSearch);
     }
+<<<<<<< HEAD
     if (isGovtTenderUrl) {
       setFilters((prev) => ({ ...prev, govtTender: "govt_tender_only" }));
     }
   }, [urlIndustry, urlCategory, urlCapacity, urlSearch, isGovtTenderUrl]);
+=======
+  }, [urlIndustry, urlCategory, urlCapacity, urlSearch]);
+>>>>>>> origin/main
 
   useEffect(() => {
     if (urlCapacity && availableKits.length > 0 && !selected) {
@@ -519,7 +529,11 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
   };
 
   const mainFilterKeys = ["industryType", "category", "subCategory", "systemType", "projectRange"];
+<<<<<<< HEAD
   const subFilterKeys = ["comboKitType", "pricePerKw", "popularKits", "govtTender"];
+=======
+  const subFilterKeys = ["comboKitType", "pricePerKw", "popularKits",];
+>>>>>>> origin/main
 
   const clearAllFilters = () => {
     setFilters({
@@ -534,7 +548,10 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
       pricePerKw: "all",
       popularKits: "all",
       frequencyBuyer: "all",
+<<<<<<< HEAD
       govtTender: "all",
+=======
+>>>>>>> origin/main
       panelBrand: "all",
       panelTechnology: "all",
       panelWattage: "all",
@@ -635,8 +652,12 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
           k.usageType?.toLowerCase().includes(term) ||
           k.description?.toLowerCase().includes(term) ||
           (k.capacityKW && `${k.capacityKW}kw`.includes(term.replace(/\s+/g, ""))) ||
+<<<<<<< HEAD
           k.variants?.some(v => v.productTier?.toLowerCase().includes(term)) ||
           (k.is_govt_tender && (term.includes("tender") || term.includes("govt") || k.govt_tender_name?.toLowerCase().includes(term) || k.govt_tender_badge?.toLowerCase().includes(term)))
+=======
+          k.variants?.some(v => v.productTier?.toLowerCase().includes(term))
+>>>>>>> origin/main
       );
     }
 
@@ -905,11 +926,14 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
             return cap >= min && cap <= max;
           }
 
+<<<<<<< HEAD
           case "govtTender":
             if (value === "govt_tender_only") return Boolean(k.is_govt_tender);
             if (value === "regular_only") return !k.is_govt_tender;
             return true;
 
+=======
+>>>>>>> origin/main
           default:
             return true;
         }
@@ -1177,8 +1201,11 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
                           ? "Combo Kit Type"
                           : key === "popularKits"
                             ? "Popular Kits"
+<<<<<<< HEAD
                             : key === "govtTender"
                               ? "Govt Tender" 
+=======
+>>>>>>> origin/main
                             : key === "frequencyBuyer"
                               ? "Frequency Buyer"
                               : key === "pricePerKw"
@@ -1634,8 +1661,11 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
                         ? "Combo Kit Type"
                         : key === "popularKits"
                           ? "Popular Kits"
+<<<<<<< HEAD
                           : key === "govtTender"
                             ? "Govt Tender" 
+=======
+>>>>>>> origin/main
                           : key === "frequencyBuyer"
                             ? "Frequency Buyer"
                             : key === "pricePerKw"

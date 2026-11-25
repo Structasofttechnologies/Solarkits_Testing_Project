@@ -34,7 +34,11 @@ export default function BdeLogin() {
 
   // Identifier state
   const [identifier, setIdentifier] = useState(isLocalhost ? 'rahul.bde@solarkits.com' : '');
+<<<<<<< HEAD
   const [pin, setPin] = useState(isLocalhost ? '1234' : '');
+=======
+  const [pin, setPin] = useState('');
+>>>>>>> origin/main
   const [showPin, setShowPin] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -43,15 +47,23 @@ export default function BdeLogin() {
 
   const DEMO_ACCOUNTS = [
     {
+<<<<<<< HEAD
       label: 'Vivek gohel (PIN: 1234)',
       identifier: 'rahul.bde@solarkits.com',
       pin: '1234'
+=======
+      label: 'Vivek gohel',
+      identifier: 'rahul.bde@solarkits.com',
+>>>>>>> origin/main
     }
   ];
 
   const handleFillDemo = (acc) => {
     setIdentifier(acc.identifier);
+<<<<<<< HEAD
     if (acc.pin) setPin(acc.pin);
+=======
+>>>>>>> origin/main
     setError(null);
   };
 

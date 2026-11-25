@@ -28,7 +28,11 @@ import { deliveryApi } from '../../../api/deliveryApi';
 import axios from 'axios';
 import { authHeaderObj } from '../../../app/authHeader';
 
+<<<<<<< HEAD
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+=======
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/admin-api';
+>>>>>>> origin/main
 
 export default function DeliveryDashboard() {
   const navigate = useNavigate();
@@ -37,7 +41,13 @@ export default function DeliveryDashboard() {
 
   const basePath = location.pathname.includes('/warehouse-management-panel')
     ? '/warehouse-management-panel/delivery-management'
+<<<<<<< HEAD
     : '/admin-panel/solar-shop/delivery-management';
+=======
+    : location.pathname.includes('/admin-panel/delivery-management')
+      ? '/admin-panel/delivery-management'
+      : '/admin-panel/solar-shop/delivery-management';
+>>>>>>> origin/main
 
   const [loading, setLoading] = useState(true);
   const [warehouses, setWarehouses] = useState([]);
@@ -98,6 +108,7 @@ export default function DeliveryDashboard() {
     fetchFranchiseClusters();
   }, []);
 
+<<<<<<< HEAD
   // Compute Effect of Clusters metrics
   const clusterDeliveryStats = useMemo(() => {
     if (!franchiseClusters || franchiseClusters.length === 0) {
@@ -192,6 +203,37 @@ export default function DeliveryDashboard() {
       const tat = isCritical ? 5.6 + (idx % 3) * 0.4 : 2.8 + (idx % 3) * 0.3;
       const cost = trips * 9500;
       const freightRatio = isCritical ? 7.8 + (idx % 2) * 0.6 : 4.5 + (idx % 2) * 0.5;
+=======
+  // Compute Effect of Clusters metrics from live franchise clusters & analytics data
+  const clusterDeliveryStats = useMemo(() => {
+    if (!franchiseClusters || franchiseClusters.length === 0) {
+      return [];
+    }
+
+    const clusterBreakdowns = analyticsData?.breakdowns?.by_cluster || [];
+    const breakdownMap = {};
+    clusterBreakdowns.forEach((item) => {
+      if (item.name) {
+        breakdownMap[item.name.toLowerCase().trim()] = item;
+      }
+    });
+
+    return franchiseClusters.map((c, idx) => {
+      const match =
+        breakdownMap[c.cluster_name?.toLowerCase()?.trim()] ||
+        breakdownMap[c.cluster_code?.toLowerCase()?.trim()] ||
+        null;
+
+      const trips = match?.trips || 0;
+      const kits = match?.kits || 0;
+      const cost = match?.cost || 0;
+      const savings = match?.savings || 0;
+      const tat = match?.tat_count > 0 ? (match.tat_sum / match.tat_count) : 0;
+      const costPerKit = kits > 0 ? Math.round(cost / kits) : 0;
+      const freightRatio = cost > 0 && kits > 0 ? parseFloat(((cost / (kits * 60000)) * 100).toFixed(1)) : 0;
+      const isTatBreach = tat > 4.0;
+      const status = isTatBreach || freightRatio > 6.5 ? 'CRITICAL_WAREHOUSE_NEEDED' : 'HEALTHY';
+>>>>>>> origin/main
 
       return {
         name: c.cluster_name,
@@ -201,6 +243,7 @@ export default function DeliveryDashboard() {
         store: c.assigned_franchisee_id?.business_name || 'Open for Allotment',
         trips,
         kits,
+<<<<<<< HEAD
         tat_days: parseFloat(tat.toFixed(1)),
         is_tat_breach: tat > 4.0,
         cost,
@@ -211,6 +254,18 @@ export default function DeliveryDashboard() {
       };
     });
   }, [franchiseClusters]);
+=======
+        tat_days: tat > 0 ? parseFloat(tat.toFixed(1)) : 0,
+        is_tat_breach: isTatBreach,
+        cost,
+        cost_per_kit: costPerKit,
+        freight_ratio: freightRatio,
+        savings,
+        status: trips === 0 ? 'NO_DISPATCHES' : status
+      };
+    });
+  }, [franchiseClusters, analyticsData]);
+>>>>>>> origin/main
 
   useEffect(() => {
     loadDashboard();
@@ -572,11 +627,18 @@ export default function DeliveryDashboard() {
                     <button
                       key={t.id}
                       onClick={() => setBreakdownTab(t.id)}
+<<<<<<< HEAD
                       className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all ${
                         breakdownTab === t.id
                           ? 'bg-white text-amber-600 shadow-sm'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
+=======
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all ${breakdownTab === t.id
+                          ? 'bg-white text-amber-600 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                        }`}
+>>>>>>> origin/main
                     >
                       <Icon className="text-xs" /> {t.label}
                     </button>
@@ -602,6 +664,7 @@ export default function DeliveryDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
+<<<<<<< HEAD
                     {clusterDeliveryStats.map((item, idx) => (
                       <tr key={idx} className={`hover:bg-slate-50 ${item.is_tat_breach ? 'bg-rose-50/30' : ''}`}>
                         <td className="px-4 py-3">
@@ -660,6 +723,83 @@ export default function DeliveryDashboard() {
                         </td>
                       </tr>
                     ))}
+=======
+                    {clusterDeliveryStats.length === 0 ? (
+                      <tr>
+                        <td colSpan="8" className="text-center py-8 text-xs text-slate-400">
+                          No franchise clusters found.
+                        </td>
+                      </tr>
+                    ) : (
+                      clusterDeliveryStats.map((item, idx) => (
+                        <tr key={idx} className={`hover:bg-slate-50 ${item.is_tat_breach ? 'bg-rose-50/30' : ''}`}>
+                          <td className="px-4 py-3">
+                            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                              <FaMapMarkerAlt className={item.is_tat_breach ? "text-rose-500" : "text-emerald-500"} />
+                              <span>{item.name}</span>
+                            </div>
+                            <span className="text-[11px] text-slate-500 block mt-0.5">
+                              {item.state} • {item.districts.slice(0, 3).join(', ')}{item.districts.length > 3 ? ` +${item.districts.length - 3}` : ''}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-700 font-medium">
+                            {item.store}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-bold text-slate-900">{item.kits} Kits</span>
+                            <span className="text-[11px] text-slate-400 block">{item.trips} Trips</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {item.trips === 0 ? (
+                              <span className="text-slate-400 font-medium text-xs">—</span>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`font-bold ${item.is_tat_breach ? "text-rose-600" : "text-emerald-700"}`}>
+                                    {item.tat_days} Days
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${item.is_tat_breach ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"}`}>
+                                    {item.is_tat_breach ? "🚨 SLA Breach" : "🟢 On-Time"}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-slate-400">Max Policy: 4.0d</span>
+                              </>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 font-bold text-slate-800">
+                            ₹{item.cost?.toLocaleString('en-IN')}
+                            <span className={`block text-[10px] ${item.freight_ratio > 6.5 ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
+                              {item.freight_ratio}% of kit value
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-slate-700 text-xs">
+                            ₹{item.cost_per_kit?.toLocaleString('en-IN')}
+                          </td>
+                          <td className="px-4 py-3 font-bold text-emerald-600 text-xs">
+                            +₹{item.savings?.toLocaleString('en-IN')}
+                          </td>
+                          <td className="px-4 py-3">
+                            {item.status === 'CRITICAL_WAREHOUSE_NEEDED' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                <FaExclamationTriangle className="text-rose-600" />
+                                Urgent Warehouse Needed
+                              </span>
+                            ) : item.status === 'NO_DISPATCHES' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                <FaCheckCircle className="text-slate-400" />
+                                Ready for Dispatches
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <FaCheckCircle className="text-emerald-600" />
+                                Optimal Cluster Ops
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+>>>>>>> origin/main
                   </tbody>
                 </table>
               )}
@@ -876,11 +1016,18 @@ export default function DeliveryDashboard() {
                           </td>
                           <td className="px-4 py-3">
                             <span
+<<<<<<< HEAD
                               className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
                                 isConsolidated
                                   ? 'bg-purple-100 text-purple-700'
                                   : 'bg-blue-100 text-blue-700'
                               }`}
+=======
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${isConsolidated
+                                  ? 'bg-purple-100 text-purple-700'
+                                  : 'bg-blue-100 text-blue-700'
+                                }`}
+>>>>>>> origin/main
                             >
                               {isConsolidated ? <FaRoute /> : <FaBoxes />}
                               {isConsolidated ? 'Consolidated' : 'Single'}

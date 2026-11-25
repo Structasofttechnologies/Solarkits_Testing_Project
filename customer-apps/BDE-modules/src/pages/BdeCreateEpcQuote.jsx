@@ -32,6 +32,10 @@ import {
   X,
 } from 'lucide-react';
 import api from '../services/api';
+<<<<<<< HEAD
+=======
+import StoreKitCard from '../components/StoreKitCard';
+>>>>>>> origin/main
 
 const STEPS = [
   { num: 1, title: 'EPC Buyer', desc: 'Client & Franchisee attribution', icon: Users },
@@ -50,11 +54,38 @@ function formatINR(paise) {
 export default function BdeCreateEpcQuote() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+<<<<<<< HEAD
   const initialQuoteType = searchParams.get('quote_type') === 'trial_kit' || searchParams.get('is_trial') === 'true' ? 'trial_kit' : 'standard';
   const paramEpcId = searchParams.get('epc_id');
   const paramKitId = searchParams.get('combo_kit_id') || searchParams.get('kit_id');
 
   const [quoteType, setQuoteType] = useState(initialQuoteType); // 'standard' | 'trial_kit'
+=======
+  const paramEpcId = searchParams.get('epc_id');
+  const paramKitId = searchParams.get('combo_kit_id') || searchParams.get('kit_id');
+
+  // Commercial Standard quote only (Trial Kit quotes are handled exclusively on /trial-kit-quotes/create)
+  const [quoteType, setQuoteType] = useState('standard');
+  const [selectedQuoteMode, setSelectedQuoteMode] = useState('loose_quote');
+  const [backendQuotePermissions, setBackendQuotePermissions] = useState(null);
+  const effectiveQuotePermissions = useMemo(() => {
+    if (Array.isArray(backendQuotePermissions) && backendQuotePermissions.length > 0) {
+      return backendQuotePermissions.filter((p) => p !== 'trial_quote');
+    }
+    return ['po_quote', 'loose_quote'];
+  }, [backendQuotePermissions]);
+
+  // If accessed with trial_kit param, gracefully redirect to the dedicated trial kit quotation page
+  useEffect(() => {
+    if (searchParams.get('quote_type') === 'trial_kit' || searchParams.get('is_trial') === 'true') {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('quote_type');
+      newParams.delete('is_trial');
+      const queryStr = newParams.toString() ? `?${newParams.toString()}` : '';
+      navigate(`/trial-kit-quotes/create${queryStr}`, { replace: true });
+    }
+  }, [searchParams, navigate]);
+>>>>>>> origin/main
   const [currentStep, setCurrentStep] = useState(1);
   const [error, setError] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -187,6 +218,12 @@ export default function BdeCreateEpcQuote() {
 
       const res = await api.get('/quotes/eligible-kits', { params });
       if (res.data?.status === 'success') {
+<<<<<<< HEAD
+=======
+        if (Array.isArray(res.data?.quote_permissions)) {
+          setBackendQuotePermissions(res.data.quote_permissions);
+        }
+>>>>>>> origin/main
         const raw = res.data.data;
         const list = Array.isArray(raw)
           ? raw
@@ -252,12 +289,18 @@ export default function BdeCreateEpcQuote() {
       const found = kitList.find((k) => (k._id || k.id) === paramKitId);
       if (found) {
         setSelectedKit(found);
+<<<<<<< HEAD
         if (quoteType === 'trial_kit') {
           setQuantity(Number(found.trial_kit_quantity) || 10);
         }
       }
     }
   }, [paramKitId, kitList, selectedKit, quoteType]);
+=======
+      }
+    }
+  }, [paramKitId, kitList, selectedKit]);
+>>>>>>> origin/main
 
   // Recalculate price
   useEffect(() => {
@@ -370,9 +413,16 @@ export default function BdeCreateEpcQuote() {
         epc_id: selectedEpc._id,
         franchisee_id: selectedFranchisee?._id || undefined,
         quote_source: selectedFranchisee ? 'bde_for_franchisee' : 'bde_direct',
+<<<<<<< HEAD
         is_trial_kit: quoteType === 'trial_kit',
         quote_type: quoteType,
         trial_kit_quantity: quoteType === 'trial_kit' ? Number(selectedKit?.trial_kit_quantity || quantity || 10) : undefined,
+=======
+        is_trial_kit: false,
+        quote_type: 'standard',
+        quote_mode: selectedQuoteMode || (quantity >= 200 ? 'po_quote' : 'loose_quote'),
+        trial_kit_quantity: undefined,
+>>>>>>> origin/main
         delivery_type: deliveryType,
         delivery_address: deliveryDetails,
         delivery_address_snapshot: deliveryDetails,
@@ -979,11 +1029,14 @@ export default function BdeCreateEpcQuote() {
   const filteredKits = safeKitList.filter((k) => {
     if (!k) return false;
 
+<<<<<<< HEAD
     // Trial Kit Proposal mode: only show kits authorized by Admin for trial
     if (quoteType === 'trial_kit' && !k.allow_trial_kit) {
       return false;
     }
 
+=======
+>>>>>>> origin/main
     // 1. Industry filter
     if (quickFilters.industryType !== 'all') {
       const indVal = quickFilters.industryType.toLowerCase();
@@ -1738,13 +1791,19 @@ export default function BdeCreateEpcQuote() {
         {/* STEP 3: COMBOKIT (DIRECT DISPLAY WITH INDUSTRY & PROJECT TYPE) */}
         {currentStep === 3 && (
           <div className="space-y-4">
+<<<<<<< HEAD
             {/* Proposal Mode Switcher: Standard Commercial vs Trial Kit */}
             <div className="p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-50 via-purple-50/50 to-indigo-50/50 border-slate-200">
+=======
+            {/* Commercial Proposal Mode Banner & Dedicated Trial Quote Navigation */}
+            <div className="p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-50 via-slate-100/60 to-slate-50 border-slate-200">
+>>>>>>> origin/main
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-900 text-white">
                     Quotation Mode
                   </span>
+<<<<<<< HEAD
                   {quoteType === 'trial_kit' ? (
                     <span className="text-xs font-bold text-purple-700 flex items-center gap-1">
                       <Box className="w-3.5 h-3.5" /> Trial Kit Proposal (Admin Enforced)
@@ -1799,6 +1858,28 @@ export default function BdeCreateEpcQuote() {
                   <span>Trial Kit Quote</span>
                 </button>
               </div>
+=======
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                    <DollarSign className="w-3.5 h-3.5 text-slate-700" /> Commercial Proposal (Loose & Bulk PO)
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-1">
+                  Standard commercial quotation for full batch requirements and flexible loose-pack quantities.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const queryStr = selectedEpc?._id ? `?epc_id=${selectedEpc._id}` : '';
+                  navigate(`/trial-kit-quotes/create${queryStr}`);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition shadow-2xs shrink-0 self-start md:self-auto"
+              >
+                <Box className="w-3.5 h-3.5" />
+                <span>Need a Trial Kit? Create Trial Quote &rarr;</span>
+              </button>
+>>>>>>> origin/main
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100">
@@ -1995,6 +2076,7 @@ export default function BdeCreateEpcQuote() {
                 </p>
               </div>
             ) : (
+<<<<<<< HEAD
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredKits.map((kit) => {
                   const isSel = selectedKit?._id === kit._id;
@@ -2146,6 +2228,28 @@ export default function BdeCreateEpcQuote() {
                     </div>
                   );
                 })}
+=======
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredKits.map((kit) => (
+                  <StoreKitCard
+                    key={kit._id}
+                    kit={kit}
+                    isSelected={selectedKit?._id === kit._id}
+                    selectedQuantity={selectedKit?._id === kit._id ? quantity : null}
+                    selectedQuoteMode={
+                      selectedKit?._id === kit._id
+                        ? (selectedQuoteMode || (quantity >= 200 ? 'po_quote' : 'loose_quote'))
+                        : null
+                    }
+                    quotePermissions={effectiveQuotePermissions}
+                    onSelectKit={(k, q, mode) => {
+                      setSelectedKit(k);
+                      setQuantity(q);
+                      setSelectedQuoteMode(mode || (q >= 200 ? 'po_quote' : 'loose_quote'));
+                    }}
+                  />
+                ))}
+>>>>>>> origin/main
               </div>
             )}
           </div>
@@ -2229,9 +2333,15 @@ export default function BdeCreateEpcQuote() {
                 <h2 className="text-lg font-bold text-slate-900">Quotation Summary & Pricing</h2>
                 <p className="text-xs text-slate-500">Confirm commercial details before issuing formal quotation</p>
               </div>
+<<<<<<< HEAD
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black ${quoteType === 'trial_kit' ? 'bg-purple-100 text-purple-900 border border-purple-200' : 'bg-slate-100 text-slate-800'}`}>
                 {quoteType === 'trial_kit' ? <Box className="w-3.5 h-3.5 text-purple-700" /> : <DollarSign className="w-3.5 h-3.5 text-slate-700" />}
                 {quoteType === 'trial_kit' ? `Trial Kit Proposal (${quantity} Kits Locked)` : 'Standard Commercial Proposal'}
+=======
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-800 border border-slate-200">
+                <DollarSign className="w-3.5 h-3.5 text-slate-700" />
+                Standard Commercial Proposal
+>>>>>>> origin/main
               </span>
             </div>
 

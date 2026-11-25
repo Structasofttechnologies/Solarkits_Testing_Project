@@ -3,6 +3,7 @@
  * Bulletproof 600px Responsive Table Layout matching Executive Qbits & SolarKits Reference
  */
 
+<<<<<<< HEAD
 export const DEFAULT_EMAIL_SECTIONS = [
   { id: 'banner', label: 'Hero Media Banner', desc: 'Executive banner, photo, or video' },
   { id: 'pitch', label: 'Pitch Title & Body Text', desc: 'Category tag, H1 heading, and email copy' },
@@ -25,6 +26,8 @@ export const DEFAULT_SECTIONS_ORDER = [
   'custom_ctas'
 ];
 
+=======
+>>>>>>> origin/main
 export const DEFAULT_EXECUTIVE_CREATIVE = {
   logoUrl: 'https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png',
   headerTagline: 'B2B SOLAR KITS STORE',
@@ -42,7 +45,10 @@ export const DEFAULT_EXECUTIVE_CREATIVE = {
   destinationUrl: 'https://solarkits.in/solar-kits',
   mediaType: 'banner', // 'banner' | 'image' | 'video'
   heroImageUrl: '',
+<<<<<<< HEAD
   sectionsOrder: DEFAULT_SECTIONS_ORDER,
+=======
+>>>>>>> origin/main
   valuePills: [
     '1. Add Backup to Quotes',
     '2. Higher Ticket Size',
@@ -207,6 +213,7 @@ export function generateResponsiveEmailHtml(formData = {}) {
     ${i < points.length - 1 ? '<tr><td height="12"></td></tr>' : ''}
   `).join('');
 
+<<<<<<< HEAD
   const sectionsOrder = Array.isArray(cr.sectionsOrder) && cr.sectionsOrder.length > 0
     ? cr.sectionsOrder
     : DEFAULT_SECTIONS_ORDER;
@@ -222,6 +229,51 @@ export function generateResponsiveEmailHtml(formData = {}) {
       case 'banner':
         return `
           <!-- HERO BANNER -->
+=======
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+  <style>
+    html, body { margin: 0 auto !important; padding: 0 !important; background-color: #f1f5f9; font-family: Arial, Helvetica, sans-serif; }
+    table, td { border-collapse: collapse !important; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    @media screen and (max-width: 620px) {
+      .email-wrap { width: 100% !important; max-width: 100% !important; border-radius: 0 !important; }
+      .pad-mob { padding-left: 20px !important; padding-right: 20px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9;">
+
+  <!-- Preheader -->
+  <div style="display: none; font-size: 1px; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden;">
+    ${preheader} &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
+  </div>
+
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f1f5f9;">
+    <tr>
+      <td align="center" style="padding: 20px 10px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" class="email-wrap" style="width: 600px; max-width: 600px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(15, 23, 42, 0.08); border: 1px solid #e2e8f0; margin: 0 auto;">
+
+          <!-- 1. HEADER / OFFICIAL SOLARKITS LOGO -->
+          <tr>
+            <td align="center" style="padding: 22px 20px 18px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; border-bottom: 2px solid #f1f5f9; text-align: center;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto;">
+                <tr>
+                  <td align="center" style="text-align: center;">
+                    <a href="https://solarkits.in" target="_blank" style="text-decoration: none; display: inline-block;">
+                      <img src="${cr.logoUrl || 'https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png'}" alt="SolarKits™ B2B Solar Kits Store" width="190" style="width: 190px; max-width: 190px; height: auto; display: block; border: 0; margin: 0 auto;" />
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- 2. HERO BANNER -->
+>>>>>>> origin/main
           <tr>
             <td style="background-color: ${cr.themeColor}; text-align: center;">
               ${cr.mediaType === 'image' && cr.heroImageUrl ? `
@@ -267,11 +319,25 @@ export function generateResponsiveEmailHtml(formData = {}) {
               `}
             </td>
           </tr>
+<<<<<<< HEAD
         `;
 
       case 'pitch':
         return `
           <!-- PITCH & BODY INTRO -->
+=======
+
+          <!-- 3. CONTACT STRIP BAR -->
+          <tr>
+            <td style="background-color: ${cr.stripColor}; padding: 10px 20px; text-align: center;">
+              <span style="font-size: 13px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px;">
+                📞 ${cr.contactPhone} &nbsp;|&nbsp; 🌐 <a href="https://${cr.contactWebsite}" target="_blank" style="color: #ffffff; text-decoration: underline;">${cr.contactWebsite}</a>
+              </span>
+            </td>
+          </tr>
+
+          <!-- 4. PITCH & BODY INTRO -->
+>>>>>>> origin/main
           <tr>
             <td class="pad-mob" style="padding: 34px 40px 10px; text-align: center; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
               <p style="margin: 0 0 10px; font-size: 12px; letter-spacing: 2px; font-weight: 800; color: ${cr.stripColor}; text-transform: uppercase;">
@@ -285,11 +351,16 @@ export function generateResponsiveEmailHtml(formData = {}) {
               </p>
             </td>
           </tr>
+<<<<<<< HEAD
         `;
 
       case 'primary_cta':
         return `
           <!-- PRIMARY CTA BUTTON -->
+=======
+
+          <!-- 5. PRIMARY CTA BUTTON (CENTERED) -->
+>>>>>>> origin/main
           <tr>
             <td class="pad-mob" align="center" style="padding: 22px 20px 14px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; text-align: center;">
               <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto;">
@@ -303,6 +374,7 @@ export function generateResponsiveEmailHtml(formData = {}) {
               </table>
             </td>
           </tr>
+<<<<<<< HEAD
         `;
 
       case 'products':
@@ -358,6 +430,23 @@ export function generateResponsiveEmailHtml(formData = {}) {
       case 'benefit_cards':
         return `
           <!-- VALUE PROPOSITION BOXES / HIGHLIGHT POINTS -->
+=======
+
+          <!-- COUPON VOUCHER (IF ACTIVE) -->
+          ${hasCoupon ? `
+            <tr>
+              <td class="pad-mob" style="padding: 10px 40px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
+                <div style="background-color: #fffbeb; border: 1px dashed #f59e0b; padding: 14px; border-radius: 8px; text-align: center;">
+                  <span style="font-size: 11px; font-weight: 800; color: #b45309; text-transform: uppercase; letter-spacing: 1px;">Exclusive EPC Discount Voucher</span>
+                  <div style="font-size: 20px; font-weight: 900; color: #78350f; font-family: monospace; margin: 4px 0;">${couponCode}</div>
+                  <span style="font-size: 12px; color: #92400e; font-weight: 700;">Get ${discountStr} on orders above MOQ in Solar Shop</span>
+                </div>
+              </td>
+            </tr>
+          ` : ''}
+
+          <!-- 6. VALUE PROPOSITION BOXES / 4 HIGHLIGHT POINTS -->
+>>>>>>> origin/main
           <tr>
             <td class="pad-mob" style="padding: 18px 40px 10px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
@@ -365,11 +454,16 @@ export function generateResponsiveEmailHtml(formData = {}) {
               </table>
             </td>
           </tr>
+<<<<<<< HEAD
         `;
 
       case 'closing_pitch':
         return `
           <!-- SECONDARY CLOSING PITCH & SECONDARY CTA -->
+=======
+
+          <!-- 7. SECONDARY CLOSING PITCH -->
+>>>>>>> origin/main
           <tr>
             <td class="pad-mob" style="padding: 24px 40px 6px; text-align: center; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
               <p style="margin: 0; font-size: 17px; font-weight: 800; color: ${cr.themeColor} !important;">
@@ -377,6 +471,11 @@ export function generateResponsiveEmailHtml(formData = {}) {
               </p>
             </td>
           </tr>
+<<<<<<< HEAD
+=======
+
+          <!-- 8. SECONDARY CTA BUTTON (CENTERED) -->
+>>>>>>> origin/main
           <tr>
             <td class="pad-mob" align="center" style="padding: 14px 20px 10px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; text-align: center;">
               <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto;">
@@ -390,6 +489,7 @@ export function generateResponsiveEmailHtml(formData = {}) {
               </table>
             </td>
           </tr>
+<<<<<<< HEAD
         `;
 
       case 'custom_ctas':
@@ -476,12 +576,23 @@ export function generateResponsiveEmailHtml(formData = {}) {
           <tr>
             <td align="center" style="padding: 16px 40px 18px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
               <p style="margin: 0; font-size: 12px; color: #94a3b8; text-align: center;">
+=======
+
+          <!-- Disclaimer -->
+          <tr>
+            <td align="center" style="padding: 0 40px 22px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
+              <p style="margin: 0; font-size: 12px; color: #94a3b8;">
+>>>>>>> origin/main
                 ${cr.footerDisclaimer}
               </p>
             </td>
           </tr>
 
+<<<<<<< HEAD
           <!-- FOOTER (PINNED AT BOTTOM) -->
+=======
+          <!-- 9. FOOTER -->
+>>>>>>> origin/main
           <tr>
             <td align="center" style="background-color: #1a2552; padding: 28px 25px; color: #ffffff; border-top: 4px solid ${cr.accentColor};">
               <p style="margin: 0; font-size: 18px; font-weight: 900; letter-spacing: 1px; color: #ffffff;">

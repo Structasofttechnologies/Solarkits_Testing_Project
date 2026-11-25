@@ -24,6 +24,7 @@ const schema = new mongoose.Schema({
 
 schema.virtual('id').get(function () { return this._id; });
 
+<<<<<<< HEAD
 // Indexes for high performance querying, pagination, and sorting
 schema.index({ status: 1, created_at: -1 });
 schema.index({ deleted_at: 1, created_at: -1 });
@@ -37,4 +38,6 @@ schema.index({ company_name: 1 });
 schema.index({ email: 1 });
 schema.index({ whatsapp: 1 });
 
+=======
+>>>>>>> origin/main
 module.exports = db.model('epc_signup_requests', schema);

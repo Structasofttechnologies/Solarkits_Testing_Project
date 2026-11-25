@@ -17,22 +17,174 @@ import { hasPermission } from "@/utils/permissions";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
+<<<<<<< HEAD
+=======
+const IFSC_BANK_LOOKUP = {
+  ICIC: "ICICI Bank",
+  HDFC: "HDFC Bank",
+  SBIN: "State Bank of India",
+  UTIB: "Axis Bank",
+  KKBK: "Kotak Mahindra Bank",
+  PUNB: "Punjab National Bank",
+  BARB: "Bank of Baroda",
+  YESB: "Yes Bank",
+  IDIB: "Indian Bank",
+  UBIN: "Union Bank of India",
+  CANR: "Canara Bank",
+  CNRB: "Canara Bank",
+  INDB: "IndusInd Bank",
+  MAHB: "Bank of Maharashtra",
+  IDFB: "IDFC First Bank",
+  FDRL: "Federal Bank",
+  IOBA: "Indian Overseas Bank",
+  UCBA: "UCO Bank",
+  BKID: "Bank of India",
+  CBIN: "Central Bank of India",
+  PSIB: "Punjab & Sind Bank",
+  RATN: "RBL Bank",
+  KVBL: "Karur Vysya Bank",
+  SIBL: "South Indian Bank",
+  SCBL: "Standard Chartered Bank",
+  CITI: "Citibank",
+  HSBC: "HSBC Bank",
+  AUBL: "AU Small Finance Bank",
+  ESFB: "Equitas Small Finance Bank",
+  UTKS: "Utkarsh Small Finance Bank",
+  UJVN: "Ujjivan Small Finance Bank",
+  JAKA: "Jammu & Kashmir Bank",
+  BDBL: "Bandhan Bank",
+};
+
+const resolveBankFromIfsc = (code) => {
+  if (!code || typeof code !== "string") return "";
+  const clean = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return IFSC_BANK_LOOKUP[clean.substring(0, 4)] || "";
+};
+
+>>>>>>> origin/main
 export default function CheckOut() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [searchParams] = useSearchParams();
   const milestoneGroupParam = searchParams.get("milestone_group");
+<<<<<<< HEAD
+=======
+  const quoteIdParam = searchParams.get("quote_id");
+>>>>>>> origin/main
   const cart = useSelector((state) => state.slice.cart);
   const selectedDistrict = useSelector((state) => state.slice.selectedDistrict);
   const { user } = useSelector((state) => state.auth_slice);
 
+<<<<<<< HEAD
   // Filter items if checking out a specific milestone group / card
   const checkoutItems = useMemo(() => {
+=======
+  // Official Quotation State
+  const [quoteData, setQuoteData] = useState(null);
+  const [_loadingQuote, setLoadingQuote] = useState(Boolean(quoteIdParam));
+
+  // Fetch Quotation data if checking out from an official BDE proposal
+  useEffect(() => {
+    if (!quoteIdParam) return;
+    let isMounted = true;
+    const fetchQuoteForCheckout = async () => {
+      setLoadingQuote(true);
+      try {
+        const res = await axios.get(`${API_URL}/india/v1/shop/quotes/${quoteIdParam}`, { withCredentials: true });
+        if (res.data?.status === "success" && res.data.data) {
+          const q = res.data.data;
+          if (q.status === "converted") {
+            dispatch(setAlert({ type: "warning", message: `Quotation ${q.quote_number || ""} has already been converted to an order.` }));
+            navigate("/my-quotes");
+            return;
+          }
+          if (q.status === "expired") {
+            dispatch(setAlert({ type: "error", message: `Quotation ${q.quote_number || ""} has expired. Please contact your BDE for a revision.` }));
+            navigate("/my-quotes");
+            return;
+          }
+          if (isMounted) {
+            setQuoteData(q);
+            if (q.delivery_address_snapshot) {
+              const das = q.delivery_address_snapshot;
+              setDeliveryAddress({
+                line: das.shipping_address_line1 || das.address_line || das.address || "",
+                pincode: das.pincode || "395001",
+                district_name: das.district_name || q.territory?.district_name || "",
+                state_name: das.state_name || q.territory?.state_name || "",
+                contact_name: das.contact_person || q.epc_snapshot?.contact_person || "EPC Contractor",
+                contact_phone: das.mobile || q.epc_snapshot?.mobile || "",
+              });
+            }
+          }
+        } else {
+          dispatch(setAlert({ type: "error", message: "Quotation details could not be retrieved." }));
+          navigate("/my-quotes");
+        }
+      } catch (err) {
+        console.error("Failed to load quotation for checkout:", err);
+        dispatch(setAlert({ type: "error", message: err.response?.data?.message || "Failed to load quotation for checkout." }));
+        navigate("/my-quotes");
+      } finally {
+        if (isMounted) {
+          setLoadingQuote(false);
+          setLoading(false);
+        }
+      }
+    };
+    fetchQuoteForCheckout();
+    return () => { isMounted = false; };
+  }, [quoteIdParam, navigate, dispatch]);
+
+  // Construct items payload from quotation if in quote checkout mode
+  const quoteItems = useMemo(() => {
+    if (!quoteData) return null;
+    const kitSnap = quoteData.combo_kit_snapshot || {};
+    const pricePerKit = Math.round((quoteData.price_per_kit_paise || 0) / 100);
+    const deliveryCharge = Math.round((quoteData.delivery_charges_paise || 0) / 100);
+    const isTrial = Boolean(quoteData.is_trial_kit || quoteData.quote_type === "trial_kit");
+
+    return [{
+      id: quoteData.combo_kit_id,
+      cartItemId: `quote_${quoteData._id}`,
+      kit_id: quoteData.combo_kit_id,
+      combo_kit_id: quoteData.combo_kit_id,
+      title: kitSnap.name || `${quoteData.kit_capacity_kw || 0} kW Solar Combo Kit`,
+      kitName: kitSnap.name || `${quoteData.kit_capacity_kw || 0} kW Solar Combo Kit`,
+      name: kitSnap.name || `${quoteData.kit_capacity_kw || 0} kW Solar Combo Kit`,
+      description: kitSnap.description || "Pre-engineered, tested and authorized complete solar kit with guaranteed electrical compatibility.",
+      qty: quoteData.quantity || 1,
+      ourPrice: pricePerKit,
+      selling_price_inr: pricePerKit,
+      marketPrice: Math.round(pricePerKit * 1.15),
+      gstRate: Number(quoteData.gst_rate != null ? quoteData.gst_rate : 5),
+      delivery_cost: deliveryCharge,
+      capacityKW: quoteData.kit_capacity_kw || kitSnap.capacity_kw || 0,
+      kw: quoteData.kit_capacity_kw || kitSnap.capacity_kw || 0,
+      capacity: `${quoteData.kit_capacity_kw || 0} kW`,
+      image: kitSnap.kit_image_url || kitSnap.image || "https://images.unsplash.com/photo-1509391365360-2e959784a276?w=600&auto=format&fit=crop&q=80",
+      is_trial_kit: isTrial,
+      trial_kit_quantity: isTrial ? (quoteData.trial_kit_quantity || quoteData.quantity) : null,
+      quote_id: quoteData._id,
+      quote_number: quoteData.quote_number,
+      districtId: quoteData.territory?.district_id || null,
+      districtName: quoteData.territory?.district_name || null,
+    }];
+  }, [quoteData]);
+
+  // Filter items if checking out a specific milestone group / card (or quotation)
+  const checkoutItems = useMemo(() => {
+    if (quoteItems) return quoteItems;
+>>>>>>> origin/main
     if (!cart || cart.length === 0) return [];
     if (!milestoneGroupParam) return cart;
     const filtered = cart.filter((item) => (item.milestone_group_key || `adv_${item.payment_milestones?.advance_percentage || 30}_rem_${item.payment_milestones?.remaining_percentage || 70}`) === milestoneGroupParam);
     return filtered.length > 0 ? filtered : cart;
+<<<<<<< HEAD
   }, [cart, milestoneGroupParam]);
+=======
+  }, [quoteItems, cart, milestoneGroupParam]);
+>>>>>>> origin/main
 
   // Settings & Status
   const [loading, setLoading] = useState(true);
@@ -47,6 +199,7 @@ export default function CheckOut() {
 
   // Company Bank Details
   const [bankDetails, setBankDetails] = useState({
+<<<<<<< HEAD
     account_name: "SolarKits Technologies Pvt Ltd",
     bank_name: "HDFC Bank",
     account_number: "50200088991122",
@@ -54,6 +207,15 @@ export default function CheckOut() {
     branch_name: "Corporate Financial Center, Mumbai",
     account_type: "Current Account",
     upi_id: "solarkits.pay@hdfcbank",
+=======
+    account_name: "SUNNOVATIVE SOLAR ENERGY SOLUTION PRIVATE LIMITED",
+    bank_name: "ICICI Bank",
+    account_number: "624805017426",
+    ifsc_code: "ICICI0006248",
+    branch_name: "Corporate Financial Center, Mumbai",
+    account_type: "Current Account",
+    upi_id: "solarkits.pay@icici",
+>>>>>>> origin/main
   });
   const [copiedField, setCopiedField] = useState("");
   const [iciciVanDetails, setIciciVanDetails] = useState(null);
@@ -248,6 +410,10 @@ export default function CheckOut() {
   }, [cart, fulfillmentMode, selectedDistrict]);
 
   useEffect(() => {
+<<<<<<< HEAD
+=======
+    if (quoteData && quoteData.delivery_address_snapshot) return; // Keep official quotation delivery address
+>>>>>>> origin/main
     if (user || selectedState || selectedDistrict || cart.length > 0) {
       const pinFromCart = cart.find((k) => k.delivery_pincode)?.delivery_pincode;
       setDeliveryAddress((prev) => ({
@@ -259,7 +425,11 @@ export default function CheckOut() {
         contact_phone: prev.contact_phone || user?.whatsapp || user?.mobile || "",
       }));
     }
+<<<<<<< HEAD
   }, [user, selectedState, selectedDistrict, cart]);
+=======
+  }, [user, selectedState, selectedDistrict, cart, quoteData]);
+>>>>>>> origin/main
 
   // Fetch ICICI Virtual Account details and listen for real-time payment confirmation
   useEffect(() => {
@@ -340,11 +510,21 @@ export default function CheckOut() {
             setSelectedPaymentMethod("offline");
           }
           if (cfg.offline_bank_details?.account_number) {
+<<<<<<< HEAD
+=======
+            const ifsc = cfg.offline_bank_details.ifsc_code || "";
+            const bName = cfg.offline_bank_details.bank_name || resolveBankFromIfsc(ifsc) || "";
+>>>>>>> origin/main
             setBankDetails((prev) => ({
               ...prev,
               account_name: cfg.offline_bank_details.account_holder_name || prev.account_name,
               account_number: cfg.offline_bank_details.account_number,
+<<<<<<< HEAD
               ifsc_code: cfg.offline_bank_details.ifsc_code || prev.ifsc_code,
+=======
+              ifsc_code: ifsc || prev.ifsc_code,
+              bank_name: bName || prev.bank_name,
+>>>>>>> origin/main
             }));
           }
         }
@@ -363,11 +543,22 @@ export default function CheckOut() {
         if (res.data?.status === "success" && res.data?.data) {
           const d = res.data.data;
           if (d.account_number) {
+<<<<<<< HEAD
             setBankDetails((prev) => ({
               ...prev,
               account_name: d.account_holder_name || prev.account_name,
               account_number: d.account_number,
               ifsc_code: d.ifsc_code || prev.ifsc_code,
+=======
+            const ifsc = d.ifsc_code || "";
+            const bName = d.bank_name || resolveBankFromIfsc(ifsc) || "";
+            setBankDetails((prev) => ({
+              ...prev,
+              account_name: d.account_holder_name || d.account_name || prev.account_name,
+              account_number: d.account_number,
+              ifsc_code: ifsc || prev.ifsc_code,
+              bank_name: bName || prev.bank_name,
+>>>>>>> origin/main
             }));
           }
         }
@@ -486,7 +677,18 @@ export default function CheckOut() {
     try {
       const res = await axios.get(`${API_URL}/india/v1/shop/bank-details`);
       if (res.data?.success && res.data.data) {
+<<<<<<< HEAD
         setBankDetails(res.data.data);
+=======
+        const d = res.data.data;
+        const ifsc = d.ifsc_code || "";
+        const bName = d.bank_name || resolveBankFromIfsc(ifsc) || "";
+        setBankDetails((prev) => ({
+          ...prev,
+          ...d,
+          bank_name: bName || d.bank_name || prev.bank_name,
+        }));
+>>>>>>> origin/main
       }
     } catch (err) {
       console.error("Error fetching bank details:", err);
@@ -520,6 +722,7 @@ export default function CheckOut() {
       navigate("/cart");
       return;
     }
+<<<<<<< HEAD
     if (cart.length === 0) {
       navigate("/cart");
       return;
@@ -528,6 +731,18 @@ export default function CheckOut() {
     fetchActiveOffers();
     checkGstStatus();
   }, [cart, navigate, selectedDistrict, selectedState, orderConfirmed, user, dispatch]);
+=======
+    if (!quoteIdParam && cart.length === 0) {
+      navigate("/cart");
+      return;
+    }
+    if (!quoteIdParam) {
+      handleReserveStock();
+    }
+    fetchActiveOffers();
+    checkGstStatus();
+  }, [cart, navigate, selectedDistrict, selectedState, orderConfirmed, user, dispatch, quoteIdParam]);
+>>>>>>> origin/main
 
   // Countdown timer logic
   useEffect(() => {
@@ -661,6 +876,31 @@ export default function CheckOut() {
       }
     });
 
+<<<<<<< HEAD
+=======
+    // If checking out an official BDE quotation, honor the agreed commercial totals
+    if (quoteData) {
+      const qTotal = Math.round((quoteData.total_amount_paise || 0) / 100);
+      const qDelivery = Math.round((quoteData.delivery_charges_paise || 0) / 100);
+      const qGst = Math.round((quoteData.gst_amount_paise || 0) / 100);
+      const qTaxable = Math.round((quoteData.taxable_amount_paise || 0) / 100);
+      const qSubtotal = Math.round((quoteData.product_subtotal_paise || 0) / 100);
+
+      return {
+        discountAmount: 0,
+        offersApplied: [`Official Quotation Rate Applied (${quoteData.quote_number || 'Proposal'})`],
+        offerName: `Quotation: ${quoteData.quote_number || 'Locked Pricing'}`,
+        offerType: 'Quotation',
+        totalDeliveryFreight: qDelivery,
+        discountedSubtotal: qSubtotal,
+        baseSubtotalExclGst: qTaxable,
+        computedGst: qGst,
+        gstRate: Number(quoteData.gst_rate != null ? quoteData.gst_rate : 5),
+        finalTotal: qTotal,
+      };
+    }
+
+>>>>>>> origin/main
     let appliedDiscountValue = 0;
     let selectedOffers = [];
 
@@ -695,9 +935,19 @@ export default function CheckOut() {
     const discountedSubtotal = Math.max(0, subtotal - appliedDiscountValue);
 
     // Selling price (ourPrice) is already GST-inclusive, extract exact base and GST amounts
+<<<<<<< HEAD
     const { taxable: baseSubtotalExclGst, gstAmount: computedGst, gstRate: dynamicGstRate } = getTaxBreakdown(discountedSubtotal);
     const finalTotal = discountedSubtotal + totalDeliveryFreight;
 
+=======
+    const { taxable: productTaxable, gstAmount: productGst, gstRate: dynamicGstRate } = getTaxBreakdown(discountedSubtotal);
+    const finalTotal = discountedSubtotal + totalDeliveryFreight;
+
+    // Freight taxable & GST breakdown aligned with commercial quotation taxation
+    const freightTaxable = totalDeliveryFreight > 0 ? Math.round(totalDeliveryFreight / (1 + dynamicGstRate / 100)) : 0;
+    const freightGst = Math.max(0, totalDeliveryFreight - freightTaxable);
+
+>>>>>>> origin/main
     return {
       discountAmount: appliedDiscountValue,
       offersApplied: selectedOffers,
@@ -705,12 +955,21 @@ export default function CheckOut() {
       offerType: activeOfferType,
       totalDeliveryFreight,
       discountedSubtotal,
+<<<<<<< HEAD
       baseSubtotalExclGst,
       computedGst,
       gstRate: dynamicGstRate,
       finalTotal,
     };
   }, [checkoutItems, totalKitsQuantity, totalCapacityKW, appliedCoupon, activeOffers, subtotal, checkoutSettings]);
+=======
+      baseSubtotalExclGst: productTaxable + freightTaxable,
+      computedGst: productGst + freightGst,
+      gstRate: dynamicGstRate,
+      finalTotal,
+    };
+  }, [checkoutItems, totalKitsQuantity, totalCapacityKW, appliedCoupon, activeOffers, subtotal, checkoutSettings, quoteData]);
+>>>>>>> origin/main
 
   // ── Calculate Milestone Breakdown ──────────────────────────────────────────
   const milestoneBreakdown = useMemo(() => {
@@ -927,6 +1186,13 @@ export default function CheckOut() {
       formData.append("payment_method", selectedPaymentMethod === "online" ? "icici_ecollection" : "offline_bank_transfer");
       formData.append("payment_gateway_used", selectedPaymentMethod === "online" ? "icici_ecollection" : "bank_transfer");
       formData.append("payment_receipt", receiptFile);
+<<<<<<< HEAD
+=======
+      if (quoteData) {
+        formData.append("quote_id", quoteData._id);
+        formData.append("quote_number", quoteData.quote_number || "");
+      }
+>>>>>>> origin/main
 
       const res = await axios.post(`${API_URL}/india/v1/shop/offline-checkout/create`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -943,15 +1209,30 @@ export default function CheckOut() {
           orderData.payment_method === "icici_ecollection" ||
           orderData.payment_gateway_used === "icici_ecollection";
 
+<<<<<<< HEAD
         // Remove only the checked-out items from cart, keeping other milestone cards safe!
         const orderedIds = checkoutItems.map(it => it.cartItemId);
         dispatch(removeItemsFromCart(orderedIds));
         dispatch(syncCartWithBackend());
+=======
+        // Remove only the checked-out items from cart, keeping other milestone cards safe (skip for quote checkouts)!
+        if (!quoteData) {
+          const orderedIds = checkoutItems.map(it => it.cartItemId);
+          dispatch(removeItemsFromCart(orderedIds));
+          dispatch(syncCartWithBackend());
+        }
+>>>>>>> origin/main
 
         dispatch(
           setAlert({
             type: "success",
+<<<<<<< HEAD
             message: "Order submitted successfully! Payment details have been submitted for verification.",
+=======
+            message: quoteData
+              ? `Quotation ${quoteData.quote_number || ""} converted to Order #${orderData.order_number || ""} successfully! Payment submitted for verification.`
+              : "Order submitted successfully! Payment details have been submitted for verification.",
+>>>>>>> origin/main
           })
         );
       } else {
@@ -1103,11 +1384,19 @@ export default function CheckOut() {
             Track Order Delivery Status
           </Button>
           <Button
+<<<<<<< HEAD
             onClick={() => navigate("/preconfigured-combo-kit")}
             variant="secondary"
             className="py-3.5 text-sm font-semibold"
           >
             Return to Product Catalogue
+=======
+            onClick={() => navigate(quoteData ? "/my-quotes" : "/preconfigured-combo-kit")}
+            variant="secondary"
+            className="py-3.5 text-sm font-semibold"
+          >
+            {quoteData ? "Back to My Quotations" : "Return to Product Catalogue"}
+>>>>>>> origin/main
           </Button>
         </div>
 
@@ -1135,7 +1424,11 @@ export default function CheckOut() {
   }
 
   if (loading) {
+<<<<<<< HEAD
     return <Loader text="Securing warehouse inventory and loading checkout..." />;
+=======
+    return <Loader text={quoteIdParam ? "Loading official quotation checkout..." : "Securing warehouse inventory and loading checkout..."} />;
+>>>>>>> origin/main
   }
 
   if (errorMsg) {
@@ -1155,6 +1448,37 @@ export default function CheckOut() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
+<<<<<<< HEAD
+=======
+      {/* Official Quotation Checkout Header Banner */}
+      {quoteData && (
+        <div className="bg-gradient-to-r from-primary via-primary-end to-primary rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm text-xs font-semibold text-white/90 mb-2">
+                <FiFileText className="text-accent" /> Official Commercial Quotation Checkout
+              </div>
+              <h1 className="text-2xl font-black">
+                Quotation Ref: {quoteData.quote_number || `DRAFT-${quoteData._id.slice(-6).toUpperCase()}`}
+              </h1>
+              <p className="text-xs text-white/80 max-w-2xl mt-1">
+                Drafted by {quoteData.bde_snapshot?.full_name || 'Assigned SolarKits BDE'} • Quoted Quantity: {quoteData.quantity || 1} Units ({quoteData.total_kw || 0} kW Total) • Issued on {new Date(quoteData.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </p>
+            </div>
+            <div className="text-left md:text-right shrink-0 bg-white/10 p-3.5 rounded-xl backdrop-blur-xs border border-white/15">
+              <span className="text-[11px] text-white/80 font-medium block">Total Quoted Commercials</span>
+              <div className="text-2xl font-black text-white">
+                ₹{Math.round((quoteData.total_amount_paise || 0) / 100).toLocaleString('en-IN')}
+              </div>
+              <span className="text-[10px] text-emerald-300 font-semibold block">
+                Incl. GST ({quoteData.gst_rate != null ? quoteData.gst_rate : 5}%) & Delivery
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+>>>>>>> origin/main
       {/* Checkout timer bar */}
       {timerEnabled && (
         <div className="bg-amber-500/10 border border-amber-500/25 p-4 rounded-2xl flex items-center justify-between gap-4 shadow-sm">

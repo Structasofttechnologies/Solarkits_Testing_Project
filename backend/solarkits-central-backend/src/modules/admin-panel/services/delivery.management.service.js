@@ -1488,6 +1488,10 @@ const getWarehouseDashboardAnalytics = async (warehouseId = null) => {
   const vehicleMap = {};
   const providerMap = {};
   const orderTypeMap = {};
+<<<<<<< HEAD
+=======
+  const clusterMap = {};
+>>>>>>> origin/main
 
   allTrips.forEach(trip => {
     // Warehouse
@@ -1522,9 +1526,49 @@ const getWarehouseDashboardAnalytics = async (warehouseId = null) => {
       if (!orderTypeMap[oType]) orderTypeMap[oType] = { name: oType, count: 0, kits: 0 };
       orderTypeMap[oType].count += 1;
       orderTypeMap[oType].kits += (st.cargo?.total_kits || 0);
+<<<<<<< HEAD
     });
   });
 
+=======
+
+      const clusterKey = st.destination?.cluster_name || st.destination?.district || null;
+      if (clusterKey) {
+        if (!clusterMap[clusterKey]) {
+          clusterMap[clusterKey] = {
+            name: clusterKey,
+            trips: 0,
+            kits: 0,
+            cost: 0,
+            savings: 0,
+            tat_sum: 0,
+            tat_count: 0
+          };
+        }
+        clusterMap[clusterKey].trips += 1;
+        clusterMap[clusterKey].kits += (st.cargo?.total_kits || 0);
+        clusterMap[clusterKey].cost += (trip.actual_vendor_cost ? Math.round(trip.actual_vendor_cost / Math.max(1, trip.stops.length)) : 0);
+        clusterMap[clusterKey].savings += (trip.estimated_savings ? Math.round(trip.estimated_savings / Math.max(1, trip.stops.length)) : 0);
+        if (trip.actual_tat_days) {
+          clusterMap[clusterKey].tat_sum += trip.actual_tat_days;
+          clusterMap[clusterKey].tat_count += 1;
+        }
+      }
+    });
+  });
+
+  // Dynamic vehicle utilization
+  let avgVehicleUtilizationPct = 0;
+  if (allTrips.length > 0) {
+    const totalUtil = allTrips.reduce((sum, t) => sum + (t.vehicle_capacity_utilization_pct || t.utilization_pct || 0), 0);
+    avgVehicleUtilizationPct = Math.round(totalUtil / allTrips.length);
+  }
+
+  const kitsPerVehicle = (totalKitsDelivered > 0 && deliveriesCreated > 0)
+    ? Math.round(totalKitsDelivered / deliveriesCreated)
+    : 0;
+
+>>>>>>> origin/main
   return {
     kpis: {
       orders_awaiting_delivery: ordersAwaitingDelivery,
@@ -1539,8 +1583,13 @@ const getWarehouseDashboardAnalytics = async (warehouseId = null) => {
     consolidation_kpis: {
       orders_available_for_combination: ordersAvailableForCombination,
       combined_deliveries_today: combinedDeliveriesCount,
+<<<<<<< HEAD
       avg_vehicle_utilization_pct: 78, // Average utilization across active trips
       kits_per_vehicle: totalKitsDelivered > 0 ? Math.round(totalKitsDelivered / Math.max(1, deliveriesCreated)) : 14,
+=======
+      avg_vehicle_utilization_pct: avgVehicleUtilizationPct,
+      kits_per_vehicle: kitsPerVehicle,
+>>>>>>> origin/main
       multi_stop_deliveries: combinedDeliveriesCount,
       delivery_cost_per_kit: avgDeliveryCostPerKit,
       savings_from_combined_deliveries: totalSavings,
@@ -1553,6 +1602,10 @@ const getWarehouseDashboardAnalytics = async (warehouseId = null) => {
       by_vehicle: Object.values(vehicleMap),
       by_provider: Object.values(providerMap),
       by_order_type: Object.values(orderTypeMap),
+<<<<<<< HEAD
+=======
+      by_cluster: Object.values(clusterMap),
+>>>>>>> origin/main
     },
     recent_deliveries: allTrips.slice(-10),
   };

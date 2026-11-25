@@ -17,6 +17,48 @@
 const { SolarShopSettings } = require('../models/india_solarshop_db');
 const { logAudit } = require('../utils/audit.service');
 
+<<<<<<< HEAD
+=======
+const getDefaultAgreementTypes = (defaultTemplate) => [
+  {
+    type_key: 'district_franchise_agreement',
+    name: 'District Franchise Agreement',
+    store_type_slug: 'district-franchise-store',
+    store_type_name: 'District Franchise Store',
+    title: 'SolarKits Authorized District Franchise Partner Agreement',
+    version: '2.0',
+    default_duration_years: 2,
+    document_url: null,
+    document_name: null,
+    is_active: true,
+  },
+  {
+    type_key: 'flagship_agreement',
+    name: 'Flagship Store Agreement',
+    store_type_slug: 'flagship-store',
+    store_type_name: 'Flagship store',
+    title: 'SolarKits Flagship Franchise Partner & Institutional Agreement',
+    version: '2.0',
+    default_duration_years: 3,
+    document_url: null,
+    document_name: null,
+    is_active: true,
+  },
+  {
+    type_key: 'company_store_agreement',
+    name: 'Company Store Operational Agreement',
+    store_type_slug: 'company-store',
+    store_type_name: 'Company Store',
+    title: 'SolarKits Company Store Operational Governance & MoU',
+    version: '1.0',
+    default_duration_years: 1,
+    document_url: null,
+    document_name: null,
+    is_active: true,
+  },
+];
+
+>>>>>>> origin/main
 // ── 1. GET PLATFORM SETTINGS ───────────────────────────────────────────────────
 /**
  * GET /admin-api/reseller-mgmt/settings
@@ -51,9 +93,18 @@ const get_platform_settings = async (req, res) => {
         franchise_agreement_title:          'SolarKits Authorized Franchise Partner Agreement',
         franchise_agreement_version:        '2.0',
         franchise_agreement_template:       null,
+<<<<<<< HEAD
         flagship_excluded_districts:        [],
         _is_default: true, // Flag to indicate no DB document exists yet
       };
+=======
+        franchise_agreement_types:          getDefaultAgreementTypes(null),
+        flagship_excluded_districts:        [],
+        _is_default: true, // Flag to indicate no DB document exists yet
+      };
+    } else if (!settings.franchise_agreement_types || settings.franchise_agreement_types.length === 0) {
+      settings.franchise_agreement_types = getDefaultAgreementTypes(settings.franchise_agreement_template);
+>>>>>>> origin/main
     }
 
     return res.status(200).json({
@@ -106,6 +157,10 @@ const ALLOWED_UPDATE_FIELDS = [
   'franchise_agreement_title',
   'franchise_agreement_version',
   'franchise_agreement_template',
+<<<<<<< HEAD
+=======
+  'franchise_agreement_types',
+>>>>>>> origin/main
   'flagship_excluded_districts',
 ];
 
@@ -171,7 +226,52 @@ const update_platform_settings = async (req, res) => {
   }
 };
 
+<<<<<<< HEAD
 module.exports = {
   get_platform_settings,
   update_platform_settings,
+=======
+/**
+ * 3. UPLOAD AGREEMENT TYPE DOCUMENT TEMPLATE (PDF)
+ * POST /admin-api/reseller-mgmt/settings/agreement-types/upload
+ */
+const upload_agreement_type_document = async (req, res) => {
+  try {
+    let final_document_url = null;
+    let final_document_name = null;
+
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      const pdfFile = req.files.find(f => f.fieldname === 'agreement_pdf' || f.fieldname === 'document' || f.fieldname === 'file') || req.files[0];
+      if (pdfFile) {
+        final_document_url = pdfFile.path;
+        final_document_name = pdfFile.originalname;
+      }
+    } else if (req.file) {
+      final_document_url = req.file.path;
+      final_document_name = req.file.originalname;
+    }
+
+    if (!final_document_url) {
+      return res.status(400).json({ status: 'error', message: 'No agreement PDF file provided' });
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Agreement document uploaded successfully',
+      data: {
+        document_url: final_document_url,
+        document_name: final_document_name,
+      },
+    });
+  } catch (error) {
+    console.error('[PlatformSettings] upload_agreement_type_document error:', error);
+    return res.status(500).json({ status: 'error', message: error.message || 'File upload failed' });
+  }
+};
+
+module.exports = {
+  get_platform_settings,
+  update_platform_settings,
+  upload_agreement_type_document,
+>>>>>>> origin/main
 };

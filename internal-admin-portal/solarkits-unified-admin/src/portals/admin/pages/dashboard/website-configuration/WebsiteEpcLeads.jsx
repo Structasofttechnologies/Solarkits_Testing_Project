@@ -38,6 +38,7 @@ const getHeaders = () => ({
   },
 });
 
+<<<<<<< HEAD
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
   useEffect(() => {
@@ -47,6 +48,8 @@ function useDebounce(value, delay) {
   return debouncedValue;
 }
 
+=======
+>>>>>>> origin/main
 export default function WebsiteEpcLeads() {
   const [leads, setLeads] = useState([]);
   const [stats, setStats] = useState({
@@ -63,18 +66,24 @@ export default function WebsiteEpcLeads() {
 
   // Filters
   const [search, setSearch] = useState('');
+<<<<<<< HEAD
   const debouncedSearch = useDebounce(search, 350);
+=======
+>>>>>>> origin/main
   const [stateFilter, setStateFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [bdeFilter, setBdeFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, pages: 1, limit: 20 });
 
+<<<<<<< HEAD
   // Auto reset to page 1 on filter/search change
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, stateFilter, statusFilter, bdeFilter]);
 
+=======
+>>>>>>> origin/main
   // Multi-Selection State
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
   const [targetBdeId, setTargetBdeId] = useState('');
@@ -266,7 +275,11 @@ Ahmedabad SunPower Engineering,Mehul Vora,9879033445,mehul@sunpowereng.com,,Guja
         page,
         limit: 20,
       });
+<<<<<<< HEAD
       if (debouncedSearch && debouncedSearch.trim()) params.append('search', debouncedSearch.trim());
+=======
+      if (search.trim()) params.append('search', search.trim());
+>>>>>>> origin/main
       if (stateFilter !== 'all') params.append('state_name', stateFilter);
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (bdeFilter !== 'all') params.append('bde_id', bdeFilter);
@@ -280,11 +293,19 @@ Ahmedabad SunPower Engineering,Mehul Vora,9879033445,mehul@sunpowereng.com,,Guja
         if (res.data.available_bdes) setAvailableBdes(res.data.available_bdes);
       }
     } catch (err) {
+<<<<<<< HEAD
+=======
+      console.error('Error fetching website leads:', err);
+>>>>>>> origin/main
       showToast(err.response?.data?.message || 'Failed to load website leads', 'error');
     } finally {
       setLoading(false);
     }
+<<<<<<< HEAD
   }, [debouncedSearch, stateFilter, statusFilter, bdeFilter, page]);
+=======
+  }, [search, stateFilter, statusFilter, bdeFilter, page]);
+>>>>>>> origin/main
 
   useEffect(() => {
     fetchLeads();

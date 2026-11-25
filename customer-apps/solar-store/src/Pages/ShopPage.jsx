@@ -8,7 +8,10 @@ import { fetchShopHierarchy, getAvailableKitData, fetchLiveInventory } from "../
 export default function ShopPage() {
   const dispatch = useDispatch();
   const selectedDistrict = useSelector((state) => state.slice.selectedDistrict);
+<<<<<<< HEAD
   const selectedState = useSelector((state) => state.slice.selectedState);
+=======
+>>>>>>> origin/main
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -18,6 +21,7 @@ export default function ShopPage() {
   // Fetch shop hierarchy, admin combo kits, and live inventory
   useEffect(() => {
     dispatch(fetchShopHierarchy());
+<<<<<<< HEAD
     const districtId = selectedDistrict?.id || selectedDistrict?._id;
     const stateId = selectedState?.id || selectedState?._id;
     dispatch(getAvailableKitData({ districtId, stateId }));
@@ -27,6 +31,16 @@ export default function ShopPage() {
       dispatch(fetchLiveInventory({}));
     }
   }, [selectedDistrict?.id, selectedDistrict?._id, selectedState?.id, selectedState?._id, dispatch]);
+=======
+    if (selectedDistrict?.id) {
+      dispatch(getAvailableKitData({ districtId: selectedDistrict.id }));
+      dispatch(fetchLiveInventory({ districtId: selectedDistrict.id }));
+    } else {
+      dispatch(getAvailableKitData());
+      dispatch(fetchLiveInventory({}));
+    }
+  }, [selectedDistrict?.id, dispatch]);
+>>>>>>> origin/main
 
   const whatsappNumber = "917777939842";
 

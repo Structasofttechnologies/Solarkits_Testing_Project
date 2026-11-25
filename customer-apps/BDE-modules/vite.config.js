@@ -4,6 +4,7 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+<<<<<<< HEAD
   server: {
     port: 5174,
     strictPort: false,
@@ -26,4 +27,6 @@ export default defineConfig({
     ],
     holdUntilCrawlEnd: true
   }
+=======
+>>>>>>> origin/main
 })

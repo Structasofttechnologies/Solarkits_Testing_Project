@@ -1,5 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+<<<<<<< HEAD
 import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine, FaCreditCard, FaLandmark } from "react-icons/fa";
+=======
+import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine, FaCreditCard, FaClipboardList } from "react-icons/fa";
+>>>>>>> origin/main
 import { HiCube } from "react-icons/hi";
 import { useSelector, useDispatch } from "react-redux";
 import { setAlert } from "../features/alert.slice";
@@ -96,19 +100,29 @@ const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrders
 const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
 const TrialKitProcurementPage = lazy(() => import("../pages/trial-kits/TrialKitProcurementPage"));
 const TrialKitUnassignedLeadsPage = lazy(() => import("../pages/trial-kits/TrialKitUnassignedLeadsPage"));
+<<<<<<< HEAD
+=======
+const TrialKitFeedbackConfigPage = lazy(() => import("../pages/solar-shop/combokit-configurations/TrialKitFeedbackConfigPage"));
+>>>>>>> origin/main
 
 const menus = [
     [
         { step: "01", badgeKey: "01", name: "Dashboard", icon: <FaHome />, path: "/admin-panel/solar-shop/home", unique_id: "00000000" },
 
+<<<<<<< HEAD
  
        // { 
+=======
+
+        // { 
+>>>>>>> origin/main
         //    step: "01B", 
         //    badgeKey: "ACC_M", 
         //    name: "Accounting Overview", 
         //    icon: <FaFileInvoiceDollar />, 
         //    path: "/admin-panel/solar-shop/accounting-overview", 
         //    unique_id: "00000000"
+<<<<<<< HEAD
        // },
        // {
        //     step: "01C",
@@ -128,12 +142,37 @@ const menus = [
        // },
        // {
        //     step: "01E",
+=======
+        // },
+        // {
+        //     step: "01C",
+        //     badgeKey: "WH_F",
+        //     name: "Warehouse Loan & Expansion",
+        //     icon: <FaWarehouse />,
+        //     path: "/admin-panel/solar-shop/warehouse-finance",
+        //     unique_id: "00000000"
+        // },
+        // {
+        //     step: "01D",
+        //     badgeKey: "EXEC_F",
+        //     name: "Executive Finance Dashboard",
+        //     icon: <FaChartLine />,
+        //     path: "/admin-panel/solar-shop/executive-finance",
+        //     unique_id: "00000000"
+        // },
+        // {
+        //     step: "01E",
+>>>>>>> origin/main
         //    badgeKey: "DELIV_DASH",
         //    name: "Delivery & Logistics Dashboard",
         //    icon: <FaTruck />,
         //    path: "/admin-panel/solar-shop/delivery-management/dashboard",
         //    unique_id: "00000000"
+<<<<<<< HEAD
        // }
+=======
+        // }
+>>>>>>> origin/main
         // { 
         //     step: "01B", 
         //     badgeKey: "ACC_M", 
@@ -158,10 +197,17 @@ const menus = [
         //     path: "/admin-panel/solar-shop/executive-finance",
         //     unique_id: "00000000"
         // }
+<<<<<<< HEAD
  
 
 
  
+=======
+
+
+
+
+>>>>>>> origin/main
     ],
     [
         { step: "02", badgeKey: "02", name: "Approve New EPC", icon: <FaUsers />, path: "/admin-panel/solar-shop/approve-new-epc", unique_id: "ADM_APPROVE_EPC" },
@@ -216,6 +262,7 @@ const menus = [
                     badgeKey: "best-seller"
                 },
                 {
+<<<<<<< HEAD
                     name: "Govt Tender Kits",
                     icon: <FaLandmark />,
                     path: "/admin-panel/solar-shop/combokit-configurations/govt-tender-kits",
@@ -223,12 +270,25 @@ const menus = [
                     badgeKey: "govt-tender-kits"
                 },
                 {
+=======
+>>>>>>> origin/main
                     name: "Product Datasheets",
                     icon: <FaFilePdf />,
                     path: "/admin-panel/solar-shop/combokit-configurations/product-datasheets",
                     unique_id: "ADM_PRODUCT_DATASHEETS",
                     badgeKey: "product-datasheets"
+<<<<<<< HEAD
                 }
+=======
+                },
+                // {
+                //     name: "Feedback & Intent Settings",
+                //     icon: <FaClipboardList />,
+                //     path: "/admin-panel/solar-shop/combokit-configurations/feedback-settings",
+                //     unique_id: "ADM_COMBO_KITS",
+                //     badgeKey: "feedback-settings"
+                // }
+>>>>>>> origin/main
             ]
         },
         { step: "04", badgeKey: "04", name: "PO Orders", icon: <FaFileInvoiceDollar />, path: "/admin-panel/solar-shop/po-orders", unique_id: "00000000" },
@@ -443,6 +503,16 @@ const menus = [
                     path: "/admin-panel/solar-shop/trial-kits/analytics",
                     unique_id: "00000000",
                 },
+<<<<<<< HEAD
+=======
+                {
+                    name: "Feedback Configuration Settings",
+                    icon: <FaClipboardList />,
+                    path: "/admin-panel/solar-shop/trial-kits/feedback-settings",
+                    unique_id: "00000000",
+                    badgeKey: "tk-feedback-settings"
+                },
+>>>>>>> origin/main
             ]
         },
     ],
@@ -2044,6 +2114,13 @@ export default function SolarShopDashboard() {
                                     <Route path="/:countryName/trial-kits/unassigned-leads" element={<Suspense fallback={<Loader text="Loading Unassigned Intent Leads..." />}><TrialKitUnassignedLeadsPage /></Suspense>} />
                                     <Route path="/trial-kits/analytics" element={<Suspense fallback={<Loader text="Loading Trial Kit Analytics..." />}><TrialKitAnalyticsPage /></Suspense>} />
                                     <Route path="/:countryName/trial-kits/analytics" element={<Suspense fallback={<Loader text="Loading Trial Kit Analytics..." />}><TrialKitAnalyticsPage /></Suspense>} />
+<<<<<<< HEAD
+=======
+                                    <Route path="/trial-kits/feedback-settings" element={<Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}><TrialKitFeedbackConfigPage /></Suspense>} />
+                                    <Route path="/:countryName/trial-kits/feedback-settings" element={<Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}><TrialKitFeedbackConfigPage /></Suspense>} />
+                                    <Route path="/combokit-configurations/feedback-settings" element={<Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}><TrialKitFeedbackConfigPage /></Suspense>} />
+                                    <Route path="/:countryName/combokit-configurations/feedback-settings" element={<Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}><TrialKitFeedbackConfigPage /></Suspense>} />
+>>>>>>> origin/main
 
                                 </Routes>
                             </motion.div>

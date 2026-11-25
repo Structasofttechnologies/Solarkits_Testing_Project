@@ -27,10 +27,59 @@ const rawApiUrl = (
 const API_BASE = rawApiUrl.replace(/\/admin-api$|\/api$/, "");
 const ADMIN_API = rawApiUrl.endsWith("/admin-api") ? rawApiUrl : `${API_BASE}/admin-api`;
 
+<<<<<<< HEAD
+=======
+const IFSC_BANK_MAP = {
+  ICIC: "ICICI Bank",
+  HDFC: "HDFC Bank",
+  SBIN: "State Bank of India",
+  UTIB: "Axis Bank",
+  KKBK: "Kotak Mahindra Bank",
+  PUNB: "Punjab National Bank",
+  BARB: "Bank of Baroda",
+  YESB: "Yes Bank",
+  IDIB: "Indian Bank",
+  UBIN: "Union Bank of India",
+  CANR: "Canara Bank",
+  CNRB: "Canara Bank",
+  INDB: "IndusInd Bank",
+  MAHB: "Bank of Maharashtra",
+  IDFB: "IDFC First Bank",
+  FDRL: "Federal Bank",
+  IOBA: "Indian Overseas Bank",
+  UCBA: "UCO Bank",
+  BKID: "Bank of India",
+  CBIN: "Central Bank of India",
+  PSIB: "Punjab & Sind Bank",
+  RATN: "RBL Bank",
+  KVBL: "Karur Vysya Bank",
+  SIBL: "South Indian Bank",
+  SCBL: "Standard Chartered Bank",
+  CITI: "Citibank",
+  HSBC: "HSBC Bank",
+  AUBL: "AU Small Finance Bank",
+  ESFB: "Equitas Small Finance Bank",
+  UTKS: "Utkarsh Small Finance Bank",
+  UJVN: "Ujjivan Small Finance Bank",
+  JAKA: "Jammu & Kashmir Bank",
+  BDBL: "Bandhan Bank",
+};
+
+const detectBankName = (code) => {
+  if (!code || typeof code !== "string") return "";
+  const clean = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return IFSC_BANK_MAP[clean.substring(0, 4)] || "";
+};
+
+>>>>>>> origin/main
 export default function OfflineBankAccountSettings() {
   const [accountNumber, setAccountNumber] = useState("");
   const [ifscCode, setIfscCode] = useState("");
   const [accountHolderName, setAccountHolderName] = useState("");
+<<<<<<< HEAD
+=======
+  const [bankName, setBankName] = useState("");
+>>>>>>> origin/main
 
   const [lastUpdated, setLastUpdated] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +105,10 @@ export default function OfflineBankAccountSettings() {
         setAccountNumber(d.account_number || "");
         setIfscCode(d.ifsc_code || "");
         setAccountHolderName(d.account_holder_name || "");
+<<<<<<< HEAD
+=======
+        setBankName(d.bank_name || detectBankName(d.ifsc_code) || "");
+>>>>>>> origin/main
         setLastUpdated(d.updated_at || null);
       }
     } catch (err) {
@@ -77,6 +130,18 @@ export default function OfflineBankAccountSettings() {
     setTimeout(() => setCopiedField(""), 2000);
   };
 
+<<<<<<< HEAD
+=======
+  const handleIfscChange = (val) => {
+    const cleaned = val.toUpperCase().replace(/\s/g, "");
+    setIfscCode(cleaned);
+    const detected = detectBankName(cleaned);
+    if (detected && (!bankName || bankName === detectBankName(ifscCode))) {
+      setBankName(detected);
+    }
+  };
+
+>>>>>>> origin/main
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -99,12 +164,21 @@ export default function OfflineBankAccountSettings() {
       return;
     }
 
+<<<<<<< HEAD
+=======
+    const resolvedBankName = bankName.trim() || detectBankName(cleanedIfsc) || "";
+
+>>>>>>> origin/main
     setSaving(true);
     try {
       const payload = {
         account_number: accountNumber.trim().replace(/\s/g, ""),
         ifsc_code: cleanedIfsc,
         account_holder_name: accountHolderName.trim(),
+<<<<<<< HEAD
+=======
+        bank_name: resolvedBankName,
+>>>>>>> origin/main
       };
 
       const res = await axios.put(`${ADMIN_API}/payment-config/bank-account`, payload, {
@@ -117,6 +191,10 @@ export default function OfflineBankAccountSettings() {
           setAccountNumber(res.data.data.account_number);
           setIfscCode(res.data.data.ifsc_code);
           setAccountHolderName(res.data.data.account_holder_name);
+<<<<<<< HEAD
+=======
+          setBankName(res.data.data.bank_name || resolvedBankName);
+>>>>>>> origin/main
           setLastUpdated(res.data.data.updated_at || new Date().toISOString());
         }
       }
@@ -244,7 +322,30 @@ export default function OfflineBankAccountSettings() {
               </span>
             </div>
 
+<<<<<<< HEAD
             {/* Field 2: Account Number */}
+=======
+            {/* Field 2: Bank Name */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                <FiCreditCard className="text-amber-500" />
+                <span>Bank Name *</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                placeholder="e.g. ICICI Bank, HDFC Bank, State Bank of India"
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:border-amber-500 focus:bg-white dark:focus:bg-slate-850 transition"
+              />
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                Official commercial bank name (auto-detected from IFSC or customized).
+              </span>
+            </div>
+
+            {/* Field 3: Account Number */}
+>>>>>>> origin/main
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
                 <FiHash className="text-amber-500" />
@@ -263,7 +364,11 @@ export default function OfflineBankAccountSettings() {
               </span>
             </div>
 
+<<<<<<< HEAD
             {/* Field 3: IFSC Code */}
+=======
+            {/* Field 4: IFSC Code */}
+>>>>>>> origin/main
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
                 <FiShield className="text-amber-500" />
@@ -273,13 +378,21 @@ export default function OfflineBankAccountSettings() {
                 type="text"
                 required
                 value={ifscCode}
+<<<<<<< HEAD
                 onChange={(e) => setIfscCode(e.target.value.toUpperCase().replace(/\s/g, ""))}
+=======
+                onChange={(e) => handleIfscChange(e.target.value)}
+>>>>>>> origin/main
                 placeholder="e.g. ICIC0000624 or HDFC0001234"
                 maxLength={16}
                 className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm font-mono font-bold uppercase tracking-wider focus:outline-none focus:border-amber-500 focus:bg-white dark:focus:bg-slate-850 transition"
               />
               <span className="text-[11px] text-slate-400 mt-1 block">
+<<<<<<< HEAD
                 11-character Indian Financial System Code (e.g. HDFC0001234).
+=======
+                11-character Indian Financial System Code (e.g. ICICI0006248, HDFC0001234).
+>>>>>>> origin/main
               </span>
             </div>
 
@@ -359,6 +472,31 @@ export default function OfflineBankAccountSettings() {
                 )}
               </div>
 
+<<<<<<< HEAD
+=======
+              {/* Bank Name */}
+              <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block">
+                    Bank Name
+                  </span>
+                  <span className="text-sm font-black text-slate-900 dark:text-white mt-0.5 block">
+                    {bankName || detectBankName(ifscCode) || <span className="text-slate-300 italic font-sans text-xs">Not configured</span>}
+                  </span>
+                </div>
+                {(bankName || detectBankName(ifscCode)) && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(bankName || detectBankName(ifscCode), "bank")}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                    title="Copy Bank Name"
+                  >
+                    {copiedField === "bank" ? <FiCheck className="text-emerald-500" /> : <FiCopy />}
+                  </button>
+                )}
+              </div>
+
+>>>>>>> origin/main
               {/* Account Number */}
               <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <div>

@@ -98,6 +98,7 @@ async function generateNextVoucherNumber(type = 'Journal') {
 }
 
 /**
+<<<<<<< HEAD
  * 1. SEED DEFAULT HEADS
  * POST /accounts/accounting/heads/seed
  */
@@ -133,6 +134,17 @@ exports.seed_default_heads = async (req, res) => {
     console.error('seed_default_heads error:', error);
     return res.status(500).json({ status: 'error', message: error.message });
   }
+=======
+ * 1. SEED DEFAULT HEADS (Disabled - dummy seeds purged)
+ * POST /accounts/accounting/heads/seed
+ */
+exports.seed_default_heads = async (req, res) => {
+  return res.status(200).json({
+    status: 'success',
+    message: 'Static dummy head seeding is disabled. Please create dynamic accounting heads via the New Accounting Head modal.',
+    count: 0
+  });
+>>>>>>> origin/main
 };
 
 /**
@@ -160,6 +172,7 @@ exports.list_accounting_heads = async (req, res) => {
 
     let heads = await AccountingHead.find(filter).sort({ head_code: 1 });
 
+<<<<<<< HEAD
     // If database has 0 heads, auto-seed defaults so user sees full populated data immediately!
     if (heads.length === 0 && Object.keys(filter).length === 0) {
       const existingTotal = await AccountingHead.countDocuments();
@@ -178,6 +191,8 @@ exports.list_accounting_heads = async (req, res) => {
       }
     }
 
+=======
+>>>>>>> origin/main
     // Category summary statistics
     const stats = {
       total_heads: heads.length,

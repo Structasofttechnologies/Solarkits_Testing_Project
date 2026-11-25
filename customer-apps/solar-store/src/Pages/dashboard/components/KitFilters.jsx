@@ -26,11 +26,14 @@ const options = {
     { text: "High Volume Buyer", value: "high_volume" },
     { text: "Bulk / EPC Buyer", value: "bulk" },
   ],
+<<<<<<< HEAD
   govtTender: [
     { text: "All Kits", value: "all" },
     { text: "Govt. Tender Kits Only", value: "govt_tender_only" },
     { text: "Regular Kits Only", value: "regular_only" },
   ],
+=======
+>>>>>>> origin/main
 };
 
 export default function KitFilters({

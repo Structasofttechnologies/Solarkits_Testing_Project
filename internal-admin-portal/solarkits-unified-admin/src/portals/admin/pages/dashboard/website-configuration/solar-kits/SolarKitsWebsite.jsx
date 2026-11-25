@@ -1455,13 +1455,20 @@ export default function SolarKitsWebsite() {
             </button>
           </div>
 
+<<<<<<< HEAD
           {/* Sub-Tabs for Policy Pages */}
+=======
+          {/* Sub-Tabs for the 3 Policy Pages */}
+>>>>>>> origin/main
           <div className="flex gap-2 p-1.5 bg-surface-hover border border-border rounded-xl flex-wrap">
             {[
               { id: "privacy_policy", label: "Privacy Policy", icon: <FiShield /> },
               { id: "terms_of_service", label: "User Policy & Terms", icon: <FiFileText /> },
               { id: "refund_policy", label: "Refund & Cancellation", icon: <FiDollarSign /> },
+<<<<<<< HEAD
               { id: "shipping_policy", label: "Shipping & Delivery", icon: <FiTruck /> },
+=======
+>>>>>>> origin/main
             ].map((pTab) => (
               <button
                 key={pTab.id}

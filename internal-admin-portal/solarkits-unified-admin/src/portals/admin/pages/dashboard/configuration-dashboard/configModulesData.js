@@ -120,6 +120,7 @@ export const CONFIG_MODULES = [
     keywords: ['pincode', 'delivery', 'freight', 'district', 'shipping', 'cost', 'serviceability', 'solar kit configurations'],
   },
   {
+<<<<<<< HEAD
     id: 'ss-govt-tender',
     title: 'Govt Tender Kits Configuration',
     category: 'solarshop',
@@ -134,6 +135,8 @@ export const CONFIG_MODULES = [
     keywords: ['govt tender', 'government', 'tender', 'psu', 'dcr', 'bulk supply', 'solar kit configurations'],
   },
   {
+=======
+>>>>>>> origin/main
     id: 'ss-best-seller',
     title: 'Best Seller Configuration',
     category: 'solarshop',
@@ -147,6 +150,23 @@ export const CONFIG_MODULES = [
     keywords: ['best seller', 'featured', 'popular', 'store front', 'badges', 'solar kit configurations'],
   },
   {
+<<<<<<< HEAD
+=======
+    id: 'ss-feedback-config',
+    title: 'Trial Kit Feedback & Intent Settings',
+    category: 'solarshop',
+    categoryLabel: 'SolarShop',
+    description: 'Configure state and district-wise purchase intent feedback mode (Loose Only, Bulk PO Only, Both) and batch quantity tiers shown to onboarded EPC partners.',
+    route: '/admin-panel/solar-shop/combokit-configurations/feedback-settings',
+    primaryAction: 'Configure Regional Intent',
+    icon: 'FaClipboardList',
+    isRegional: true,
+    regionalContextHint: 'Configure whether EPC partners submit Loose Kits, Bulk PO, or Both feedback per State & District.',
+    badge: 'Regional Feedback',
+    keywords: ['feedback', 'trial kit', 'purchase intent', 'loose only', 'bulk po', 'district', 'state', 'solar kit configurations'],
+  },
+  {
+>>>>>>> origin/main
     id: 'ss-po-orders',
     title: 'PO Orders Management',
     category: 'solarshop',

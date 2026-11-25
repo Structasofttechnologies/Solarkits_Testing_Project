@@ -506,6 +506,7 @@ const DEFAULT_SOLAR_STORE_CONTENT = {
         label: "Chat on WhatsApp",
       },
     },
+<<<<<<< HEAD
     policies: {
       privacy_policy: {
         title: "Privacy Policy",
@@ -626,6 +627,8 @@ const DEFAULT_SOLAR_STORE_CONTENT = {
         ],
       },
     },
+=======
+>>>>>>> origin/main
   },
 };
 
@@ -1025,10 +1028,13 @@ exports.get_content = async (req, res) => {
         };
         needsSave = true;
       }
+<<<<<<< HEAD
       if (!doc.sections.policies || !doc.sections.policies.privacy_policy) {
         doc.sections.policies = DEFAULT_SOLAR_STORE_CONTENT.sections.policies;
         needsSave = true;
       }
+=======
+>>>>>>> origin/main
       if (needsSave) {
         await WebsiteContent.updateOne({ _id: doc._id }, { $set: { sections: doc.sections } }).catch(() => {});
       }

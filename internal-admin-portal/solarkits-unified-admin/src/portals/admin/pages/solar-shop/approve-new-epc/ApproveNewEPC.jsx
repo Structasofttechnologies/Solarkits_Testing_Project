@@ -1,4 +1,5 @@
 // components/ApproveNewEPC.jsx
+<<<<<<< HEAD
 import React, { useState, lazy, Suspense } from "react";
 import { FaUserCheck, FaGlobe, FaSpinner } from "react-icons/fa";
 
@@ -55,6 +56,15 @@ export default function ApproveNewEPC({ moduleUniqueId = "ADM_APPROVE_EPC" }) {
           <WebsiteEpcLeads />
         )}
       </Suspense>
+=======
+import React from "react";
+import WebsiteEpcLeads from "../../dashboard/website-configuration/WebsiteEpcLeads";
+
+export default function ApproveNewEPC() {
+  return (
+    <div className="space-y-6">
+      <WebsiteEpcLeads />
+>>>>>>> origin/main
     </div>
   );
 }

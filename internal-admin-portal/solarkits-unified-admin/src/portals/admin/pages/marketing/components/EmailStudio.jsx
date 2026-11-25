@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Type, Heading1, Image as ImageIcon, Video, ShoppingBag, LayoutGrid, Tag, MousePointer,
@@ -105,6 +106,15 @@ const SECTION_METADATA_MAP = {
     editorAnchor: 'editor-section-ctas'
   }
 };
+=======
+import React, { useState, useMemo } from 'react';
+import {
+  Type, Heading1, Image as ImageIcon, Video, ShoppingBag, LayoutGrid, Tag, MousePointer,
+  Minus, Share2, AlignLeft, Link2, Variable, Sparkles, Smartphone, Monitor,
+  Plus, Trash2, X, Check, ExternalLink, Play, Smile, Phone, Layers, ShieldCheck
+} from 'lucide-react';
+import { DEFAULT_EXECUTIVE_CREATIVE, PURPOSE_BASED_PRESETS } from '../services/emailTemplateGenerator';
+>>>>>>> origin/main
 
 const DYNAMIC_VARS = [
   { key: 'name', label: 'Partner Name', preview: 'Aarav Patel' },
@@ -129,6 +139,7 @@ export default function EmailStudio({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
 
+<<<<<<< HEAD
   // Custom template persistence state
   const [savedCustomTemplates, setSavedCustomTemplates] = useState(() => {
     try {
@@ -143,6 +154,8 @@ export default function EmailStudio({
   const [saveTemplateCategory, setSaveTemplateCategory] = useState('Promotional');
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
 
+=======
+>>>>>>> origin/main
   // Derive active warehouse name dynamically from Step 2
   const activeWarehouseName = useMemo(() => {
     if (formData.servingWarehouses?.length > 0 && warehousesList?.length > 0) {
@@ -176,6 +189,7 @@ export default function EmailStudio({
     logoUrl: 'https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png',
     subheading: `Flat ${dynamicDiscountStr} per Kit with Zero Delay Dispatches`,
     customBodyText: `Exclusive wholesale allocation for verified EPC contractors on ${dynamicKitNames}. Claim pre-booked subsidy approved kits directly from certified ${activeWarehouseName} with guaranteed zero dispatch delay.`,
+<<<<<<< HEAD
     sectionsOrder: DEFAULT_SECTIONS_ORDER,
     ...(formData.customCreative || {})
   };
@@ -322,6 +336,11 @@ export default function EmailStudio({
     }
   };
 
+=======
+    ...(formData.customCreative || {})
+  };
+
+>>>>>>> origin/main
   // Selected products to display in the email (defaults to all Step 3 selected kits)
   const [selectedProductIds, setSelectedProductIds] = useState(() => {
     if (formData.selectedKitIds?.length > 0) {
@@ -332,9 +351,12 @@ export default function EmailStudio({
 
   // Multiple CTA buttons list
   const [ctaButtons, setCtaButtons] = useState(() => {
+<<<<<<< HEAD
     if (formData.customCreative?.ctaButtons?.length > 0) {
       return formData.customCreative.ctaButtons;
     }
+=======
+>>>>>>> origin/main
     const baseCta = formData.ctaText || 'Claim Kit Offer & Apply Coupon';
     const baseUrl = formData.destinationUrl
       ? `${formData.destinationUrl}${formData.destinationUrl.includes('?') ? '&' : '?'}coupon=${formData.couponCode || 'SOLARDIWALI5000'}`
@@ -346,6 +368,19 @@ export default function EmailStudio({
     ];
   });
 
+<<<<<<< HEAD
+=======
+  const updateCreative = (updates) => {
+    setFormData((prev) => ({
+      ...prev,
+      customCreative: {
+        ...prev.customCreative,
+        ...updates
+      }
+    }));
+  };
+
+>>>>>>> origin/main
   const insertVariable = (key) => {
     updateCreative({ customBodyText: (creative.customBodyText || '') + ` {{${key}}}` });
     setShowVarDropdown(false);
@@ -364,6 +399,7 @@ export default function EmailStudio({
       url: 'tel:+919913421453',
       variant: 'secondary'
     };
+<<<<<<< HEAD
     const updated = [...ctaButtons, newBtn];
     setCtaButtons(updated);
     updateCreative({ ctaButtons: updated });
@@ -373,10 +409,18 @@ export default function EmailStudio({
     const updated = ctaButtons.map(b => b.id === id ? { ...b, [field]: value } : b);
     setCtaButtons(updated);
     updateCreative({ ctaButtons: updated });
+=======
+    setCtaButtons([...ctaButtons, newBtn]);
+  };
+
+  const handleUpdateCta = (id, field, value) => {
+    setCtaButtons(ctaButtons.map(b => b.id === id ? { ...b, [field]: value } : b));
+>>>>>>> origin/main
   };
 
   const handleRemoveCta = (id) => {
     if (ctaButtons.length <= 1) return;
+<<<<<<< HEAD
     const updated = ctaButtons.filter(b => b.id !== id);
     setCtaButtons(updated);
     updateCreative({ ctaButtons: updated });
@@ -464,6 +508,9 @@ export default function EmailStudio({
       setCtaButtons(tmpl.ctaButtons);
     }
     setActiveTab('custom');
+=======
+    setCtaButtons(ctaButtons.filter(b => b.id !== id));
+>>>>>>> origin/main
   };
 
   // Toggle products in multi-product modal
@@ -527,6 +574,7 @@ export default function EmailStudio({
     return result;
   };
 
+<<<<<<< HEAD
   // Dynamic preview section renderer respecting activeSectionsOrder
   const renderPreviewSection = (sectionId) => {
     switch (sectionId) {
@@ -724,6 +772,8 @@ export default function EmailStudio({
     }
   };
 
+=======
+>>>>>>> origin/main
   return (
     <div className="space-y-5">
       {/* Top Controls Bar */}
@@ -750,6 +800,7 @@ export default function EmailStudio({
             }`}
           >
             📋 Use Saved Template
+<<<<<<< HEAD
             {savedCustomTemplates.length > 0 && (
               <span className="bg-amber-400 text-slate-900 text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1">
                 {savedCustomTemplates.length} Custom
@@ -766,6 +817,8 @@ export default function EmailStudio({
           >
             <Bookmark className="w-3.5 h-3.5" />
             <span>Save Creative as Template</span>
+=======
+>>>>>>> origin/main
           </button>
           <button
             type="button"
@@ -940,6 +993,7 @@ export default function EmailStudio({
         <div className="lg:col-span-7 space-y-4">
           {activeTab === 'template' ? (
             /* Saved Templates Selector */
+<<<<<<< HEAD
             <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
               
               {/* User Saved Custom Templates Section */}
@@ -999,6 +1053,9 @@ export default function EmailStudio({
                 </div>
               )}
 
+=======
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-3">
+>>>>>>> origin/main
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-2">
                   <AlignLeft className="w-4 h-4 text-blue-600" /> Pre-Approved Responsive Email Templates
@@ -1008,7 +1065,11 @@ export default function EmailStudio({
                 </span>
               </div>
 
+<<<<<<< HEAD
               <div className="space-y-3 pt-1">
+=======
+              <div className="space-y-3 pt-2">
+>>>>>>> origin/main
                 {[
                   {
                     id: 'em_hero_card',
@@ -1257,6 +1318,7 @@ export default function EmailStudio({
                   </span>
                 </div>
 
+<<<<<<< HEAD
                 {/* ── DYNAMIC SECTION LAYOUT & POSITION CONTROLLER ── */}
                 <div className="bg-gradient-to-b from-slate-50 to-blue-50/30 dark:from-slate-900/80 dark:to-blue-950/20 p-4 rounded-2xl border-2 border-blue-200/90 dark:border-blue-900/70 shadow-sm space-y-3.5">
                   {/* Header with Title, Count, Preset layouts, and View Toggle */}
@@ -1690,6 +1752,10 @@ export default function EmailStudio({
 
                 {/* Media Type Switcher: Gradient Banner vs Image vs Video */}
                 <div id="editor-section-banner" className="grid grid-cols-3 gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+=======
+                {/* Media Type Switcher: Gradient Banner vs Image vs Video */}
+                <div className="grid grid-cols-3 gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+>>>>>>> origin/main
                   <button
                     type="button"
                     onClick={() => updateCreative({ mediaType: 'banner' })}
@@ -1781,7 +1847,11 @@ export default function EmailStudio({
                 </div>
 
                 {/* Category Eyebrow & Main H1 Title */}
+<<<<<<< HEAD
                 <div id="editor-section-pitch" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+=======
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+>>>>>>> origin/main
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1 uppercase">
                       Category Tag (Eyebrow)
@@ -1820,7 +1890,11 @@ export default function EmailStudio({
                 </div>
 
                 {/* Feature Bullet Highlights (4 Card Boxes) */}
+<<<<<<< HEAD
                 <div id="editor-section-benefits" className="space-y-2">
+=======
+                <div className="space-y-2">
+>>>>>>> origin/main
                   <div className="flex items-center justify-between">
                     <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">
                       Feature Benefit Cards (Executive Boxes)
@@ -1866,7 +1940,11 @@ export default function EmailStudio({
                 </div>
 
                 {/* MULTIPLE CTA BUTTONS MANAGER */}
+<<<<<<< HEAD
                 <div id="editor-section-ctas" className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-3">
+=======
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-3">
+>>>>>>> origin/main
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase flex items-center gap-1.5">
                       <MousePointer className="w-3.5 h-3.5 text-blue-600" /> Action CTAs & Clickable Links ({ctaButtons.length})
@@ -1884,6 +1962,7 @@ export default function EmailStudio({
                     {ctaButtons.map((btn, idx) => (
                       <div key={btn.id} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2">
                         <div className="flex items-center justify-between">
+<<<<<<< HEAD
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-black px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 uppercase">
                               Button #{idx + 1}
@@ -1922,6 +2001,19 @@ export default function EmailStudio({
                               </button>
                             )}
                           </div>
+=======
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">Button #{idx + 1}</span>
+                          {ctaButtons.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCta(btn.id)}
+                              className="text-slate-400 hover:text-red-500 text-xs cursor-pointer"
+                              title="Delete Button"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+>>>>>>> origin/main
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <input
@@ -1945,7 +2037,11 @@ export default function EmailStudio({
                 </div>
 
                 {/* Multi-Product Selection Badge */}
+<<<<<<< HEAD
                 <div id="editor-section-products" className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+=======
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+>>>>>>> origin/main
                   <div>
                     <span className="text-xs font-bold text-slate-900 dark:text-white block">
                       Included Solar Kits in Email ({previewProducts.length} Selected)
@@ -1962,6 +2058,7 @@ export default function EmailStudio({
                     <ShoppingBag className="w-3 h-3" /> Select Products
                   </button>
                 </div>
+<<<<<<< HEAD
 
                 {/* Coupon Voucher Box Editor */}
                 <div id="editor-section-coupon" className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2">
@@ -2038,6 +2135,8 @@ export default function EmailStudio({
                     </div>
                   </div>
                 </div>
+=======
+>>>>>>> origin/main
               </div>
 
               {/* ── CARD 4: 📌 4. EMAIL FOOTER (FIXED - BOTTOM) ── */}
@@ -2201,6 +2300,7 @@ export default function EmailStudio({
                     </div>
                   </div>
 
+<<<<<<< HEAD
                   {/* 2. SCROLLABLE MIDDLE EMAIL CONTENT (ORDER CONTROLLED BY activeSectionsOrder) */}
                   <div className="bg-white text-slate-800 max-h-[420px] overflow-y-auto divide-y divide-slate-100">
                     {activeSectionsOrder.map((secId, sIdx) => {
@@ -2260,6 +2360,186 @@ export default function EmailStudio({
                         </div>
                       );
                     })}
+=======
+                  {/* 2. SCROLLABLE MIDDLE EMAIL CONTENT */}
+                  <div className="bg-white text-slate-800 max-h-[380px] overflow-y-auto">
+                    {/* Hero Banner */}
+                    {creative.mediaType === 'image' && creative.heroImageUrl ? (
+                      <img
+                        src={creative.heroImageUrl}
+                        alt="Banner"
+                        className="w-full h-auto max-h-48 object-cover block"
+                      />
+                    ) : creative.mediaType === 'video' ? (
+                      <div className="relative w-full h-36 bg-slate-900 flex items-center justify-center text-white">
+                        <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
+                          <Play className="w-5 h-5 text-white ml-0.5 fill-white" />
+                        </div>
+                        <span className="absolute bottom-2 left-3 text-[10px] font-bold bg-black/70 px-2 py-0.5 rounded-md">
+                          45s Explainer Video
+                        </span>
+                      </div>
+                    ) : (
+                      <div
+                        className="p-5 text-center text-white"
+                        style={{
+                          background: `linear-gradient(135deg, #1e2d66 0%, ${creative.themeColor || '#263880'} 60%, #3a56c9 100%)`
+                        }}
+                      >
+                        <div className="inline-block bg-white px-3 py-1 rounded-full mb-2.5 shadow-xs border-l-4" style={{ borderColor: creative.accentColor || '#f59e0b' }}>
+                          <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: creative.themeColor || '#263880' }}>
+                            ⚡ SolarKits Hybrid & On-Grid Combos
+                          </span>
+                        </div>
+                        <h3 className="text-lg font-black leading-tight tracking-tight text-white mb-1.5">
+                          {creative.headline || "DON'T JUST SELL SOLAR. SELL COMPLETE BACKUP."}
+                        </h3>
+                        <p className="text-[11px] text-slate-200 line-clamp-2 max-w-xs mx-auto mb-3">
+                          {creative.subheading || 'Tier-1 ALMM Modules + High-Efficiency Inverters + Pre-Engineered Structure in One Single Dispatch.'}
+                        </p>
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          {(creative.valuePills || ['1. Add Backup to Quotes', '2. Higher Ticket Size', '3. Depot Support']).map((pill, i) => (
+                            <span key={i} className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-white/15 border border-white/20 text-white">
+                              {pill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Body Content & Pitch */}
+                    <div className="p-4 space-y-4 text-center">
+                      <div>
+                        <span className="text-[10px] font-extrabold tracking-widest uppercase block mb-1" style={{ color: creative.stripColor || '#ea580c' }}>
+                          {creative.categoryTag || 'B2B WHOLESALE KITS BY SOLARKITS'}
+                        </span>
+                        <h4 className="text-base font-black leading-snug" style={{ color: creative.themeColor || '#263880' }}>
+                          {creative.h1Title || 'Solar EPCs, this one is for you.'}
+                        </h4>
+                        <p className="text-xs text-slate-600 mt-2 leading-relaxed text-center">
+                          {getSubstitutedText(creative.customBodyText)}
+                        </p>
+                      </div>
+
+                      {/* Primary CTA Action Button */}
+                      <div className="py-1">
+                        <a
+                          href={formData.destinationUrl || '#'}
+                          onClick={(e) => e.preventDefault()}
+                          className="inline-block py-2.5 px-6 rounded-lg font-extrabold text-xs text-white shadow-md transition-transform hover:scale-[1.02]"
+                          style={{ backgroundColor: creative.themeColor || '#263880' }}
+                        >
+                          {formData.ctaText || 'Get SolarKits Pricing Today →'}
+                        </a>
+                      </div>
+
+                      {/* Featured Solar Kits (If selected) */}
+                      {previewProducts.length > 0 && (
+                        <div className="space-y-2 text-left pt-2">
+                          <div className="flex items-center justify-between text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+                            <span>Featured Solar Kits ({previewProducts.length})</span>
+                            <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded font-bold">
+                              {activeWarehouseName}
+                            </span>
+                          </div>
+
+                          {previewProducts.map((k) => (
+                            <div key={k.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                              <div className="flex items-center justify-between font-bold text-slate-900">
+                                <span>{k.name}</span>
+                                <span className="text-blue-600 font-extrabold">
+                                  ₹{Number(k.base_price || 89317).toLocaleString('en-IN')} / kit
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 line-clamp-2">
+                                {k.components_summary || k.sub_title}
+                              </p>
+                              <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-200/60">
+                                <span>• 12-Yr Warranty • MOQ: {formData.kitMoqs?.[k.id] ?? k.moq ?? formData.minOrderQty ?? 25} Kits</span>
+                                <span className="text-emerald-600 font-bold">Fast Dispatch</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Coupon Promo Card (If enabled) */}
+                      {formData.hasCoupon && (
+                        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between text-left">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-amber-700">Promo Voucher</span>
+                            <p className="text-sm font-black font-mono text-amber-900">
+                              {formData.couponCode || 'SOLARDIWALI5000'}
+                            </p>
+                            <span className="text-[10px] text-amber-800 block">
+                              Valid on Orders ≥ {formData.minOrderQty || 25} Kits in Solar Shop
+                            </span>
+                          </div>
+                          <span className="text-xs font-bold text-amber-800 bg-amber-200/80 px-2.5 py-1 rounded-lg">
+                            {dynamicDiscountStr}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Feature Benefit Cards */}
+                      <div className="space-y-2.5 text-left pt-2">
+                        {(creative.bulletPoints || []).map((pt, i) => {
+                          const str = String(pt);
+                          const hasColon = str.includes(':');
+                          const title = hasColon ? str.split(':')[0].trim() : `Feature Point ${i + 1}`;
+                          const desc = hasColon ? str.split(':').slice(1).join(':').trim() : str;
+                          const borderCol = i % 2 === 0 ? (creative.themeColor || '#263880') : (creative.accentColor || '#f59e0b');
+
+                          return (
+                            <div
+                              key={i}
+                              className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200/80 dark:border-slate-700 shadow-2xs"
+                              style={{ borderLeft: `4px solid ${borderCol}` }}
+                            >
+                              <div className="text-xs font-extrabold" style={{ color: creative.themeColor || '#263880' }}>
+                                {title}
+                              </div>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-snug">
+                                {desc}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Secondary Closing Pitch & CTA */}
+                      <div className="pt-2 text-center space-y-2">
+                        <p className="text-xs font-extrabold" style={{ color: creative.themeColor || '#263880' }}>
+                          {creative.closingPitch || 'Sell complete solar power, not just panels. Choose SolarKits.'}
+                        </p>
+                        <a
+                          href={formData.destinationUrl || '#'}
+                          onClick={(e) => e.preventDefault()}
+                          className="inline-block py-2 px-5 rounded-lg font-bold text-xs text-white shadow-xs"
+                          style={{ backgroundColor: creative.stripColor || '#ea580c' }}
+                        >
+                          {creative.secondaryCtaText || 'Explore Wholesale Solar Kits →'}
+                        </a>
+                      </div>
+
+                      {/* Additional Custom CTA Buttons */}
+                      {ctaButtons.length > 1 && (
+                        <div className="pt-2 space-y-1.5">
+                          {ctaButtons.slice(1).map((btn) => (
+                            <a
+                              key={btn.id}
+                              href={btn.url || '#'}
+                              onClick={(e) => e.preventDefault()}
+                              className="w-full py-2 px-3 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center gap-1.5"
+                            >
+                              <span>{btn.text}</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+>>>>>>> origin/main
                   </div>
 
                   {/* 3. PINNED FIXED FOOTER (Permanently at Bottom) */}
@@ -2367,6 +2647,7 @@ export default function EmailStudio({
           </div>
         </div>
       )}
+<<<<<<< HEAD
 
       {/* SAVE CREATIVE AS TEMPLATE MODAL */}
       {showSaveModal && (
@@ -2453,6 +2734,8 @@ export default function EmailStudio({
           </div>
         </div>
       )}
+=======
+>>>>>>> origin/main
     </div>
   );
 }
