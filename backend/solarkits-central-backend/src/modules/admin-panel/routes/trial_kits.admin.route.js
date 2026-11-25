@@ -2,7 +2,10 @@ const express = require('express');
 const router = express.Router();
 const handler = require('../controller/trial_kit_admin.handler');
 const procurementHandler = require('../controller/trial_kit_procurement.handler');
+<<<<<<< HEAD
+=======
 const feedbackConfigHandler = require('../controller/trial_kit_feedback_config.handler');
+>>>>>>> origin/main
 const check_auth = require('../middlewares/check.auth');
 
 // ── Multi-Stage Procurement & Inward Ecosystem (Warehouse ➔ Accounts ➔ Admin) ────
@@ -37,6 +40,8 @@ router.put('/orders/:order_id/reassign-bde', check_auth, handler.reassign_bde);
 router.get('/analytics/summary', check_auth, handler.get_analytics_summary);
 router.get('/analytics/conversion-comparison', check_auth, handler.get_conversion_comparison);
 
+<<<<<<< HEAD
+=======
 // ── State & District Wise Feedback & Intent Configurations ────────────────────
 router.get('/feedback-configs/states', check_auth, feedbackConfigHandler.get_states);
 router.get('/feedback-configs/districts', check_auth, feedbackConfigHandler.get_districts_with_config);
@@ -44,4 +49,5 @@ router.put('/feedback-configs/district/:district_id', check_auth, feedbackConfig
 router.put('/feedback-configs/state-default/:state_id', check_auth, feedbackConfigHandler.save_state_default_config);
 router.delete('/feedback-configs/district/:district_id', check_auth, feedbackConfigHandler.reset_district_config);
 
+>>>>>>> origin/main
 module.exports = router;

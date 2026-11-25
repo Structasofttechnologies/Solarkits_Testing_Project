@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+<<<<<<< HEAD
+import { useNavigate } from "react-router-dom";
+=======
 import { Link, useNavigate } from "react-router-dom";
+>>>>>>> origin/main
 import axios from "axios";
 import axiosInstance from "../../utils/axiosInstance";
 import {
@@ -300,7 +304,26 @@ export default function Footer({ footerConfig }) {
                         </p>
                       </div>
 
+<<<<<<< HEAD
+                      {/* Pincode or Quantity (Optional) */}
+ 
+                      {/* <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-1">
+                          Pincode / Bulk Quantity (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          name="pincode"
+                          value={formData.pincode}
+                          onChange={handleInputChange}
+                          placeholder="e.g. 360001 or 5x 3kW Kits"
+                          className="w-full rounded-xl border border-white/25 bg-white px-3.5 py-2.5 text-xs text-navy outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-accent"
+                        />
+                      </div> */}
+ 
+=======
 
+>>>>>>> origin/main
                     </div>
 
                     <div className="mt-3.5 flex items-center justify-between gap-3 pt-1 border-t border-white/10">
@@ -335,7 +358,11 @@ export default function Footer({ footerConfig }) {
 
         {/* Main footer: essential sections only */}
         <div className="grid gap-10 py-12 md:grid-cols-2 lg:grid-cols-12 lg:gap-8 lg:py-16">
+<<<<<<< HEAD
+          <div className="lg:col-span-4">
+=======
           <div className="lg:col-span-5">
+>>>>>>> origin/main
             <div className="mb-5 inline-flex rounded-xl bg-white px-3 py-2">
               <img src={logo} alt="SolarKits" className="h-8 w-auto" />
             </div>
@@ -376,7 +403,33 @@ export default function Footer({ footerConfig }) {
             </nav>
           </div>
 
+<<<<<<< HEAD
+          <div className="lg:col-span-2">
+            <h4 className="mb-5 text-xs font-bold uppercase tracking-[0.18em] text-white">Legal & Policies</h4>
+            <nav className="flex flex-col items-start gap-3.5">
+              {[
+                { label: "Privacy Policy", path: "/privacy-policy" },
+                { label: "Terms of Service", path: "/terms-of-service" },
+                { label: "Refund Policy", path: "/refund-policy" },
+                { label: "Shipping Policy", path: "/shipping-policy" },
+              ].map((item) => (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={() => navigate(item.path)}
+                  className="group inline-flex items-center gap-2 text-sm text-white/60 transition-colors hover:text-white cursor-pointer"
+                >
+                  <span className="h-px w-0 bg-accent transition-all duration-300 group-hover:w-3" />
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          <div className="md:col-span-2 lg:col-span-3">
+=======
           <div className="md:col-span-2 lg:col-span-4">
+>>>>>>> origin/main
             <h4 className="text-xs font-bold uppercase tracking-[0.18em] text-white">Solar tips, once a week</h4>
             <p className="mt-3 text-sm leading-6 text-white/55">
               Useful tips, subsidy updates and offers. No spam.
@@ -401,6 +454,48 @@ export default function Footer({ footerConfig }) {
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 text-xs text-white/45 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <span>{copyright}</span>
+<<<<<<< HEAD
+            <span className="hidden sm:inline text-white/20">•</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => navigate("/privacy-policy")}
+                className="hover:text-white transition-colors cursor-pointer"
+              >
+                Privacy Policy
+              </button>
+              <span className="text-white/20">|</span>
+              <button
+                type="button"
+                onClick={() => navigate("/terms-of-service")}
+                className="hover:text-white transition-colors cursor-pointer"
+              >
+                Terms of Service
+              </button>
+              <span className="text-white/20">|</span>
+              <button
+                type="button"
+                onClick={() => navigate("/refund-policy")}
+                className="hover:text-white transition-colors cursor-pointer"
+              >
+                Refund Policy
+              </button>
+              <span className="text-white/20">|</span>
+              <button
+                type="button"
+                onClick={() => navigate("/shipping-policy")}
+                className="hover:text-white transition-colors cursor-pointer"
+              >
+                Shipping Policy
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2" aria-label="Payment methods">
+            {['UPI', 'Visa', 'Mastercard', 'Net Banking', 'EMI'].map((method) => (
+              <span key={method} className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold tracking-wide text-white/55">{method}</span>
+            ))}
+=======
+>>>>>>> origin/main
           </div>
         </div>
       </div>

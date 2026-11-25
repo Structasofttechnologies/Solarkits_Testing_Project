@@ -96,6 +96,8 @@ const sendAdminNotification = async ({
 };
 
 /**
+<<<<<<< HEAD
+=======
  * Send deduplicated admin alert to prevent duplicate notifications for the same condition.
  */
 const sendDeduplicatedAdminAlert = async ({
@@ -139,6 +141,7 @@ const sendDeduplicatedAdminAlert = async ({
 };
 
 /**
+>>>>>>> origin/main
  * Broadcast updated unread count (e.g. after mark read or delete)
  */
 const broadcastCountUpdate = async () => {
@@ -150,7 +153,10 @@ module.exports = {
   addSseClient,
   removeSseClient,
   sendAdminNotification,
+<<<<<<< HEAD
+=======
   sendDeduplicatedAdminAlert,
+>>>>>>> origin/main
   getUnreadCount,
   broadcastCountUpdate,
   broadcastToClients,

@@ -27,6 +27,8 @@ const rawApiUrl = (
 const API_BASE = rawApiUrl.replace(/\/admin-api$|\/api$/, "");
 const ADMIN_API = rawApiUrl.endsWith("/admin-api") ? rawApiUrl : `${API_BASE}/admin-api`;
 
+<<<<<<< HEAD
+=======
 const IFSC_BANK_MAP = {
   ICIC: "ICICI Bank",
   HDFC: "HDFC Bank",
@@ -69,11 +71,15 @@ const detectBankName = (code) => {
   return IFSC_BANK_MAP[clean.substring(0, 4)] || "";
 };
 
+>>>>>>> origin/main
 export default function OfflineBankAccountSettings() {
   const [accountNumber, setAccountNumber] = useState("");
   const [ifscCode, setIfscCode] = useState("");
   const [accountHolderName, setAccountHolderName] = useState("");
+<<<<<<< HEAD
+=======
   const [bankName, setBankName] = useState("");
+>>>>>>> origin/main
 
   const [lastUpdated, setLastUpdated] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -99,7 +105,10 @@ export default function OfflineBankAccountSettings() {
         setAccountNumber(d.account_number || "");
         setIfscCode(d.ifsc_code || "");
         setAccountHolderName(d.account_holder_name || "");
+<<<<<<< HEAD
+=======
         setBankName(d.bank_name || detectBankName(d.ifsc_code) || "");
+>>>>>>> origin/main
         setLastUpdated(d.updated_at || null);
       }
     } catch (err) {
@@ -121,6 +130,8 @@ export default function OfflineBankAccountSettings() {
     setTimeout(() => setCopiedField(""), 2000);
   };
 
+<<<<<<< HEAD
+=======
   const handleIfscChange = (val) => {
     const cleaned = val.toUpperCase().replace(/\s/g, "");
     setIfscCode(cleaned);
@@ -130,6 +141,7 @@ export default function OfflineBankAccountSettings() {
     }
   };
 
+>>>>>>> origin/main
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -152,15 +164,21 @@ export default function OfflineBankAccountSettings() {
       return;
     }
 
+<<<<<<< HEAD
+=======
     const resolvedBankName = bankName.trim() || detectBankName(cleanedIfsc) || "";
 
+>>>>>>> origin/main
     setSaving(true);
     try {
       const payload = {
         account_number: accountNumber.trim().replace(/\s/g, ""),
         ifsc_code: cleanedIfsc,
         account_holder_name: accountHolderName.trim(),
+<<<<<<< HEAD
+=======
         bank_name: resolvedBankName,
+>>>>>>> origin/main
       };
 
       const res = await axios.put(`${ADMIN_API}/payment-config/bank-account`, payload, {
@@ -173,7 +191,10 @@ export default function OfflineBankAccountSettings() {
           setAccountNumber(res.data.data.account_number);
           setIfscCode(res.data.data.ifsc_code);
           setAccountHolderName(res.data.data.account_holder_name);
+<<<<<<< HEAD
+=======
           setBankName(res.data.data.bank_name || resolvedBankName);
+>>>>>>> origin/main
           setLastUpdated(res.data.data.updated_at || new Date().toISOString());
         }
       }
@@ -301,6 +322,9 @@ export default function OfflineBankAccountSettings() {
               </span>
             </div>
 
+<<<<<<< HEAD
+            {/* Field 2: Account Number */}
+=======
             {/* Field 2: Bank Name */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
@@ -321,6 +345,7 @@ export default function OfflineBankAccountSettings() {
             </div>
 
             {/* Field 3: Account Number */}
+>>>>>>> origin/main
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
                 <FiHash className="text-amber-500" />
@@ -339,7 +364,11 @@ export default function OfflineBankAccountSettings() {
               </span>
             </div>
 
+<<<<<<< HEAD
+            {/* Field 3: IFSC Code */}
+=======
             {/* Field 4: IFSC Code */}
+>>>>>>> origin/main
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
                 <FiShield className="text-amber-500" />
@@ -349,13 +378,21 @@ export default function OfflineBankAccountSettings() {
                 type="text"
                 required
                 value={ifscCode}
+<<<<<<< HEAD
+                onChange={(e) => setIfscCode(e.target.value.toUpperCase().replace(/\s/g, ""))}
+=======
                 onChange={(e) => handleIfscChange(e.target.value)}
+>>>>>>> origin/main
                 placeholder="e.g. ICIC0000624 or HDFC0001234"
                 maxLength={16}
                 className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm font-mono font-bold uppercase tracking-wider focus:outline-none focus:border-amber-500 focus:bg-white dark:focus:bg-slate-850 transition"
               />
               <span className="text-[11px] text-slate-400 mt-1 block">
+<<<<<<< HEAD
+                11-character Indian Financial System Code (e.g. HDFC0001234).
+=======
                 11-character Indian Financial System Code (e.g. ICICI0006248, HDFC0001234).
+>>>>>>> origin/main
               </span>
             </div>
 
@@ -435,6 +472,8 @@ export default function OfflineBankAccountSettings() {
                 )}
               </div>
 
+<<<<<<< HEAD
+=======
               {/* Bank Name */}
               <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <div>
@@ -457,6 +496,7 @@ export default function OfflineBankAccountSettings() {
                 )}
               </div>
 
+>>>>>>> origin/main
               {/* Account Number */}
               <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <div>

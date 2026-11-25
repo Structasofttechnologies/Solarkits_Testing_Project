@@ -12,6 +12,11 @@ const EpcSignupRequest = require("../../models/india_solarshop_db/epc_signup_req
 const SignupVerification = require("../../models/india_solarshop_db/signup_verifications.schema");
 const UserRefreshToken = require("../../models/india_solarshop_db/user_refresh_tokens.schema");
 const Otp = require("../../models/india_solarshop_db/otps.schema");
+<<<<<<< HEAD
+const EpcPreference = require("../../models/india_solarshop_db/epc_preferences.schema");
+const EpcMarketingConsent = require("../../models/india_solarshop_db/epc_marketing_consents.schema");
+=======
+>>>>>>> origin/main
 const GeoLevel1 = require("../../models/geolocation_db/geo_level_1.schema");
 const GeoLevel2 = require("../../models/geolocation_db/geo_level_2.schema");
 
@@ -20,6 +25,10 @@ const { sendOTP } = require("../../utils/nodemailer");
 const { sendPinResetOtpEmail } = require("../../utils/brevo");
 const { sendWhatsAppOTP } = require("../../utils/whatsapp");
 const { sign_token, decode_token } = require("../../utils/jsonwebtoken");
+<<<<<<< HEAD
+const { performGstVerification } = require("../../../admin-panel/services/gst.verification.service");
+=======
+>>>>>>> origin/main
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
 
@@ -172,6 +181,14 @@ const send_signup_otp = async (req, res) => {
 
         const emailOtp = await sendOTP(email, "Email Verification");
         const whatsappOtp = await sendWhatsAppOTP(finalWhatsapp);
+<<<<<<< HEAD
+        console.log(`\n=================================================`);
+        console.log(`[SIGNUP OTP DISPATCH]`);
+        console.log(`  To Email    : ${email} -> OTP: [${emailOtp}]`);
+        console.log(`  To WhatsApp : ${finalWhatsapp} -> OTP: [${whatsappOtp}]`);
+        console.log(`=================================================\n`);
+=======
+>>>>>>> origin/main
 
         const emailHash = await bcrypt.hash(emailOtp, 10);
         const whatsappHash = await bcrypt.hash(whatsappOtp, 10);
@@ -410,6 +427,10 @@ const create_account = async (req, res) => {
         }
 
         const password_hash = await bcrypt.hash(password, 10);
+<<<<<<< HEAD
+        const cleanPin = (req.body.pin || (/^\d{4}$/.test(String(password).trim()) ? String(password).trim() : null));
+=======
+>>>>>>> origin/main
         const cleanGstin = gstin ? String(gstin).trim().toUpperCase() : null;
         let onboarding_source = company_id ? "database" : "portal";
         let gst_verification_status = "unverified";
@@ -454,6 +475,10 @@ const create_account = async (req, res) => {
                 registered_whatsapp: registered_whatsapp || null,
                 is_registered_same_as_whatsapp: use_registered_as_whatsapp ? true : false,
                 password_hash,
+<<<<<<< HEAD
+                security_pin: cleanPin,
+=======
+>>>>>>> origin/main
                 company_id: company_id || null,
                 states: [state],
                 districts: [district],
@@ -479,7 +504,11 @@ const create_account = async (req, res) => {
                 {
                     account_id: account._id,
                     company_name,
+<<<<<<< HEAD
+                    gstin,
+=======
             gstin,
+>>>>>>> origin/main
                     email,
                     whatsapp: finalWhatsapp,
                     state_id: state,
@@ -489,6 +518,41 @@ const create_account = async (req, res) => {
             ], { session });
         }
 
+<<<<<<< HEAD
+        // ⚡ Record Marketing Consents provided during Sign Up
+        const emailConsent = req.body.email_marketing_consent === true;
+        const whatsappConsent = req.body.whatsapp_marketing_consent === true;
+
+        await EpcPreference.create([
+            {
+                epc_id: account._id,
+                company_name: name,
+                email: email,
+                mobile: finalWhatsapp,
+                status: 'not_prompted', // Keep not_prompted so first login modal triggers for industry/subcat selection!
+                email_marketing_consent: emailConsent,
+                whatsapp_marketing_consent: whatsappConsent,
+                consent_source: 'signup',
+                consent_timestamp: new Date()
+            }
+        ], { session });
+
+        await EpcMarketingConsent.create([
+            {
+                epc_id: account._id,
+                company_name: name,
+                registered_email: email,
+                registered_mobile: finalWhatsapp,
+                email_marketing_consent: emailConsent,
+                whatsapp_marketing_consent: whatsappConsent,
+                consent_source: 'signup',
+                ip_address: req.ip || req.headers['x-forwarded-for'] || '127.0.0.1',
+                user_agent: req.headers['user-agent'] || 'Browser'
+            }
+        ], { session });
+
+=======
+>>>>>>> origin/main
         await session.commitTransaction();
 
         return res.json({
@@ -531,7 +595,14 @@ const login = async (req, res) => {
                     "1234": "ravi.s@sunnovative.com",
                     "2345": "dwarka.epc@solarkits.com",
                     "3456": "ravi.s@gmail.com",
+<<<<<<< HEAD
+                    "4567": "customer@solarkits.com",
+                    "5678": "fresh.epc@solarkits.com",
+                    "6789": "newkit.epc@solarkits.com",
+                    "7890": "profile.epc@solarkits.com"
+=======
                     "4567": "customer@solarkits.com"
+>>>>>>> origin/main
                 };
                 if (demoPinMap[cleanPin]) {
                     account = await EpcAccount.findOne({
@@ -556,7 +627,14 @@ const login = async (req, res) => {
                     'structasoft.epc@gmail.com',
                     'dwarka.epc@solarkits.com',
                     'ravi.s@sunnovative.com',
+<<<<<<< HEAD
+                    'ravi.s@gmail.com',
+                    'fresh.epc@solarkits.com',
+                    'newkit.epc@solarkits.com',
+                    'profile.epc@solarkits.com'
+=======
                     'ravi.s@gmail.com'
+>>>>>>> origin/main
                 ];
                 if (account.email && demoList.includes(account.email.toLowerCase())) {
                     await EpcAccount.updateOne({ _id: account._id }, { $set: { status: 'approved' } });
@@ -653,7 +731,14 @@ const login = async (req, res) => {
             'structasoft.epc@gmail.com',
             'dwarka.epc@solarkits.com',
             'ravi.s@sunnovative.com',
+<<<<<<< HEAD
+            'ravi.s@gmail.com',
+            'fresh.epc@solarkits.com',
+            'newkit.epc@solarkits.com',
+            'profile.epc@solarkits.com'
+=======
             'ravi.s@gmail.com'
+>>>>>>> origin/main
         ];
         if (email && demoEmails.includes(email.toLowerCase())) {
             const password_hash = await bcrypt.hash(password || 'Password@123', 10);
@@ -1861,6 +1946,31 @@ const reset_pin = async (req, res) => {
     }
 };
 
+<<<<<<< HEAD
+const verify_gstin = async (req, res) => {
+    try {
+        const gstin = (req.body.gstin || req.query.gstin || '').trim().toUpperCase();
+        if (!gstin) {
+            return res.status(400).json({ success: false, message: "GSTIN is required" });
+        }
+        const result = await performGstVerification({
+            gstin,
+            entity_type: 'epc_buyer',
+            verified_by: 'epc_signup'
+        });
+        return res.json({
+            success: result.is_valid,
+            is_valid: result.is_valid,
+            data: result
+        });
+    } catch (err) {
+        console.error("verify_gstin error:", err);
+        return res.status(500).json({ success: false, message: err.message || "Failed to verify GSTIN" });
+    }
+};
+
+=======
+>>>>>>> origin/main
 module.exports = {
     reset_pin,
     send_reset_pin_otp,
@@ -1878,5 +1988,10 @@ module.exports = {
     reset_password,
     get_me,
     send_epc_email_otp,
+<<<<<<< HEAD
+    verify_epc_email_otp,
+    verify_gstin
+=======
     verify_epc_email_otp
+>>>>>>> origin/main
 };

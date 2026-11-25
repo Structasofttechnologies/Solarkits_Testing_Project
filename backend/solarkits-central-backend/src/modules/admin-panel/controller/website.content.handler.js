@@ -506,6 +506,129 @@ const DEFAULT_SOLAR_STORE_CONTENT = {
         label: "Chat on WhatsApp",
       },
     },
+<<<<<<< HEAD
+    policies: {
+      privacy_policy: {
+        title: "Privacy Policy",
+        last_updated: "August 2026",
+        notice_box: "Important Platform Note: Solarkits.in operates strictly as an E-Commerce Supply Marketplace for solar panels, combo kits, BOS equipment, and solar products. We DO NOT provide on-site installation, EPC engineering, or labor services. All products are supplied directly to your delivery address for independent assembly or local installation.",
+        sections: [
+          {
+            id: 1,
+            heading: "1. Information We Collect",
+            content: "We collect information you provide directly to us when placing an order, requesting technical single line diagrams, registering for an account, or communicating with our support desk. This includes your name, delivery address, pincode, billing details, GSTIN (for B2B buyers), email address, and phone number.",
+          },
+          {
+            id: 2,
+            heading: "2. How We Use Your Information",
+            content: "We use the collected information to process and dispatch equipment shipments, provide real-time transit insurance tracking, generate official GST tax invoices, assist with PM Surya Ghar ALMM documentation, and provide product warranty replacement support.",
+          },
+          {
+            id: 3,
+            heading: "3. Data Security & Protection",
+            content: "We implement industry-standard 256-bit SSL encryption, tokenized payment processing through certified PCI-DSS gateways, and strict access controls. We never sell or rent your personal information to third-party advertisers.",
+          },
+          {
+            id: 4,
+            heading: "4. Cookies & Analytics",
+            content: "We use cookies to maintain your shopping cart, remember your regional warehouse preferences, and analyze site performance to optimize kit loading speeds and user experience.",
+          },
+          {
+            id: 5,
+            heading: "5. Contacting Our Data Privacy Officer",
+            content: "If you have questions or requests regarding your personal data or privacy rights, please reach out to privacy@solarkits.in or contact our headquarters at SolarKits Tech Hub, Pune.",
+          },
+        ],
+      },
+      terms_of_service: {
+        title: "Terms of Service & User Policy",
+        last_updated: "August 2026",
+        notice_box: "CRITICAL SERVICE DISCLAIMER: Solarkits.in is strictly an Online E-Commerce Product Supply Platform. We sell and deliver solar panels, solar combo kits, BOS components, and accessories across India. Solarkits DOES NOT offer, undertake, or provide installation services, EPC labor, on-site mounting, or maintenance. Product installation must be arranged independently by the customer or qualified local technicians.",
+        sections: [
+          {
+            id: 1,
+            heading: "1. E-Commerce Platform & Order Acceptance",
+            content: "Solarkits.in enables retail and wholesale customers to browse, customize, and buy solar panels and equipment online. By placing an order on Solarkits.in, you agree that you are purchasing physical solar goods for independent usage or installation.",
+          },
+          {
+            id: 2,
+            heading: "2. Product Quality & Manufacturer Warranties",
+            content: "All Tier-1 solar panels, grid-tied/hybrid inverters, solar pump controllers, and BOS components sold on Solarkits.in carry authentic manufacturer warranties and conform to Bureau of Indian Standards (BIS) and MNRE guidelines. Solarkits passes all original manufacturer warranties directly to the buyer.",
+          },
+          {
+            id: 3,
+            heading: "3. Pricing, GST Invoicing, & Payments",
+            content: "Prices displayed include GST where specified. Official GST tax invoices will be issued upon dispatch. Orders are confirmed upon payment verification through approved online payment gateways or verified bank wire transfers.",
+          },
+          {
+            id: 4,
+            heading: "4. Exclusion of Installation Liability",
+            content: "Because Solarkits operates exclusively as a product supply e-commerce marketplace: SolarKits is not responsible for installation workmanship, rooftop structural modifications, or electrical wiring conducted by third parties. Local DISCOM net-metering applications, approvals, or rooftop structural safety certificates remain the responsibility of the customer/installer. Warranties cover product manufacturing defects only as defined by respective brand manufacturers.",
+          },
+          {
+            id: 5,
+            heading: "5. Contact Support",
+            content: "For questions about these terms or product inquiries, contact our customer support desk at support@solarkits.in or call +91 77779 39842.",
+          },
+        ],
+      },
+      refund_policy: {
+        title: "Refund & Cancellation Policy",
+        last_updated: "August 2026",
+        notice_box: "Cancellation & Transit Inspection Notice: Orders can be cancelled free of charge prior to warehouse pallet dispatch. Due to heavy freight logistics, please inspect all pallets and crated solar panels upon arrival before signing the transporter proof of delivery (POD).",
+        sections: [
+          {
+            id: 1,
+            heading: "1. Order Cancellation Window",
+            content: "You may cancel your order for a 100% full refund at any time before your shipment leaves our regional logistics warehouse (typically within 24 hours of order placement). Once dispatched and handed to heavy freight carriers, cancellations incur nominal two-way freight charges.",
+          },
+          {
+            id: 2,
+            heading: "2. Transit Damage & Dead On Arrival (DOA)",
+            content: "All shipments carry comprehensive transit insurance. If you receive crates or panels with visible transit damage, note the damage on the carrier POD and notify our support desk with photos within 48 hours. We will immediately dispatch free unit replacements.",
+          },
+          {
+            id: 3,
+            heading: "3. Return Eligibility",
+            content: "Unopened components in their original factory packaging can be returned within 7 days of delivery. Custom-cut DC solar cables or specially fabricated mounting structures are non-returnable once dispatched.",
+          },
+          {
+            id: 4,
+            heading: "4. Refund Processing Timelines",
+            content: "Approved refunds are processed to your original payment method (bank account, credit card, or UPI) within 5 to 7 business days following inspection of returned items at our central hub.",
+          },
+        ],
+      },
+      shipping_policy: {
+        title: "Shipping & Delivery Policy",
+        last_updated: "August 2026",
+        notice_box: "Pan-India Logistics: We deliver solar kits and heavy panels to over 18,000 pincodes across India using specialized heavy surface cargo with transit insurance coverage.",
+        sections: [
+          {
+            id: 1,
+            heading: "1. Dispatch Timelines",
+            content: "In-stock solar combo kits and components are dispatched from our nearest regional warehouse hub within 24 to 48 hours of order payment confirmation.",
+          },
+          {
+            id: 2,
+            heading: "2. Transit Duration Across India",
+            content: "Tier-1 Cities & Metro Hubs: 2 - 4 Business Days. Tier-2 / Tier-3 Districts: 4 - 7 Business Days. Remote Farmlands & North-East / Hilly Regions: 7 - 10 Business Days.",
+          },
+          {
+            id: 3,
+            heading: "3. Transit Insurance & Freight Inspection",
+            content: "Every single pallet and crate dispatched by Solarkits is 100% insured against loss, theft, and physical transit damage. Customers must inspect wooden crates and outer strapping before signing the delivery receipt.",
+          },
+          {
+            id: 4,
+            heading: "4. Heavy Freight Unloading & Direct Site Access",
+            content: "Commercial solar freight is transported via 14ft/19ft container vehicles. Delivery is made to ground level or accessible road frontage. On-site movement or rooftop lifting must be arranged locally.",
+          },
+        ],
+      },
+    },
+=======
+>>>>>>> origin/main
   },
 };
 
@@ -905,6 +1028,13 @@ exports.get_content = async (req, res) => {
         };
         needsSave = true;
       }
+<<<<<<< HEAD
+      if (!doc.sections.policies || !doc.sections.policies.privacy_policy) {
+        doc.sections.policies = DEFAULT_SOLAR_STORE_CONTENT.sections.policies;
+        needsSave = true;
+      }
+=======
+>>>>>>> origin/main
       if (needsSave) {
         await WebsiteContent.updateOne({ _id: doc._id }, { $set: { sections: doc.sections } }).catch(() => {});
       }

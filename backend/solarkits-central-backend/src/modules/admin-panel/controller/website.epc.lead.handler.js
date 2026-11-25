@@ -271,8 +271,13 @@ exports.list_website_leads = async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
     const skip = (pageNum - 1) * limitNum;
 
+<<<<<<< HEAD
+    // 🚀 Parallel optimized query execution with indexed scans
+    const [rawLeads, totalCount, totalAll, unassignedCount, assignedCount, onboardedCount, availableStates, rawBdes] = await Promise.all([
+=======
     // Fetch leads
     const [rawLeads, totalCount] = await Promise.all([
+>>>>>>> origin/main
       WebsiteEpcLead.find(query)
         .populate('assigned_bde_id', 'full_name bde_id mobile_number email')
         .sort({ created_at: -1 })
@@ -280,6 +285,36 @@ exports.list_website_leads = async (req, res) => {
         .limit(limitNum)
         .lean(),
       WebsiteEpcLead.countDocuments(query),
+<<<<<<< HEAD
+      WebsiteEpcLead.countDocuments({ deleted_at: null }),
+      WebsiteEpcLead.countDocuments({
+        deleted_at: null,
+        $or: [
+          { assigned_bde_id: null, current_bde_id: null },
+          { status: 'new' },
+        ],
+      }),
+      WebsiteEpcLead.countDocuments({
+        deleted_at: null,
+        $or: [{ assigned_bde_id: { $ne: null } }, { current_bde_id: { $ne: null } }],
+      }),
+      WebsiteEpcLead.countDocuments({
+        deleted_at: null,
+        $or: [
+          { status: { $in: ['onboarded', 'converted'] } },
+          { lead_status: { $in: ['Onboarded', 'Assigned to Franchisee', 'Converted'] } },
+        ],
+      }),
+      WebsiteEpcLead.distinct('state_name', { deleted_at: null }),
+      BDEProfile.find({
+        status: { $ne: 'inactive' },
+        deleted_at: null,
+      })
+        .select('_id bde_id full_name mobile_number email')
+        .sort({ full_name: 1 })
+        .lean(),
+=======
+>>>>>>> origin/main
     ]);
 
     const leads = rawLeads.map(l => {
@@ -301,6 +336,14 @@ exports.list_website_leads = async (req, res) => {
       };
     });
 
+<<<<<<< HEAD
+    // Active BDE territory assignments lookup
+    const bdeIds = rawBdes.map((b) => b._id);
+    const territories = bdeIds.length > 0 ? await BDETerritoryAssignment.find({
+      bde_id: { $in: bdeIds },
+      status: 'active',
+    }).lean() : [];
+=======
     // Aggregate statistics across all active leads
     const [totalAll, unassignedCount, assignedCount, onboardedCount] = await Promise.all([
       WebsiteEpcLead.countDocuments({ deleted_at: null }),
@@ -341,6 +384,7 @@ exports.list_website_leads = async (req, res) => {
       bde_id: { $in: bdeIds },
       status: 'active',
     }).lean();
+>>>>>>> origin/main
 
     const territoryMap = new Map();
     territories.forEach((t) => {
@@ -570,7 +614,10 @@ exports.update_lead = async (req, res) => {
                 is_whatsapp_verified: true,
                 is_email_verified: Boolean(lead.email && !lead.email.includes('@lead.solarkits.in'))
               });
+<<<<<<< HEAD
+=======
               console.log(`Auto-created approved EpcAccount for lead: ${lead.name} (${epcEmail})`);
+>>>>>>> origin/main
             } else {
               existingAccount.status = 'approved';
               const leadGstExisting = lead.gst_number ? String(lead.gst_number).trim().toUpperCase() : null;
@@ -581,7 +628,10 @@ exports.update_lead = async (req, res) => {
                 lead.gst_verification_status = 'verified_admin';
               }
               await existingAccount.save();
+<<<<<<< HEAD
+=======
               console.log(`Updated existing EpcAccount status to approved for lead: ${lead.name}`);
+>>>>>>> origin/main
             }
           }
         } catch (accErr) {

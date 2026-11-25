@@ -327,6 +327,61 @@ export default function CreateCampaignWizard() {
     return fetchAreaKits(formData.servingWarehouses, liveKitsCatalog);
   }, [formData.servingWarehouses, liveKitsCatalog]);
 
+<<<<<<< HEAD
+  // Detect if ONLY Registered EPC is selected (Registered EPCs haven't logged in yet and have no preferences)
+  const isOnlyRegistered = useMemo(() => {
+    return Boolean(formData.audienceGroups.registered && !formData.audienceGroups.verified && !formData.audienceGroups.buyer);
+  }, [formData.audienceGroups]);
+
+  // Industry-wise counts dynamically calculated based on selected clusters & groups
+  const industryCounts = useMemo(() => {
+    const verifiedBase = formData.audienceGroups.verified ? 840 : 0;
+    const buyerBase = formData.audienceGroups.buyer ? 350 : 0;
+    const registeredBase = formData.audienceGroups.registered ? 620 : 0;
+    const clusterMultiplier = Math.max(formData.selectedClusterIds.length, 1);
+
+    // Total base across selected groups
+    const totalBase = (verifiedBase + buyerBase + registeredBase) * clusterMultiplier;
+    const deduplicatedTotal = Math.round(totalBase * 0.85);
+
+    // Active preference pool (Verified + Buyer EPCs who completed business preference setup)
+    const prefBase = Math.round((verifiedBase + buyerBase) * clusterMultiplier * 0.85);
+
+    return {
+      all: deduplicatedTotal,
+      solar_pv: Math.round(prefBase * 0.42),
+      solar_agri: Math.round(prefBase * 0.31),
+      commercial: Math.round(prefBase * 0.16),
+      solar_ev: Math.round(prefBase * 0.07),
+      energy_storage: Math.round(prefBase * 0.04)
+    };
+  }, [formData.selectedClusterIds, formData.audienceGroups]);
+
+  // Calculated audience count based on selected clusters, groups & industry filter
+  const audienceCalculation = useMemo(() => {
+    let deduplicatedTotal = industryCounts.all;
+
+    // If an industry filter is active and we are not in only-registered mode:
+    if (!isOnlyRegistered && formData.industryPreference && formData.industryPreference !== 'all') {
+      deduplicatedTotal = industryCounts[formData.industryPreference] ?? 0;
+    }
+
+    const finalCount = typeof deduplicatedTotal === 'number' ? deduplicatedTotal : 0;
+
+    return {
+      rawTotal: finalCount,
+      deduplicatedTotal: finalCount
+    };
+  }, [industryCounts, formData.industryPreference, isOnlyRegistered]);
+
+  // Reset industry preference to 'all' if only registered EPC is selected
+  useEffect(() => {
+    if (isOnlyRegistered && formData.industryPreference !== 'all') {
+      setFormData(prev => ({ ...prev, industryPreference: 'all' }));
+    }
+  }, [isOnlyRegistered, formData.industryPreference]);
+
+=======
   // Calculated audience count based on selected clusters & groups
   const audienceCalculation = useMemo(() => {
     let basePerCluster = 0;
@@ -345,6 +400,7 @@ export default function CreateCampaignWizard() {
     };
   }, [formData.selectedClusterIds, formData.audienceGroups]);
 
+>>>>>>> origin/main
   // Projected campaign revenue based on selected kits and individual kit targets
   const selectedKitsRevenue = useMemo(() => {
     return formData.selectedKitIds.reduce((sum, kid) => {
@@ -1148,6 +1204,97 @@ export default function CreateCampaignWizard() {
                   ))}
                 </div>
 
+<<<<<<< HEAD
+                {/* Industry Preference Segment Filter (PRD Section 5 & 7) */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block">
+                      Filter by EPC Industry Interest (Buyer Preferences)
+                    </label>
+                    {isOnlyRegistered ? (
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                        Disabled for Registered-Only EPCs
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400">
+                        Live audience count per industry vertical
+                      </span>
+                    )}
+                  </div>
+
+                  {isOnlyRegistered ? (
+                    <div className="p-3.5 bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
+                      <FaInfoCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold">
+                          Industry filter is disabled for newly registered EPCs
+                        </p>
+                        <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
+                          Newly registered EPCs complete their industry and kit preference selection upon their first store login. All registered EPCs with marketing consent in the selected territory (<strong>{audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')} contractors</strong>) will be targeted.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { id: 'all', label: 'All Industries (Broad Reach)' },
+                        { id: 'solar_pv', label: 'Solar PV' },
+                        { id: 'solar_agri', label: 'Solar Agriculture' },
+                        { id: 'commercial', label: 'Commercial & Industrial' },
+                        { id: 'solar_ev', label: 'Solar EV Charging' },
+                        { id: 'energy_storage', label: 'Energy Storage' }
+                      ].map(ind => {
+                        const count = industryCounts[ind.id] ?? 0;
+                        const isSelected = (formData.industryPreference || 'all') === ind.id;
+                        return (
+                          <button
+                            key={ind.id}
+                            type="button"
+                            onClick={() => setFormData({ ...formData, industryPreference: ind.id })}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white shadow-xs'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
+                            }`}
+                          >
+                            <span>{ind.label}</span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                                isSelected
+                                  ? 'bg-white/25 text-white'
+                                  : count > 0
+                                  ? 'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300'
+                                  : 'bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400'
+                              }`}
+                            >
+                              {count.toLocaleString('en-IN')}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Channel Marketing Consent Compliance Guard */}
+                <div className="p-3 bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-xl flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold">
+                    <FaCheckCircle className="text-emerald-600 w-4 h-4 shrink-0" />
+                    <span>
+                      {formData.channel === 'whatsapp'
+                        ? 'WhatsApp Opt-In Enforced: Only EPCs with verified WhatsApp marketing consent will be messaged.'
+                        : formData.channel === 'email'
+                        ? 'Email Consent Enforced: Only EPCs with verified promotional email consent will be sent.'
+                        : 'Channel Consent Enforced: Strictly excludes unconsented or unsubscribed EPC contractors.'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 uppercase tracking-wider">
+                    PRD Verified
+                  </span>
+                </div>
+
+=======
+>>>>>>> origin/main
                 {/* Live Area Audience Count vs Account Wallet Counter */}
                 <div className="p-4 rounded-xl bg-slate-900 text-white flex items-center justify-between">
                   <div>

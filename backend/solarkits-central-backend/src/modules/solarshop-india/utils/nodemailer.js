@@ -10,10 +10,17 @@ const transporter = nodemailer.createTransport({
 
 const sendOTP = async (to, title = "Your Verification Code", message = "Use this OTP to verify your account:", companyName = "", customOtp = null) => {
   try {
+<<<<<<< HEAD
+    const otp = customOtp || Math.floor(100000 + Math.random() * 900000).toString();
+
+    const senderName = companyName ? `${companyName} (via SolarKits)` : "SolarKits Solar Ecosystem";
+    const subjectLine = companyName ? `🔐 ${companyName} - OTP Access Code: ${otp}` : `SolarKits - Your 6-Digit Email Verification Code: ${otp}`;
+=======
     const otp = customOtp || Math.floor(1000 + Math.random() * 9000).toString();
 
     const senderName = companyName ? `${companyName} (via SolarKits)` : "SolarKits Solar Ecosystem";
     const subjectLine = companyName ? `🔐 ${companyName} - OTP Access Code` : `${title}`;
+>>>>>>> origin/main
 
     await transporter.sendMail({
       from: `"${senderName}" <${process.env.EMAIL_USER}>`,

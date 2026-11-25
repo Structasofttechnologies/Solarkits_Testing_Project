@@ -1,5 +1,9 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
+<<<<<<< HEAD
+import { MdOutlineAccountBalance } from "react-icons/md";
+=======
+>>>>>>> origin/main
 import {
   FiGrid,
   FiSun,
@@ -16,7 +20,12 @@ import {
 
 export const CATEGORY_LINKS = [
   { name: "All Solar Kits", path: "/shop", icon: FiGrid },
+<<<<<<< HEAD
+  { name: "Govt. Tender Kits", path: "/preconfigured-combo-kit?filter=govt-tender", icon: MdOutlineAccountBalance, highlight: true },
+  { name: "Find Nearby Store", path: "/store-locator", icon: FiMapPin, highlight: false },
+=======
   { name: "Find Nearby Store", path: "/store-locator", icon: FiMapPin, highlight: true },
+>>>>>>> origin/main
   { name: "On-Grid Kits", path: "/shop?type=on-grid", icon: FiSun },
   { name: "Off-Grid Kits", path: "/shop?type=off-grid", icon: FiBatteryCharging },
   { name: "Hybrid Kits", path: "/shop?type=hybrid", icon: FiZap },

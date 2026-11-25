@@ -639,7 +639,11 @@ const createCampaign = async (req, res) => {
       data.created_by = req.user.id;
     }
 
+<<<<<<< HEAD
+    // Auto-resolve audience count and recipients with channel consent & industry preferences
+=======
     // Auto-resolve audience count and recipients
+>>>>>>> origin/main
     const audience = await audienceService.resolveAudience({
       epc_groups: data.epc_groups,
       exclude_groups: data.exclude_groups,
@@ -648,7 +652,16 @@ const createCampaign = async (req, res) => {
       district_ids: data.district_ids,
       warehouse_ids: data.warehouse_ids,
       purchase_activity: data.purchase_activity,
+<<<<<<< HEAD
+      last_order_days: data.last_order_days,
+      channel: data.campaign_type || null,
+      industry_ids: data.industry_ids || [],
+      kit_ids: data.kit_ids || [],
+      subcategory_ids: data.subcategory_ids || [],
+      require_consent: data.require_consent !== false
+=======
       last_order_days: data.last_order_days
+>>>>>>> origin/main
     });
 
     data.total_recipients = audience.total_eligible;

@@ -21,7 +21,10 @@ import {
   FiHelpCircle,
   FiInfo,
   FiCheck,
+<<<<<<< HEAD
+=======
   FiShoppingCart,
+>>>>>>> origin/main
 } from 'react-icons/fi';
 import { FaWhatsapp } from 'react-icons/fa';
 import toast from 'react-hot-toast';
@@ -166,7 +169,11 @@ export default function EpcQuoteDetail() {
           <span>Back to All Quotations</span>
         </Link>
 
+<<<<<<< HEAD
+        <div className="flex items-center gap-2">
+=======
         <div className="flex flex-wrap items-center gap-2">
+>>>>>>> origin/main
           {bdeMobile && (
             <a
               href={`https://wa.me/91${bdeMobile.replace(/\D/g, '')}?text=Hi%20${encodeURIComponent(bdeName)},%20I%20am%20reviewing%20Quotation%20${encodeURIComponent(refNumber)}.`}
@@ -182,6 +189,13 @@ export default function EpcQuoteDetail() {
           <button
             onClick={handleDownloadPdf}
             disabled={downloading}
+<<<<<<< HEAD
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-primary text-white hover:bg-primary-hover shadow-sm transition"
+          >
+            {downloading ? <FiRefreshCw className="w-4 h-4 animate-spin" /> : <FiDownload className="w-4 h-4" />}
+            <span>Download Official PDF</span>
+          </button>
+=======
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-surface text-text-primary hover:bg-bg border border-border shadow-xs transition"
           >
             {downloading ? <FiRefreshCw className="w-4 h-4 animate-spin text-primary" /> : <FiDownload className="w-4 h-4 text-primary" />}
@@ -212,6 +226,7 @@ export default function EpcQuoteDetail() {
               <span>Accept & Checkout</span>
             </button>
           )}
+>>>>>>> origin/main
         </div>
       </div>
 
@@ -562,6 +577,8 @@ export default function EpcQuoteDetail() {
               </div>
             </div>
 
+<<<<<<< HEAD
+=======
             {/* Accept & Checkout Proposal Button */}
             {quote.status === 'converted' ? (
               <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs mt-4">
@@ -588,16 +605,26 @@ export default function EpcQuoteDetail() {
               </button>
             )}
 
+>>>>>>> origin/main
             {/* Download PDF Action */}
             <button
               onClick={handleDownloadPdf}
               disabled={downloading}
+<<<<<<< HEAD
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-primary text-white font-bold text-sm hover:bg-primary-hover shadow-xs transition mt-4"
+            >
+              {downloading ? (
+                <FiRefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <FiDownload className="w-4 h-4" />
+=======
               className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-surface hover:bg-bg border border-border text-text-primary font-bold text-xs shadow-2xs transition mt-2"
             >
               {downloading ? (
                 <FiRefreshCw className="w-4 h-4 animate-spin text-primary" />
               ) : (
                 <FiDownload className="w-4 h-4 text-primary" />
+>>>>>>> origin/main
               )}
               <span>Download PDF Quotation</span>
             </button>

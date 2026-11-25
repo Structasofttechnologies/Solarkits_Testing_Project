@@ -1,18 +1,51 @@
 const mongoose = require('mongoose');
 const { USER_DB: db } = require('../../config/databases');
 
+<<<<<<< HEAD
+// Load required SolarKits native models with safe fallbacks
+let EpcAccount;
+try {
+  EpcAccount = db.model('epc_accounts');
+} catch (e) {
+  EpcAccount = require('../../models/india_solarshop_db/EpcAccount.schema');
+}
+
+=======
 // Load required SolarKits native models
 const EpcAccount = db.model('epc_accounts');
+>>>>>>> origin/main
 let EpcOrder;
 try {
   EpcOrder = db.model('epc_orders');
 } catch (e) {
+<<<<<<< HEAD
+  EpcOrder = require('../../models/india_solarshop_db/epc_orders.schema');
+}
+
+let EpcPreference;
+try {
+  EpcPreference = db.model('epc_preferences');
+} catch (e) {
+  EpcPreference = require('../../../solarshop-india/models/india_solarshop_db/epc_preferences.schema');
+}
+
+let EpcMarketingConsent;
+try {
+  EpcMarketingConsent = db.model('epc_marketing_consents');
+} catch (e) {
+  EpcMarketingConsent = require('../../../solarshop-india/models/india_solarshop_db/epc_marketing_consents.schema');
+}
+
+/**
+ * Resolve EPC Audience with strict deduplication, industry/kit preference filtering, and channel consent
+=======
   // If not compiled yet, require it
   EpcOrder = require('../../../india_solarshop_db/epc_orders.schema');
 }
 
 /**
  * Resolve EPC Audience with strict deduplication and area filters
+>>>>>>> origin/main
  */
 const resolveAudience = async (filterConfig = {}) => {
   const {
@@ -26,7 +59,17 @@ const resolveAudience = async (filterConfig = {}) => {
     warehouse_ids = [],
     cluster_ids = [],
     purchase_activity = 'all',
+<<<<<<< HEAD
+    last_order_days = 90,
+    // --- Industry & Kit Preference Criteria (Section 5 & 7 of PRD) ---
+    channel = null, // 'email' | 'whatsapp' | 'both'
+    industry_ids = [],
+    kit_ids = [],
+    subcategory_ids = [],
+    require_consent = true
+=======
     last_order_days = 90
+>>>>>>> origin/main
   } = filterConfig;
 
   // 1. Build Base EPC Match Filter
@@ -57,11 +100,20 @@ const resolveAudience = async (filterConfig = {}) => {
       total_eligible: 0,
       total_excluded: 0,
       recipients: [],
+<<<<<<< HEAD
+      sample_preview: [],
+      consent_breakdown: { email_consented: 0, whatsapp_consented: 0 }
+    };
+  }
+
+  // 1.5 Fetch active unsubscribed contacts
+=======
       sample_preview: []
     };
   }
 
   // 1.5 Fetch all active unsubscribed emails to guarantee automatic exclusion
+>>>>>>> origin/main
   let unsubscribedEmailSet = new Set();
   let unsubscribedPhoneSet = new Set();
   try {
@@ -72,7 +124,28 @@ const resolveAudience = async (filterConfig = {}) => {
       if (u.phone) unsubscribedPhoneSet.add(u.phone.trim());
     }
   } catch (err) {
+<<<<<<< HEAD
+    // Non-fatal
+  }
+
+  // 1.6 Fetch EPC Preferences & Consents for Industry / Kit / Channel filtering
+  const allEpcIds = allCandidates.map(c => c._id);
+  const [prefDocs, consentDocs] = await Promise.all([
+    EpcPreference.find({ epc_id: { $in: allEpcIds }, deleted_at: null }).lean(),
+    EpcMarketingConsent.find({ epc_id: { $in: allEpcIds }, is_active: true, withdrawn_at: null }).lean()
+  ]);
+
+  const prefMap = new Map();
+  for (const p of prefDocs) {
+    prefMap.set(String(p.epc_id), p);
+  }
+
+  const consentMap = new Map();
+  for (const c of consentDocs) {
+    consentMap.set(String(c.epc_id), c);
+=======
     console.warn('⚠️ Notice reading unsubscribed list in audience.service:', err.message);
+>>>>>>> origin/main
   }
 
   // 2. Identify Buyer EPC IDs by querying epc_orders
@@ -99,12 +172,23 @@ const resolveAudience = async (filterConfig = {}) => {
       }
     }
   } catch (err) {
+<<<<<<< HEAD
+    // Non-fatal
+  }
+
+  // 3. Classify Each EPC and Apply Overlap Deduplication & Channel Consent
+  const eligibleMap = new Map(); // Key: epc._id (Guarantees exactly ONE recipient per EPC)
+  let excludedCount = 0;
+  let emailConsentedCount = 0;
+  let whatsappConsentedCount = 0;
+=======
     console.warn('⚠️ Could not query epc_orders for buyer resolution:', err.message);
   }
 
   // 3. Classify Each EPC and Apply Overlap Deduplication
   const eligibleMap = new Map(); // Key: epc._id (Guarantees exactly ONE recipient per EPC)
   let excludedCount = 0;
+>>>>>>> origin/main
   const now = new Date();
   const cutoffDate = new Date(now.getTime() - last_order_days * 24 * 60 * 60 * 1000);
 
@@ -114,7 +198,11 @@ const resolveAudience = async (filterConfig = {}) => {
     const isVerified =
       ['verified_automatic', 'verified_admin'].includes(epc.gst_verification_status) ||
       epc.is_gstin_active === true;
+<<<<<<< HEAD
+    const isRegistered = true;
+=======
     const isRegistered = true; // All in epc_accounts are registered
+>>>>>>> origin/main
 
     // Check Exclusions
     if (exclude_groups.includes('buyer_epc') && isBuyer) {
@@ -130,12 +218,25 @@ const resolveAudience = async (filterConfig = {}) => {
       continue;
     }
 
+<<<<<<< HEAD
+    // Check Unsubscribe Filter
+    const cleanEmail = (epc.email || '').toLowerCase().trim();
+    const cleanPhone = (epc.whatsapp || '').trim();
+=======
     // Check Automatic Unsubscribe Filter (Never send to EPCs who clicked Unsubscribe)
     const cleanEmail = (epc.email || '').toLowerCase().trim();
+>>>>>>> origin/main
     if (cleanEmail && unsubscribedEmailSet.has(cleanEmail)) {
       excludedCount++;
       continue;
     }
+<<<<<<< HEAD
+    if (cleanPhone && unsubscribedPhoneSet.has(cleanPhone)) {
+      excludedCount++;
+      continue;
+    }
+=======
+>>>>>>> origin/main
 
     // Check Inclusion Criteria (Matches ANY selected group)
     let isIncluded = false;
@@ -165,6 +266,65 @@ const resolveAudience = async (filterConfig = {}) => {
       }
     }
 
+<<<<<<< HEAD
+    // ── Check Industry & Kit Preferences (Section 5 of PRD) ──
+    const pref = prefMap.get(epcIdStr);
+    if (industry_ids && industry_ids.length > 0) {
+      const epcInds = (pref?.selected_industry_ids || []).map(String);
+      const hasInd = industry_ids.some(id => epcInds.includes(String(id)));
+      if (!hasInd) {
+        excludedCount++;
+        continue;
+      }
+    }
+
+    if (subcategory_ids && subcategory_ids.length > 0) {
+      const epcSubs = (pref?.selected_subcategory_ids || []).map(String);
+      const hasSub = subcategory_ids.some(id => epcSubs.includes(String(id)));
+      if (!hasSub) {
+        excludedCount++;
+        continue;
+      }
+    }
+
+    if (kit_ids && kit_ids.length > 0) {
+      const epcKits = (pref?.selected_kit_ids || []).map(String);
+      const hasKit = kit_ids.some(id => epcKits.includes(String(id)));
+      if (!hasKit) {
+        excludedCount++;
+        continue;
+      }
+    }
+
+    // ── Check Marketing Consent (Section 4 & 7 of PRD) ──
+    const consent = consentMap.get(epcIdStr);
+    const hasEmailConsent = Boolean(
+      (consent && consent.email_consent) || (pref && pref.email_marketing_consent)
+    );
+    const hasWhatsappConsent = Boolean(
+      (consent && consent.whatsapp_consent) || (pref && pref.whatsapp_marketing_consent)
+    );
+
+    if (hasEmailConsent) emailConsentedCount++;
+    if (hasWhatsappConsent) whatsappConsentedCount++;
+
+    if (require_consent && channel) {
+      if (channel === 'email' && !hasEmailConsent) {
+        excludedCount++;
+        continue;
+      }
+      if (channel === 'whatsapp' && !hasWhatsappConsent) {
+        excludedCount++;
+        continue;
+      }
+      if (channel === 'both' && !hasEmailConsent && !hasWhatsappConsent) {
+        excludedCount++;
+        continue;
+      }
+    }
+
+=======
+>>>>>>> origin/main
     // Store in deduplicated map
     eligibleMap.set(epcIdStr, {
       epc_id: epc._id,
@@ -175,6 +335,11 @@ const resolveAudience = async (filterConfig = {}) => {
       district_name: epc.district_name || '',
       is_verified: isVerified,
       is_buyer: isBuyer,
+<<<<<<< HEAD
+      has_email_consent: hasEmailConsent,
+      has_whatsapp_consent: hasWhatsappConsent,
+=======
+>>>>>>> origin/main
       status: 'queued'
     });
   }
@@ -185,7 +350,15 @@ const resolveAudience = async (filterConfig = {}) => {
     total_eligible: recipients.length,
     total_excluded: excludedCount,
     sample_preview: recipients.slice(0, 8),
+<<<<<<< HEAD
+    recipients,
+    consent_breakdown: {
+      email_consented: emailConsentedCount,
+      whatsapp_consented: whatsappConsentedCount
+    }
+=======
     recipients
+>>>>>>> origin/main
   };
 };
 

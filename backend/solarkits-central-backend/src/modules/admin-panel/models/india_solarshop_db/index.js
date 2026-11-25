@@ -15,6 +15,10 @@ const ComboBundleMaster = require('./combo_bundle_masters.schema');
 const ComboKitVariant = require('./combo_kit_variants.schema');
 const PincodeDeliveryCost = require('./pincode_delivery_costs.schema');
 const BestSellerKit = require('./best_seller_kits.schema');
+<<<<<<< HEAD
+const GovtTenderKit = require('./govt_tender_kits.schema');
+=======
+>>>>>>> origin/main
 const LooseOrderSettings = require('./loose_order_settings.schema');
 
 // --- Phase 1: Reseller Management Masters ---
@@ -153,6 +157,10 @@ module.exports = {
   ComboKitVariant,
   PincodeDeliveryCost,
   BestSellerKit,
+<<<<<<< HEAD
+  GovtTenderKit,
+=======
+>>>>>>> origin/main
   LooseOrderSettings,
   // --- Phase 1: Reseller Management Masters ---
   ResellerType,
@@ -286,5 +294,9 @@ module.exports = {
  
  
   TrialKitProcurement: require('./trial_kit_procurements.schema'),
+<<<<<<< HEAD
+ 
+=======
   TrialKitFeedbackConfig: require('./trial_kit_feedback_configs.schema'),
+>>>>>>> origin/main
 };

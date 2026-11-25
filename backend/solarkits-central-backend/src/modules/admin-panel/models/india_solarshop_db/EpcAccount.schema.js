@@ -65,6 +65,13 @@ schema.index({ gstin: 1 }, { sparse: true });
 schema.index({ security_pin: 1 }, { sparse: true });
 schema.index({ primary_reseller_id: 1, deleted_at: 1 });
 schema.index({ onboarded_by_reseller_id: 1, deleted_at: 1 });
+<<<<<<< HEAD
+schema.index({ status: 1, deleted_at: 1 });
+schema.index({ email: 1, deleted_at: 1 });
+schema.index({ whatsapp: 1, deleted_at: 1 });
+schema.index({ created_at: -1 });
+=======
+>>>>>>> origin/main
 
 schema.virtual('id').get(function () { return this._id; });
 module.exports = db.model('epc_accounts', schema);

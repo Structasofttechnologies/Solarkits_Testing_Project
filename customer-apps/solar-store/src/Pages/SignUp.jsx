@@ -10,6 +10,10 @@ import IconButton from "../Components/IconButton";
 import DropdownWithSearchInput from "../Components/DropdownWithSearchInput";
 import OTPInput from "../Components/OTPInput";
 import { setAlert } from "../features/alert.slice";
+<<<<<<< HEAD
+import { getStorePolicies } from "../services/storeLandingService";
+=======
+>>>>>>> origin/main
 
 // Create axios instance with base URL
 const api = axios.create({
@@ -75,6 +79,23 @@ export default function SignUp() {
   const [isVerified, setIsVerified] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [verificationAttempted, setVerificationAttempted] = useState(false);
+<<<<<<< HEAD
+  const [verifyingGst, setVerifyingGst] = useState(false);
+  const [gstVerifyStatus, setGstVerifyStatus] = useState(null);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [dynamicTermsPolicy, setDynamicTermsPolicy] = useState(null);
+
+  useEffect(() => {
+    getStorePolicies()
+      .then((policies) => {
+        if (policies?.terms_of_service) {
+          setDynamicTermsPolicy(policies.terms_of_service);
+        }
+      })
+      .catch((err) => console.warn("Could not load dynamic terms policy for signup:", err));
+  }, []);
+=======
+>>>>>>> origin/main
 
   const [formData, setFormData] = useState({
     // Step 1 - Basic Info
@@ -98,6 +119,12 @@ export default function SignUp() {
     password: "",
     confirmPassword: "",
     agreeToTerms: [],
+<<<<<<< HEAD
+    emailMarketingConsent: false,
+    whatsappMarketingConsent: false,
+    agreeToUserPolicy: false,
+=======
+>>>>>>> origin/main
   });
 
   const [errors, setErrors] = useState({});
@@ -386,6 +413,16 @@ export default function SignUp() {
 
   // Handle email selection
   const handleEmailChange = (selectedEmail) => {
+<<<<<<< HEAD
+    const cleanEmail = (selectedEmail || '').toLowerCase().replace(/\s+/g, '');
+    setFormData(prev => ({
+      ...prev,
+      epcEmail: cleanEmail
+    }));
+
+    if (cleanEmail && selectedEpcName && groupedEpcs[selectedEpcName]) {
+      const selectedEpc = groupedEpcs[selectedEpcName].find(epc => (epc.email || '').toLowerCase() === cleanEmail);
+=======
     setFormData(prev => ({
       ...prev,
       epcEmail: selectedEmail
@@ -393,6 +430,7 @@ export default function SignUp() {
 
     if (selectedEmail && selectedEpcName && groupedEpcs[selectedEpcName]) {
       const selectedEpc = groupedEpcs[selectedEpcName].find(epc => epc.email === selectedEmail);
+>>>>>>> origin/main
       if (selectedEpc) {
         setSelectedEpcData(selectedEpc);
         setFormData(prev => ({
@@ -408,6 +446,61 @@ export default function SignUp() {
     }
   };
 
+<<<<<<< HEAD
+  // Quick eKYC GST Verification handler
+  const handleVerifyGstin = async () => {
+    const cleanGst = (formData.gstin || '').trim().toUpperCase().replace(/\s+/g, '');
+    if (!cleanGst || cleanGst.length !== 15) {
+      dispatch(setAlert({
+        type: "error",
+        message: "Please enter a valid 15-character alphanumeric GSTIN first"
+      }));
+      return;
+    }
+
+    setVerifyingGst(true);
+    setGstVerifyStatus(null);
+    try {
+      const response = await api.post('/india/v1/auth/verify-gst', { gstin: cleanGst });
+      const resData = response.data?.data || {};
+      if (response.data?.is_valid || response.data?.success) {
+        setGstVerifyStatus({
+          valid: true,
+          trade_name: resData.trade_name || resData.legal_name || 'Verified Active',
+          message: 'GSTIN successfully verified with Quick eKYC'
+        });
+        dispatch(setAlert({
+          type: "success",
+          message: `GSTIN verified: ${resData.trade_name || resData.legal_name || 'Active'}`
+        }));
+      } else {
+        const errorMsg = resData.error_message || response.data?.message || 'GSTIN verification failed';
+        setGstVerifyStatus({
+          valid: false,
+          message: errorMsg
+        });
+        dispatch(setAlert({
+          type: "warning",
+          message: `GST Notice: ${errorMsg}`
+        }));
+      }
+    } catch (err) {
+      const errText = err.response?.data?.message || err.message || 'Quick eKYC verification request failed';
+      setGstVerifyStatus({
+        valid: false,
+        message: errText
+      });
+      dispatch(setAlert({
+        type: "error",
+        message: `GST Verification Notice: ${errText}`
+      }));
+    } finally {
+      setVerifyingGst(false);
+    }
+  };
+
+=======
+>>>>>>> origin/main
   // Handle district selection
   const handleDistrictChange = (selectedDistrictId) => {
     const selectedDistrict = districts.find(d => (d.id || d._id).toString() === selectedDistrictId.toString());
@@ -436,9 +529,27 @@ export default function SignUp() {
         [name]: checked ? [value] : []
       }));
     } else {
+<<<<<<< HEAD
+      let cleanedValue = value;
+      // Strict Email validation: Always lowercase, strictly remove all spaces/gaps
+      if (name === "epcEmail") {
+        cleanedValue = value.toLowerCase().replace(/\s+/g, '');
+      } else if (name === "gstin") {
+        // GSTIN: Always uppercase, strictly remove all spaces/gaps
+        cleanedValue = value.toUpperCase().replace(/\s+/g, '');
+        if (gstVerifyStatus) setGstVerifyStatus(null);
+      } else if (name === "registeredNumber" || name === "whatsappNumber") {
+        // Phone numbers: Only digits, max 10 digits
+        cleanedValue = value.replace(/\D/g, '').slice(0, 10);
+      }
+      setFormData(prev => ({
+        ...prev,
+        [name]: cleanedValue
+=======
       setFormData(prev => ({
         ...prev,
         [name]: value
+>>>>>>> origin/main
       }));
     }
   };
@@ -686,9 +797,21 @@ export default function SignUp() {
     setLoading(prev => ({ ...prev, resendOtp: true }));
 
     try {
+<<<<<<< HEAD
+      const whatsappTarget = formData.whatsappNumber || formData.registeredNumber;
+      const response = await api.post('/india/v1/auth/resend-otp', {
+        email: formData.epcEmail,
+        whatsapp: whatsappTarget,
+        registered_whatsapp: formData.registeredNumber || whatsappTarget,
+        registered_number: formData.registeredNumber,
+        use_same_whatsapp: useSameWhatsapp,
+        use_registered_as_whatsapp: useSameWhatsapp,
+        user_type: userType
+=======
       const response = await api.post('/india/v1/auth/resend-otp', {
         email: formData.epcEmail,
         whatsapp: formData.whatsappNumber
+>>>>>>> origin/main
       });
 
       if (type === 'email') {
@@ -742,13 +865,23 @@ export default function SignUp() {
         name: formData.epcName,
         email: formData.epcEmail,
         password: formData.password,
+<<<<<<< HEAD
+        pin: formData.password,
+=======
+>>>>>>> origin/main
         user_type: userType,
         use_same_whatsapp: useSameWhatsapp,
         state: formData.stateId,
         district: formData.districtId,
         company_id: formData.epcId || null,
         company_name: isCustomEpc ? formData.customEpcName : null,
+<<<<<<< HEAD
+        gstin: formData.gstin ? formData.gstin.trim().toUpperCase() : null,
+        email_marketing_consent: Boolean(formData.emailMarketingConsent),
+        whatsapp_marketing_consent: Boolean(formData.whatsappMarketingConsent)
+=======
         gstin: formData.gstin ? formData.gstin.trim().toUpperCase() : null
+>>>>>>> origin/main
       };
 
       if (userType === "predefined") {
@@ -814,6 +947,14 @@ export default function SignUp() {
       }
 
       // Manual EPC specific validations
+<<<<<<< HEAD
+      // GSTIN Validation (Optional for New / Custom EPC)
+      if (formData.gstin?.trim()) {
+        if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(formData.gstin.trim())) {
+          newErrors.gstin = "Please enter a valid 15-character GSTIN (e.g. 24AAAAA0000A1Z5)";
+          isValid = false;
+        }
+=======
       // GSTIN Validation (Mandatory for New / Custom EPC)
       if (!formData.gstin?.trim()) {
         newErrors.gstin = "GSTIN is mandatory for new EPC registration";
@@ -821,6 +962,7 @@ export default function SignUp() {
       } else if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(formData.gstin.trim())) {
         newErrors.gstin = "Please enter a valid 15-character GSTIN (e.g. 24AAAAA0000A1Z5)";
         isValid = false;
+>>>>>>> origin/main
       }
 
       if (!formData.registeredNumber?.trim()) {
@@ -867,6 +1009,14 @@ export default function SignUp() {
       isValid = false;
     }
 
+<<<<<<< HEAD
+    if (!formData.agreeToUserPolicy) {
+      newErrors.agreeToUserPolicy = "Please accept the SolarKits User Policy & Terms of Service to continue";
+      isValid = false;
+    }
+
+=======
+>>>>>>> origin/main
     setErrors(newErrors);
 
     if (!isValid) {
@@ -1353,6 +1503,60 @@ export default function SignUp() {
                                 OTP will be sent to {formData.registeredNumber}
                               </div>
                             )}
+<<<<<<< HEAD
+
+                            {/* Optional GSTIN Input for Custom EPC with Quick eKYC Verification */}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-text-primary">
+                                  GSTIN (Optional)
+                                </label>
+                                {formData.gstin?.trim()?.length === 15 && (
+                                  <button
+                                    type="button"
+                                    onClick={handleVerifyGstin}
+                                    disabled={verifyingGst}
+                                    className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline cursor-pointer disabled:opacity-50"
+                                  >
+                                    {verifyingGst ? "Verifying with Quick eKYC..." : "⚡ Verify with Quick eKYC"}
+                                  </button>
+                                )}
+                              </div>
+                              <CustomInput
+                                name="gstin"
+                                placeholder="Enter 15-character GSTIN if available (Optional)"
+                                value={formData.gstin}
+                                onChange={handleInputChange}
+                                type="text"
+                                maxLength={15}
+                                className={errors.gstin ? "border-danger" : ""}
+                              />
+
+                              {/* Quick eKYC Verification Status Banner */}
+                              {gstVerifyStatus && (
+                                <div className={`p-2.5 rounded-lg border text-xs flex items-start justify-between gap-2 ${
+                                  gstVerifyStatus.valid
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
+                                    : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
+                                }`}>
+                                  <div>
+                                    <span className="font-bold block">
+                                      {gstVerifyStatus.valid ? `✓ Quick eKYC Verified` : `ℹ️ Quick eKYC Notice`}
+                                    </span>
+                                    <span className="text-[11px] leading-tight block mt-0.5">
+                                      {gstVerifyStatus.trade_name ? `Trade: ${gstVerifyStatus.trade_name}` : gstVerifyStatus.message}
+                                    </span>
+                                  </div>
+                                  <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border shrink-0 ${
+                                    gstVerifyStatus.valid ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300'
+                                  }`}>
+                                    {gstVerifyStatus.valid ? 'Verified' : 'Manual Review'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+=======
+>>>>>>> origin/main
                           </div>
                         )}
                       </div>
@@ -1399,6 +1603,75 @@ export default function SignUp() {
                       )}
                     </div>
 
+<<<<<<< HEAD
+                    {/* Step 1 Marketing Communication Consent (Optional Unified Checkbox) */}
+                    <div className="mt-4 p-3.5 rounded-xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-950/20 space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <FiMail className="text-blue-600 dark:text-blue-400" size={16} />
+                        <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider">
+                          Marketing Communication Preferences (Optional)
+                        </h4>
+                      </div>
+                      <p className="text-[11px] text-text-secondary leading-relaxed">
+                        Choose how SOLARKITS may contact you about kit discounts, special offers, new launch alerts, and promotional campaigns.
+                      </p>
+
+                      <div className="pt-1">
+                        <label className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(formData.emailMarketingConsent && formData.whatsappMarketingConsent)}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setFormData((prev) => ({
+                                ...prev,
+                                emailMarketingConsent: checked,
+                                whatsappMarketingConsent: checked
+                              }));
+                            }}
+                            className="mt-0.5 w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="text-xs text-text-primary leading-tight">
+                            I agree to receive <strong>promotional solar kit offers, special wholesale discounts, warehouse launch alerts, and marketing campaigns</strong> via WhatsApp & Email.
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Step 1 User Policy & Terms Checkbox */}
+                    <div className="mt-3">
+                      <label className="flex items-start gap-2.5 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 hover:border-slate-300 transition-colors cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={formData.agreeToUserPolicy}
+                          onChange={(e) => {
+                            setFormData((prev) => ({ ...prev, agreeToUserPolicy: e.target.checked }));
+                            if (errors.agreeToUserPolicy) setErrors((prev) => ({ ...prev, agreeToUserPolicy: "" }));
+                          }}
+                          className="mt-0.5 w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="text-xs text-text-primary leading-tight">
+                          I have read and agree to the{" "}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowPolicyModal(true);
+                            }}
+                            className="text-blue-600 dark:text-blue-400 font-bold underline hover:text-blue-700 inline cursor-pointer"
+                          >
+                            SolarKits User Policy & Terms of Service
+                          </button>
+                        </span>
+                      </label>
+                      {errors.agreeToUserPolicy && (
+                        <p className="text-xs text-danger mt-1">{errors.agreeToUserPolicy}</p>
+                      )}
+                    </div>
+
+=======
+>>>>>>> origin/main
                     <div className="mt-6">
                       <Button
                         type="submit"
@@ -1656,6 +1929,54 @@ export default function SignUp() {
                       </div>
                     </div>
 
+<<<<<<< HEAD
+                    {/* Marketing Communication Preferences Module (Optional) */}
+                    <div className="bg-blue-50/60 dark:bg-slate-800/60 border border-blue-200 dark:border-slate-700 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-blue-900 dark:text-blue-300">
+                        <FiMail className="text-blue-600" />
+                        <span>Marketing Communication Preferences</span>
+                      </div>
+                      <p className="text-xs text-text-secondary leading-relaxed">
+                        Choose how SOLARKITS may contact you about kit discounts, special offers, new launch alerts, and promotional campaigns.
+                      </p>
+
+                      <div className="space-y-2 pt-1">
+                        <label className="flex items-start gap-2.5 p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer select-none border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={formData.emailMarketingConsent}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, emailMarketingConsent: e.target.checked }))
+                            }
+                            className="mt-0.5 w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="text-xs text-text-primary leading-tight">
+                            I agree to receive <strong>promotional emails</strong> from SOLARKITS about relevant solar kits, special discounts, product updates and marketing campaigns.
+                          </span>
+                        </label>
+
+                        <label className="flex items-start gap-2.5 p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer select-none border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={formData.whatsappMarketingConsent}
+                            onChange={(e) =>
+                              setFormData((prev) => ({ ...prev, whatsappMarketingConsent: e.target.checked }))
+                            }
+                            className="mt-0.5 w-4 h-4 rounded text-emerald-600 border-gray-300 focus:ring-emerald-500 cursor-pointer"
+                          />
+                          <span className="text-xs text-text-primary leading-tight">
+                            I agree to receive <strong>promotional WhatsApp messages</strong> from SOLARKITS about relevant solar kits, special discounts, product updates and marketing campaigns.
+                          </span>
+                        </label>
+                      </div>
+
+                      <p className="text-[11px] text-text-secondary italic border-t border-blue-100 dark:border-slate-700 pt-2">
+                        You can change your preferences or withdraw consent at any time. Consent is optional and is not required to register or use the SOLARKITS Store.
+                      </p>
+                    </div>
+
+=======
+>>>>>>> origin/main
                     <div className="space-y-1">
                       <CustomInput
                         name="agreeToTerms"
@@ -1696,6 +2017,99 @@ export default function SignUp() {
           </div>
         </div>
       </div>
+<<<<<<< HEAD
+
+      {/* User Policy & Operating Terms Modal */}
+      {showPolicyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <h3 className="font-bold text-base text-text-primary">
+                {dynamicTermsPolicy?.title || "SolarKits – EPC Partner User Policy & Operating Terms"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowPolicyModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer text-lg p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4 text-xs text-text-secondary leading-relaxed">
+              <div className="p-3 rounded-lg bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 text-blue-950 dark:text-blue-200">
+                {dynamicTermsPolicy?.notice_box || (
+                  <span>
+                    <strong>Welcome to SolarKits India.</strong> Please review the operating policies governing EPC buyer accounts, procurement terms, and communication guidelines below.
+                  </span>
+                )}
+              </div>
+
+              {dynamicTermsPolicy?.sections && dynamicTermsPolicy.sections.length > 0 ? (
+                dynamicTermsPolicy.sections.map((sec, idx) => (
+                  <div key={sec.id || idx}>
+                    <h4 className="font-bold text-text-primary text-sm mb-1">{sec.heading}</h4>
+                    <p style={{ whiteSpace: "pre-line" }}>{sec.content}</p>
+                  </div>
+                ))
+              ) : (
+                <>
+                  <div>
+                    <h4 className="font-bold text-text-primary text-sm mb-1">1. EPC Partner Eligibility & KYC</h4>
+                    <p>
+                      The SolarKits B2B Store is dedicated to authorized solar EPC contractors, system integrators, and installers across India. GSTIN verification ensures eligible pricing tiers and B2B input tax credit pass-through.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-text-primary text-sm mb-1">2. Wholesale Combo Kits & Depot Dispatch</h4>
+                    <p>
+                      All solar combo kits (DCR & Non-DCR, inverters, panels, BOS) are routed directly through designated state clusters and certified regional warehouse depots for rapid regional fulfillment.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-text-primary text-sm mb-1">3. Privacy & Marketing Communications</h4>
+                    <p>
+                      Promotional emails and WhatsApp broadcasts are sent only upon optional consent. EPC partners retain the full right to update preferences or withdraw consent at any time via Account Profile settings.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-text-primary text-sm mb-1">4. Account Security & Verification</h4>
+                    <p>
+                      Your account is secured via dual email and WhatsApp verification and a dedicated 4-digit security PIN. You agree to safeguard your credentials and report any unauthorized access immediately.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/50 rounded-b-2xl">
+              <button
+                type="button"
+                onClick={() => setShowPolicyModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData(prev => ({ ...prev, agreeToUserPolicy: true }));
+                  if (errors.agreeToUserPolicy) setErrors(prev => ({ ...prev, agreeToUserPolicy: "" }));
+                  setShowPolicyModal(false);
+                }}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer shadow-xs"
+              >
+                ✓ I Have Read & Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+=======
+>>>>>>> origin/main
     </div>
   );
 }

@@ -32,6 +32,12 @@ import {
   FiCheck,
   FiChevronDown,
   FiHeart,
+<<<<<<< HEAD
+  FiFileText,
+  FiDollarSign,
+  FiTruck,
+=======
+>>>>>>> origin/main
 } from "react-icons/fi";
 import { FaStore, FaBoxOpen, FaHandshake, FaComments, FaFire, FaBolt, FaSyncAlt } from "react-icons/fa";
 import axios from "axios";
@@ -298,10 +304,137 @@ const DEFAULT_SOLAR_STORE_STATE = {
       label: "",
     },
   },
+<<<<<<< HEAD
+  policies: {
+    privacy_policy: {
+      title: "Privacy Policy",
+      last_updated: "August 2026",
+      notice_box: "Important Platform Note: Solarkits.in operates strictly as an E-Commerce Supply Marketplace for solar panels, combo kits, BOS equipment, and solar products. We DO NOT provide on-site installation, EPC engineering, or labor services. All products are supplied directly to your delivery address for independent assembly or local installation.",
+      sections: [
+        {
+          id: 1,
+          heading: "1. Information We Collect",
+          content: "We collect information you provide directly to us when placing an order, requesting technical single line diagrams, registering for an account, or communicating with our support desk. This includes your name, delivery address, pincode, billing details, GSTIN (for B2B buyers), email address, and phone number.",
+        },
+        {
+          id: 2,
+          heading: "2. How We Use Your Information",
+          content: "We use the collected information to process and dispatch equipment shipments, provide real-time transit insurance tracking, generate official GST tax invoices, assist with PM Surya Ghar ALMM documentation, and provide product warranty replacement support.",
+        },
+        {
+          id: 3,
+          heading: "3. Data Security & Protection",
+          content: "We implement industry-standard 256-bit SSL encryption, tokenized payment processing through certified PCI-DSS gateways, and strict access controls. We never sell or rent your personal information to third-party advertisers.",
+        },
+        {
+          id: 4,
+          heading: "4. Cookies & Analytics",
+          content: "We use cookies to maintain your shopping cart, remember your regional warehouse preferences, and analyze site performance to optimize kit loading speeds and user experience.",
+        },
+        {
+          id: 5,
+          heading: "5. Contacting Our Data Privacy Officer",
+          content: "If you have questions or requests regarding your personal data or privacy rights, please reach out to privacy@solarkits.in or contact our headquarters at SolarKits Tech Hub, Pune.",
+        },
+      ],
+    },
+    terms_of_service: {
+      title: "Terms of Service & User Policy",
+      last_updated: "August 2026",
+      notice_box: "CRITICAL SERVICE DISCLAIMER: Solarkits.in is strictly an Online E-Commerce Product Supply Platform. We sell and deliver solar panels, solar combo kits, BOS components, and accessories across India. Solarkits DOES NOT offer, undertake, or provide installation services, EPC labor, on-site mounting, or maintenance. Product installation must be arranged independently by the customer or qualified local technicians.",
+      sections: [
+        {
+          id: 1,
+          heading: "1. E-Commerce Platform & Order Acceptance",
+          content: "Solarkits.in enables retail and wholesale customers to browse, customize, and buy solar panels and equipment online. By placing an order on Solarkits.in, you agree that you are purchasing physical solar goods for independent usage or installation.",
+        },
+        {
+          id: 2,
+          heading: "2. Product Quality & Manufacturer Warranties",
+          content: "All Tier-1 solar panels, grid-tied/hybrid inverters, solar pump controllers, and BOS components sold on Solarkits.in carry authentic manufacturer warranties and conform to Bureau of Indian Standards (BIS) and MNRE guidelines. Solarkits passes all original manufacturer warranties directly to the buyer.",
+        },
+        {
+          id: 3,
+          heading: "3. Pricing, GST Invoicing, & Payments",
+          content: "Prices displayed include GST where specified. Official GST tax invoices will be issued upon dispatch. Orders are confirmed upon payment verification through approved online payment gateways or verified bank wire transfers.",
+        },
+        {
+          id: 4,
+          heading: "4. Exclusion of Installation Liability",
+          content: "Because Solarkits operates exclusively as a product supply e-commerce marketplace: SolarKits is not responsible for installation workmanship, rooftop structural modifications, or electrical wiring conducted by third parties. Local DISCOM net-metering applications, approvals, or rooftop structural safety certificates remain the responsibility of the customer/installer. Warranties cover product manufacturing defects only as defined by respective brand manufacturers.",
+        },
+        {
+          id: 5,
+          heading: "5. Contact Support",
+          content: "For questions about these terms or product inquiries, contact our customer support desk at support@solarkits.in or call +91 77779 39842.",
+        },
+      ],
+    },
+    refund_policy: {
+      title: "Refund & Cancellation Policy",
+      last_updated: "August 2026",
+      notice_box: "Cancellation & Transit Inspection Notice: Orders can be cancelled free of charge prior to warehouse pallet dispatch. Due to heavy freight logistics, please inspect all pallets and crated solar panels upon arrival before signing the transporter proof of delivery (POD).",
+      sections: [
+        {
+          id: 1,
+          heading: "1. Order Cancellation Window",
+          content: "You may cancel your order for a 100% full refund at any time before your shipment leaves our regional logistics warehouse (typically within 24 hours of order placement). Once dispatched and handed to heavy freight carriers, cancellations incur nominal two-way freight charges.",
+        },
+        {
+          id: 2,
+          heading: "2. Transit Damage & Dead On Arrival (DOA)",
+          content: "All shipments carry comprehensive transit insurance. If you receive crates or panels with visible transit damage, note the damage on the carrier POD and notify our support desk with photos within 48 hours. We will immediately dispatch free unit replacements.",
+        },
+        {
+          id: 3,
+          heading: "3. Return Eligibility",
+          content: "Unopened components in their original factory packaging can be returned within 7 days of delivery. Custom-cut DC solar cables or specially fabricated mounting structures are non-returnable once dispatched.",
+        },
+        {
+          id: 4,
+          heading: "4. Refund Processing Timelines",
+          content: "Approved refunds are processed to your original payment method (bank account, credit card, or UPI) within 5 to 7 business days following inspection of returned items at our central hub.",
+        },
+      ],
+    },
+    shipping_policy: {
+      title: "Shipping & Delivery Policy",
+      last_updated: "August 2026",
+      notice_box: "Pan-India Logistics: We deliver solar kits and heavy panels to over 18,000 pincodes across India using specialized heavy surface cargo with transit insurance coverage.",
+      sections: [
+        {
+          id: 1,
+          heading: "1. Dispatch Timelines",
+          content: "In-stock solar combo kits and components are dispatched from our nearest regional warehouse hub within 24 to 48 hours of order payment confirmation.",
+        },
+        {
+          id: 2,
+          heading: "2. Transit Duration Across India",
+          content: "Tier-1 Cities & Metro Hubs: 2 - 4 Business Days. Tier-2 / Tier-3 Districts: 4 - 7 Business Days. Remote Farmlands & North-East / Hilly Regions: 7 - 10 Business Days.",
+        },
+        {
+          id: 3,
+          heading: "3. Transit Insurance & Freight Inspection",
+          content: "Every single pallet and crate dispatched by Solarkits is 100% insured against loss, theft, and physical transit damage. Customers must inspect wooden crates and outer strapping before signing the delivery receipt.",
+        },
+        {
+          id: 4,
+          heading: "4. Heavy Freight Unloading & Direct Site Access",
+          content: "Commercial solar freight is transported via 14ft/19ft container vehicles. Delivery is made to ground level or accessible road frontage. On-site movement or rooftop lifting must be arranged locally.",
+        },
+      ],
+    },
+  },
+=======
+>>>>>>> origin/main
 };
 
 export default function SolarStoreWebsite() {
   const [activeTab, setActiveTab] = useState("hero");
+<<<<<<< HEAD
+  const [activePolicyTab, setActivePolicyTab] = useState("privacy_policy");
+=======
+>>>>>>> origin/main
   const [sections, setSections] = useState(DEFAULT_SOLAR_STORE_STATE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -309,6 +442,60 @@ export default function SolarStoreWebsite() {
   const [uploadingSlideIdx, setUploadingSlideIdx] = useState(null);
   const [uploadingGlobalBg, setUploadingGlobalBg] = useState(false);
 
+<<<<<<< HEAD
+  // ── Policy Clause Helpers ──────────────────────────────────────────────────
+  const handleAddPolicyClause = (policyKey) => {
+    const newClause = {
+      id: Date.now(),
+      heading: "New Policy Clause",
+      content: "Detailed clause and policy explanation content.",
+    };
+    setSections((prev) => ({
+      ...prev,
+      policies: {
+        ...prev.policies,
+        [policyKey]: {
+          ...prev.policies?.[policyKey],
+          sections: [...(prev.policies?.[policyKey]?.sections || []), newClause],
+        },
+      },
+    }));
+  };
+
+  const handleUpdatePolicyClause = (policyKey, idx, field, val) => {
+    setSections((prev) => {
+      const currentList = [...(prev.policies?.[policyKey]?.sections || [])];
+      if (currentList[idx]) {
+        currentList[idx] = { ...currentList[idx], [field]: val };
+      }
+      return {
+        ...prev,
+        policies: {
+          ...prev.policies,
+          [policyKey]: {
+            ...prev.policies?.[policyKey],
+            sections: currentList,
+          },
+        },
+      };
+    });
+  };
+
+  const handleDeletePolicyClause = (policyKey, idx) => {
+    setSections((prev) => ({
+      ...prev,
+      policies: {
+        ...prev.policies,
+        [policyKey]: {
+          ...prev.policies?.[policyKey],
+          sections: (prev.policies?.[policyKey]?.sections || []).filter((_, i) => i !== idx),
+        },
+      },
+    }));
+  };
+
+=======
+>>>>>>> origin/main
   // ── Best Seller Matrix & Catalog Kits Integration ──────────────────────────
   const [bestSellerKits, setBestSellerKits] = useState([]);
   const [loadingBestSellers, setLoadingBestSellers] = useState(false);
@@ -1255,7 +1442,11 @@ export default function SolarStoreWebsite() {
       )}
 
       {/* Section Navigation Tabs */}
+<<<<<<< HEAD
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+=======
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+>>>>>>> origin/main
         {[
           { id: "hero", label: "1. Hero Slides", icon: <FiMonitor /> },
           { id: "categories", label: "2. Categories", icon: <FaBoxOpen /> },
@@ -1264,6 +1455,10 @@ export default function SolarStoreWebsite() {
           { id: "brands", label: "5. Brands", icon: <FaHandshake /> },
           { id: "testimonials", label: "6. Reviews", icon: <FaComments /> },
           { id: "footer", label: "7. Footer & Desk", icon: <FiPhone /> },
+<<<<<<< HEAD
+          { id: "policies", label: "8. Legal & Policies", icon: <FiShield /> },
+=======
+>>>>>>> origin/main
         ].map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -3253,6 +3448,212 @@ export default function SolarStoreWebsite() {
           </div>
         </div>
       )}
+<<<<<<< HEAD
+
+      {/* ── Tab 8: Legal & Policy Pages (Privacy, Terms, Refund, Shipping) ──── */}
+      {activeTab === "policies" && (
+        <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm space-y-6">
+          <div className="border-b border-border pb-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
+                <FiShield className="text-emerald-500" size={20} />
+                <span>Legal & Policy Pages CMS</span>
+              </h3>
+              <p className="text-xs text-text-secondary mt-0.5">
+                Manage Privacy Policy, Terms of Service, Refund Policy, and Shipping Policy clauses directly from Admin Panel.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleAddPolicyClause(activePolicyTab)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-white hover:opacity-95 font-bold text-xs shadow-sm transition-all cursor-pointer"
+            >
+              <FiPlus /> Add Policy Clause
+            </button>
+          </div>
+
+          {/* Sub-Tabs for the 4 Policy Pages */}
+          <div className="flex gap-2 p-1.5 bg-surface-hover border border-border rounded-xl flex-wrap">
+            {[
+              { id: "privacy_policy", label: "Privacy Policy", icon: <FiShield /> },
+              { id: "terms_of_service", label: "User Policy & Terms", icon: <FiFileText /> },
+              { id: "refund_policy", label: "Refund & Cancellation", icon: <FiDollarSign /> },
+              { id: "shipping_policy", label: "Shipping & Delivery", icon: <FiTruck /> },
+            ].map((pTab) => (
+              <button
+                key={pTab.id}
+                onClick={() => setActivePolicyTab(pTab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  activePolicyTab === pTab.id
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                <span>{pTab.icon}</span>
+                <span>{pTab.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Active Policy Page Form */}
+          {(() => {
+            const curPolicy = sections.policies?.[activePolicyTab] || {};
+            return (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-surface-hover border border-border">
+                  <div>
+                    <label className="text-[10px] font-bold text-text-secondary uppercase block mb-1">
+                      Policy Page Title
+                    </label>
+                    <input
+                      type="text"
+                      value={curPolicy.title || ""}
+                      onChange={(e) =>
+                        setSections((prev) => ({
+                          ...prev,
+                          policies: {
+                            ...prev.policies,
+                            [activePolicyTab]: {
+                              ...prev.policies?.[activePolicyTab],
+                              title: e.target.value,
+                            },
+                          },
+                        }))
+                      }
+                      className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-xs font-bold text-text-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-text-secondary uppercase block mb-1">
+                      Last Updated Subtitle
+                    </label>
+                    <input
+                      type="text"
+                      value={curPolicy.last_updated || ""}
+                      onChange={(e) =>
+                        setSections((prev) => ({
+                          ...prev,
+                          policies: {
+                            ...prev.policies,
+                            [activePolicyTab]: {
+                              ...prev.policies?.[activePolicyTab],
+                              last_updated: e.target.value,
+                            },
+                          },
+                        }))
+                      }
+                      placeholder="e.g. August 2026"
+                      className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-xs text-text-secondary"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="text-[10px] font-bold text-text-secondary uppercase block mb-1">
+                      Top Regulatory Notice / Important Disclaimer Banner
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={curPolicy.notice_box || ""}
+                      onChange={(e) =>
+                        setSections((prev) => ({
+                          ...prev,
+                          policies: {
+                            ...prev.policies,
+                            [activePolicyTab]: {
+                              ...prev.policies?.[activePolicyTab],
+                              notice_box: e.target.value,
+                            },
+                          },
+                        }))
+                      }
+                      className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-xs text-amber-800 bg-amber-50/50 resize-none font-medium"
+                    />
+                  </div>
+                </div>
+
+                {/* Clauses List */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">
+                      Policy Sections & Clauses ({curPolicy.sections?.length || 0})
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => handleAddPolicyClause(activePolicyTab)}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-bold shadow-xs cursor-pointer"
+                    >
+                      <FiPlus size={14} /> Add Clause
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {(curPolicy.sections || []).map((clause, cIdx) => (
+                      <div
+                        key={clause.id || cIdx}
+                        className="p-4 rounded-xl border border-border bg-surface shadow-xs space-y-3 relative group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-text-secondary bg-surface-hover px-2.5 py-0.5 rounded-md">
+                            Clause #{cIdx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePolicyClause(activePolicyTab, cIdx)}
+                            className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                            title="Delete Clause"
+                          >
+                            <FiTrash2 size={16} />
+                          </button>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-text-secondary block mb-1">
+                            Clause Heading
+                          </label>
+                          <input
+                            type="text"
+                            value={clause.heading || ""}
+                            onChange={(e) =>
+                              handleUpdatePolicyClause(activePolicyTab, cIdx, "heading", e.target.value)
+                            }
+                            className="w-full px-3 py-2 bg-surface-hover border border-border rounded-lg text-xs font-bold text-text-primary"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-text-secondary block mb-1">
+                            Clause Legal Content / Explanation
+                          </label>
+                          <textarea
+                            rows={4}
+                            value={clause.content || ""}
+                            onChange={(e) =>
+                              handleUpdatePolicyClause(activePolicyTab, cIdx, "content", e.target.value)
+                            }
+                            className="w-full px-3 py-2 bg-surface-hover border border-border rounded-lg text-xs text-text-secondary resize-none leading-relaxed"
+                          />
+                        </div>
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => handleAddPolicyClause(activePolicyTab)}
+                      className="w-full p-4 rounded-xl border-2 border-dashed border-primary/40 hover:border-primary bg-primary/5 hover:bg-primary/10 flex items-center justify-center gap-2 text-primary font-bold text-xs transition-all cursor-pointer"
+                    >
+                      <FiPlus size={16} />
+                      <span>+ Add Another Policy Clause to {curPolicy.title}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+=======
+>>>>>>> origin/main
     </div>
   );
 }

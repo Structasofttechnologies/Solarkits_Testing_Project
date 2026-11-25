@@ -1,3 +1,112 @@
+<<<<<<< HEAD
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  Type, Heading1, Image as ImageIcon, Video, ShoppingBag, LayoutGrid, Tag, MousePointer,
+  Minus, Share2, AlignLeft, Link2, Variable, Sparkles, Smartphone, Monitor,
+  Plus, Trash2, X, Check, ExternalLink, Play, Smile, Phone, Layers, ShieldCheck,
+  ArrowUp, ArrowDown, Bookmark, Save, MoveVertical, RefreshCw, CheckCircle2,
+  GripVertical, ChevronsUp, ChevronsDown, Lock, ListOrdered, LayoutList, Info,
+  CornerDownRight, SlidersHorizontal, ArrowUpDown
+} from 'lucide-react';
+import {
+  DEFAULT_EXECUTIVE_CREATIVE,
+  PURPOSE_BASED_PRESETS,
+  DEFAULT_EMAIL_SECTIONS,
+  DEFAULT_SECTIONS_ORDER
+} from '../services/emailTemplateGenerator';
+
+// Rich Section Metadata with intuitive icons, color coding, and editor anchors
+const SECTION_METADATA_MAP = {
+  banner: {
+    id: 'banner',
+    label: 'Hero Media Banner',
+    shortLabel: 'Hero Banner',
+    desc: 'Executive gradient banner, photo, or 45s explainer video',
+    icon: ImageIcon,
+    color: 'text-purple-600 dark:text-purple-400',
+    bgColor: 'bg-purple-100 dark:bg-purple-950/60',
+    borderColor: 'border-purple-200 dark:border-purple-800',
+    editorAnchor: 'editor-section-banner'
+  },
+  pitch: {
+    id: 'pitch',
+    label: 'Pitch Title & Body Copy',
+    shortLabel: 'Pitch & Copy',
+    desc: 'Category tag, main H1 headline, and custom value pitch text',
+    icon: Type,
+    color: 'text-blue-600 dark:text-blue-400',
+    bgColor: 'bg-blue-100 dark:bg-blue-950/60',
+    borderColor: 'border-blue-200 dark:border-blue-800',
+    editorAnchor: 'editor-section-pitch'
+  },
+  primary_cta: {
+    id: 'primary_cta',
+    label: 'Primary Call to Action',
+    shortLabel: 'Primary CTA Button',
+    desc: 'Main high-contrast action button (e.g. Claim Kit Offer & Apply Coupon)',
+    icon: MousePointer,
+    color: 'text-emerald-600 dark:text-emerald-400',
+    bgColor: 'bg-emerald-100 dark:bg-emerald-950/60',
+    borderColor: 'border-emerald-200 dark:border-emerald-800',
+    editorAnchor: 'editor-section-ctas'
+  },
+  products: {
+    id: 'products',
+    label: 'Featured Solar Kits Catalog',
+    shortLabel: 'Solar Kits Catalog',
+    desc: 'Real-time pricing, specs, MOQs, and warehouse depot availability',
+    icon: ShoppingBag,
+    color: 'text-amber-600 dark:text-amber-400',
+    bgColor: 'bg-amber-100 dark:bg-amber-950/60',
+    borderColor: 'border-amber-200 dark:border-amber-800',
+    editorAnchor: 'editor-section-products'
+  },
+  coupon: {
+    id: 'coupon',
+    label: 'Promo Coupon Voucher',
+    shortLabel: 'Discount Voucher',
+    desc: 'Dashed discount voucher box with coupon code & savings breakdown',
+    icon: Tag,
+    color: 'text-orange-600 dark:text-orange-400',
+    bgColor: 'bg-orange-100 dark:bg-orange-950/60',
+    borderColor: 'border-orange-200 dark:border-orange-800',
+    editorAnchor: 'editor-section-coupon'
+  },
+  benefit_cards: {
+    id: 'benefit_cards',
+    label: 'Feature Benefit Cards',
+    shortLabel: 'Executive Value Cards',
+    desc: 'Color-coded highlight value boxes showcasing key contractor benefits',
+    icon: Layers,
+    color: 'text-cyan-600 dark:text-cyan-400',
+    bgColor: 'bg-cyan-100 dark:bg-cyan-950/60',
+    borderColor: 'border-cyan-200 dark:border-cyan-800',
+    editorAnchor: 'editor-section-benefits'
+  },
+  closing_pitch: {
+    id: 'closing_pitch',
+    label: 'Closing Pitch & Secondary CTA',
+    shortLabel: 'Closing Pitch & CTA',
+    desc: 'Bottom conversion pitch statement and secondary action button',
+    icon: AlignLeft,
+    color: 'text-rose-600 dark:text-rose-400',
+    bgColor: 'bg-rose-100 dark:bg-rose-950/60',
+    borderColor: 'border-rose-200 dark:border-rose-800',
+    editorAnchor: 'editor-section-closing'
+  },
+  custom_ctas: {
+    id: 'custom_ctas',
+    label: 'Additional Action CTAs',
+    shortLabel: 'Secondary Buttons',
+    desc: 'Datasheet download, catalogue links, and extra contact buttons',
+    icon: ExternalLink,
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bgColor: 'bg-indigo-100 dark:bg-indigo-950/60',
+    borderColor: 'border-indigo-200 dark:border-indigo-800',
+    editorAnchor: 'editor-section-ctas'
+  }
+};
+=======
 import React, { useState, useMemo } from 'react';
 import {
   Type, Heading1, Image as ImageIcon, Video, ShoppingBag, LayoutGrid, Tag, MousePointer,
@@ -5,6 +114,7 @@ import {
   Plus, Trash2, X, Check, ExternalLink, Play, Smile, Phone, Layers, ShieldCheck
 } from 'lucide-react';
 import { DEFAULT_EXECUTIVE_CREATIVE, PURPOSE_BASED_PRESETS } from '../services/emailTemplateGenerator';
+>>>>>>> origin/main
 
 const DYNAMIC_VARS = [
   { key: 'name', label: 'Partner Name', preview: 'Aarav Patel' },
@@ -29,6 +139,23 @@ export default function EmailStudio({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
 
+<<<<<<< HEAD
+  // Custom template persistence state
+  const [savedCustomTemplates, setSavedCustomTemplates] = useState(() => {
+    try {
+      const raw = localStorage.getItem('solarkits_custom_email_templates');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveTemplateName, setSaveTemplateName] = useState('');
+  const [saveTemplateCategory, setSaveTemplateCategory] = useState('Promotional');
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+
+=======
+>>>>>>> origin/main
   // Derive active warehouse name dynamically from Step 2
   const activeWarehouseName = useMemo(() => {
     if (formData.servingWarehouses?.length > 0 && warehousesList?.length > 0) {
@@ -62,29 +189,18 @@ export default function EmailStudio({
     logoUrl: 'https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png',
     subheading: `Flat ${dynamicDiscountStr} per Kit with Zero Delay Dispatches`,
     customBodyText: `Exclusive wholesale allocation for verified EPC contractors on ${dynamicKitNames}. Claim pre-booked subsidy approved kits directly from certified ${activeWarehouseName} with guaranteed zero dispatch delay.`,
+<<<<<<< HEAD
+    sectionsOrder: DEFAULT_SECTIONS_ORDER,
     ...(formData.customCreative || {})
   };
 
-  // Selected products to display in the email (defaults to all Step 3 selected kits)
-  const [selectedProductIds, setSelectedProductIds] = useState(() => {
-    if (formData.selectedKitIds?.length > 0) {
-      return formData.selectedKitIds;
+  // Active dynamic section ordering
+  const activeSectionsOrder = useMemo(() => {
+    if (Array.isArray(creative.sectionsOrder) && creative.sectionsOrder.length === DEFAULT_SECTIONS_ORDER.length) {
+      return creative.sectionsOrder;
     }
-    return selectedKitObjects.map(k => k.id);
-  });
-
-  // Multiple CTA buttons list
-  const [ctaButtons, setCtaButtons] = useState(() => {
-    const baseCta = formData.ctaText || 'Claim Kit Offer & Apply Coupon';
-    const baseUrl = formData.destinationUrl
-      ? `${formData.destinationUrl}${formData.destinationUrl.includes('?') ? '&' : '?'}coupon=${formData.couponCode || 'SOLARDIWALI5000'}`
-      : 'https://solarkits.in/solar-kits/3kw-dcr?coupon=SOLARDIWALI5000';
-
-    return [
-      { id: 'cta_1', text: baseCta, url: baseUrl, variant: 'primary' },
-      { id: 'cta_2', text: '📥 Download Technical Datasheet', url: 'https://solarkits.in/datasheets/commercial-kits.pdf', variant: 'secondary' }
-    ];
-  });
+    return DEFAULT_SECTIONS_ORDER;
+  }, [creative.sectionsOrder]);
 
   const updateCreative = (updates) => {
     setFormData((prev) => ({
@@ -96,6 +212,175 @@ export default function EmailStudio({
     }));
   };
 
+  // Section Sequencer UI View Mode: 'flow' (recommended top-to-bottom pipeline) | 'compact'
+  const [orderViewMode, setOrderViewMode] = useState('flow');
+
+  // Drag and Drop & Live Preview Sync State
+  const [draggedSectionId, setDraggedSectionId] = useState(null);
+  const [dragOverSectionId, setDragOverSectionId] = useState(null);
+  const [hoveredSectionId, setHoveredSectionId] = useState(null);
+
+  // Step-by-step Reorder Handler
+  const handleMoveSection = (sectionId, direction) => {
+    const current = [...activeSectionsOrder];
+    const index = current.indexOf(sectionId);
+    if (index === -1) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= current.length) return;
+    const temp = current[index];
+    current[index] = current[targetIndex];
+    current[targetIndex] = temp;
+    updateCreative({ sectionsOrder: current });
+  };
+
+  // Direct Position Selector Handler ("Apni man-chaahi jagah par choose karke daalna")
+  const handleMoveToPosition = (sectionId, targetIndex) => {
+    const current = [...activeSectionsOrder];
+    const sourceIndex = current.indexOf(sectionId);
+    if (sourceIndex === -1 || targetIndex < 0 || targetIndex >= current.length || sourceIndex === targetIndex) return;
+    const [movedItem] = current.splice(sourceIndex, 1);
+    current.splice(targetIndex, 0, movedItem);
+    updateCreative({ sectionsOrder: current });
+  };
+
+  // Jump to extreme Top or Bottom
+  const handleMoveToExtreme = (sectionId, to) => {
+    if (to === 'top') {
+      handleMoveToPosition(sectionId, 0);
+    } else {
+      handleMoveToPosition(sectionId, activeSectionsOrder.length - 1);
+    }
+  };
+
+  // Drag and Drop Event Handlers
+  const handleDragStart = (e, sectionId) => {
+    setDraggedSectionId(sectionId);
+    e.dataTransfer.setData('text/plain', sectionId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, sectionId) => {
+    e.preventDefault();
+    if (sectionId !== dragOverSectionId) {
+      setDragOverSectionId(sectionId);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverSectionId(null);
+  };
+
+  const handleDrop = (e, targetSectionId) => {
+    e.preventDefault();
+    const sourceSectionId = draggedSectionId || e.dataTransfer.getData('text/plain');
+    if (!sourceSectionId || sourceSectionId === targetSectionId) {
+      setDraggedSectionId(null);
+      setDragOverSectionId(null);
+      return;
+    }
+    const current = [...activeSectionsOrder];
+    const sourceIdx = current.indexOf(sourceSectionId);
+    const targetIdx = current.indexOf(targetSectionId);
+    if (sourceIdx !== -1 && targetIdx !== -1) {
+      const [moved] = current.splice(sourceIdx, 1);
+      current.splice(targetIdx, 0, moved);
+      updateCreative({ sectionsOrder: current });
+    }
+    setDraggedSectionId(null);
+    setDragOverSectionId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedSectionId(null);
+    setDragOverSectionId(null);
+  };
+
+  // Quick 1-Click Layout Presets
+  const handleApplyLayoutPreset = (presetKey) => {
+    switch (presetKey) {
+      case 'standard':
+        // Standard B2B sales flow
+        updateCreative({ sectionsOrder: ['banner', 'pitch', 'primary_cta', 'products', 'coupon', 'benefit_cards', 'closing_pitch', 'custom_ctas'] });
+        break;
+      case 'offer_first':
+        // Highlight coupon discount right after banner
+        updateCreative({ sectionsOrder: ['banner', 'coupon', 'products', 'pitch', 'primary_cta', 'benefit_cards', 'closing_pitch', 'custom_ctas'] });
+        break;
+      case 'catalog_first':
+        // Product showcase focus
+        updateCreative({ sectionsOrder: ['banner', 'products', 'pitch', 'primary_cta', 'coupon', 'benefit_cards', 'closing_pitch', 'custom_ctas'] });
+        break;
+      case 'urgency_first':
+        // Pitch headline at the very top
+        updateCreative({ sectionsOrder: ['pitch', 'banner', 'coupon', 'primary_cta', 'products', 'benefit_cards', 'closing_pitch', 'custom_ctas'] });
+        break;
+      default:
+        updateCreative({ sectionsOrder: DEFAULT_SECTIONS_ORDER });
+    }
+  };
+
+  const handleResetSectionOrder = () => {
+    updateCreative({ sectionsOrder: DEFAULT_SECTIONS_ORDER });
+  };
+
+  // Smooth scroll to an editor section
+  const scrollToEditorSection = (anchorId) => {
+    if (!anchorId) return;
+    const el = document.getElementById(anchorId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-2', 'ring-blue-500', 'transition-all');
+      setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-blue-500');
+      }, 1500);
+    }
+  };
+
+=======
+    ...(formData.customCreative || {})
+  };
+
+>>>>>>> origin/main
+  // Selected products to display in the email (defaults to all Step 3 selected kits)
+  const [selectedProductIds, setSelectedProductIds] = useState(() => {
+    if (formData.selectedKitIds?.length > 0) {
+      return formData.selectedKitIds;
+    }
+    return selectedKitObjects.map(k => k.id);
+  });
+
+  // Multiple CTA buttons list
+  const [ctaButtons, setCtaButtons] = useState(() => {
+<<<<<<< HEAD
+    if (formData.customCreative?.ctaButtons?.length > 0) {
+      return formData.customCreative.ctaButtons;
+    }
+=======
+>>>>>>> origin/main
+    const baseCta = formData.ctaText || 'Claim Kit Offer & Apply Coupon';
+    const baseUrl = formData.destinationUrl
+      ? `${formData.destinationUrl}${formData.destinationUrl.includes('?') ? '&' : '?'}coupon=${formData.couponCode || 'SOLARDIWALI5000'}`
+      : 'https://solarkits.in/solar-kits/3kw-dcr?coupon=SOLARDIWALI5000';
+
+    return [
+      { id: 'cta_1', text: baseCta, url: baseUrl, variant: 'primary' },
+      { id: 'cta_2', text: '📥 Download Technical Datasheet', url: 'https://solarkits.in/datasheets/commercial-kits.pdf', variant: 'secondary' }
+    ];
+  });
+
+<<<<<<< HEAD
+=======
+  const updateCreative = (updates) => {
+    setFormData((prev) => ({
+      ...prev,
+      customCreative: {
+        ...prev.customCreative,
+        ...updates
+      }
+    }));
+  };
+
+>>>>>>> origin/main
   const insertVariable = (key) => {
     updateCreative({ customBodyText: (creative.customBodyText || '') + ` {{${key}}}` });
     setShowVarDropdown(false);
@@ -114,16 +399,118 @@ export default function EmailStudio({
       url: 'tel:+919913421453',
       variant: 'secondary'
     };
+<<<<<<< HEAD
+    const updated = [...ctaButtons, newBtn];
+    setCtaButtons(updated);
+    updateCreative({ ctaButtons: updated });
+  };
+
+  const handleUpdateCta = (id, field, value) => {
+    const updated = ctaButtons.map(b => b.id === id ? { ...b, [field]: value } : b);
+    setCtaButtons(updated);
+    updateCreative({ ctaButtons: updated });
+=======
     setCtaButtons([...ctaButtons, newBtn]);
   };
 
   const handleUpdateCta = (id, field, value) => {
     setCtaButtons(ctaButtons.map(b => b.id === id ? { ...b, [field]: value } : b));
+>>>>>>> origin/main
   };
 
   const handleRemoveCta = (id) => {
     if (ctaButtons.length <= 1) return;
+<<<<<<< HEAD
+    const updated = ctaButtons.filter(b => b.id !== id);
+    setCtaButtons(updated);
+    updateCreative({ ctaButtons: updated });
+  };
+
+  // Move CTA button up or down
+  const handleMoveCta = (index, direction) => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= ctaButtons.length) return;
+    const updated = [...ctaButtons];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+    setCtaButtons(updated);
+    updateCreative({ ctaButtons: updated });
+  };
+
+  // Custom Template Save & Delete Handlers
+  const handleSaveCreativeAsTemplate = (e) => {
+    e?.preventDefault();
+    const name = saveTemplateName.trim() || creative.headline || 'Custom Executive Creative';
+    const newTemplate = {
+      id: `custom_tmpl_${Date.now()}`,
+      name,
+      category: saveTemplateCategory,
+      createdAt: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+      emailSubject: formData.emailSubject || `Special Wholesale Offer: ${dynamicKitNames}`,
+      emailPreviewText: formData.emailPreviewText || `Exclusive wholesale allocation from ${activeWarehouseName}.`,
+      ctaText: formData.ctaText || 'Get SolarKits Pricing Today →',
+      destinationUrl: formData.destinationUrl || 'https://solarkits.in/solar-kits',
+      hasCoupon: formData.hasCoupon,
+      couponCode: formData.couponCode,
+      selectedProductIds,
+      ctaButtons,
+      customCreative: {
+        ...creative,
+        sectionsOrder: activeSectionsOrder
+      }
+    };
+
+    const updated = [newTemplate, ...savedCustomTemplates];
+    setSavedCustomTemplates(updated);
+    try {
+      localStorage.setItem('solarkits_custom_email_templates', JSON.stringify(updated));
+    } catch (err) {
+      console.error('Failed to save template to localStorage', err);
+    }
+    setSaveSuccessMsg(`Creative "${name}" successfully saved to your Template Library!`);
+    setTimeout(() => {
+      setSaveSuccessMsg('');
+      setShowSaveModal(false);
+      setSaveTemplateName('');
+    }, 1200);
+  };
+
+  const handleDeleteSavedTemplate = (id, e) => {
+    e?.stopPropagation();
+    const updated = savedCustomTemplates.filter(t => t.id !== id);
+    setSavedCustomTemplates(updated);
+    try {
+      localStorage.setItem('solarkits_custom_email_templates', JSON.stringify(updated));
+    } catch (err) {
+      console.error('Failed to update localStorage', err);
+    }
+  };
+
+  const handleApplySavedTemplate = (tmpl) => {
+    setFormData(prev => ({
+      ...prev,
+      emailSubject: tmpl.emailSubject || prev.emailSubject,
+      emailPreviewText: tmpl.emailPreviewText || prev.emailPreviewText,
+      ctaText: tmpl.ctaText || prev.ctaText,
+      destinationUrl: tmpl.destinationUrl || prev.destinationUrl,
+      hasCoupon: tmpl.hasCoupon !== undefined ? tmpl.hasCoupon : prev.hasCoupon,
+      couponCode: tmpl.couponCode || prev.couponCode,
+      customCreative: {
+        ...DEFAULT_EXECUTIVE_CREATIVE,
+        ...(tmpl.customCreative || {})
+      }
+    }));
+    if (tmpl.selectedProductIds?.length > 0) {
+      setSelectedProductIds(tmpl.selectedProductIds);
+    }
+    if (tmpl.ctaButtons?.length > 0) {
+      setCtaButtons(tmpl.ctaButtons);
+    }
+    setActiveTab('custom');
+=======
     setCtaButtons(ctaButtons.filter(b => b.id !== id));
+>>>>>>> origin/main
   };
 
   // Toggle products in multi-product modal
@@ -187,6 +574,206 @@ export default function EmailStudio({
     return result;
   };
 
+<<<<<<< HEAD
+  // Dynamic preview section renderer respecting activeSectionsOrder
+  const renderPreviewSection = (sectionId) => {
+    switch (sectionId) {
+      case 'banner':
+        return creative.mediaType === 'image' && creative.heroImageUrl ? (
+          <img
+            key="banner"
+            src={creative.heroImageUrl}
+            alt="Banner"
+            className="w-full h-auto max-h-48 object-cover block"
+          />
+        ) : creative.mediaType === 'video' ? (
+          <div key="banner" className="relative w-full h-36 bg-slate-900 flex items-center justify-center text-white">
+            <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
+              <Play className="w-5 h-5 text-white ml-0.5 fill-white" />
+            </div>
+            <span className="absolute bottom-2 left-3 text-[10px] font-bold bg-black/70 px-2 py-0.5 rounded-md">
+              45s Explainer Video
+            </span>
+          </div>
+        ) : (
+          <div
+            key="banner"
+            className="p-5 text-center text-white"
+            style={{
+              background: `linear-gradient(135deg, #1e2d66 0%, ${creative.themeColor || '#263880'} 60%, #3a56c9 100%)`
+            }}
+          >
+            <div className="inline-block bg-white px-3 py-1 rounded-full mb-2.5 shadow-xs border-l-4" style={{ borderColor: creative.accentColor || '#f59e0b' }}>
+              <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: creative.themeColor || '#263880' }}>
+                ⚡ SolarKits Hybrid & On-Grid Combos
+              </span>
+            </div>
+            <h3 className="text-lg font-black leading-tight tracking-tight text-white mb-1.5">
+              {creative.headline || "DON'T JUST SELL SOLAR. SELL COMPLETE BACKUP."}
+            </h3>
+            <p className="text-[11px] text-slate-200 line-clamp-2 max-w-xs mx-auto mb-3">
+              {creative.subheading || 'Tier-1 ALMM Modules + High-Efficiency Inverters + Pre-Engineered Structure in One Single Dispatch.'}
+            </p>
+            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+              {(creative.valuePills || ['1. Add Backup to Quotes', '2. Higher Ticket Size', '3. Depot Support']).map((pill, i) => (
+                <span key={i} className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-white/15 border border-white/20 text-white">
+                  {pill}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'pitch':
+        return (
+          <div key="pitch" className="p-4 space-y-2 text-center">
+            <span className="text-[10px] font-extrabold tracking-widest uppercase block mb-1" style={{ color: creative.stripColor || '#ea580c' }}>
+              {creative.categoryTag || 'B2B WHOLESALE KITS BY SOLARKITS'}
+            </span>
+            <h4 className="text-base font-black leading-snug" style={{ color: creative.themeColor || '#263880' }}>
+              {creative.h1Title || 'Solar EPCs, this one is for you.'}
+            </h4>
+            <p className="text-xs text-slate-600 mt-2 leading-relaxed text-center">
+              {getSubstitutedText(creative.customBodyText)}
+            </p>
+          </div>
+        );
+
+      case 'primary_cta':
+        return (
+          <div key="primary_cta" className="p-3 text-center">
+            <a
+              href={formData.destinationUrl || '#'}
+              onClick={(e) => e.preventDefault()}
+              className="inline-block py-2.5 px-6 rounded-lg font-extrabold text-xs text-white shadow-md transition-transform hover:scale-[1.02]"
+              style={{ backgroundColor: creative.themeColor || '#263880' }}
+            >
+              {formData.ctaText || 'Get SolarKits Pricing Today →'}
+            </a>
+          </div>
+        );
+
+      case 'products':
+        if (previewProducts.length === 0) return null;
+        return (
+          <div key="products" className="p-4 space-y-2 text-left pt-2">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+              <span>Featured Solar Kits ({previewProducts.length})</span>
+              <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded font-bold">
+                {activeWarehouseName}
+              </span>
+            </div>
+            {previewProducts.map((k) => (
+              <div key={k.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between font-bold text-slate-900">
+                  <span>{k.name}</span>
+                  <span className="text-blue-600 font-extrabold">
+                    ₹{Number(k.base_price || 89317).toLocaleString('en-IN')} / kit
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 line-clamp-2">
+                  {k.components_summary || k.sub_title}
+                </p>
+                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-200/60">
+                  <span>• 12-Yr Warranty • MOQ: {formData.kitMoqs?.[k.id] ?? k.moq ?? formData.minOrderQty ?? 25} Kits</span>
+                  <span className="text-emerald-600 font-bold">Fast Dispatch</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+
+      case 'coupon':
+        if (!formData.hasCoupon) return null;
+        return (
+          <div key="coupon" className="p-4 pt-1">
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between text-left">
+              <div>
+                <span className="text-[9px] uppercase font-bold text-amber-700">Promo Voucher</span>
+                <p className="text-sm font-black font-mono text-amber-900">
+                  {formData.couponCode || 'SOLARDIWALI5000'}
+                </p>
+                <span className="text-[10px] text-amber-800 block">
+                  Valid on Orders ≥ {formData.minOrderQty || 25} Kits in Solar Shop
+                </span>
+              </div>
+              <span className="text-xs font-bold text-amber-800 bg-amber-200/80 px-2.5 py-1 rounded-lg">
+                {dynamicDiscountStr}
+              </span>
+            </div>
+          </div>
+        );
+
+      case 'benefit_cards':
+        return (
+          <div key="benefit_cards" className="p-4 space-y-2.5 text-left pt-2">
+            {(creative.bulletPoints || []).map((pt, i) => {
+              const str = String(pt);
+              const hasColon = str.includes(':');
+              const title = hasColon ? str.split(':')[0].trim() : `Feature Point ${i + 1}`;
+              const desc = hasColon ? str.split(':').slice(1).join(':').trim() : str;
+              const borderCol = i % 2 === 0 ? (creative.themeColor || '#263880') : (creative.accentColor || '#f59e0b');
+
+              return (
+                <div
+                  key={i}
+                  className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200/80 dark:border-slate-700 shadow-2xs"
+                  style={{ borderLeft: `4px solid ${borderCol}` }}
+                >
+                  <div className="text-xs font-extrabold" style={{ color: creative.themeColor || '#263880' }}>
+                    {title}
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-snug">
+                    {desc}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        );
+
+      case 'closing_pitch':
+        return (
+          <div key="closing_pitch" className="p-4 pt-2 text-center space-y-2">
+            <p className="text-xs font-extrabold" style={{ color: creative.themeColor || '#263880' }}>
+              {creative.closingPitch || 'Sell complete solar power, not just panels. Choose SolarKits.'}
+            </p>
+            <a
+              href={formData.destinationUrl || '#'}
+              onClick={(e) => e.preventDefault()}
+              className="inline-block py-2 px-5 rounded-lg font-bold text-xs text-white shadow-xs"
+              style={{ backgroundColor: creative.stripColor || '#ea580c' }}
+            >
+              {creative.secondaryCtaText || 'Explore Wholesale Solar Kits →'}
+            </a>
+          </div>
+        );
+
+      case 'custom_ctas':
+        if (ctaButtons.length <= 1) return null;
+        return (
+          <div key="custom_ctas" className="p-4 pt-1 space-y-1.5">
+            {ctaButtons.slice(1).map((btn) => (
+              <a
+                key={btn.id}
+                href={btn.url || '#'}
+                onClick={(e) => e.preventDefault()}
+                className="w-full py-2 px-3 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center gap-1.5"
+              >
+                <span>{btn.text}</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            ))}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+=======
+>>>>>>> origin/main
   return (
     <div className="space-y-5">
       {/* Top Controls Bar */}
@@ -213,6 +800,25 @@ export default function EmailStudio({
             }`}
           >
             📋 Use Saved Template
+<<<<<<< HEAD
+            {savedCustomTemplates.length > 0 && (
+              <span className="bg-amber-400 text-slate-900 text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1">
+                {savedCustomTemplates.length} Custom
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSaveTemplateName(creative.headline || 'Custom Executive Creative');
+              setShowSaveModal(true);
+            }}
+            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs hover:shadow-md flex items-center gap-1.5 cursor-pointer transition-all hover:scale-[1.02]"
+          >
+            <Bookmark className="w-3.5 h-3.5" />
+            <span>Save Creative as Template</span>
+=======
+>>>>>>> origin/main
           </button>
           <button
             type="button"
@@ -387,7 +993,69 @@ export default function EmailStudio({
         <div className="lg:col-span-7 space-y-4">
           {activeTab === 'template' ? (
             /* Saved Templates Selector */
+<<<<<<< HEAD
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
+              
+              {/* User Saved Custom Templates Section */}
+              {savedCustomTemplates.length > 0 && (
+                <div className="space-y-3 pb-3 border-b border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <Bookmark className="w-4 h-4 text-emerald-600" />
+                      <span>My Saved Custom Templates</span>
+                    </h4>
+                    <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                      {savedCustomTemplates.length} Custom Templates
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {savedCustomTemplates.map((tmpl) => (
+                      <div
+                        key={tmpl.id}
+                        onClick={() => handleApplySavedTemplate(tmpl)}
+                        className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-800/80 bg-emerald-50/20 dark:bg-emerald-950/20 hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/40 transition-all cursor-pointer space-y-1.5 group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
+                              {tmpl.name}
+                            </span>
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
+                              {tmpl.category || 'Custom'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-slate-400 font-mono">{tmpl.createdAt}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteSavedTemplate(tmpl.id, e)}
+                              className="text-slate-400 hover:text-red-500 p-1 cursor-pointer transition-colors"
+                              title="Delete Saved Template"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">{tmpl.emailSubject}</p>
+                        <p className="text-[11px] text-slate-500 line-clamp-2">{tmpl.emailPreviewText}</p>
+                        <div className="pt-1 flex items-center justify-between text-[10px] text-emerald-600 font-bold">
+                          <span>Click to load into editor →</span>
+                          {tmpl.customCreative?.sectionsOrder && (
+                            <span className="text-slate-400 font-normal">
+                              Custom layout ({tmpl.customCreative.sectionsOrder.length} sections)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+=======
             <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-3">
+>>>>>>> origin/main
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-2">
                   <AlignLeft className="w-4 h-4 text-blue-600" /> Pre-Approved Responsive Email Templates
@@ -397,7 +1065,11 @@ export default function EmailStudio({
                 </span>
               </div>
 
+<<<<<<< HEAD
+              <div className="space-y-3 pt-1">
+=======
               <div className="space-y-3 pt-2">
+>>>>>>> origin/main
                 {[
                   {
                     id: 'em_hero_card',
@@ -646,8 +1318,444 @@ export default function EmailStudio({
                   </span>
                 </div>
 
+<<<<<<< HEAD
+                {/* ── DYNAMIC SECTION LAYOUT & POSITION CONTROLLER ── */}
+                <div className="bg-gradient-to-b from-slate-50 to-blue-50/30 dark:from-slate-900/80 dark:to-blue-950/20 p-4 rounded-2xl border-2 border-blue-200/90 dark:border-blue-900/70 shadow-sm space-y-3.5">
+                  {/* Header with Title, Count, Preset layouts, and View Toggle */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-blue-100 dark:border-blue-900/50">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-blue-600 text-white shadow-xs">
+                          <ArrowUpDown className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                              Email Middle Body Section Sequencer
+                            </h5>
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-600 text-white shadow-2xs">
+                              {activeSectionsOrder.length} Sections
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Apne anusaar order set karein — Drag karke sarkaayein, dropdown se exact position chunein, ya arrows dabayein.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* View mode toggle & reset */}
+                    <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                      <div className="flex items-center bg-white dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => setOrderViewMode('flow')}
+                          className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                            orderViewMode === 'flow'
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-300 hover:text-blue-600'
+                          }`}
+                          title="Vertical Flow List (Matches Email Structure)"
+                        >
+                          <LayoutList className="w-3 h-3" /> Flow List
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOrderViewMode('compact')}
+                          className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                            orderViewMode === 'compact'
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-300 hover:text-blue-600'
+                          }`}
+                          title="Compact Cards View"
+                        >
+                          <LayoutGrid className="w-3 h-3" /> Compact Cards
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleResetSectionOrder}
+                        className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:text-blue-600 hover:border-blue-300 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                        title="Reset order to default standard B2B layout"
+                      >
+                        <RefreshCw className="w-3 h-3" /> Reset Default
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Quick 1-Click Layout Presets */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-amber-500" /> Quick Presets:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyLayoutPreset('standard')}
+                      className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-700 dark:text-slate-200 cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
+                      title="Standard B2B: Banner → Pitch → CTA → Products → Coupon → Benefits"
+                    >
+                      ⚡ Standard B2B
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyLayoutPreset('offer_first')}
+                      className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/50 border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-700 dark:text-slate-200 cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
+                      title="Discount First: Banner → Coupon Voucher → Products → Pitch"
+                    >
+                      🏷️ Offer / Coupon First
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyLayoutPreset('catalog_first')}
+                      className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-700 dark:text-slate-200 cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
+                      title="Catalog First: Banner → Solar Kits Catalog → Pitch → CTA"
+                    >
+                      📦 Kits Catalog First
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyLayoutPreset('urgency_first')}
+                      className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-700 dark:text-slate-200 cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
+                      title="Urgency First: Pitch Headline → Banner → Coupon → CTA"
+                    >
+                      🔥 Pitch & Urgency First
+                    </button>
+                  </div>
+
+                  {/* Bilingual Helper Tip Banner */}
+                  <div className="bg-blue-50/80 dark:bg-blue-950/30 p-2.5 rounded-xl border border-blue-200/80 dark:border-blue-900/50 flex items-start gap-2.5">
+                    <div className="p-1 rounded-md bg-blue-600 text-white shrink-0 mt-0.5">
+                      <Info className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="text-[11px] text-slate-700 dark:text-slate-300 leading-snug">
+                      <span className="font-bold text-blue-900 dark:text-blue-300">Section order badalne ke 3 aasaan tareeqe: </span>
+                      <span className="inline-block mx-1"><b>① Drag & Drop:</b> ⠿ Handle pakad kar sarkaayein</span>
+                      <span className="inline-block mx-1"><b>② Position Dropdown:</b> Direct man-chaahi position (jaise #1, #3) chunein</span>
+                      <span className="inline-block mx-1"><b>③ Arrows:</b> ⬆️ / ⬇️ button dabayein.</span>
+                      <span className="text-blue-600 dark:text-blue-400 font-semibold ml-1">Right side preview me turant live dekhein!</span>
+                    </div>
+                  </div>
+
+                  {/* ── FLOW LIST VIEW (Recommended Vertical Layout) ── */}
+                  {orderViewMode === 'flow' ? (
+                    <div className="space-y-2 pt-1">
+                      {/* Pinned Top Header Visual Anchor */}
+                      <div className="px-3 py-2 rounded-xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-300/80 dark:border-slate-700 flex items-center justify-between text-slate-600 dark:text-slate-400 shadow-2xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-md bg-slate-300 dark:bg-slate-700 flex items-center justify-center">
+                            <Lock className="w-3 h-3 text-slate-600 dark:text-slate-300" />
+                          </div>
+                          <div>
+                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 block">
+                              📌 Pinned Header (Always at Top of Email)
+                            </span>
+                            <span className="text-[10px] text-slate-500">
+                              SolarKits Official Logo • Helpline Hotline • Official Website
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-slate-300 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                          Permanent Top
+                        </span>
+                      </div>
+
+                      {/* Middle Reorderable Sections */}
+                      <div className="space-y-1.5">
+                        {activeSectionsOrder.map((secId, idx) => {
+                          const meta = SECTION_METADATA_MAP[secId] || {
+                            label: secId,
+                            shortLabel: secId,
+                            desc: 'Custom section content',
+                            icon: LayoutGrid,
+                            color: 'text-blue-600',
+                            bgColor: 'bg-blue-100',
+                            borderColor: 'border-blue-200'
+                          };
+                          const Icon = meta.icon;
+                          const isDragging = draggedSectionId === secId;
+                          const isDragOver = dragOverSectionId === secId;
+                          const isHovered = hoveredSectionId === secId;
+
+                          return (
+                            <div
+                              key={secId}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, secId)}
+                              onDragOver={(e) => handleDragOver(e, secId)}
+                              onDragLeave={handleDragLeave}
+                              onDrop={(e) => handleDrop(e, secId)}
+                              onDragEnd={handleDragEnd}
+                              onMouseEnter={() => setHoveredSectionId(secId)}
+                              onMouseLeave={() => setHoveredSectionId(null)}
+                              className={`p-2.5 rounded-xl border transition-all duration-150 flex items-center justify-between gap-2.5 bg-white dark:bg-slate-800 shadow-2xs ${
+                                isDragging
+                                  ? 'opacity-40 border-dashed border-blue-500 scale-[0.98]'
+                                  : isDragOver
+                                  ? 'border-2 border-blue-500 bg-blue-50/70 dark:bg-blue-950/50 shadow-md ring-2 ring-blue-400/40'
+                                  : isHovered
+                                  ? 'border-blue-300 dark:border-blue-600 shadow-xs ring-1 ring-blue-300/30'
+                                  : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                              }`}
+                            >
+                              {/* Left: Drag Grip Handle & Position Badge & Icon & Title */}
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                {/* Drag Handle */}
+                                <div
+                                  className="cursor-grab active:cursor-grabbing p-1 text-slate-400 hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-400 shrink-0 touch-none"
+                                  title="Click & drag to reposition anywhere"
+                                >
+                                  <GripVertical className="w-4 h-4" />
+                                </div>
+
+                                {/* Position Number Pill */}
+                                <div className="flex flex-col items-center justify-center shrink-0 w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+                                  <span className="text-[11px] font-black font-mono text-blue-700 dark:text-blue-300 leading-none">
+                                    #{idx + 1}
+                                  </span>
+                                  <span className="text-[8px] font-bold text-blue-500 leading-none mt-0.5">
+                                    {idx === 0 ? 'TOP' : idx === activeSectionsOrder.length - 1 ? 'END' : 'MID'}
+                                  </span>
+                                </div>
+
+                                {/* Icon Box */}
+                                <div className={`w-8 h-8 rounded-lg ${meta.bgColor} ${meta.color} flex items-center justify-center shrink-0 border ${meta.borderColor}`}>
+                                  <Icon className="w-4 h-4" />
+                                </div>
+
+                                {/* Title & Description */}
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-xs font-black text-slate-900 dark:text-white truncate">
+                                      {meta.label}
+                                    </span>
+                                    {idx === 0 && (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                        Top of Body
+                                      </span>
+                                    )}
+                                    {idx === activeSectionsOrder.length - 1 && (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                        Bottom of Body
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-xs sm:max-w-md">
+                                    {meta.desc}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Right: Position Selector Dropdown & Up/Down Arrows & Jump to Edit */}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {/* Direct Position Selector Dropdown */}
+                                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/60 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-600">
+                                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 hidden sm:inline">
+                                    Pos:
+                                  </span>
+                                  <select
+                                    value={idx}
+                                    onChange={(e) => handleMoveToPosition(secId, Number(e.target.value))}
+                                    className="text-[11px] font-black text-slate-800 dark:text-slate-200 bg-transparent border-none cursor-pointer focus:outline-none"
+                                    title="Directly select desired position (#1 to #8)"
+                                  >
+                                    {activeSectionsOrder.map((_, pIdx) => (
+                                      <option key={pIdx} value={pIdx} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-white font-bold">
+                                        #{pIdx + 1} {pIdx === 0 ? '(Top)' : pIdx === activeSectionsOrder.length - 1 ? '(Bottom)' : ''}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {/* Move 1 step Up / Down Buttons */}
+                                <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-700/60 p-0.5 rounded-lg border border-slate-200 dark:border-slate-600">
+                                  <button
+                                    type="button"
+                                    disabled={idx === 0}
+                                    onClick={() => handleMoveSection(secId, 'up')}
+                                    className="p-1 rounded hover:bg-white dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                                    title="Move 1 step Up"
+                                  >
+                                    <ArrowUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={idx === activeSectionsOrder.length - 1}
+                                    onClick={() => handleMoveSection(secId, 'down')}
+                                    className="p-1 rounded hover:bg-white dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                                    title="Move 1 step Down"
+                                  >
+                                    <ArrowDown className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                {/* Jump to extreme top/bottom */}
+                                <div className="hidden sm:flex items-center gap-0.5">
+                                  <button
+                                    type="button"
+                                    disabled={idx === 0}
+                                    onClick={() => handleMoveToExtreme(secId, 'top')}
+                                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                                    title="Move directly to very Top"
+                                  >
+                                    <ChevronsUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={idx === activeSectionsOrder.length - 1}
+                                    onClick={() => handleMoveToExtreme(secId, 'bottom')}
+                                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                                    title="Move directly to very Bottom"
+                                  >
+                                    <ChevronsDown className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                {/* Jump to edit form */}
+                                {meta.editorAnchor && (
+                                  <button
+                                    type="button"
+                                    onClick={() => scrollToEditorSection(meta.editorAnchor)}
+                                    className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-slate-500 hover:text-blue-600 cursor-pointer transition-colors"
+                                    title="Jump to edit this section below"
+                                  >
+                                    <CornerDownRight className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Pinned Bottom Footer Visual Anchor */}
+                      <div className="px-3 py-2 rounded-xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-300/80 dark:border-slate-700 flex items-center justify-between text-slate-600 dark:text-slate-400 shadow-2xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-md bg-slate-300 dark:bg-slate-700 flex items-center justify-center">
+                            <Lock className="w-3 h-3 text-slate-600 dark:text-slate-300" />
+                          </div>
+                          <div>
+                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 block">
+                              📌 Pinned Footer (Always at Bottom of Email)
+                            </span>
+                            <span className="text-[10px] text-slate-500">
+                              SolarKits Corporate Address • Depot Logistics • 1-Click Unsubscribe
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-slate-300 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                          Permanent Bottom
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── COMPACT GRID VIEW (Card View) ── */
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 pt-1">
+                      {activeSectionsOrder.map((secId, idx) => {
+                        const meta = SECTION_METADATA_MAP[secId] || {
+                          label: secId,
+                          shortLabel: secId,
+                          desc: '',
+                          icon: LayoutGrid,
+                          color: 'text-blue-600',
+                          bgColor: 'bg-blue-100',
+                          borderColor: 'border-blue-200'
+                        };
+                        const Icon = meta.icon;
+                        const isDragging = draggedSectionId === secId;
+                        const isDragOver = dragOverSectionId === secId;
+
+                        return (
+                          <div
+                            key={secId}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, secId)}
+                            onDragOver={(e) => handleDragOver(e, secId)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, secId)}
+                            onDragEnd={handleDragEnd}
+                            onMouseEnter={() => setHoveredSectionId(secId)}
+                            onMouseLeave={() => setHoveredSectionId(null)}
+                            className={`p-2.5 rounded-xl border bg-white dark:bg-slate-800 shadow-2xs space-y-2 transition-all ${
+                              isDragging
+                                ? 'opacity-40 border-dashed border-blue-500'
+                                : isDragOver
+                                ? 'border-2 border-blue-500 bg-blue-50/70 dark:bg-blue-950/50'
+                                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-blue-600">
+                                  <GripVertical className="w-3.5 h-3.5" />
+                                </span>
+                                <span className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                  #{idx + 1}
+                                </span>
+                                <div className={`w-5 h-5 rounded ${meta.bgColor} ${meta.color} flex items-center justify-center shrink-0`}>
+                                  <Icon className="w-3 h-3" />
+                                </div>
+                              </div>
+                              {/* Position selector */}
+                              <select
+                                value={idx}
+                                onChange={(e) => handleMoveToPosition(secId, Number(e.target.value))}
+                                className="text-[10px] font-bold py-0.5 px-1 rounded bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 cursor-pointer"
+                                title="Change position"
+                              >
+                                {activeSectionsOrder.map((_, pIdx) => (
+                                  <option key={pIdx} value={pIdx}>
+                                    #{pIdx + 1}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="min-w-0">
+                              <span className="text-[11px] font-bold text-slate-900 dark:text-white truncate block" title={meta.label}>
+                                {meta.shortLabel || meta.label}
+                              </span>
+                              <p className="text-[9px] text-slate-400 truncate">{meta.desc}</p>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-700/60">
+                              <span className="text-[9px] text-slate-400 font-semibold">
+                                {idx === 0 ? 'Top' : idx === activeSectionsOrder.length - 1 ? 'Bottom' : `Pos ${idx + 1}`}
+                              </span>
+                              <div className="flex items-center gap-0.5">
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMoveSection(secId, 'up')}
+                                  className="p-1 rounded bg-slate-100 dark:bg-slate-700 hover:bg-blue-100 dark:hover:bg-blue-900 text-slate-600 dark:text-slate-300 disabled:opacity-20 cursor-pointer"
+                                  title="Move Up"
+                                >
+                                  <ArrowUp className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === activeSectionsOrder.length - 1}
+                                  onClick={() => handleMoveSection(secId, 'down')}
+                                  className="p-1 rounded bg-slate-100 dark:bg-slate-700 hover:bg-blue-100 dark:hover:bg-blue-900 text-slate-600 dark:text-slate-300 disabled:opacity-20 cursor-pointer"
+                                  title="Move Down"
+                                >
+                                  <ArrowDown className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Media Type Switcher: Gradient Banner vs Image vs Video */}
+                <div id="editor-section-banner" className="grid grid-cols-3 gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+=======
                 {/* Media Type Switcher: Gradient Banner vs Image vs Video */}
                 <div className="grid grid-cols-3 gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+>>>>>>> origin/main
                   <button
                     type="button"
                     onClick={() => updateCreative({ mediaType: 'banner' })}
@@ -739,7 +1847,11 @@ export default function EmailStudio({
                 </div>
 
                 {/* Category Eyebrow & Main H1 Title */}
+<<<<<<< HEAD
+                <div id="editor-section-pitch" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+=======
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+>>>>>>> origin/main
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1 uppercase">
                       Category Tag (Eyebrow)
@@ -778,7 +1890,11 @@ export default function EmailStudio({
                 </div>
 
                 {/* Feature Bullet Highlights (4 Card Boxes) */}
+<<<<<<< HEAD
+                <div id="editor-section-benefits" className="space-y-2">
+=======
                 <div className="space-y-2">
+>>>>>>> origin/main
                   <div className="flex items-center justify-between">
                     <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">
                       Feature Benefit Cards (Executive Boxes)
@@ -824,7 +1940,11 @@ export default function EmailStudio({
                 </div>
 
                 {/* MULTIPLE CTA BUTTONS MANAGER */}
+<<<<<<< HEAD
+                <div id="editor-section-ctas" className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-3">
+=======
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-3">
+>>>>>>> origin/main
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase flex items-center gap-1.5">
                       <MousePointer className="w-3.5 h-3.5 text-blue-600" /> Action CTAs & Clickable Links ({ctaButtons.length})
@@ -842,6 +1962,46 @@ export default function EmailStudio({
                     {ctaButtons.map((btn, idx) => (
                       <div key={btn.id} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2">
                         <div className="flex items-center justify-between">
+<<<<<<< HEAD
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 uppercase">
+                              Button #{idx + 1}
+                            </span>
+                            {idx === 0 && (
+                              <span className="text-[9px] text-slate-400 font-bold">(Primary CTA)</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoveCta(idx, 'up')}
+                              className="p-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-blue-100 dark:hover:bg-blue-900 text-slate-600 dark:text-slate-300 disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer"
+                              title="Move Button Up"
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === ctaButtons.length - 1}
+                              onClick={() => handleMoveCta(idx, 'down')}
+                              className="p-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-blue-100 dark:hover:bg-blue-900 text-slate-600 dark:text-slate-300 disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer"
+                              title="Move Button Down"
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </button>
+                            {ctaButtons.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCta(btn.id)}
+                                className="p-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-red-100 dark:hover:bg-red-950 text-slate-400 hover:text-red-500 text-xs cursor-pointer ml-1"
+                                title="Delete Button"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+=======
                           <span className="text-[10px] font-bold text-slate-500 uppercase">Button #{idx + 1}</span>
                           {ctaButtons.length > 1 && (
                             <button
@@ -853,6 +2013,7 @@ export default function EmailStudio({
                               <Trash2 className="w-3 h-3" />
                             </button>
                           )}
+>>>>>>> origin/main
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <input
@@ -876,7 +2037,11 @@ export default function EmailStudio({
                 </div>
 
                 {/* Multi-Product Selection Badge */}
+<<<<<<< HEAD
+                <div id="editor-section-products" className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+=======
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+>>>>>>> origin/main
                   <div>
                     <span className="text-xs font-bold text-slate-900 dark:text-white block">
                       Included Solar Kits in Email ({previewProducts.length} Selected)
@@ -893,6 +2058,85 @@ export default function EmailStudio({
                     <ShoppingBag className="w-3 h-3" /> Select Products
                   </button>
                 </div>
+<<<<<<< HEAD
+
+                {/* Coupon Voucher Box Editor */}
+                <div id="editor-section-coupon" className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-amber-600" /> Promo Coupon Voucher Section
+                    </span>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(formData.hasCoupon)}
+                        onChange={(e) => setFormData(prev => ({ ...prev, hasCoupon: e.target.checked }))}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Include Coupon Box in Email
+                      </span>
+                    </label>
+                  </div>
+                  {formData.hasCoupon ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-amber-50/70 dark:bg-amber-950/30 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/60 text-xs">
+                      <div>
+                        <span className="text-[10px] text-amber-800 dark:text-amber-300 font-bold block">Coupon Code:</span>
+                        <input
+                          type="text"
+                          value={formData.couponCode || 'SOLARDIWALI5000'}
+                          onChange={(e) => setFormData(prev => ({ ...prev, couponCode: e.target.value }))}
+                          className="w-full mt-1 px-2.5 py-1 text-xs font-mono font-bold rounded-lg border border-amber-300 bg-white dark:bg-slate-800 text-amber-950 dark:text-amber-200"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-amber-800 dark:text-amber-300 font-bold block">Discount Value:</span>
+                        <div className="mt-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-100 dark:bg-amber-900/50 text-amber-950 dark:text-amber-200 border border-amber-200">
+                          {dynamicDiscountStr}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-slate-400 italic">
+                      Coupon voucher is currently hidden. Check the box above to enable it.
+                    </p>
+                  )}
+                </div>
+
+                {/* Closing Pitch & Secondary CTA Editor */}
+                <div id="editor-section-closing" className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2.5">
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase flex items-center gap-1.5">
+                    <AlignLeft className="w-3.5 h-3.5 text-rose-600" /> Closing Conversion Pitch & Secondary Action CTA
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                        Bottom Conversion Punchline:
+                      </label>
+                      <input
+                        type="text"
+                        value={creative.closingPitch || 'Sell complete solar power, not just panels. Choose SolarKits.'}
+                        onChange={(e) => updateCreative({ closingPitch: e.target.value })}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-semibold"
+                        placeholder="Compelling conversion pitch..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                        Secondary CTA Button Text:
+                      </label>
+                      <input
+                        type="text"
+                        value={creative.secondaryCtaText || 'Explore Wholesale Solar Kits →'}
+                        onChange={(e) => updateCreative({ secondaryCtaText: e.target.value })}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-semibold"
+                        placeholder="Secondary button label..."
+                      />
+                    </div>
+                  </div>
+                </div>
+=======
+>>>>>>> origin/main
               </div>
 
               {/* ── CARD 4: 📌 4. EMAIL FOOTER (FIXED - BOTTOM) ── */}
@@ -1056,6 +2300,67 @@ export default function EmailStudio({
                     </div>
                   </div>
 
+<<<<<<< HEAD
+                  {/* 2. SCROLLABLE MIDDLE EMAIL CONTENT (ORDER CONTROLLED BY activeSectionsOrder) */}
+                  <div className="bg-white text-slate-800 max-h-[420px] overflow-y-auto divide-y divide-slate-100">
+                    {activeSectionsOrder.map((secId, sIdx) => {
+                      const meta = SECTION_METADATA_MAP[secId] || { label: secId, shortLabel: secId };
+                      const isHovered = hoveredSectionId === secId;
+                      return (
+                        <div
+                          key={secId}
+                          id={`preview-section-${secId}`}
+                          onMouseEnter={() => setHoveredSectionId(secId)}
+                          onMouseLeave={() => setHoveredSectionId(null)}
+                          className={`relative transition-all duration-150 group ${
+                            isHovered
+                              ? 'ring-2 ring-blue-500 ring-inset bg-blue-50/10'
+                              : ''
+                          }`}
+                        >
+                          {/* Live Section Marker Badge & Reorder Arrows in Preview */}
+                          <div
+                            className={`absolute top-1.5 right-1.5 z-30 flex items-center gap-1 transition-opacity duration-150 ${
+                              isHovered ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                            }`}
+                          >
+                            <span className="text-[8px] font-mono font-black px-1.5 py-0.5 rounded bg-blue-900/90 text-white shadow-sm flex items-center gap-1">
+                              <span>#{sIdx + 1}</span>
+                              <span className="font-medium opacity-90">{meta.shortLabel || meta.label}</span>
+                            </span>
+                            <div className="flex items-center bg-white/95 dark:bg-slate-900/95 rounded shadow-sm border border-slate-200 dark:border-slate-700 p-0.5">
+                              <button
+                                type="button"
+                                disabled={sIdx === 0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveSection(secId, 'up');
+                                }}
+                                className="p-0.5 text-slate-600 hover:text-blue-600 disabled:opacity-20 cursor-pointer"
+                                title="Move this section Up in email"
+                              >
+                                <ArrowUp className="w-2.5 h-2.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={sIdx === activeSectionsOrder.length - 1}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveSection(secId, 'down');
+                                }}
+                                className="p-0.5 text-slate-600 hover:text-blue-600 disabled:opacity-20 cursor-pointer"
+                                title="Move this section Down in email"
+                              >
+                                <ArrowDown className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {renderPreviewSection(secId)}
+                        </div>
+                      );
+                    })}
+=======
                   {/* 2. SCROLLABLE MIDDLE EMAIL CONTENT */}
                   <div className="bg-white text-slate-800 max-h-[380px] overflow-y-auto">
                     {/* Hero Banner */}
@@ -1234,6 +2539,7 @@ export default function EmailStudio({
                         </div>
                       )}
                     </div>
+>>>>>>> origin/main
                   </div>
 
                   {/* 3. PINNED FIXED FOOTER (Permanently at Bottom) */}
@@ -1341,6 +2647,95 @@ export default function EmailStudio({
           </div>
         </div>
       )}
+<<<<<<< HEAD
+
+      {/* SAVE CREATIVE AS TEMPLATE MODAL */}
+      {showSaveModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Bookmark className="text-emerald-600 w-5 h-5" /> Save Creative as Template
+                </h3>
+                <p className="text-xs text-slate-500">Save this email design into your template library to reuse anytime.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSaveModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {saveSuccessMsg ? (
+              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span>{saveSuccessMsg}</span>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveCreativeAsTemplate} className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1 uppercase">
+                    Template Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={saveTemplateName}
+                    onChange={(e) => setSaveTemplateName(e.target.value)}
+                    placeholder="e.g. Diwali 5kW Commercial Combo Offer"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1 uppercase">
+                    Template Category
+                  </label>
+                  <select
+                    value={saveTemplateCategory}
+                    onChange={(e) => setSaveTemplateCategory(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold bg-white dark:bg-slate-900"
+                  >
+                    <option value="Promotional">Promotional Offer</option>
+                    <option value="Wholesale">B2B Wholesale / Discount</option>
+                    <option value="Product Launch">New Product Launch</option>
+                    <option value="Reward Program">EPC Reward Program</option>
+                    <option value="Reactivation">Reactivation / Welcome</option>
+                  </select>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 space-y-1">
+                  <div className="font-bold text-slate-700 dark:text-slate-300">Preset Attributes:</div>
+                  <div>• Layout Order: {activeSectionsOrder.length} sections customized</div>
+                  <div>• CTA Buttons: {ctaButtons.length} action buttons configured</div>
+                  <div>• Kit Catalog: {previewProducts.length} solar products attached</div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setShowSaveModal(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 text-xs font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Save className="w-3.5 h-3.5" /> Save to Template Library
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+=======
+>>>>>>> origin/main
     </div>
   );
 }

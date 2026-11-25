@@ -149,6 +149,8 @@ export const getTrialKitProcurementBadgeCounts = async () => {
   return res.data;
 };
 
+<<<<<<< HEAD
+=======
 // ── State & District Wise Feedback Configuration APIs ────────────────────────
 export const getFeedbackConfigStates = async () => {
   const res = await axios.get(`${BASE_URL}/feedback-configs/states`, {
@@ -186,3 +188,4 @@ export const resetDistrictFeedbackConfig = async (districtId) => {
 };
 
 
+>>>>>>> origin/main

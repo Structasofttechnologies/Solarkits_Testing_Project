@@ -120,6 +120,23 @@ export const CONFIG_MODULES = [
     keywords: ['pincode', 'delivery', 'freight', 'district', 'shipping', 'cost', 'serviceability', 'solar kit configurations'],
   },
   {
+<<<<<<< HEAD
+    id: 'ss-govt-tender',
+    title: 'Govt Tender Kits Configuration',
+    category: 'solarshop',
+    categoryLabel: 'SolarShop',
+    description: 'Configure state-specific Government & PSU tender solar kits, DCR module specifications, explainer videos and bulk procurement badges.',
+    route: '/admin-panel/solar-shop/combokit-configurations/govt-tender-kits',
+    primaryAction: 'Configure Tender Kits',
+    icon: 'FaLandmark',
+    isRegional: true,
+    regionalContextHint: 'Tender kits, DCR modules and pricing are mapped specifically per state.',
+    badge: 'Tenders & PSUs',
+    keywords: ['govt tender', 'government', 'tender', 'psu', 'dcr', 'bulk supply', 'solar kit configurations'],
+  },
+  {
+=======
+>>>>>>> origin/main
     id: 'ss-best-seller',
     title: 'Best Seller Configuration',
     category: 'solarshop',
@@ -133,6 +150,8 @@ export const CONFIG_MODULES = [
     keywords: ['best seller', 'featured', 'popular', 'store front', 'badges', 'solar kit configurations'],
   },
   {
+<<<<<<< HEAD
+=======
     id: 'ss-feedback-config',
     title: 'Trial Kit Feedback & Intent Settings',
     category: 'solarshop',
@@ -147,6 +166,7 @@ export const CONFIG_MODULES = [
     keywords: ['feedback', 'trial kit', 'purchase intent', 'loose only', 'bulk po', 'district', 'state', 'solar kit configurations'],
   },
   {
+>>>>>>> origin/main
     id: 'ss-po-orders',
     title: 'PO Orders Management',
     category: 'solarshop',

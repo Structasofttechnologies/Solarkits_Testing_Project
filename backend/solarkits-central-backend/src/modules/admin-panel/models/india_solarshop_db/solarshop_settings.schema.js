@@ -228,6 +228,8 @@ CLAUSE 6 — GOVERNING LAW & JURISDICTION
 By digitally signing below, the Franchise Partner certifies that they have read, understood, and accept all terms and conditions of this Franchise Agreement.`,
   },
 
+<<<<<<< HEAD
+=======
   // ── Franchise Agreement Types & Legal Templates Configured by Store/Franchise Type ──
   franchise_agreement_types: [
     {
@@ -247,6 +249,7 @@ By digitally signing below, the Franchise Partner certifies that they have read,
     }
   ],
 
+>>>>>>> origin/main
   // ── Flagship Store / Excluded Districts (Territories blocked for prospective franchisees) ──
   flagship_excluded_districts: [
     {
@@ -269,12 +272,28 @@ By digitally signing below, the Franchise Partner certifies that they have read,
 
   // ── Company Offline Bank Account Details Configuration ─────────────────────
   offline_bank_details: {
+<<<<<<< HEAD
+ 
+    account_number:       { type: String, trim: true, default: '' },
+    ifsc_code:            { type: String, trim: true, uppercase: true, default: '' },
+    account_holder_name:  { type: String, trim: true, default: '' },
+    updated_at:           { type: Date, default: Date.now },
+    updated_by:           { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
+ 
+    account_number: { type: String, trim: true, default: '' },
+    ifsc_code: { type: String, trim: true, uppercase: true, default: '' },
+    account_holder_name: { type: String, trim: true, default: '' },
+    updated_at: { type: Date, default: Date.now },
+    updated_by: { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
+ 
+=======
     account_number: { type: String, trim: true, default: '' },
     ifsc_code: { type: String, trim: true, uppercase: true, default: '' },
     account_holder_name: { type: String, trim: true, default: '' },
     bank_name: { type: String, trim: true, default: '' },
     updated_at: { type: Date, default: Date.now },
     updated_by: { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
+>>>>>>> origin/main
   },
 
   created_at: { type: Date, default: Date.now },

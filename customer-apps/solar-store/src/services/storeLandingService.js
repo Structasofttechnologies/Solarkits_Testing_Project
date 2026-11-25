@@ -20,3 +20,19 @@ export const getStoreLandingContent = async () => {
   }
   return null;
 };
+<<<<<<< HEAD
+
+export const getStorePolicies = async () => {
+  try {
+    const res = await axios.get(`${API_BASE}/admin-api/website-content/public/solar-store`);
+    if (res && res.data && res.data.data) {
+      const sections = res.data.data.sections || res.data.data;
+      return sections.policies || null;
+    }
+  } catch (err) {
+    console.warn("Could not load dynamic policies for Solar Store, using defaults:", err);
+  }
+  return null;
+};
+=======
+>>>>>>> origin/main

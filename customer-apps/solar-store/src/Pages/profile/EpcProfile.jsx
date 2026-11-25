@@ -25,12 +25,20 @@ import {
   FiSearch,
   FiX,
   FiTrendingUp,
+<<<<<<< HEAD
+  FiZap,
+=======
+>>>>>>> origin/main
 } from "react-icons/fi";
 // Note: EPC Buying Behavior & Analytics moved to Unified Admin Portal EpcProfileDrawer
 import { setAlert } from "@/features/alert.slice";
 import Button from "@/Components/Button";
 import Dialog from "@/Components/Dialog";
 import Loader from "@/Components/Loader";
+<<<<<<< HEAD
+import EpcPreferencesProfileTab from "@/Components/EpcPreferencesProfileTab";
+=======
+>>>>>>> origin/main
 import {
   validateGstStateMatch,
   getGstStateCodesForState,
@@ -674,7 +682,20 @@ export default function EpcProfile() {
           </span>
         </button>
 
+<<<<<<< HEAD
+        <button
+          onClick={() => setActiveTab("preferences")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${activeTab === "preferences"
+            ? "bg-gradient-to-r from-primary to-primary-end text-white shadow-md shadow-primary/25"
+            : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+            }`}
+        >
+          <FiZap size={16} />
+          <span>3. My Business & Kit Preferences</span>
+        </button>
+=======
 
+>>>>>>> origin/main
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -1056,6 +1077,16 @@ export default function EpcProfile() {
         </div>
       )}
 
+<<<<<<< HEAD
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* TAB 3: BUSINESS & KIT PREFERENCES (ONBOARDING PREFERENCES)          */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {activeTab === "preferences" && (
+        <EpcPreferencesProfileTab />
+      )}
+
+=======
+>>>>>>> origin/main
 
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
