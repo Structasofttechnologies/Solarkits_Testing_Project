@@ -17,8 +17,6 @@ import { hasPermission } from "@/utils/permissions";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-<<<<<<< HEAD
-=======
 const IFSC_BANK_LOOKUP = {
   ICIC: "ICICI Bank",
   HDFC: "HDFC Bank",
@@ -61,24 +59,16 @@ const resolveBankFromIfsc = (code) => {
   return IFSC_BANK_LOOKUP[clean.substring(0, 4)] || "";
 };
 
->>>>>>> origin/main
 export default function CheckOut() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [searchParams] = useSearchParams();
   const milestoneGroupParam = searchParams.get("milestone_group");
-<<<<<<< HEAD
-=======
   const quoteIdParam = searchParams.get("quote_id");
->>>>>>> origin/main
   const cart = useSelector((state) => state.slice.cart);
   const selectedDistrict = useSelector((state) => state.slice.selectedDistrict);
   const { user } = useSelector((state) => state.auth_slice);
 
-<<<<<<< HEAD
-  // Filter items if checking out a specific milestone group / card
-  const checkoutItems = useMemo(() => {
-=======
   // Official Quotation State
   const [quoteData, setQuoteData] = useState(null);
   const [_loadingQuote, setLoadingQuote] = useState(Boolean(quoteIdParam));
@@ -175,16 +165,11 @@ export default function CheckOut() {
   // Filter items if checking out a specific milestone group / card (or quotation)
   const checkoutItems = useMemo(() => {
     if (quoteItems) return quoteItems;
->>>>>>> origin/main
     if (!cart || cart.length === 0) return [];
     if (!milestoneGroupParam) return cart;
     const filtered = cart.filter((item) => (item.milestone_group_key || `adv_${item.payment_milestones?.advance_percentage || 30}_rem_${item.payment_milestones?.remaining_percentage || 70}`) === milestoneGroupParam);
     return filtered.length > 0 ? filtered : cart;
-<<<<<<< HEAD
-  }, [cart, milestoneGroupParam]);
-=======
   }, [quoteItems, cart, milestoneGroupParam]);
->>>>>>> origin/main
 
   // Settings & Status
   const [loading, setLoading] = useState(true);
@@ -199,15 +184,6 @@ export default function CheckOut() {
 
   // Company Bank Details
   const [bankDetails, setBankDetails] = useState({
-<<<<<<< HEAD
-    account_name: "SolarKits Technologies Pvt Ltd",
-    bank_name: "HDFC Bank",
-    account_number: "50200088991122",
-    ifsc_code: "HDFC0001234",
-    branch_name: "Corporate Financial Center, Mumbai",
-    account_type: "Current Account",
-    upi_id: "solarkits.pay@hdfcbank",
-=======
     account_name: "SUNNOVATIVE SOLAR ENERGY SOLUTION PRIVATE LIMITED",
     bank_name: "ICICI Bank",
     account_number: "624805017426",
@@ -215,7 +191,6 @@ export default function CheckOut() {
     branch_name: "Corporate Financial Center, Mumbai",
     account_type: "Current Account",
     upi_id: "solarkits.pay@icici",
->>>>>>> origin/main
   });
   const [copiedField, setCopiedField] = useState("");
   const [iciciVanDetails, setIciciVanDetails] = useState(null);
@@ -410,10 +385,7 @@ export default function CheckOut() {
   }, [cart, fulfillmentMode, selectedDistrict]);
 
   useEffect(() => {
-<<<<<<< HEAD
-=======
     if (quoteData && quoteData.delivery_address_snapshot) return; // Keep official quotation delivery address
->>>>>>> origin/main
     if (user || selectedState || selectedDistrict || cart.length > 0) {
       const pinFromCart = cart.find((k) => k.delivery_pincode)?.delivery_pincode;
       setDeliveryAddress((prev) => ({
@@ -425,11 +397,7 @@ export default function CheckOut() {
         contact_phone: prev.contact_phone || user?.whatsapp || user?.mobile || "",
       }));
     }
-<<<<<<< HEAD
-  }, [user, selectedState, selectedDistrict, cart]);
-=======
   }, [user, selectedState, selectedDistrict, cart, quoteData]);
->>>>>>> origin/main
 
   // Fetch ICICI Virtual Account details and listen for real-time payment confirmation
   useEffect(() => {
@@ -510,21 +478,14 @@ export default function CheckOut() {
             setSelectedPaymentMethod("offline");
           }
           if (cfg.offline_bank_details?.account_number) {
-<<<<<<< HEAD
-=======
             const ifsc = cfg.offline_bank_details.ifsc_code || "";
             const bName = cfg.offline_bank_details.bank_name || resolveBankFromIfsc(ifsc) || "";
->>>>>>> origin/main
             setBankDetails((prev) => ({
               ...prev,
               account_name: cfg.offline_bank_details.account_holder_name || prev.account_name,
               account_number: cfg.offline_bank_details.account_number,
-<<<<<<< HEAD
-              ifsc_code: cfg.offline_bank_details.ifsc_code || prev.ifsc_code,
-=======
               ifsc_code: ifsc || prev.ifsc_code,
               bank_name: bName || prev.bank_name,
->>>>>>> origin/main
             }));
           }
         }
@@ -543,13 +504,6 @@ export default function CheckOut() {
         if (res.data?.status === "success" && res.data?.data) {
           const d = res.data.data;
           if (d.account_number) {
-<<<<<<< HEAD
-            setBankDetails((prev) => ({
-              ...prev,
-              account_name: d.account_holder_name || prev.account_name,
-              account_number: d.account_number,
-              ifsc_code: d.ifsc_code || prev.ifsc_code,
-=======
             const ifsc = d.ifsc_code || "";
             const bName = d.bank_name || resolveBankFromIfsc(ifsc) || "";
             setBankDetails((prev) => ({
@@ -558,7 +512,6 @@ export default function CheckOut() {
               account_number: d.account_number,
               ifsc_code: ifsc || prev.ifsc_code,
               bank_name: bName || prev.bank_name,
->>>>>>> origin/main
             }));
           }
         }
@@ -677,9 +630,6 @@ export default function CheckOut() {
     try {
       const res = await axios.get(`${API_URL}/india/v1/shop/bank-details`);
       if (res.data?.success && res.data.data) {
-<<<<<<< HEAD
-        setBankDetails(res.data.data);
-=======
         const d = res.data.data;
         const ifsc = d.ifsc_code || "";
         const bName = d.bank_name || resolveBankFromIfsc(ifsc) || "";
@@ -688,7 +638,6 @@ export default function CheckOut() {
           ...d,
           bank_name: bName || d.bank_name || prev.bank_name,
         }));
->>>>>>> origin/main
       }
     } catch (err) {
       console.error("Error fetching bank details:", err);
@@ -722,16 +671,6 @@ export default function CheckOut() {
       navigate("/cart");
       return;
     }
-<<<<<<< HEAD
-    if (cart.length === 0) {
-      navigate("/cart");
-      return;
-    }
-    handleReserveStock();
-    fetchActiveOffers();
-    checkGstStatus();
-  }, [cart, navigate, selectedDistrict, selectedState, orderConfirmed, user, dispatch]);
-=======
     if (!quoteIdParam && cart.length === 0) {
       navigate("/cart");
       return;
@@ -742,7 +681,6 @@ export default function CheckOut() {
     fetchActiveOffers();
     checkGstStatus();
   }, [cart, navigate, selectedDistrict, selectedState, orderConfirmed, user, dispatch, quoteIdParam]);
->>>>>>> origin/main
 
   // Countdown timer logic
   useEffect(() => {
@@ -876,8 +814,6 @@ export default function CheckOut() {
       }
     });
 
-<<<<<<< HEAD
-=======
     // If checking out an official BDE quotation, honor the agreed commercial totals
     if (quoteData) {
       const qTotal = Math.round((quoteData.total_amount_paise || 0) / 100);
@@ -900,7 +836,6 @@ export default function CheckOut() {
       };
     }
 
->>>>>>> origin/main
     let appliedDiscountValue = 0;
     let selectedOffers = [];
 
@@ -935,11 +870,6 @@ export default function CheckOut() {
     const discountedSubtotal = Math.max(0, subtotal - appliedDiscountValue);
 
     // Selling price (ourPrice) is already GST-inclusive, extract exact base and GST amounts
-<<<<<<< HEAD
-    const { taxable: baseSubtotalExclGst, gstAmount: computedGst, gstRate: dynamicGstRate } = getTaxBreakdown(discountedSubtotal);
-    const finalTotal = discountedSubtotal + totalDeliveryFreight;
-
-=======
     const { taxable: productTaxable, gstAmount: productGst, gstRate: dynamicGstRate } = getTaxBreakdown(discountedSubtotal);
     const finalTotal = discountedSubtotal + totalDeliveryFreight;
 
@@ -947,7 +877,6 @@ export default function CheckOut() {
     const freightTaxable = totalDeliveryFreight > 0 ? Math.round(totalDeliveryFreight / (1 + dynamicGstRate / 100)) : 0;
     const freightGst = Math.max(0, totalDeliveryFreight - freightTaxable);
 
->>>>>>> origin/main
     return {
       discountAmount: appliedDiscountValue,
       offersApplied: selectedOffers,
@@ -955,21 +884,12 @@ export default function CheckOut() {
       offerType: activeOfferType,
       totalDeliveryFreight,
       discountedSubtotal,
-<<<<<<< HEAD
-      baseSubtotalExclGst,
-      computedGst,
-      gstRate: dynamicGstRate,
-      finalTotal,
-    };
-  }, [checkoutItems, totalKitsQuantity, totalCapacityKW, appliedCoupon, activeOffers, subtotal, checkoutSettings]);
-=======
       baseSubtotalExclGst: productTaxable + freightTaxable,
       computedGst: productGst + freightGst,
       gstRate: dynamicGstRate,
       finalTotal,
     };
   }, [checkoutItems, totalKitsQuantity, totalCapacityKW, appliedCoupon, activeOffers, subtotal, checkoutSettings, quoteData]);
->>>>>>> origin/main
 
   // ── Calculate Milestone Breakdown ──────────────────────────────────────────
   const milestoneBreakdown = useMemo(() => {
@@ -1186,13 +1106,10 @@ export default function CheckOut() {
       formData.append("payment_method", selectedPaymentMethod === "online" ? "icici_ecollection" : "offline_bank_transfer");
       formData.append("payment_gateway_used", selectedPaymentMethod === "online" ? "icici_ecollection" : "bank_transfer");
       formData.append("payment_receipt", receiptFile);
-<<<<<<< HEAD
-=======
       if (quoteData) {
         formData.append("quote_id", quoteData._id);
         formData.append("quote_number", quoteData.quote_number || "");
       }
->>>>>>> origin/main
 
       const res = await axios.post(`${API_URL}/india/v1/shop/offline-checkout/create`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -1209,30 +1126,19 @@ export default function CheckOut() {
           orderData.payment_method === "icici_ecollection" ||
           orderData.payment_gateway_used === "icici_ecollection";
 
-<<<<<<< HEAD
-        // Remove only the checked-out items from cart, keeping other milestone cards safe!
-        const orderedIds = checkoutItems.map(it => it.cartItemId);
-        dispatch(removeItemsFromCart(orderedIds));
-        dispatch(syncCartWithBackend());
-=======
         // Remove only the checked-out items from cart, keeping other milestone cards safe (skip for quote checkouts)!
         if (!quoteData) {
           const orderedIds = checkoutItems.map(it => it.cartItemId);
           dispatch(removeItemsFromCart(orderedIds));
           dispatch(syncCartWithBackend());
         }
->>>>>>> origin/main
 
         dispatch(
           setAlert({
             type: "success",
-<<<<<<< HEAD
-            message: "Order submitted successfully! Payment details have been submitted for verification.",
-=======
             message: quoteData
               ? `Quotation ${quoteData.quote_number || ""} converted to Order #${orderData.order_number || ""} successfully! Payment submitted for verification.`
               : "Order submitted successfully! Payment details have been submitted for verification.",
->>>>>>> origin/main
           })
         );
       } else {
@@ -1384,19 +1290,11 @@ export default function CheckOut() {
             Track Order Delivery Status
           </Button>
           <Button
-<<<<<<< HEAD
-            onClick={() => navigate("/preconfigured-combo-kit")}
-            variant="secondary"
-            className="py-3.5 text-sm font-semibold"
-          >
-            Return to Product Catalogue
-=======
             onClick={() => navigate(quoteData ? "/my-quotes" : "/preconfigured-combo-kit")}
             variant="secondary"
             className="py-3.5 text-sm font-semibold"
           >
             {quoteData ? "Back to My Quotations" : "Return to Product Catalogue"}
->>>>>>> origin/main
           </Button>
         </div>
 
@@ -1424,11 +1322,7 @@ export default function CheckOut() {
   }
 
   if (loading) {
-<<<<<<< HEAD
-    return <Loader text="Securing warehouse inventory and loading checkout..." />;
-=======
     return <Loader text={quoteIdParam ? "Loading official quotation checkout..." : "Securing warehouse inventory and loading checkout..."} />;
->>>>>>> origin/main
   }
 
   if (errorMsg) {
@@ -1448,8 +1342,6 @@ export default function CheckOut() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
-<<<<<<< HEAD
-=======
       {/* Official Quotation Checkout Header Banner */}
       {quoteData && (
         <div className="bg-gradient-to-r from-primary via-primary-end to-primary rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
@@ -1478,7 +1370,6 @@ export default function CheckOut() {
         </div>
       )}
 
->>>>>>> origin/main
       {/* Checkout timer bar */}
       {timerEnabled && (
         <div className="bg-amber-500/10 border border-amber-500/25 p-4 rounded-2xl flex items-center justify-between gap-4 shadow-sm">

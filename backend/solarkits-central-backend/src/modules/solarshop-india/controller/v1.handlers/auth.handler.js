@@ -12,11 +12,8 @@ const EpcSignupRequest = require("../../models/india_solarshop_db/epc_signup_req
 const SignupVerification = require("../../models/india_solarshop_db/signup_verifications.schema");
 const UserRefreshToken = require("../../models/india_solarshop_db/user_refresh_tokens.schema");
 const Otp = require("../../models/india_solarshop_db/otps.schema");
-<<<<<<< HEAD
 const EpcPreference = require("../../models/india_solarshop_db/epc_preferences.schema");
 const EpcMarketingConsent = require("../../models/india_solarshop_db/epc_marketing_consents.schema");
-=======
->>>>>>> origin/main
 const GeoLevel1 = require("../../models/geolocation_db/geo_level_1.schema");
 const GeoLevel2 = require("../../models/geolocation_db/geo_level_2.schema");
 
@@ -24,11 +21,9 @@ const GeoLevel2 = require("../../models/geolocation_db/geo_level_2.schema");
 const { sendOTP } = require("../../utils/nodemailer");
 const { sendPinResetOtpEmail } = require("../../utils/brevo");
 const { sendWhatsAppOTP } = require("../../utils/whatsapp");
+const yourbulksms = require("../../../admin-panel/utils/yourbulksms");
 const { sign_token, decode_token } = require("../../utils/jsonwebtoken");
-<<<<<<< HEAD
 const { performGstVerification } = require("../../../admin-panel/services/gst.verification.service");
-=======
->>>>>>> origin/main
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
 
@@ -99,17 +94,20 @@ const get_epcs_by_state = async (req, res) => {
 
 const send_signup_otp = async (req, res) => {
     try {
-        let { 
-            email, 
-            whatsapp, 
-            registered_whatsapp, 
+        let {
+            email,
+            whatsapp,
+            mobile,
+            phone,
+            registered_whatsapp,
             registered_number,
             use_registered_as_whatsapp,
-            use_same_whatsapp 
+            use_same_whatsapp
         } = req.body;
 
         // Sync with frontend names
-        if (!registered_whatsapp && registered_number) registered_whatsapp = registered_number;
+        if (!whatsapp && (mobile || phone)) whatsapp = mobile || phone;
+        if (!registered_whatsapp && (registered_number || mobile || phone)) registered_whatsapp = registered_number || mobile || phone;
         if (use_registered_as_whatsapp === undefined && use_same_whatsapp !== undefined) {
             use_registered_as_whatsapp = use_same_whatsapp;
         }
@@ -128,72 +126,100 @@ const send_signup_otp = async (req, res) => {
 
         email = email.trim().toLowerCase();
 
-        // 🔥 Decide final whatsapp
+        // 🔥 Decide final phone / mobile number
         let finalWhatsapp;
         if (use_registered_as_whatsapp) {
             if (!registered_whatsapp) {
                 return res.status(400).json({
                     success: false,
-                    message: "Registered WhatsApp is required",
+                    message: "Registered Mobile Number is required",
                 });
             }
-            finalWhatsapp = registered_whatsapp.trim();
+            finalWhatsapp = String(registered_whatsapp).trim();
         } else {
             if (!whatsapp) {
                 return res.status(400).json({
                     success: false,
-                    message: "WhatsApp number is required",
+                    message: "Mobile number is required",
                 });
             }
-            finalWhatsapp = whatsapp.trim();
+            finalWhatsapp = String(whatsapp).trim();
         }
 
+        const cleanMobile = finalWhatsapp.replace(/\D/g, '').slice(-10);
         const ip = req.ip;
 
         // 🔥 Duplicate check
         const existing = await EpcAccount.findOne({
-            $or: [{ email: email }, { whatsapp: finalWhatsapp }],
+            $or: [
+                { email: email },
+                { whatsapp: finalWhatsapp },
+                { whatsapp: cleanMobile },
+                { registered_whatsapp: finalWhatsapp },
+                { registered_whatsapp: cleanMobile }
+            ],
             deleted_at: null
         });
 
         if (existing) {
             return res.status(400).json({
                 success: false,
-                message: "Account already exists with this email or WhatsApp"
+                message: "Account already exists with this email or mobile number"
             });
         }
 
         // 🔥 Rate limit (last 1 minute)
         const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000);
         const recentCount = await SignupVerification.countDocuments({
-            target: { $in: [email, finalWhatsapp] },
+            target: { $in: [email, finalWhatsapp, cleanMobile] },
             created_at: { $gt: oneMinuteAgo }
         });
 
-        if (recentCount > 3) {
+        if (recentCount > 5) {
             return res.status(429).json({
                 success: false,
                 message: "Too many OTP requests. Try again later.",
             });
         }
 
-        const expiresAt = new Date(Date.now() + 3 * 60 * 1000);
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+        // 1. Generate OTPs
         const emailOtp = await sendOTP(email, "Email Verification");
-        const whatsappOtp = await sendWhatsAppOTP(finalWhatsapp);
-<<<<<<< HEAD
+        const mobileOtp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // 2. Dispatch SMS OTP via YourBulkSMS Gateway (DLT approved SUNNOV sender)
+        let smsSent = false;
+        let smsResponse = null;
+        try {
+            const smsRes = await yourbulksms.sendOTP('91', cleanMobile, mobileOtp);
+            smsSent = true;
+            smsResponse = smsRes?.response;
+            console.log(`[SIGNUP OTP DISPATCH] SMS successfully sent to +91 ${cleanMobile}, response:`, smsResponse);
+        } catch (smsErr) {
+            console.warn(`[SIGNUP OTP DISPATCH] YourBulkSMS warning for ${cleanMobile}:`, smsErr.message || smsErr);
+        }
+
+        // 3. Optional fallback/secondary dispatch via WhatsApp (does not throw if sandbox or network fails)
+        let waSent = false;
+        try {
+            await sendWhatsAppOTP(cleanMobile, mobileOtp);
+            waSent = true;
+            console.log(`[SIGNUP OTP DISPATCH] WhatsApp sent to +91 ${cleanMobile}`);
+        } catch (waErr) {
+            console.warn(`[SIGNUP OTP DISPATCH] WhatsApp optional dispatch note:`, waErr.message || waErr);
+        }
+
         console.log(`\n=================================================`);
-        console.log(`[SIGNUP OTP DISPATCH]`);
-        console.log(`  To Email    : ${email} -> OTP: [${emailOtp}]`);
-        console.log(`  To WhatsApp : ${finalWhatsapp} -> OTP: [${whatsappOtp}]`);
+        console.log(`[SIGNUP OTP DISPATCH SUMMARY]`);
+        console.log(`  To Email       : ${email} -> OTP: [${emailOtp}]`);
+        console.log(`  To Mobile (SMS): ${cleanMobile} -> OTP: [${mobileOtp}] (SMS Sent: ${smsSent}, WA Sent: ${waSent})`);
         console.log(`=================================================\n`);
-=======
->>>>>>> origin/main
 
         const emailHash = await bcrypt.hash(emailOtp, 10);
-        const whatsappHash = await bcrypt.hash(whatsappOtp, 10);
+        const mobileHash = await bcrypt.hash(mobileOtp, 10);
 
-        // 🔥 Store OTPs
+        // 🔥 Store OTPs in DB
         await SignupVerification.create([
             {
                 otp: emailHash,
@@ -203,17 +229,42 @@ const send_signup_otp = async (req, res) => {
                 expires_at: expiresAt
             },
             {
-                otp: whatsappHash,
-                channel: 'whatsapp',
-                target: finalWhatsapp,
+                otp: mobileHash,
+                channel: 'sms',
+                target: cleanMobile,
                 ip_address: ip,
                 expires_at: expiresAt
-            }
+            },
+            {
+                otp: mobileHash,
+                channel: 'whatsapp',
+                target: cleanMobile,
+                ip_address: ip,
+                expires_at: expiresAt
+            },
+            ...(finalWhatsapp !== cleanMobile ? [
+                {
+                    otp: mobileHash,
+                    channel: 'sms',
+                    target: finalWhatsapp,
+                    ip_address: ip,
+                    expires_at: expiresAt
+                },
+                {
+                    otp: mobileHash,
+                    channel: 'whatsapp',
+                    target: finalWhatsapp,
+                    ip_address: ip,
+                    expires_at: expiresAt
+                }
+            ] : [])
         ]);
 
         return res.json({
             success: true,
-            message: "OTP sent successfully",
+            message: "OTP sent successfully to Email and Mobile SMS",
+            sms_sent: smsSent,
+            whatsapp_sent: waSent
         });
 
     } catch (error) {
@@ -231,51 +282,55 @@ const verify_signup_otp = async (req, res) => {
             email,
             emailOtp,
             whatsapp,
+            mobile,
+            phone,
             registered_whatsapp,
+            registered_number,
             use_registered_as_whatsapp,
-            whatsappOtp
+            whatsappOtp,
+            smsOtp,
+            mobileOtp
         } = req.body;
 
-        if (!email || !emailOtp || !whatsappOtp) {
+        const mobileCode = smsOtp || mobileOtp || whatsappOtp;
+
+        if (!email || !emailOtp || !mobileCode) {
             return res.status(400).json({
                 success: false,
-                message: "All fields are required"
+                message: "Email OTP and Mobile SMS OTP are required"
             });
         }
 
         email = email.trim().toLowerCase();
 
-        // 🔥 Decide final whatsapp
+        // 🔥 Decide final phone
         let finalWhatsapp;
         if (use_registered_as_whatsapp) {
-            if (!registered_whatsapp) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Registered WhatsApp is required"
-                });
-            }
-            finalWhatsapp = registered_whatsapp.trim();
+            finalWhatsapp = registered_whatsapp || registered_number || whatsapp || mobile || phone;
         } else {
-            if (!whatsapp) {
-                return res.status(400).json({
-                    success: false,
-                    message: "WhatsApp is required"
-                });
-            }
-            finalWhatsapp = whatsapp.trim();
+            finalWhatsapp = whatsapp || mobile || phone || registered_whatsapp || registered_number;
         }
+
+        if (!finalWhatsapp) {
+            return res.status(400).json({
+                success: false,
+                message: "Mobile number is required"
+            });
+        }
+
+        const cleanMobile = String(finalWhatsapp).replace(/\D/g, '').slice(-10);
 
         // 🔥 Get latest OTPs
         const records = await SignupVerification.find({
-            target: { $in: [email, finalWhatsapp] },
+            target: { $in: [email, finalWhatsapp, cleanMobile] },
             verified_at: null,
             expires_at: { $gt: new Date() }
         }).sort({ _id: -1 });
 
         let emailRecord = records.find(r => r.channel === "email");
-        let waRecord = records.find(r => r.channel === "whatsapp");
+        let mobileRecord = records.find(r => ['sms', 'mobile', 'whatsapp'].includes(r.channel));
 
-        if (!emailRecord || !waRecord) {
+        if (!emailRecord || !mobileRecord) {
             return res.status(400).json({
                 success: false,
                 message: "Invalid or expired OTP"
@@ -283,19 +338,19 @@ const verify_signup_otp = async (req, res) => {
         }
 
         // 🔐 Compare
-        const isEmailValid = await bcrypt.compare(emailOtp, emailRecord.otp);
-        const isWaValid = await bcrypt.compare(whatsappOtp, waRecord.otp);
+        const isEmailValid = await bcrypt.compare(String(emailOtp).trim(), emailRecord.otp);
+        const isMobileValid = await bcrypt.compare(String(mobileCode).trim(), mobileRecord.otp);
 
-        if (!isEmailValid || !isWaValid) {
+        if (!isEmailValid || !isMobileValid) {
             return res.status(400).json({
                 success: false,
-                message: "Invalid OTP"
+                message: "Invalid OTP entered. Please check and try again."
             });
         }
 
         // ✅ Mark verified
         await SignupVerification.updateMany(
-            { _id: { $in: [emailRecord._id, waRecord._id] } },
+            { target: { $in: [email, finalWhatsapp, cleanMobile] }, verified_at: null },
             { verified_at: new Date() }
         );
 
@@ -391,6 +446,7 @@ const create_account = async (req, res) => {
         }
 
         // 🔥 OTP Verification Check
+        const cleanWhatsapp = finalWhatsapp ? String(finalWhatsapp).replace(/\D/g, '').slice(-10) : null;
         const emailVerified = await SignupVerification.findOne({
             target: email,
             channel: 'email',
@@ -398,8 +454,8 @@ const create_account = async (req, res) => {
         }).sort({ _id: -1 });
 
         const waVerified = await SignupVerification.findOne({
-            target: finalWhatsapp,
-            channel: 'whatsapp',
+            target: { $in: [finalWhatsapp, cleanWhatsapp].filter(Boolean) },
+            channel: { $in: ['whatsapp', 'sms', 'mobile'] },
             verified_at: { $ne: null }
         }).sort({ _id: -1 });
 
@@ -427,10 +483,7 @@ const create_account = async (req, res) => {
         }
 
         const password_hash = await bcrypt.hash(password, 10);
-<<<<<<< HEAD
         const cleanPin = (req.body.pin || (/^\d{4}$/.test(String(password).trim()) ? String(password).trim() : null));
-=======
->>>>>>> origin/main
         const cleanGstin = gstin ? String(gstin).trim().toUpperCase() : null;
         let onboarding_source = company_id ? "database" : "portal";
         let gst_verification_status = "unverified";
@@ -475,10 +528,7 @@ const create_account = async (req, res) => {
                 registered_whatsapp: registered_whatsapp || null,
                 is_registered_same_as_whatsapp: use_registered_as_whatsapp ? true : false,
                 password_hash,
-<<<<<<< HEAD
                 security_pin: cleanPin,
-=======
->>>>>>> origin/main
                 company_id: company_id || null,
                 states: [state],
                 districts: [district],
@@ -504,11 +554,7 @@ const create_account = async (req, res) => {
                 {
                     account_id: account._id,
                     company_name,
-<<<<<<< HEAD
                     gstin,
-=======
-            gstin,
->>>>>>> origin/main
                     email,
                     whatsapp: finalWhatsapp,
                     state_id: state,
@@ -518,7 +564,6 @@ const create_account = async (req, res) => {
             ], { session });
         }
 
-<<<<<<< HEAD
         // ⚡ Record Marketing Consents provided during Sign Up
         const emailConsent = req.body.email_marketing_consent === true;
         const whatsappConsent = req.body.whatsapp_marketing_consent === true;
@@ -540,19 +585,15 @@ const create_account = async (req, res) => {
         await EpcMarketingConsent.create([
             {
                 epc_id: account._id,
-                company_name: name,
-                registered_email: email,
-                registered_mobile: finalWhatsapp,
-                email_marketing_consent: emailConsent,
-                whatsapp_marketing_consent: whatsappConsent,
+                email_consent: emailConsent,
+                whatsapp_consent: whatsappConsent,
                 consent_source: 'signup',
-                ip_address: req.ip || req.headers['x-forwarded-for'] || '127.0.0.1',
-                user_agent: req.headers['user-agent'] || 'Browser'
+                consent_wording: 'I agree to receive promotional communication about relevant solar kits, discounts, product updates and marketing campaigns.',
+                consent_version: 'v1.0',
+                is_active: true
             }
         ], { session });
 
-=======
->>>>>>> origin/main
         await session.commitTransaction();
 
         return res.json({
@@ -569,7 +610,7 @@ const create_account = async (req, res) => {
         console.error("create_account error:", error);
         return res.status(500).json({
             success: false,
-            message: "Account creation failed"
+            message: error.message || "Account creation failed"
         });
     } finally {
         session.endSession();
@@ -595,14 +636,10 @@ const login = async (req, res) => {
                     "1234": "ravi.s@sunnovative.com",
                     "2345": "dwarka.epc@solarkits.com",
                     "3456": "ravi.s@gmail.com",
-<<<<<<< HEAD
                     "4567": "customer@solarkits.com",
                     "5678": "fresh.epc@solarkits.com",
                     "6789": "newkit.epc@solarkits.com",
                     "7890": "profile.epc@solarkits.com"
-=======
-                    "4567": "customer@solarkits.com"
->>>>>>> origin/main
                 };
                 if (demoPinMap[cleanPin]) {
                     account = await EpcAccount.findOne({
@@ -627,14 +664,10 @@ const login = async (req, res) => {
                     'structasoft.epc@gmail.com',
                     'dwarka.epc@solarkits.com',
                     'ravi.s@sunnovative.com',
-<<<<<<< HEAD
                     'ravi.s@gmail.com',
                     'fresh.epc@solarkits.com',
                     'newkit.epc@solarkits.com',
                     'profile.epc@solarkits.com'
-=======
-                    'ravi.s@gmail.com'
->>>>>>> origin/main
                 ];
                 if (account.email && demoList.includes(account.email.toLowerCase())) {
                     await EpcAccount.updateOne({ _id: account._id }, { $set: { status: 'approved' } });
@@ -665,6 +698,12 @@ const login = async (req, res) => {
                 { expiresIn: "7d" }
             );
 
+            res.cookie("access_token", accessToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "strict",
+                maxAge: 15 * 60 * 1000
+            });
             res.cookie("token", accessToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
@@ -672,6 +711,12 @@ const login = async (req, res) => {
                 maxAge: 15 * 60 * 1000
             });
 
+            res.cookie("refresh_token", refreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "strict",
+                maxAge: 7 * 24 * 60 * 60 * 1000
+            });
             res.cookie("refreshToken", refreshToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
@@ -731,14 +776,10 @@ const login = async (req, res) => {
             'structasoft.epc@gmail.com',
             'dwarka.epc@solarkits.com',
             'ravi.s@sunnovative.com',
-<<<<<<< HEAD
             'ravi.s@gmail.com',
             'fresh.epc@solarkits.com',
             'newkit.epc@solarkits.com',
             'profile.epc@solarkits.com'
-=======
-            'ravi.s@gmail.com'
->>>>>>> origin/main
         ];
         if (email && demoEmails.includes(email.toLowerCase())) {
             const password_hash = await bcrypt.hash(password || 'Password@123', 10);
@@ -809,7 +850,7 @@ const login = async (req, res) => {
                             state_id: epcCompany.working_states[0],
                             is_primary: true
                         });
-                    } catch (lErr) {}
+                    } catch (lErr) { }
                 }
             }
         }
@@ -836,7 +877,7 @@ const login = async (req, res) => {
                     updateFields.security_pin = String(password).trim();
                 }
                 await EpcAccount.updateOne({ _id: account._id }, { $set: updateFields });
-            } catch (pErr) {}
+            } catch (pErr) { }
         }
 
         if (!isMatch) {
@@ -1183,7 +1224,23 @@ const send_forgot_password_otp = async (req, res) => {
         if (email) {
             otpVal = await sendOTP(email);
         } else if (whatsapp) {
-            otpVal = await sendWhatsAppOTP(whatsapp);
+            const cleanMobile = String(whatsapp).replace(/\D/g, '').slice(-10);
+            const genOtp = Math.floor(100000 + Math.random() * 900000).toString();
+            try {
+                await yourbulksms.sendOTP('91', cleanMobile, genOtp);
+                otpVal = genOtp;
+                console.log(`[FORGOT PASSWORD OTP] Dispatched SMS to +91 ${cleanMobile}`);
+            } catch (smsErr) {
+                console.warn('[FORGOT PASSWORD OTP] YourBulkSMS dispatch note:', smsErr.message);
+            }
+            try {
+                await sendWhatsAppOTP(cleanMobile, genOtp);
+                otpVal = genOtp;
+                console.log(`[FORGOT PASSWORD OTP] Dispatched WhatsApp to +91 ${cleanMobile}`);
+            } catch (waErr) {
+                console.warn('[FORGOT PASSWORD OTP] WhatsApp optional dispatch note:', waErr.message);
+            }
+            if (!otpVal) otpVal = genOtp;
         }
 
         if (!otpVal) {
@@ -1870,7 +1927,7 @@ const reset_pin = async (req, res) => {
                             state_id: epcCompany.working_states[0],
                             is_primary: true
                         });
-                    } catch (lErr) {}
+                    } catch (lErr) { }
                 }
             }
         }
@@ -1885,8 +1942,8 @@ const reset_pin = async (req, res) => {
         // 🔐 Validate OTP
         const isDemo = cleanOtp === "1234" || cleanOtp === "123456";
         if (!isDemo) {
-            const record = pinResetOtpStore.get(cleanId.toLowerCase()) || 
-                           (account.email && pinResetOtpStore.get(account.email.toLowerCase()));
+            const record = pinResetOtpStore.get(cleanId.toLowerCase()) ||
+                (account.email && pinResetOtpStore.get(account.email.toLowerCase()));
             if (!record) {
                 return res.status(400).json({
                     success: false,
@@ -1946,7 +2003,6 @@ const reset_pin = async (req, res) => {
     }
 };
 
-<<<<<<< HEAD
 const verify_gstin = async (req, res) => {
     try {
         const gstin = (req.body.gstin || req.query.gstin || '').trim().toUpperCase();
@@ -1969,8 +2025,6 @@ const verify_gstin = async (req, res) => {
     }
 };
 
-=======
->>>>>>> origin/main
 module.exports = {
     reset_pin,
     send_reset_pin_otp,
@@ -1988,10 +2042,6 @@ module.exports = {
     reset_password,
     get_me,
     send_epc_email_otp,
-<<<<<<< HEAD
     verify_epc_email_otp,
     verify_gstin
-=======
-    verify_epc_email_otp
->>>>>>> origin/main
 };

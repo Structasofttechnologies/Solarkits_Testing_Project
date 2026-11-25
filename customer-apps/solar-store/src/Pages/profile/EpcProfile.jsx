@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
+import axiosInstance from "@/utils/axiosInstance";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
@@ -25,20 +25,14 @@ import {
   FiSearch,
   FiX,
   FiTrendingUp,
-<<<<<<< HEAD
   FiZap,
-=======
->>>>>>> origin/main
 } from "react-icons/fi";
 // Note: EPC Buying Behavior & Analytics moved to Unified Admin Portal EpcProfileDrawer
 import { setAlert } from "@/features/alert.slice";
 import Button from "@/Components/Button";
 import Dialog from "@/Components/Dialog";
 import Loader from "@/Components/Loader";
-<<<<<<< HEAD
 import EpcPreferencesProfileTab from "@/Components/EpcPreferencesProfileTab";
-=======
->>>>>>> origin/main
 import {
   validateGstStateMatch,
   getGstStateCodesForState,
@@ -101,7 +95,7 @@ export default function EpcProfile() {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/india/v1/shop/epc/profile`, {
+      const res = await axiosInstance.get(`${API_URL}/india/v1/shop/epc/profile`, {
         withCredentials: true,
       });
       if (res.data?.success) {
@@ -123,7 +117,7 @@ export default function EpcProfile() {
   // Fetch all states for dropdown
   const fetchAllStates = async () => {
     try {
-      const res = await axios.get(`${API_URL}/india/v1/geo/states`);
+      const res = await axiosInstance.get(`${API_URL}/india/v1/geo/states`);
       if (res.data?.states) {
         setAllStates(res.data.states);
       }
@@ -140,7 +134,7 @@ export default function EpcProfile() {
     }
     try {
       setLoadingDistricts(true);
-      const res = await axios.get(`${API_URL}/india/v1/geo/districts?state_id=${stateId}`);
+      const res = await axiosInstance.get(`${API_URL}/india/v1/geo/districts?state_id=${stateId}`);
       if (res.data?.districts) {
         setStateDistricts(res.data.districts);
       }
@@ -207,7 +201,7 @@ export default function EpcProfile() {
     try {
       setIsFetchingGst(true);
       setGstFetchError(null);
-      const res = await axios.post(
+      const res = await axiosInstance.post(
         `${API_URL}/india/v1/shop/epc/gst/lookup`,
         { gst_number: cleanGst, state_id: newStateForm.state_id },
         { withCredentials: true }
@@ -289,7 +283,7 @@ export default function EpcProfile() {
 
     try {
       setIsAddingState(true);
-      const res = await axios.post(
+      const res = await axiosInstance.post(
         `${API_URL}/india/v1/shop/epc/onboard-state`,
         {
           state_id: newStateForm.state_id,
@@ -372,7 +366,7 @@ export default function EpcProfile() {
         formData.append("file", newOfficeForm.photo_file);
       }
 
-      const res = await axios.post(
+      const res = await axiosInstance.post(
         `${API_URL}/india/v1/shop/epc/offices`,
         formData,
         {
@@ -419,7 +413,7 @@ export default function EpcProfile() {
   // Set as Home Office directly
   const handleSetHomeOffice = async (officeId, officeName) => {
     try {
-      const res = await axios.patch(
+      const res = await axiosInstance.patch(
         `${API_URL}/india/v1/shop/epc/offices/${officeId}/set-home`,
         {},
         { withCredentials: true }
@@ -451,7 +445,7 @@ export default function EpcProfile() {
       return;
     }
     try {
-      const res = await axios.delete(
+      const res = await axiosInstance.delete(
         `${API_URL}/india/v1/shop/epc/offices/${officeId}`,
         { withCredentials: true }
       );
@@ -682,7 +676,6 @@ export default function EpcProfile() {
           </span>
         </button>
 
-<<<<<<< HEAD
         <button
           onClick={() => setActiveTab("preferences")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${activeTab === "preferences"
@@ -693,9 +686,6 @@ export default function EpcProfile() {
           <FiZap size={16} />
           <span>3. My Business & Kit Preferences</span>
         </button>
-=======
-
->>>>>>> origin/main
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -1077,7 +1067,6 @@ export default function EpcProfile() {
         </div>
       )}
 
-<<<<<<< HEAD
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* TAB 3: BUSINESS & KIT PREFERENCES (ONBOARDING PREFERENCES)          */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -1085,8 +1074,6 @@ export default function EpcProfile() {
         <EpcPreferencesProfileTab />
       )}
 
-=======
->>>>>>> origin/main
 
 
       {/* ═══════════════════════════════════════════════════════════════════ */}

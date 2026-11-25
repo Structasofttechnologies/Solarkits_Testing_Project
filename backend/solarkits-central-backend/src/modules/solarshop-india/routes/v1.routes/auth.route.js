@@ -19,22 +19,15 @@ const {
   verify_epc_email_otp,
   reset_pin,
   send_reset_pin_otp,
-<<<<<<< HEAD
   verify_reset_pin_otp,
   verify_gstin
-=======
-  verify_reset_pin_otp
->>>>>>> origin/main
 } = require("../../controller/v1.handlers/auth.handler");
 
 router.get("/epcs-by-state", get_epcs_by_state);
 router.post("/send-otp",    otpRateLimiter,  send_signup_otp);
 router.post("/verify-otp",  otpRateLimiter,  verify_signup_otp);
 router.post("/resend-otp",  otpRateLimiter,  resend_signup_otp);
-<<<<<<< HEAD
 router.post("/verify-gst",  verify_gstin);
-=======
->>>>>>> origin/main
 router.post("/send-epc-otp",    otpRateLimiter,  send_epc_email_otp);
 router.post("/verify-epc-otp",  otpRateLimiter,  verify_epc_email_otp);
 router.post("/create-account",   authRateLimiter, create_account);

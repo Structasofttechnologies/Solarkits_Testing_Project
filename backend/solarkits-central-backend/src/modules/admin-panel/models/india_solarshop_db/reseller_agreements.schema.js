@@ -28,8 +28,6 @@ const schema = new mongoose.Schema({
     default: 'SolarKits Authorized Franchise Partner Agreement',
     trim: true,
   },
-<<<<<<< HEAD
-=======
   agreement_type: {
     type: String,
     default: 'District Franchise Agreement',
@@ -50,7 +48,6 @@ const schema = new mongoose.Schema({
     ref: 'reseller_plans',
     default: null,
   },
->>>>>>> origin/main
   version: {
     type: String,
     default: '1.0',

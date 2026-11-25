@@ -84,18 +84,11 @@ export const logCartActivity = createAsyncThunk(
 export const getAvailableKitData = createAsyncThunk(
   "solar/getAvailableKitData",
   async (params) => {
-<<<<<<< HEAD
     const { districtId, stateId } = params || {};
     const q = [];
     if (districtId) q.push(`district_id=${districtId}`);
     if (stateId) q.push(`state_id=${stateId}`);
     const url = q.length > 0 ? `/india/v1/shop/combo-kits?${q.join("&")}` : `/india/v1/shop/combo-kits`;
-=======
-    const { districtId } = params || {};
-    const url = districtId
-      ? `/india/v1/shop/combo-kits?district_id=${districtId}`
-      : `/india/v1/shop/combo-kits`;
->>>>>>> origin/main
     const response = await axiosInstance.get(url);
     return response.data.data;
   }

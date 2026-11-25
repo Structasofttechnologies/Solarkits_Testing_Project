@@ -55,13 +55,8 @@ const BROWSE_SECTORS = [
     title: "Browse by Govt Tender",
     desc: "PSU & Government tender compliant solar kits",
     icon: MdOutlineAccountBalance,
-<<<<<<< HEAD
     href: "/preconfigured-combo-kit?filter=govt-tender",
     appRoute: "/preconfigured-combo-kit?filter=govt-tender",
-=======
-    href: "/shop",
-    appRoute: "/shop",
->>>>>>> origin/main
     badge: "New",
     color: "amber",
   },
@@ -459,11 +454,7 @@ export default function Navbar() {
                             </div>
                           </div>
                           <button
-<<<<<<< HEAD
                             onClick={() => handleNavClick("/preconfigured-combo-kit?filter=govt-tender")}
-=======
-                            onClick={() => handleNavClick("/browse/govt-tender")}
->>>>>>> origin/main
                             className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                           >
                             <span>Explore Tender Kits</span>
@@ -654,11 +645,7 @@ export default function Navbar() {
                       </button>
 
                       <button
-<<<<<<< HEAD
                         onClick={() => handleNavClick("/preconfigured-combo-kit?filter=govt-tender")}
-=======
-                        onClick={() => handleNavClick("/browse/govt-tender")}
->>>>>>> origin/main
                         className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-amber-50 text-left transition-colors cursor-pointer bg-amber-50/40"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -707,11 +694,7 @@ export default function Navbar() {
                         <FiChevronRight className="text-gray-400 shrink-0" size={13} />
                       </button>
                       <button
-<<<<<<< HEAD
                         onClick={() => handleNavClick("/preconfigured-combo-kit?filter=govt-tender")}
-=======
-                        onClick={() => handleNavClick("/browse/govt-tender")}
->>>>>>> origin/main
                         className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-amber-50 text-left transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">

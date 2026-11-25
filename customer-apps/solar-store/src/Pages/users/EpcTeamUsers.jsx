@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
+import axiosInstance from "@/utils/axiosInstance";
 import { useSelector, useDispatch } from "react-redux";
 import {
   FiUsers,
@@ -106,10 +106,10 @@ export default function EpcTeamUsers() {
     try {
       setLoading(true);
       const [usersRes, profileRes] = await Promise.all([
-        axios.get(`${API_URL}/india/v1/shop/epc/users`, {
+        axiosInstance.get(`${API_URL}/india/v1/shop/epc/users`, {
           withCredentials: true,
         }),
-        axios.get(`${API_URL}/india/v1/shop/epc/profile`, {
+        axiosInstance.get(`${API_URL}/india/v1/shop/epc/profile`, {
           withCredentials: true,
         }),
       ]);
@@ -242,7 +242,7 @@ export default function EpcTeamUsers() {
 
     try {
       setSubmitting(true);
-      const res = await axios.post(
+      const res = await axiosInstance.post(
         `${API_URL}/india/v1/shop/epc/users`,
         {
           name: form.name,
@@ -288,10 +288,10 @@ export default function EpcTeamUsers() {
     const userPerms = Array.isArray(user.permissions) && user.permissions.length > 0
       ? user.permissions
       : (userRole === "admin"
-          ? ["all"]
-          : userRole === "account"
-            ? ["can_view_catalog", "can_view_orders", "can_checkout"]
-            : ["can_view_catalog", "can_add_to_cart", "can_checkout", "can_view_orders"]);
+        ? ["all"]
+        : userRole === "account"
+          ? ["can_view_catalog", "can_view_orders", "can_checkout"]
+          : ["can_view_catalog", "can_add_to_cart", "can_checkout", "can_view_orders"]);
 
     let matchedPreset = "custom";
     if (userPerms.includes("all")) {
@@ -340,7 +340,7 @@ export default function EpcTeamUsers() {
         payload.password = form.password.trim();
       }
 
-      const res = await axios.put(
+      const res = await axiosInstance.put(
         `${API_URL}/india/v1/shop/epc/users/${editingUser.id}`,
         payload,
         { withCredentials: true }
@@ -379,7 +379,7 @@ export default function EpcTeamUsers() {
     }
 
     try {
-      const res = await axios.delete(
+      const res = await axiosInstance.delete(
         `${API_URL}/india/v1/shop/epc/users/${userId}`,
         { withCredentials: true }
       );
@@ -586,11 +586,10 @@ export default function EpcTeamUsers() {
                     </div>
 
                     <span
-                      className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                        u.is_active
+                      className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${u.is_active
                           ? "bg-success/10 text-success border border-success/20"
                           : "bg-surface-hover text-text-muted border border-border"
-                      }`}
+                        }`}
                     >
                       {u.is_active ? "Active" : "Suspended"}
                     </span>
@@ -850,11 +849,10 @@ export default function EpcTeamUsers() {
                     key={preset.id}
                     type="button"
                     onClick={() => handlePresetChange(preset.id)}
-                    className={`p-2.5 rounded-xl border text-left transition-all ${
-                      isSelected
+                    className={`p-2.5 rounded-xl border text-left transition-all ${isSelected
                         ? "bg-primary/10 border-primary text-primary font-bold shadow-sm ring-1 ring-primary"
                         : "bg-surface border-border text-text-secondary hover:bg-surface-hover hover:border-border/80"
-                    }`}
+                      }`}
                   >
                     <div className="text-xs font-bold truncate">{preset.name}</div>
                     <div className="text-[10px] text-text-muted line-clamp-1 mt-0.5">
@@ -877,11 +875,10 @@ export default function EpcTeamUsers() {
                   return (
                     <label
                       key={cap.id}
-                      className={`flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${
-                        isChecked
+                      className={`flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${isChecked
                           ? "bg-primary/10 border-primary/40 text-primary font-bold"
                           : "bg-surface border-border text-text-secondary hover:bg-surface-hover"
-                      }`}
+                        }`}
                     >
                       <input
                         type="checkbox"
@@ -943,11 +940,10 @@ export default function EpcTeamUsers() {
                   return (
                     <label
                       key={dist.district_id}
-                      className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                        isChecked
+                      className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${isChecked
                           ? "bg-primary/10 border-primary/30 text-primary font-bold"
                           : "bg-surface border-border text-text-secondary hover:bg-surface-hover"
-                      }`}
+                        }`}
                     >
                       <input
                         type="checkbox"
@@ -1104,11 +1100,10 @@ export default function EpcTeamUsers() {
               onClick={() =>
                 setForm((prev) => ({ ...prev, is_active: !prev.is_active }))
               }
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
-                form.is_active
+              className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${form.is_active
                   ? "bg-success/20 text-success border border-success/30"
                   : "bg-danger/20 text-danger border border-danger/30"
-              }`}
+                }`}
             >
               {form.is_active ? "Active" : "Suspended"}
             </button>
@@ -1134,11 +1129,10 @@ export default function EpcTeamUsers() {
                     key={preset.id}
                     type="button"
                     onClick={() => handlePresetChange(preset.id)}
-                    className={`p-2.5 rounded-xl border text-left transition-all ${
-                      isSelected
+                    className={`p-2.5 rounded-xl border text-left transition-all ${isSelected
                         ? "bg-primary/10 border-primary text-primary font-bold shadow-sm ring-1 ring-primary"
                         : "bg-surface border-border text-text-secondary hover:bg-surface-hover hover:border-border/80"
-                    }`}
+                      }`}
                   >
                     <div className="text-xs font-bold truncate">{preset.name}</div>
                     <div className="text-[10px] text-text-muted line-clamp-1 mt-0.5">
@@ -1161,11 +1155,10 @@ export default function EpcTeamUsers() {
                   return (
                     <label
                       key={cap.id}
-                      className={`flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${
-                        isChecked
+                      className={`flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${isChecked
                           ? "bg-primary/10 border-primary/40 text-primary font-bold"
                           : "bg-surface border-border text-text-secondary hover:bg-surface-hover"
-                      }`}
+                        }`}
                     >
                       <input
                         type="checkbox"
@@ -1214,11 +1207,10 @@ export default function EpcTeamUsers() {
                 return (
                   <label
                     key={dist.district_id}
-                    className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${
-                      isChecked
+                    className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${isChecked
                         ? "bg-primary/10 border-primary/30 text-primary font-bold"
                         : "bg-surface border-border text-text-secondary hover:bg-surface-hover"
-                    }`}
+                      }`}
                   >
                     <input
                       type="checkbox"

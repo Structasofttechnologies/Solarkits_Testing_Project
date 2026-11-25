@@ -23,11 +23,8 @@ const {
   TrialKitInventory,
   TrialKitStockHistory,
   TrialKitOrder,
-<<<<<<< HEAD
-=======
   EpcQuote,
   EpcQuoteActivity,
->>>>>>> origin/main
 } = require('../models/india_solarshop_db');
 const { CompanyWarehouse } = require('../models/company_warehouse_db');
 const { calculateCheckoutPrice } = require('./reseller.pricing.service');
@@ -36,10 +33,7 @@ const { routeEpcOrderToReseller } = require('./epc.order.service');
 const { logAudit } = require('../utils/audit.service');
 const { creditResellerMargin, creditEpcMargin } = require('./wallet.settlement.service');
 const { resolveVariationCommission } = require('./franchisee.commission.service');
-<<<<<<< HEAD
-=======
 const { resolveBankNameFromIfsc } = require('../utils/ifsc.bank.resolver');
->>>>>>> origin/main
 
 // Company Escrow Bank Account Details (Default / Fallback)
 const COMPANY_BANK_DETAILS = {
@@ -63,13 +57,6 @@ const getDynamicCompanyBankDetails = async () => {
   try {
     const settings = await SolarShopSettings.findOne().lean();
     if (settings?.offline_bank_details?.account_number) {
-<<<<<<< HEAD
-      return {
-        ...COMPANY_BANK_DETAILS,
-        account_name: settings.offline_bank_details.account_holder_name || COMPANY_BANK_DETAILS.account_name,
-        account_number: settings.offline_bank_details.account_number,
-        ifsc_code: settings.offline_bank_details.ifsc_code || COMPANY_BANK_DETAILS.ifsc_code,
-=======
       const ifsc = settings.offline_bank_details.ifsc_code || COMPANY_BANK_DETAILS.ifsc_code;
       const bankName = settings.offline_bank_details.bank_name || resolveBankNameFromIfsc(ifsc) || COMPANY_BANK_DETAILS.bank_name;
       return {
@@ -78,7 +65,6 @@ const getDynamicCompanyBankDetails = async () => {
         bank_name: bankName,
         account_number: settings.offline_bank_details.account_number,
         ifsc_code: ifsc,
->>>>>>> origin/main
       };
     }
   } catch (err) {
@@ -231,18 +217,13 @@ async function createEpcOfflineOrder({
   req = null,
   fulfillment_mode = 'direct_site',
   order_load_metrics = null,
-<<<<<<< HEAD
-=======
   quote_id = null,
   quote_number = null,
->>>>>>> origin/main
 }) {
   if (!items || items.length === 0) {
     throw new Error('Cart must contain at least one item');
   }
 
-<<<<<<< HEAD
-=======
   // Look up quotation if this checkout is for an official quote
   let quoteDoc = null;
   const rawQuoteId = quote_id || (items && items[0]?.quote_id) || null;
@@ -258,7 +239,6 @@ async function createEpcOfflineOrder({
     }
   }
 
->>>>>>> origin/main
   const { utr_number, amount_paid, payment_date, receipt_url, receipt_filename, sender_bank_name, account_holder_name } = offline_payment_data;
 
   if (!utr_number || !utr_number.trim()) {
@@ -748,11 +728,8 @@ async function createEpcOfflineOrder({
     epcOrder = await EpcOrder.create({
       order_number: orderNumber,
       order_request_id: `REQ-EPC-${orderNumber.replace(/^ORD-EPC-/, '')}`,
-<<<<<<< HEAD
-=======
       quote_id: quoteDoc ? quoteDoc._id : (rawQuoteId && mongoose.Types.ObjectId.isValid(rawQuoteId) ? rawQuoteId : null),
       quote_number: quoteDoc ? (quoteDoc.quote_number || quote_number) : (quote_number || null),
->>>>>>> origin/main
       is_official_order_generated: false,
       order_type: detectedOrderType,
       is_trial_order: detectedOrderType === 'trial_order' || Boolean(processedItems.some(it => it.is_trial_kit)),
@@ -1037,8 +1014,6 @@ async function createEpcOfflineOrder({
       },
       req,
     });
-<<<<<<< HEAD
-=======
 
     // 7. If this order originated from an official EPC Quotation, atomically convert the quotation
     if (quoteDoc) {
@@ -1084,7 +1059,6 @@ async function createEpcOfflineOrder({
         console.warn('[createEpcOfflineOrder] Error updating converted quotation status:', convErr.message);
       }
     }
->>>>>>> origin/main
   } catch (creationErr) {
     if (epcOrder?._id) {
       await EpcOrder.findByIdAndDelete(epcOrder._id).catch(() => { });

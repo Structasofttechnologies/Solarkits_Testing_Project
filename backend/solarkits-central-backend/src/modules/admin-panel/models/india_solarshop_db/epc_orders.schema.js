@@ -43,8 +43,6 @@ const schema = new mongoose.Schema({
     trim: true,
     index: true,
   },
-<<<<<<< HEAD
-=======
   quote_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'epc_quotes',
@@ -57,7 +55,6 @@ const schema = new mongoose.Schema({
     trim: true,
     index: true,
   },
->>>>>>> origin/main
   is_official_order_generated: {
     type: Boolean,
     default: false,

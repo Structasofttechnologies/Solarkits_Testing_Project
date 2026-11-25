@@ -17,8 +17,6 @@
 const { SolarShopSettings } = require('../models/india_solarshop_db');
 const { logAudit } = require('../utils/audit.service');
 
-<<<<<<< HEAD
-=======
 const getDefaultAgreementTypes = (defaultTemplate) => [
   {
     type_key: 'district_franchise_agreement',
@@ -58,7 +56,6 @@ const getDefaultAgreementTypes = (defaultTemplate) => [
   },
 ];
 
->>>>>>> origin/main
 // ── 1. GET PLATFORM SETTINGS ───────────────────────────────────────────────────
 /**
  * GET /admin-api/reseller-mgmt/settings
@@ -93,18 +90,12 @@ const get_platform_settings = async (req, res) => {
         franchise_agreement_title:          'SolarKits Authorized Franchise Partner Agreement',
         franchise_agreement_version:        '2.0',
         franchise_agreement_template:       null,
-<<<<<<< HEAD
-        flagship_excluded_districts:        [],
-        _is_default: true, // Flag to indicate no DB document exists yet
-      };
-=======
         franchise_agreement_types:          getDefaultAgreementTypes(null),
         flagship_excluded_districts:        [],
         _is_default: true, // Flag to indicate no DB document exists yet
       };
     } else if (!settings.franchise_agreement_types || settings.franchise_agreement_types.length === 0) {
       settings.franchise_agreement_types = getDefaultAgreementTypes(settings.franchise_agreement_template);
->>>>>>> origin/main
     }
 
     return res.status(200).json({
@@ -157,10 +148,7 @@ const ALLOWED_UPDATE_FIELDS = [
   'franchise_agreement_title',
   'franchise_agreement_version',
   'franchise_agreement_template',
-<<<<<<< HEAD
-=======
   'franchise_agreement_types',
->>>>>>> origin/main
   'flagship_excluded_districts',
 ];
 
@@ -226,11 +214,6 @@ const update_platform_settings = async (req, res) => {
   }
 };
 
-<<<<<<< HEAD
-module.exports = {
-  get_platform_settings,
-  update_platform_settings,
-=======
 /**
  * 3. UPLOAD AGREEMENT TYPE DOCUMENT TEMPLATE (PDF)
  * POST /admin-api/reseller-mgmt/settings/agreement-types/upload
@@ -273,5 +256,4 @@ module.exports = {
   get_platform_settings,
   update_platform_settings,
   upload_agreement_type_document,
->>>>>>> origin/main
 };

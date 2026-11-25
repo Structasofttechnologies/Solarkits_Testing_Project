@@ -26,10 +26,7 @@ const {
   DeliveryRouteSetting,
   FranchiseLead,
   WebsiteEpcLead,
-<<<<<<< HEAD
   GovtTenderKit,
-=======
->>>>>>> origin/main
 } = require('../../models/india_solarshop_db');
 const { CompanyMargin: CoreCompanyMargin } = require('../../models/core_db');
 const WarehouseKitActivation = require('../../../solarshop-india/models/india_core_db/warehouse_kit_activations.schema');
@@ -209,10 +206,7 @@ const get_sidebar_counts = async (req, res) => {
     const kitVariantsPromise = ComboKitVariant.countDocuments({ is_active: true, deleted_at: null }).catch(() => 0);
     const pincodeCostsPromise = PincodeDeliveryCost.countDocuments({ is_active: true }).catch(() => 0);
     const bestSellersPromise = BestSellerKit.countDocuments({ is_active: true, deleted_at: null }).catch(() => 0);
-<<<<<<< HEAD
     const govtTenderKitsPromise = GovtTenderKit.countDocuments({ is_active: true, deleted_at: null }).catch(() => 0);
-=======
->>>>>>> origin/main
     const missingDatasheetsPromise = IndiaComboKit.countDocuments({
       is_active: true,
       deleted_at: null,
@@ -267,10 +261,7 @@ const get_sidebar_counts = async (req, res) => {
       kitVariantsCount,
       pincodeCostsCount,
       bestSellersCount,
-<<<<<<< HEAD
       govtTenderKitsCount,
-=======
->>>>>>> origin/main
       missingDatasheetsCount,
       deliveryApprovalQueueCount,
       liveFleetCount,
@@ -307,10 +298,7 @@ const get_sidebar_counts = async (req, res) => {
       kitVariantsPromise,
       pincodeCostsPromise,
       bestSellersPromise,
-<<<<<<< HEAD
       govtTenderKitsPromise,
-=======
->>>>>>> origin/main
       missingDatasheetsPromise,
       deliveryApprovalQueuePromise,
       liveFleetPromise,
@@ -348,11 +336,8 @@ const get_sidebar_counts = async (req, res) => {
       "ADM_PINCODE_COSTS": { count: pincodeCostsCount, is_urgent: false, tooltip: `${pincodeCostsCount} pincode delivery rate(s)` },
       "best-seller": { count: bestSellersCount, is_urgent: false, tooltip: `${bestSellersCount} best seller kit(s)` },
       "ADM_BEST_SELLER": { count: bestSellersCount, is_urgent: false, tooltip: `${bestSellersCount} best seller kit(s)` },
-<<<<<<< HEAD
       "govt-tender-kits": { count: govtTenderKitsCount, is_urgent: false, tooltip: `${govtTenderKitsCount} active govt tender kit(s)` },
       "ADM_GOVT_TENDER_KITS": { count: govtTenderKitsCount, is_urgent: false, tooltip: `${govtTenderKitsCount} active govt tender kit(s)` },
-=======
->>>>>>> origin/main
       "product-datasheets": { count: missingDatasheetsCount, is_urgent: missingDatasheetsCount > 0, tooltip: `${missingDatasheetsCount} kit(s) missing datasheet` },
       "ADM_PRODUCT_DATASHEETS": { count: missingDatasheetsCount, is_urgent: missingDatasheetsCount > 0, tooltip: `${missingDatasheetsCount} kit(s) missing datasheet` },
 

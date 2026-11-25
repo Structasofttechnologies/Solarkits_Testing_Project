@@ -31,8 +31,6 @@ export default function FranchiseeAgreementManagement() {
   const dispatch = useDispatch();
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-<<<<<<< HEAD
-=======
   const resolveDocUrl = (url) => {
     if (!url) return '#';
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
@@ -43,7 +41,6 @@ export default function FranchiseeAgreementManagement() {
     return `${baseUrl}/${cleanPath}`;
   };
 
->>>>>>> origin/main
   const [agreements, setAgreements] = useState([]);
   const [counts, setCounts] = useState({
     all: 0,
@@ -59,17 +56,12 @@ export default function FranchiseeAgreementManagement() {
   // Status Tab
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-<<<<<<< HEAD
-=======
   const [filterAgreementType, setFilterAgreementType] = useState('all');
->>>>>>> origin/main
 
   // Masters
   const [clusters, setClusters] = useState([]);
   const [resellers, setResellers] = useState([]);
   const [bdes, setBdes] = useState([]);
-<<<<<<< HEAD
-=======
   const [storeTypes, setStoreTypes] = useState([]);
   const [agreementTypes, setAgreementTypes] = useState([
     {
@@ -106,34 +98,25 @@ export default function FranchiseeAgreementManagement() {
       renewal_conditions: 'Annual company store operational review, inventory audit, and compliance check.',
     },
   ]);
->>>>>>> origin/main
 
   // Create Agreement Modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [selectedClusterId, setSelectedClusterId] = useState('');
   const [selectedFranchiseeId, setSelectedFranchiseeId] = useState('');
-<<<<<<< HEAD
-=======
   const [selectedAgreementTypeKey, setSelectedAgreementTypeKey] = useState('district_franchise_agreement');
   const [selectedAgreementTypeName, setSelectedAgreementTypeName] = useState('District Franchise Agreement');
   const [detectedFranchiseType, setDetectedFranchiseType] = useState('District Franchise Store');
   const [detectedStoreTypeId, setDetectedStoreTypeId] = useState(null);
   const [agreementTitle, setAgreementTitle] = useState('SolarKits Authorized District Franchise Partner Agreement');
   const [agreementVersion, setAgreementVersion] = useState('2.0');
->>>>>>> origin/main
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(
     new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
   const [durationYears, setDurationYears] = useState(2);
-<<<<<<< HEAD
-  const [setupFeeAmount, setSetupFeeAmount] = useState(100000);
-  const [renewalFeeAmount, setRenewalFeeAmount] = useState(10000);
-=======
   const [setupFeeAmount, setSetupFeeAmount] = useState(250000);
   const [renewalFeeAmount, setRenewalFeeAmount] = useState(25000);
->>>>>>> origin/main
   const [agreementPdfFile, setAgreementPdfFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const createFileInputRef = useRef(null);
@@ -155,8 +138,6 @@ export default function FranchiseeAgreementManagement() {
     }
     const partner = resellers.find((r) => String(r._id || r.id) === String(partnerId));
     if (partner) {
-<<<<<<< HEAD
-=======
       // 1. Detect Franchise Store Type
       let franchiseType = 'District Franchise Store';
       if (partner.store_category === 'company_store') {
@@ -203,21 +184,10 @@ export default function FranchiseeAgreementManagement() {
       }
 
       // 3. Cluster association & cluster fee configuration (Fees are defined Cluster-wise)
->>>>>>> origin/main
       if (partner.cluster_id) {
         const clusterIdStr = String(partner.cluster_id._id || partner.cluster_id);
         setSelectedClusterId(clusterIdStr);
         const clu = clusters.find((c) => String(c._id) === clusterIdStr);
-<<<<<<< HEAD
-        if (clu?.setup_fee_config?.setup_fee) {
-          setSetupFeeAmount(clu.setup_fee_config.setup_fee);
-        } else if (partner.cluster_setup_fee) {
-          setSetupFeeAmount(partner.cluster_setup_fee);
-        }
-        if (clu?.setup_fee_config?.renewal_fee) {
-          setRenewalFeeAmount(clu.setup_fee_config.renewal_fee);
-        } else if (partner.cluster_renewal_fee) {
-=======
         if (clu?.setup_fee_config?.setup_fee !== undefined) {
           setSetupFeeAmount(clu.setup_fee_config.setup_fee);
         } else if (partner.cluster_setup_fee !== undefined) {
@@ -226,7 +196,6 @@ export default function FranchiseeAgreementManagement() {
         if (clu?.setup_fee_config?.renewal_fee !== undefined) {
           setRenewalFeeAmount(clu.setup_fee_config.renewal_fee);
         } else if (partner.cluster_renewal_fee !== undefined) {
->>>>>>> origin/main
           setRenewalFeeAmount(partner.cluster_renewal_fee);
         }
         if (clu?.assigned_bde_id || partner.cluster_assigned_bde_id) {
@@ -236,8 +205,6 @@ export default function FranchiseeAgreementManagement() {
     }
   };
 
-<<<<<<< HEAD
-=======
   const handleAgreementTypeChange = (typeKey) => {
     setSelectedAgreementTypeKey(typeKey);
     const agType = agreementTypes.find((t) => t.type_key === typeKey);
@@ -254,7 +221,6 @@ export default function FranchiseeAgreementManagement() {
     }
   };
 
->>>>>>> origin/main
   // Renew Modal
   const [renewingAgreement, setRenewingAgreement] = useState(null);
   const [renewSubmitting, setRenewSubmitting] = useState(false);
@@ -279,11 +245,7 @@ export default function FranchiseeAgreementManagement() {
 
   const fetchMasters = async () => {
     try {
-<<<<<<< HEAD
-      const [cluRes, resRes, bdeRes] = await Promise.all([
-=======
       const [cluRes, resRes, bdeRes, settingsRes, plansRes] = await Promise.all([
->>>>>>> origin/main
         axios.get(`${API_URL}/franchise-clusters/list`, authHeaderObj()).catch(() => ({ data: { data: [] } })),
         axios
           .get(`${API_URL}/franchise-clusters/resellers`, authHeaderObj())
@@ -294,26 +256,20 @@ export default function FranchiseeAgreementManagement() {
           .catch(() => axios.get(`${API_URL}/franchise-clusters/bde/mappings`, authHeaderObj()))
           .catch(() => axios.get(`${API_URL}/store-management/bde/list?unique_id=RSL_MGMT&req_for=view`, authHeaderObj()))
           .catch(() => axios.get(`${API_URL}/bde/list?unique_id=ADM_BDE_MGMT&req_for=view&limit=500`, authHeaderObj())),
-<<<<<<< HEAD
-=======
         axios.get(`${API_URL}/reseller-mgmt/settings`, authHeaderObj()).catch(() => null),
         axios.get(`${API_URL}/resellers/plans/list?req_for=view&unique_id=RSL_PLAN`, authHeaderObj()).catch(() => null),
->>>>>>> origin/main
       ]);
       if (cluRes?.data?.data) setClusters(cluRes.data.data);
       const rList = resRes?.data?.data || resRes?.data?.resellers || [];
       if (Array.isArray(rList)) setResellers(rList);
       const bList = bdeRes?.data?.data || bdeRes?.data?.bdes || [];
       if (Array.isArray(bList)) setBdes(bList);
-<<<<<<< HEAD
-=======
       if (settingsRes?.data?.data?.franchise_agreement_types && Array.isArray(settingsRes.data.data.franchise_agreement_types)) {
         setAgreementTypes(settingsRes.data.data.franchise_agreement_types);
       }
       if (plansRes?.data?.data && Array.isArray(plansRes.data.data)) {
         setStoreTypes(plansRes.data.data);
       }
->>>>>>> origin/main
     } catch (err) {
       console.error('Error fetching masters:', err);
     }
@@ -403,12 +359,6 @@ export default function FranchiseeAgreementManagement() {
       formData.append('duration_months', Number(durationYears) * 12);
       formData.append('setup_fee', Number(setupFeeAmount));
       formData.append('renewal_fee', Number(renewalFeeAmount));
-<<<<<<< HEAD
-      if (selectedBdeId) formData.append('assigned_bde_id', selectedBdeId);
-      formData.append('renewal_conditions', renewalConditions);
-      if (agreementPdfFile) {
-        formData.append('agreement_pdf', agreementPdfFile);
-=======
       formData.append('agreement_type', selectedAgreementTypeName);
       formData.append('agreement_type_key', selectedAgreementTypeKey);
       formData.append('franchise_type', detectedFranchiseType);
@@ -425,7 +375,6 @@ export default function FranchiseeAgreementManagement() {
         if (matchedAgType.document_name) {
           formData.append('document_name', matchedAgType.document_name);
         }
->>>>>>> origin/main
       }
 
       await axios.post(`${API_URL}/franchise-clusters/agreements/create`, formData, {
@@ -508,8 +457,6 @@ export default function FranchiseeAgreementManagement() {
   // Filtered agreements
   const filteredAgreements = useMemo(() => {
     return agreements.filter((ag) => {
-<<<<<<< HEAD
-=======
       if (filterAgreementType !== 'all') {
         const agType = (ag.agreement_type || '').toLowerCase();
         const fType = (ag.franchise_type || '').toLowerCase();
@@ -518,23 +465,16 @@ export default function FranchiseeAgreementManagement() {
           return false;
         }
       }
->>>>>>> origin/main
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       const numMatch = ag.agreement_number?.toLowerCase().includes(q);
       const nameMatch = ag.franchisee_id?.business_name?.toLowerCase().includes(q);
       const cluMatch = ag.cluster_id?.cluster_name?.toLowerCase().includes(q);
-<<<<<<< HEAD
-      return numMatch || nameMatch || cluMatch;
-    });
-  }, [agreements, searchQuery]);
-=======
       const typeMatch = ag.agreement_type?.toLowerCase().includes(q);
       const storeMatch = ag.franchise_type?.toLowerCase().includes(q);
       return numMatch || nameMatch || cluMatch || typeMatch || storeMatch;
     });
   }, [agreements, searchQuery, filterAgreementType]);
->>>>>>> origin/main
 
   return (
     <div className="space-y-6">
@@ -593,8 +533,6 @@ export default function FranchiseeAgreementManagement() {
         ))}
       </div>
 
-<<<<<<< HEAD
-=======
       {/* ── Search & Agreement Type Filter Bar ─────────────────────────────── */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
         <div className="relative flex-1">
@@ -626,7 +564,6 @@ export default function FranchiseeAgreementManagement() {
         </div>
       </div>
 
->>>>>>> origin/main
       {/* Agreements Data Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         {loading ? (
@@ -645,11 +582,7 @@ export default function FranchiseeAgreementManagement() {
               <thead className="bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase tracking-wider">
                 <tr>
                   <th className="px-5 py-4">Agreement No. & Version</th>
-<<<<<<< HEAD
-                  <th className="px-5 py-4">Franchisee Store</th>
-=======
                   <th className="px-5 py-4">Franchisee Store & Type</th>
->>>>>>> origin/main
                   <th className="px-5 py-4">Cluster & Territory</th>
                   <th className="px-5 py-4">Validity Period</th>
                   <th className="px-5 py-4">Status & SLA</th>
@@ -681,11 +614,7 @@ export default function FranchiseeAgreementManagement() {
                         {ag.document_url ? (
                           <div className="mt-1">
                             <a
-<<<<<<< HEAD
-                              href={ag.document_url}
-=======
                               href={resolveDocUrl(ag.document_url)}
->>>>>>> origin/main
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline"
@@ -700,18 +629,12 @@ export default function FranchiseeAgreementManagement() {
                         )}
                       </td>
 
-<<<<<<< HEAD
-                      {/* Franchisee Store */}
-=======
                       {/* Franchisee Store & Type */}
->>>>>>> origin/main
                       <td className="px-5 py-4">
                         <div className="font-extrabold text-slate-900">
                           {ag.franchisee_id?.business_name || 'Unassigned'}
                         </div>
                         <div className="text-xs text-slate-500 font-medium">{ag.franchisee_id?.mobile}</div>
-<<<<<<< HEAD
-=======
                         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                           <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
                             {ag.agreement_type || 'District Franchise Agreement'}
@@ -720,7 +643,6 @@ export default function FranchiseeAgreementManagement() {
                             {ag.franchise_type || (ag.franchisee_id?.store_category === 'company_store' ? 'Company Store' : 'District Franchise Store')}
                           </span>
                         </div>
->>>>>>> origin/main
                       </td>
 
                       {/* Cluster */}
@@ -869,24 +791,6 @@ export default function FranchiseeAgreementManagement() {
 
                 {/* Auto-detect Notification Badge */}
                 {selectedPartner && (
-<<<<<<< HEAD
-                  <div className="mt-1.5 p-2 rounded-lg bg-blue-50 border border-blue-200/80 text-[11px] flex items-center justify-between">
-                    {selectedPartner.cluster_name ? (
-                      <div className="flex items-center gap-1.5 text-blue-900">
-                        <FiCheckCircle className="text-emerald-600 shrink-0" size={14} />
-                        <span>
-                          <strong>Applicant's Chosen Cluster:</strong> {selectedPartner.cluster_name}{' '}
-                          {selectedPartner.cluster_code ? `(${selectedPartner.cluster_code})` : ''} —{' '}
-                          <span className="text-emerald-700 font-bold">Auto Selected</span>
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 text-slate-600">
-                        <FiAlertTriangle className="text-amber-500 shrink-0" size={14} />
-                        <span>Applicant did not pre-select a cluster. Please choose a cluster below.</span>
-                      </div>
-                    )}
-=======
                   <div className="space-y-1.5 mt-2">
                     <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200/80 text-[11px] flex items-center justify-between">
                       {selectedPartner.cluster_name ? (
@@ -918,14 +822,10 @@ export default function FranchiseeAgreementManagement() {
                         Auto-detected from Partner Profile
                       </span>
                     </div>
->>>>>>> origin/main
                   </div>
                 )}
               </div>
 
-<<<<<<< HEAD
-              {/* 2. Select Cluster (Auto-populated or Manually Chosen) */}
-=======
               {/* 2. Select Franchise Agreement Type (Configured per Franchise Type) */}
               <div>
                 <label className="block text-slate-700 uppercase mb-1 font-bold flex items-center justify-between">
@@ -971,7 +871,6 @@ export default function FranchiseeAgreementManagement() {
               </div>
 
               {/* 3. Select Cluster (Auto-populated or Manually Chosen) */}
->>>>>>> origin/main
               <div>
                 <label className="block text-slate-700 uppercase mb-1 font-bold flex items-center justify-between">
                   <span>Select Cluster *</span>
@@ -1071,8 +970,6 @@ export default function FranchiseeAgreementManagement() {
                   Agreement PDF Document <span className="text-slate-400 font-normal lowercase">(PDF only, max 25MB)</span>
                 </label>
 
-<<<<<<< HEAD
-=======
                 {(() => {
                   const matchedAgType = agreementTypes.find((t) => t.type_key === selectedAgreementTypeKey);
                   if (matchedAgType?.document_url && !agreementPdfFile) {
@@ -1103,7 +1000,6 @@ export default function FranchiseeAgreementManagement() {
                   return null;
                 })()}
 
->>>>>>> origin/main
                 {!agreementPdfFile ? (
                   <div
                     onDragOver={(e) => {
@@ -1428,8 +1324,6 @@ export default function FranchiseeAgreementManagement() {
             <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs font-semibold text-slate-700">
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-2">
                 <div className="flex justify-between py-1 border-b border-slate-200/50">
-<<<<<<< HEAD
-=======
                   <span className="text-slate-500">Agreement Type</span>
                   <span className="font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                     {selectedAgreementDetail.agreement_type || 'District Franchise Agreement'}
@@ -1442,7 +1336,6 @@ export default function FranchiseeAgreementManagement() {
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-200/50">
->>>>>>> origin/main
                   <span className="text-slate-500">Franchisee</span>
                   <span className="font-extrabold text-slate-900">{selectedAgreementDetail.franchisee_id?.business_name}</span>
                 </div>
@@ -1486,11 +1379,7 @@ export default function FranchiseeAgreementManagement() {
                       </div>
                     </div>
                     <a
-<<<<<<< HEAD
-                      href={selectedAgreementDetail.document_url}
-=======
                       href={resolveDocUrl(selectedAgreementDetail.document_url)}
->>>>>>> origin/main
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs inline-flex items-center gap-1.5 transition-colors shrink-0"
@@ -1527,11 +1416,7 @@ export default function FranchiseeAgreementManagement() {
                         {h.document_url && (
                           <div className="pt-1">
                             <a
-<<<<<<< HEAD
-                              href={h.document_url}
-=======
                               href={resolveDocUrl(h.document_url)}
->>>>>>> origin/main
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:underline inline-flex items-center gap-1 text-[11px] font-semibold"

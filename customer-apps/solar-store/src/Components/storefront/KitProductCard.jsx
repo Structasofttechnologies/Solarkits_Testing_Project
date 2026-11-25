@@ -16,11 +16,7 @@ import {
   FiFileText
 } from "react-icons/fi";
 import DatasheetModal from "./DatasheetModal";
-<<<<<<< HEAD
 import { FaSolarPanel, FaBolt, FaShieldAlt, FaLandmark } from "react-icons/fa";
-=======
-import { FaSolarPanel, FaBolt, FaShieldAlt } from "react-icons/fa";
->>>>>>> origin/main
 import {
   addToCart,
   decreaseQty,
@@ -156,7 +152,6 @@ export default function KitProductCard({
             {usageLabel}
           </span>
 
-<<<<<<< HEAD
           {/* Govt Tender Badge */}
           {kit.is_govt_tender && (
             <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-black bg-gradient-to-r from-blue-700 to-indigo-800 text-white px-2 py-0.5 rounded-md shadow-2xs uppercase tracking-wider">
@@ -165,8 +160,6 @@ export default function KitProductCard({
             </span>
           )}
 
-=======
->>>>>>> origin/main
           {/* Technical Datasheet Pill */}
           {hasDatasheets && (
             <button
@@ -251,15 +244,9 @@ export default function KitProductCard({
             <h3
               onClick={() => onQuickView && onQuickView(kit, selectedVariantIndex)}
               className="text-sm font-bold text-text-primary group-hover:text-primary transition-colors line-clamp-2 leading-snug cursor-pointer mt-0.5"
-<<<<<<< HEAD
               title={kit.govt_tender_name || kit.kitName}
             >
               {kit.govt_tender_name || kit.kitName}
-=======
-              title={kit.kitName}
-            >
-              {kit.kitName}
->>>>>>> origin/main
             </h3>
           </div>
 

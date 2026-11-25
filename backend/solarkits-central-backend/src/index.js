@@ -105,7 +105,8 @@ adminRouter.use('/combo-kit-variants', require('./modules/admin-panel/routes/com
 adminRouter.use('/datasheet-settings', require('./modules/admin-panel/routes/datasheet_settings.route'));
 adminRouter.use('/pincode-delivery-costs', require('./modules/admin-panel/routes/pincode_delivery_costs.route'));
 adminRouter.use('/best-seller-configs', require('./modules/admin-panel/routes/best_seller_kits.route'));
-adminRouter.use('/govt-tender-configs', require('./modules/admin-panel/routes/govt_tender_kits.route')); origin/main
+adminRouter.use('/govt-tender-configs', require('./modules/admin-panel/routes/govt_tender_kits.route'));
+
 adminRouter.use('/product-sku-prices', require('./modules/admin-panel/routes/product_sku_prices.route'));
 adminRouter.use('/price-requests', require('./modules/admin-panel/routes/price_requests.route'));
 adminRouter.use('/industry-types', require('./modules/admin-panel/routes/industry.types.route'));
@@ -241,7 +242,7 @@ adminRouter.use('/registers', require('./modules/account-panel/routes/registers.
 
 // ─── SOLARKITS: Trial Kit Management Module ───
 adminRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
- 
+
 
 // ─── SOLARKITS: Email & WhatsApp Marketing & Campaign Automation Engine ───
 adminRouter.use('/marketing', require('./modules/admin-panel/marketing/routes/marketing.route'));
@@ -251,8 +252,8 @@ try {
 } catch (schedErr) {
   console.warn('⚠️ Marketing scheduler startup notice:', schedErr.message);
 }
- 
- 
+
+
 
 app.use('/admin-api', adminRouter);
 app.use('/api', adminRouter);
