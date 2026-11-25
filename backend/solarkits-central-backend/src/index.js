@@ -285,6 +285,7 @@ app.use('/warehouse-api', warehouseRouter);
 // 6. Account Panel routes
 const accountRouter = express.Router();
 accountRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
+accountRouter.use('/franchise-clusters', require('./modules/admin-panel/routes/franchisee.cluster.route'));
 accountRouter.use('/', require('./modules/account-panel/routes/root.route'));
 app.use('/account-api', accountRouter);
 

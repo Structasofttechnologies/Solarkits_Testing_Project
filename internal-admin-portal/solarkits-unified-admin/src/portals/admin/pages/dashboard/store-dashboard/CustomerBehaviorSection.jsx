@@ -30,6 +30,7 @@ export default function CustomerBehaviorSection({ behaviorData = {} }) {
     repeatOrderRatio = '0.0%',
     avgDaysBetweenRepeatOrders = 0,
     mostAbandonedKits = [],
+    topRepeatHubs = [],
   } = behaviorData || {};
 
   return (
@@ -108,14 +109,18 @@ export default function CustomerBehaviorSection({ behaviorData = {} }) {
           <div className="pt-2 border-t border-border">
             <h5 className="text-[11px] font-bold text-text mb-2">Most Abandoned Kit Types:</h5>
             <div className="space-y-1.5">
-              {mostAbandonedKits.map((item) => (
-                <div key={item.kit} className="flex justify-between text-xs">
-                  <span className="text-text-muted truncate">{item.kit}</span>
-                  <span className="font-bold text-danger">
-                    {item.abandonments} drops ({item.pct})
-                  </span>
-                </div>
-              ))}
+              {mostAbandonedKits && mostAbandonedKits.length > 0 ? (
+                mostAbandonedKits.map((item) => (
+                  <div key={item.kit} className="flex justify-between text-xs">
+                    <span className="text-text-muted truncate">{item.kit}</span>
+                    <span className="font-bold text-danger">
+                      {item.abandonments} drops ({item.pct})
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-text-muted italic">No kit drop-offs recorded</div>
+              )}
             </div>
           </div>
         </div>
@@ -148,14 +153,18 @@ export default function CustomerBehaviorSection({ behaviorData = {} }) {
               </span>
             </div>
 
-            <div className="pt-2">
-              <h5 className="text-[11px] font-bold text-text mb-1">Top Repeat Purchase Hubs:</h5>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="px-2 py-1 rounded-lg bg-surface-subtle text-text font-medium">Jaipur (48 repeats)</span>
-                <span className="px-2 py-1 rounded-lg bg-surface-subtle text-text font-medium">Ahmedabad (39 repeats)</span>
-                <span className="px-2 py-1 rounded-lg bg-surface-subtle text-text font-medium">Indore (21 repeats)</span>
+            {topRepeatHubs && topRepeatHubs.length > 0 && (
+              <div className="pt-2">
+                <h5 className="text-[11px] font-bold text-text mb-1">Top Repeat Purchase Hubs:</h5>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {topRepeatHubs.map((hub) => (
+                    <span key={hub.name || hub.hub} className="px-2 py-1 rounded-lg bg-surface-subtle text-text font-medium">
+                      {hub.name || hub.hub} ({hub.count || hub.repeats || 0} repeats)
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

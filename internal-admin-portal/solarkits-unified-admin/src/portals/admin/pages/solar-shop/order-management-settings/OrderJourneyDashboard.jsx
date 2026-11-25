@@ -27,141 +27,12 @@ import { authHeaderObj } from "@/app/authHeader";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-// Sample Initial Mock Orders for Journey Dashboard
-const MOCK_JOURNEY_ORDERS = [
-  {
-    id: "ord-101",
-    order_number: "ORD-2026-9041",
-    customer_name: "Aarav Solar Enterprises",
-    contact_phone: "+91 98765 43210",
-    kit_type: "Combo Kit (5kW)",
-    cluster: "North Cluster (NCR)",
-    warehouse: "Gurgaon NCR Hub (WH-03)",
-    state: "Haryana",
-    district: "Gurugram",
-    industry_type: "Residential Rooftop",
-    payment_confirmed_at: "2026-09-08 11:30",
-    stage: "Processing",
-    expected_delivery_date: "2026-09-23",
-    target_sla_days: 15,
-    actual_delivery_date: null,
-    total_amount: 285000,
-    items: [
-      { name: "540W Mono PERC Solar Panels", qty: 10 },
-      { name: "5kW On-Grid String Inverter", qty: 1 },
-      { name: "BOS Kit Complete with Structure", qty: 1 },
-    ],
-  },
-  {
-    id: "ord-102",
-    order_number: "ORD-2026-8812",
-    customer_name: "Mahavir Green Energy Solutions",
-    contact_phone: "+91 91234 56789",
-    kit_type: "Bulk Kit (25kW)",
-    cluster: "West Cluster (Gujarat)",
-    warehouse: "Ahmedabad Sub-Depot (WH-02)",
-    state: "Gujarat",
-    district: "Ahmedabad",
-    industry_type: "Commercial & Industrial",
-    payment_confirmed_at: "2026-08-20 16:45",
-    stage: "Ready for Dispatch",
-    expected_delivery_date: "2026-09-15",
-    target_sla_days: 20,
-    actual_delivery_date: null,
-    total_amount: 1140000,
-    items: [
-      { name: "550W Bifacial Panels (Pallets)", qty: 50 },
-      { name: "25kW Three-Phase Inverter", qty: 1 },
-      { name: "Heavy Duty Ground Mount Racks", qty: 1 },
-    ],
-  },
-  {
-    id: "ord-103",
-    order_number: "ORD-2026-9150",
-    customer_name: "Surya Shakti EPC Services",
-    contact_phone: "+91 99887 76655",
-    kit_type: "Customize Kit (10kW)",
-    cluster: "South Cluster (Karnataka)",
-    warehouse: "Bengaluru Master Hub (WH-04)",
-    state: "Karnataka",
-    district: "Bengaluru Rural",
-    industry_type: "Institutional",
-    payment_confirmed_at: "2026-09-22 09:15",
-    stage: "Processing",
-    expected_delivery_date: "2026-10-05",
-    target_sla_days: 15,
-    actual_delivery_date: null,
-    total_amount: 520000,
-    items: [
-      { name: "10kW Hybrid Inverter & Lithium Battery", qty: 1 },
-      { name: "535W Panels", qty: 20 },
-    ],
-  },
-  {
-    id: "ord-104",
-    order_number: "ORD-2026-7994",
-    customer_name: "Kisan Urja Vikas Ltd",
-    contact_phone: "+91 94567 12345",
-    kit_type: "Combo Kit (3kW)",
-    cluster: "West Cluster (Maharashtra)",
-    warehouse: "Bhiwandi Central Hub (WH-01)",
-    state: "Maharashtra",
-    district: "Nashik",
-    industry_type: "Agricultural Solar Pump",
-    payment_confirmed_at: "2026-08-15 14:00",
-    stage: "Delivered",
-    expected_delivery_date: "2026-08-30",
-    target_sla_days: 15,
-    actual_delivery_date: "2026-08-29",
-    total_amount: 198000,
-    items: [{ name: "3kW Solar Water Pumping System", qty: 1 }],
-  },
-  {
-    id: "ord-105",
-    order_number: "ORD-2026-9201",
-    customer_name: "EcoVolt Systems",
-    contact_phone: "+91 97711 22334",
-    kit_type: "Combo Kit (10kW)",
-    cluster: "North Cluster (NCR)",
-    warehouse: "Gurgaon NCR Hub (WH-03)",
-    state: "Punjab",
-    district: "Ludhiana",
-    industry_type: "Commercial & Industrial",
-    payment_confirmed_at: "2026-09-25 18:20",
-    stage: "Awaiting Payment",
-    expected_delivery_date: "2026-10-10",
-    target_sla_days: 15,
-    actual_delivery_date: null,
-    total_amount: 560000,
-    items: [{ name: "10kW Standard On-Grid Kit", qty: 1 }],
-  },
-  {
-    id: "ord-106",
-    order_number: "ORD-2026-8952",
-    customer_name: "Apex Renewable Infrastructure",
-    contact_phone: "+91 93322 11445",
-    kit_type: "Customize Kit (15kW)",
-    cluster: "West Cluster (Maharashtra)",
-    warehouse: "Bhiwandi Central Hub (WH-01)",
-    state: "Maharashtra",
-    district: "Pune",
-    industry_type: "Residential Rooftop",
-    payment_confirmed_at: "2026-09-12 10:00",
-    stage: "Dispatched",
-    expected_delivery_date: "2026-09-29",
-    target_sla_days: 15,
-    actual_delivery_date: null,
-    total_amount: 780000,
-    items: [{ name: "15kW High Efficiency Monocrystalline Kit", qty: 1 }],
-  },
-];
-
 export default function OrderJourneyDashboard() {
   const dispatch = useDispatch();
   const token = useSelector((state) => state.auth.token);
 
   const [loading, setLoading] = useState(false);
-  const [orders, setOrders] = useState(MOCK_JOURNEY_ORDERS);
+  const [orders, setOrders] = useState([]);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -175,7 +46,121 @@ export default function OrderJourneyDashboard() {
   // Selected Order Drawer
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  const now = new Date("2026-09-28T12:00:00"); // Standard reference or new Date()
+  const now = new Date();
+
+  const fetchLiveOrders = async () => {
+    setLoading(true);
+    try {
+      const rawApiUrl = (
+        import.meta.env.VITE_ADMIN_API_URL ||
+        import.meta.env.VITE_API_URL ||
+        "http://localhost:5000/admin-api"
+      ).replace(/\/+$/, "");
+      const apiBase = rawApiUrl.replace(/\/admin-api$|\/api$/, "");
+      const adminApi = rawApiUrl.endsWith("/admin-api") ? rawApiUrl : `${apiBase}/admin-api`;
+
+      const res = await axios.get(`${adminApi}/solarshop/epc-orders?limit=100`, {
+        headers: authHeaderObj(),
+      });
+
+      const records = res.data?.data || [];
+      if (Array.isArray(records)) {
+        const mapped = records.map((ord) => {
+          // Normalize stage
+          let stage = "Processing";
+          const ost = (ord.order_status || ord.status || "").toLowerCase();
+          const pst = (ord.payment_status || "").toLowerCase();
+          if (ost === "delivered" || ord.delivered_at) {
+            stage = "Delivered";
+          } else if (ost === "dispatched" || ost === "in_transit" || ord.dispatch_tracking?.dispatched_at) {
+            stage = "Dispatched";
+          } else if (ost === "ready_for_dispatch" || ost === "rfd") {
+            stage = "Ready for Dispatch";
+          } else if (pst === "pending_verification" || pst === "pending" || ost === "awaiting_payment") {
+            stage = "Awaiting Payment";
+          } else {
+            stage = "Processing";
+          }
+
+          // Kit type name
+          const kitName = ord.items?.[0]?.item_name || ord.items?.[0]?.name || ord.kit_type || "Solar Kit System";
+
+          // Address
+          const destState = ord.delivery_address?.state_name || ord.buyer_state || ord.customer?.state || ord.state || "—";
+          const destDistrict = ord.delivery_address?.district_name || ord.buyer_district || ord.customer?.district || ord.district || "—";
+          const custName = ord.customer?.name || ord.customer?.company_name || ord.buyer_name || ord.delivery_address?.contact_name || ord.customer_name || "Direct Customer";
+          const phone = ord.customer?.phone || ord.buyer_phone || ord.delivery_address?.contact_phone || ord.contact_phone || "—";
+
+          const assignedWh = ord.fulfillment_bifurcation?.assigned_warehouse_code || ord.warehouse || "Central Hub";
+          const clusterName = ord.cluster || (destState !== "—" ? `${destState} Cluster` : "Standard Cluster");
+
+          return {
+            id: ord._id || ord.id,
+            order_number: ord.order_number || ord.po_number || `ORD-${String(ord._id).slice(-6).toUpperCase()}`,
+            customer_name: custName,
+            contact_phone: phone,
+            kit_type: kitName,
+            cluster: clusterName,
+            warehouse: assignedWh,
+            state: destState,
+            district: destDistrict,
+            industry_type: ord.industry_type || (ord.is_trial_order ? "Trial Solar Kit" : "Solar Rooftop System"),
+            payment_confirmed_at: ord.payment_tracking?.stage_entered_at
+              ? new Date(ord.payment_tracking.stage_entered_at).toLocaleString("en-IN")
+              : ord.created_at
+              ? new Date(ord.created_at).toLocaleString("en-IN")
+              : null,
+            stage,
+            expected_delivery_date: ord.expected_delivery_date
+              ? new Date(ord.expected_delivery_date).toISOString().split("T")[0]
+              : ord.dispatch_tracking?.estimated_delivery
+              ? new Date(ord.dispatch_tracking.estimated_delivery).toISOString().split("T")[0]
+              : null,
+            target_sla_days: ord.payment_tracking?.configured_tat_days || 15,
+            actual_delivery_date: ord.delivered_at
+              ? new Date(ord.delivered_at).toISOString().split("T")[0]
+              : null,
+            total_amount: ord.grand_total_paise
+              ? ord.grand_total_paise / 100
+              : ord.grand_total || ord.total_amount || 0,
+            items: (ord.items || []).map((it) => ({
+              name: it.item_name || it.name || "Component Item",
+              qty: it.quantity || it.qty || 1,
+            })),
+          };
+        });
+        setOrders(mapped);
+      } else {
+        setOrders([]);
+      }
+    } catch (err) {
+      console.warn("Notice loading live order journey:", err.message);
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveOrders();
+  }, [token]);
+
+  // Dynamic filter options derived from live records
+  const clusterOptions = useMemo(() => {
+    return Array.from(new Set(orders.map((o) => o.cluster).filter(Boolean))).sort();
+  }, [orders]);
+
+  const warehouseOptions = useMemo(() => {
+    return Array.from(new Set(orders.map((o) => o.warehouse).filter(Boolean))).sort();
+  }, [orders]);
+
+  const stateOptions = useMemo(() => {
+    return Array.from(new Set(orders.map((o) => o.state).filter(Boolean))).sort();
+  }, [orders]);
+
+  const kitTypeOptions = useMemo(() => {
+    return Array.from(new Set(orders.map((o) => o.kit_type).filter(Boolean))).sort();
+  }, [orders]);
 
   // Compute Days Elapsed & Overdue for each order
   const enhancedOrders = useMemo(() => {
@@ -370,9 +355,11 @@ export default function OrderJourneyDashboard() {
             className="w-full px-3 py-1.5 text-xs bg-bg border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary"
           >
             <option value="">All Regional Clusters</option>
-            <option value="North">North Cluster (NCR)</option>
-            <option value="West">West Cluster</option>
-            <option value="South">South Cluster</option>
+            {clusterOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
           </select>
 
           <select
@@ -381,10 +368,11 @@ export default function OrderJourneyDashboard() {
             className="w-full px-3 py-1.5 text-xs bg-bg border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary"
           >
             <option value="">All Warehouses</option>
-            <option value="Gurgaon">Gurgaon NCR Hub</option>
-            <option value="Bhiwandi">Bhiwandi Central Hub</option>
-            <option value="Ahmedabad">Ahmedabad Depot</option>
-            <option value="Bengaluru">Bengaluru Hub</option>
+            {warehouseOptions.map((w) => (
+              <option key={w} value={w}>
+                {w}
+              </option>
+            ))}
           </select>
 
           <select
@@ -393,9 +381,11 @@ export default function OrderJourneyDashboard() {
             className="w-full px-3 py-1.5 text-xs bg-bg border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary"
           >
             <option value="">All Kit Types</option>
-            <option value="Combo">Combo Kit</option>
-            <option value="Customize">Customize Kit</option>
-            <option value="Bulk">Bulk Kit</option>
+            {kitTypeOptions.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
           </select>
 
           <select
@@ -404,11 +394,11 @@ export default function OrderJourneyDashboard() {
             className="w-full px-3 py-1.5 text-xs bg-bg border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary"
           >
             <option value="">All States</option>
-            <option value="Haryana">Haryana</option>
-            <option value="Gujarat">Gujarat</option>
-            <option value="Karnataka">Karnataka</option>
-            <option value="Maharashtra">Maharashtra</option>
-            <option value="Punjab">Punjab</option>
+            {stateOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
           </select>
 
           <div className="flex items-center gap-2">
@@ -428,29 +418,39 @@ export default function OrderJourneyDashboard() {
 
       {/* Orders Table */}
       <div className="bg-surface rounded-xl border border-border overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-bg border-b border-border text-xs uppercase font-semibold text-text-secondary">
-                <th className="p-4">Order # & Customer</th>
-                <th className="p-4">Kit Type & Route</th>
-                <th className="p-4">Payment Confirmed</th>
-                <th className="p-4">Days Elapsed</th>
-                <th className="p-4">Current Stage</th>
-                <th className="p-4">Expected Delivery</th>
-                <th className="p-4">SLA Status</th>
-                <th className="p-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border text-sm">
-              {filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="p-8 text-center text-text-secondary">
-                    No orders match current filter criteria.
-                  </td>
+        {loading ? (
+          <div className="p-12 flex justify-center items-center">
+            <Loader />
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <div className="w-14 h-14 rounded-full bg-blue-500/10 text-primary flex items-center justify-center mx-auto text-2xl">
+              <FaChartLine />
+            </div>
+            <h3 className="font-bold text-text-primary text-base">No Orders in Fulfillment Journey</h3>
+            <p className="text-xs text-text-secondary max-w-md mx-auto">
+              {searchQuery || clusterFilter || warehouseFilter || stateFilter || stageFilter || kitTypeFilter || overdueOnly
+                ? "No orders match current filter criteria. Try resetting the filters."
+                : "Currently there are no active customer or EPC orders in the tracking pipeline."}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-bg border-b border-border text-xs uppercase font-semibold text-text-secondary">
+                  <th className="p-4">Order # & Customer</th>
+                  <th className="p-4">Kit Type & Route</th>
+                  <th className="p-4">Payment Confirmed</th>
+                  <th className="p-4">Days Elapsed</th>
+                  <th className="p-4">Current Stage</th>
+                  <th className="p-4">Expected Delivery</th>
+                  <th className="p-4">SLA Status</th>
+                  <th className="p-4 text-right">Action</th>
                 </tr>
-              ) : (
-                filteredOrders.map((ord) => {
+              </thead>
+              <tbody className="divide-y divide-border text-sm">
+                {filteredOrders.map((ord) => {
                   // Row styling for due soon / overdue
                   const isDueSoon =
                     ord.stage !== "Delivered" &&
@@ -554,11 +554,11 @@ export default function OrderJourneyDashboard() {
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Order Detail Modal */}
