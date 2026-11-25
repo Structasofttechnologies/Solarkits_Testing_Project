@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 const mongoose = require('mongoose');
 const dns = require('dns');
 
@@ -131,9 +131,6 @@ module.exports = {
   india_solarshop_db: db,
   supplier_db: db
 };
-
-=======
-const mongoose = require('mongoose');
 const dns = require('dns');
 
 // Overwrite mongoose.model and Connection.prototype.model globally to prevent OverwriteModelError.
@@ -266,4 +263,3 @@ module.exports = {
   supplier_db: db
 };
 
->>>>>>> origin/main
