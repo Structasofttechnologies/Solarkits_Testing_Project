@@ -1,0 +1,16 @@
+module.exports = {
+  CmsPanel:            require('./cms_panels.schema'),
+  CmsDepartment:       require('./cms_departments.schema'),
+  CmsLevel:            require('./cms_levels.schema'),
+  CmsModule:           require('./cms_modules.schema'),
+  CmsRole:             require('./cms_roles.schema'),
+  CmsRoleWiseModule:   require('./cms_role_wise_modules.schema'),
+  CmsUser:             require('./cms_users.schema'),
+  CmsUserScope:        require('./cms_user_scope.schema'),
+  DepartmentPanel:     require('./department_panels.schema'),
+  RolePanel:           require('./role_panels.schema'),
+  SaaSProduct:         require('./saas_products.schema'),
+  PanelSaaSProduct:    require('./panel_saas_products.schema'),
+  UserPanel:           require('./user_panels.schema'),
+  CountrySaaSProduct:  require('./country_saas_products.schema'),
+};

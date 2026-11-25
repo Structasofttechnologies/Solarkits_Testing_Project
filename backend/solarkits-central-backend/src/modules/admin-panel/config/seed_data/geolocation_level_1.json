@@ -1,0 +1,290 @@
+[
+  {
+    "_id": "69f9be0a711beb75adfcfab2",
+    "legacy_id": 32,
+    "name": "Tripura",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa9b",
+    "legacy_id": 9,
+    "name": "Rajasthan",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa9d",
+    "legacy_id": 11,
+    "name": "Uttarakhand",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaa2",
+    "legacy_id": 16,
+    "name": "Delhi",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaaa",
+    "legacy_id": 24,
+    "name": "Jammu and Kashmir",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa9a",
+    "legacy_id": 8,
+    "name": "Odisha",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa95",
+    "legacy_id": 3,
+    "name": "Maharashtra",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaac",
+    "legacy_id": 26,
+    "name": "Chandigarh",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfab4",
+    "legacy_id": 34,
+    "name": "Chhattisgarh",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa9c",
+    "legacy_id": 10,
+    "name": "Punjab",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaa4",
+    "legacy_id": 18,
+    "name": "Andaman and Nicobar Islands",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaa9",
+    "legacy_id": 23,
+    "name": "Kerala",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaaf",
+    "legacy_id": 29,
+    "name": "Tamil Nadu",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaa1",
+    "legacy_id": 15,
+    "name": "Himachal Pradesh",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaa7",
+    "legacy_id": 21,
+    "name": "Karnataka",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa9e",
+    "legacy_id": 12,
+    "name": "Andhra Pradesh",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaa3",
+    "legacy_id": 17,
+    "name": "Uttar Pradesh",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa94",
+    "legacy_id": 2,
+    "name": "Haryana",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa96",
+    "legacy_id": 4,
+    "name": "Goa",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaa6",
+    "legacy_id": 20,
+    "name": "Jharkhand",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfab1",
+    "legacy_id": 31,
+    "name": "Bihar",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa99",
+    "legacy_id": 7,
+    "name": "Telangana",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaae",
+    "legacy_id": 28,
+    "name": "Sikkim",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfab3",
+    "legacy_id": 33,
+    "name": "Madhya Pradesh",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfab5",
+    "legacy_id": 35,
+    "name": "Ladakh",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa93",
+    "legacy_id": 1,
+    "name": "Meghalaya",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa98",
+    "legacy_id": 6,
+    "name": "Puducherry",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaab",
+    "legacy_id": 25,
+    "name": "Gujarat",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": true
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfab0",
+    "legacy_id": 30,
+    "name": "Mizoram",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfab6",
+    "legacy_id": 36,
+    "name": "West Bengal",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaa0",
+    "legacy_id": 14,
+    "name": "Lakshadweep",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaa5",
+    "legacy_id": 19,
+    "name": "Arunachal Pradesh",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaad",
+    "legacy_id": 27,
+    "name": "Dadra and Nagar Haveli and Daman and Diu",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa97",
+    "legacy_id": 5,
+    "name": "Manipur",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfa9f",
+    "legacy_id": 13,
+    "name": "Nagaland",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaa8",
+    "legacy_id": 22,
+    "name": "Assam",
+    "level_0": "69f9be0a711beb75adfcfa7f",
+    "level_0_legacy": 226,
+    "is_active": false
+  }
+]

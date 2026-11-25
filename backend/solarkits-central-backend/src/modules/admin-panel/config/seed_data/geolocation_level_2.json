@@ -1,0 +1,7850 @@
+[
+  {
+    "_id": "69f9be0a711beb75adfcfac6",
+    "legacy_id": 14,
+    "name": "Panchkula",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfad2",
+    "name": "Bhiwani",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfad7",
+    "legacy_id": 31,
+    "name": "Yamunanagar",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaee",
+    "legacy_id": 54,
+    "name": "Chhatrapati Sambhajinagar",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb01",
+    "legacy_id": 73,
+    "name": "Churachandpur district",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb04",
+    "legacy_id": 76,
+    "name": "Bishnupur district",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb0c",
+    "legacy_id": 84,
+    "name": "Kangpokpi district",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb0f",
+    "legacy_id": 87,
+    "name": "Kakching district",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb1a",
+    "legacy_id": 98,
+    "name": "Nizamabad",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb2b",
+    "legacy_id": 115,
+    "name": "Rajanna Sircilla",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb35",
+    "legacy_id": 125,
+    "name": "Narayanpet",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb47",
+    "legacy_id": 143,
+    "name": "Mayurbhanj",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb61",
+    "legacy_id": 169,
+    "name": "Ajmer",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb6c",
+    "legacy_id": 180,
+    "name": "Kota",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbb4",
+    "legacy_id": 252,
+    "name": "Sri Potti Sriramulu Nellore district",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbc1",
+    "legacy_id": 265,
+    "name": "Nandyal",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbc6",
+    "legacy_id": 270,
+    "name": "Wokha",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbf6",
+    "legacy_id": 318,
+    "name": "Hathras",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc0e",
+    "legacy_id": 342,
+    "name": "Auraiya",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc0f",
+    "legacy_id": 343,
+    "name": "Etawah",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc47",
+    "legacy_id": 399,
+    "name": "Lower Dibang Valley",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc6f",
+    "legacy_id": 439,
+    "name": "Kolar",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc70",
+    "legacy_id": 440,
+    "name": "Mandya",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc74",
+    "legacy_id": 444,
+    "name": "Tumakuru",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc76",
+    "legacy_id": 446,
+    "name": "Shimoga",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc97",
+    "legacy_id": 479,
+    "name": "Jorhat",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfac2",
+    "legacy_id": 10,
+    "name": "East Jaintia Hills",
+    "level_1": "69f9be0a711beb75adfcfa93",
+    "level_1_legacy": 1,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfacf",
+    "legacy_id": 23,
+    "name": "Sirsa",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfae2",
+    "legacy_id": 42,
+    "name": "Gondiya",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfae7",
+    "legacy_id": 47,
+    "name": "Wardha",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaf0",
+    "legacy_id": 56,
+    "name": "Parbhani",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaf4",
+    "legacy_id": 60,
+    "name": "Kolhapur",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaf6",
+    "legacy_id": 62,
+    "name": "Solapur",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb0a",
+    "legacy_id": 82,
+    "name": "Jiribam district",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb0d",
+    "legacy_id": 85,
+    "name": "Tengnoupal",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb27",
+    "legacy_id": 111,
+    "name": "Kumuram Bheem Asifabad",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb39",
+    "legacy_id": 129,
+    "name": "Subarnapur",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb3b",
+    "legacy_id": 131,
+    "name": "Sambalpur",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb5c",
+    "legacy_id": 164,
+    "name": "Sirohi",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb62",
+    "legacy_id": 170,
+    "name": "Alwar",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb6e",
+    "legacy_id": 182,
+    "name": "Bhilwara",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb7e",
+    "legacy_id": 198,
+    "name": "Kherthal-Tijara",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb9b",
+    "legacy_id": 227,
+    "name": "Sangrur",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfba2",
+    "legacy_id": 234,
+    "name": "Tehri Garhwal",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfba5",
+    "legacy_id": 237,
+    "name": "Udham Singh Nagar",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbab",
+    "legacy_id": 243,
+    "name": "Vizianagaram district",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbac",
+    "legacy_id": 244,
+    "name": "Visakhapatnam",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbb1",
+    "legacy_id": 249,
+    "name": "Kurnool",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbdd",
+    "legacy_id": 293,
+    "name": "Bilaspur",
+    "level_1": "69f9be0a711beb75adfcfaa1",
+    "level_1_legacy": 15,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbe3",
+    "legacy_id": 299,
+    "name": "North East Delhi",
+    "level_1": "69f9be0a711beb75adfcfaa2",
+    "level_1_legacy": 16,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc02",
+    "legacy_id": 330,
+    "name": "Shahjahanpur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc12",
+    "legacy_id": 346,
+    "name": "Kannauj",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc26",
+    "legacy_id": 366,
+    "name": "Mau",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc37",
+    "legacy_id": 383,
+    "name": "East Kameng",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc4e",
+    "legacy_id": 406,
+    "name": "Kra Daadi",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc60",
+    "legacy_id": 424,
+    "name": "Dhanbad",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc9b",
+    "legacy_id": 483,
+    "name": "Dibrugarh",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfca0",
+    "legacy_id": 488,
+    "name": "Chirang",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfca2",
+    "legacy_id": 490,
+    "name": "West Karbi Anglong",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfca7",
+    "legacy_id": 495,
+    "name": "Tamulpur",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcac",
+    "legacy_id": 500,
+    "name": "Kollam",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaba",
+    "legacy_id": 2,
+    "name": "South Garo Hills",
+    "level_1": "69f9be0a711beb75adfcfa93",
+    "level_1_legacy": 1,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfac0",
+    "legacy_id": 8,
+    "name": "South West Garo Hills",
+    "level_1": "69f9be0a711beb75adfcfa93",
+    "level_1_legacy": 1,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfad8",
+    "legacy_id": 32,
+    "name": "Nuh",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaf2",
+    "legacy_id": 58,
+    "name": "Latur",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb0e",
+    "legacy_id": 86,
+    "name": "Kamjong district",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb18",
+    "legacy_id": 96,
+    "name": "Hanumakonda",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb1f",
+    "legacy_id": 103,
+    "name": "Sangareddy",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb31",
+    "legacy_id": 121,
+    "name": "Yadadri Bhuvanagiri",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb44",
+    "legacy_id": 140,
+    "name": "Jajpur",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb5f",
+    "legacy_id": 167,
+    "name": "Jhunjhunu",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb72",
+    "legacy_id": 186,
+    "name": "Udaipur",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb7a",
+    "legacy_id": 194,
+    "name": "Gangapur City",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb7b",
+    "legacy_id": 195,
+    "name": "Dudu",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb8a",
+    "legacy_id": 210,
+    "name": "Sri Muktsar Sahib",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbb9",
+    "legacy_id": 257,
+    "name": "Sri Sathya Sai",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbc7",
+    "legacy_id": 271,
+    "name": "Mokokchung",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbc9",
+    "legacy_id": 273,
+    "name": "Tuensang",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbde",
+    "legacy_id": 294,
+    "name": "Solan",
+    "level_1": "69f9be0a711beb75adfcfaa1",
+    "level_1_legacy": 15,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbf5",
+    "legacy_id": 317,
+    "name": "Bulandshahr",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbfd",
+    "legacy_id": 325,
+    "name": "Etah",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc1a",
+    "legacy_id": 354,
+    "name": "Raebareli",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc1e",
+    "legacy_id": 358,
+    "name": "Mahoba",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc20",
+    "legacy_id": 360,
+    "name": "Ambedkar Nagar",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc2b",
+    "legacy_id": 371,
+    "name": "Sant Ravidas Nagar",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc2c",
+    "legacy_id": 372,
+    "name": "Sonbhadra",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc2d",
+    "legacy_id": 373,
+    "name": "Varanasi",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc3e",
+    "legacy_id": 390,
+    "name": "Changlang",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc46",
+    "legacy_id": 398,
+    "name": "Namsai",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc4d",
+    "legacy_id": 405,
+    "name": "Kamle",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc59",
+    "legacy_id": 417,
+    "name": "East Singhbhum",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc68",
+    "legacy_id": 432,
+    "name": "Chamarajanagar",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc8a",
+    "legacy_id": 466,
+    "name": "Nalbari",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc8e",
+    "legacy_id": 470,
+    "name": "Goalpara",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc94",
+    "legacy_id": 476,
+    "name": "Karimganj",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc98",
+    "legacy_id": 480,
+    "name": "Lakhimpur",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc9e",
+    "legacy_id": 486,
+    "name": "Majuli",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc9f",
+    "legacy_id": 487,
+    "name": "Udalguri",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfca3",
+    "legacy_id": 491,
+    "name": "Kamrup Metropolitan",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfad4",
+    "legacy_id": 28,
+    "name": "Rewari",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfad5",
+    "legacy_id": 29,
+    "name": "Faridabad",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaf3",
+    "legacy_id": 59,
+    "name": "Sangli",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb21",
+    "legacy_id": 105,
+    "name": "Siddipet",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb32",
+    "legacy_id": 122,
+    "name": "Wanaparthy",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb78",
+    "legacy_id": 192,
+    "name": "Phalodi",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb90",
+    "legacy_id": 216,
+    "name": "Jalandhar",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb9c",
+    "legacy_id": 228,
+    "name": "Malerkotla",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbad",
+    "legacy_id": 245,
+    "name": "East Godavari",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbaf",
+    "legacy_id": 247,
+    "name": "Krishna",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbcc",
+    "legacy_id": 276,
+    "name": "Kiphire",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbd9",
+    "legacy_id": 289,
+    "name": "Kangra",
+    "level_1": "69f9be0a711beb75adfcfaa1",
+    "level_1_legacy": 15,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbe2",
+    "legacy_id": 298,
+    "name": "East Delhi",
+    "level_1": "69f9be0a711beb75adfcfaa2",
+    "level_1_legacy": 16,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbe9",
+    "legacy_id": 305,
+    "name": "Shahdara",
+    "level_1": "69f9be0a711beb75adfcfaa2",
+    "level_1_legacy": 16,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc0a",
+    "legacy_id": 338,
+    "name": "Hardoi",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc0b",
+    "legacy_id": 339,
+    "name": "Lucknow",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc11",
+    "legacy_id": 345,
+    "name": "Jhansi",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc1b",
+    "legacy_id": 355,
+    "name": "Prayagraj",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc24",
+    "legacy_id": 364,
+    "name": "Ghazipur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc2a",
+    "legacy_id": 370,
+    "name": "Mirzapur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc51",
+    "legacy_id": 409,
+    "name": "Chatra",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc66",
+    "legacy_id": 430,
+    "name": "Simdega",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc7a",
+    "legacy_id": 450,
+    "name": "Dharwad",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc89",
+    "legacy_id": 465,
+    "name": "Barpeta",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc99",
+    "legacy_id": 481,
+    "name": "Dhemaji",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc9d",
+    "legacy_id": 485,
+    "name": "Charaideo",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfabd",
+    "legacy_id": 5,
+    "name": "West Jaintia Hills",
+    "level_1": "69f9be0a711beb75adfcfa93",
+    "level_1_legacy": 1,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaea",
+    "legacy_id": 50,
+    "name": "Akola",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb07",
+    "legacy_id": 79,
+    "name": "Thoubal",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb1b",
+    "legacy_id": 99,
+    "name": "Ranga Reddy",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb1d",
+    "legacy_id": 101,
+    "name": "Mahabubnagar",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb1e",
+    "legacy_id": 102,
+    "name": "Hyderabad",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb24",
+    "legacy_id": 108,
+    "name": "Jangaon",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb26",
+    "legacy_id": 110,
+    "name": "Mancherial",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb34",
+    "legacy_id": 124,
+    "name": "Mulugu",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb46",
+    "legacy_id": 142,
+    "name": "Baleshwar",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb48",
+    "legacy_id": 144,
+    "name": "Kalahandi",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb4b",
+    "legacy_id": 147,
+    "name": "Malkangiri",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb64",
+    "legacy_id": 172,
+    "name": "Jaipur",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb66",
+    "legacy_id": 174,
+    "name": "Dhaulpur",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb7d",
+    "legacy_id": 197,
+    "name": "Kotputli-Behror",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb8d",
+    "legacy_id": 213,
+    "name": "Amritsar",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb95",
+    "legacy_id": 221,
+    "name": "Rupnagar",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb99",
+    "legacy_id": 225,
+    "name": "Tarn Taran",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbbd",
+    "legacy_id": 261,
+    "name": "Alluri Sitharama Raju",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbc0",
+    "legacy_id": 264,
+    "name": "Anakapalli",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbc3",
+    "legacy_id": 267,
+    "name": "Palnadu",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbc4",
+    "legacy_id": 268,
+    "name": "Kohima",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbf1",
+    "legacy_id": 313,
+    "name": "Gautam Buddha Nagar",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbf7",
+    "legacy_id": 319,
+    "name": "Mathura",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbfa",
+    "legacy_id": 322,
+    "name": "Rampur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbff",
+    "legacy_id": 327,
+    "name": "Farrukhabad",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc04",
+    "legacy_id": 332,
+    "name": "Balrampur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc18",
+    "legacy_id": 352,
+    "name": "Ayodhya",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc42",
+    "legacy_id": 394,
+    "name": "Kurung Kumey",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc43",
+    "legacy_id": 395,
+    "name": "Tawang district",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc49",
+    "legacy_id": 401,
+    "name": "Lower Siang",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc62",
+    "legacy_id": 426,
+    "name": "Latehar",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc64",
+    "legacy_id": 428,
+    "name": "Khunti",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc81",
+    "legacy_id": 457,
+    "name": "Bidar",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc85",
+    "legacy_id": 461,
+    "name": "Ramanagara",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb43",
+    "legacy_id": 139,
+    "name": "Dhenkanal",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb4c",
+    "legacy_id": 148,
+    "name": "Rayagada",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb4e",
+    "legacy_id": 150,
+    "name": "Kandhamal",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb84",
+    "legacy_id": 204,
+    "name": "Shahpura",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb85",
+    "legacy_id": 205,
+    "name": "Balotra",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfba8",
+    "legacy_id": 240,
+    "name": "Dehradun",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbaa",
+    "legacy_id": 242,
+    "name": "Srikakulam district",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbce",
+    "legacy_id": 278,
+    "name": "Peren",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbd7",
+    "legacy_id": 287,
+    "name": "Kullu",
+    "level_1": "69f9be0a711beb75adfcfaa1",
+    "level_1_legacy": 15,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbee",
+    "legacy_id": 310,
+    "name": "Meerut",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc23",
+    "legacy_id": 363,
+    "name": "Deoria",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc25",
+    "legacy_id": 365,
+    "name": "Gorakhpur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc33",
+    "legacy_id": 379,
+    "name": "Sambhal",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc40",
+    "legacy_id": 392,
+    "name": "Lohit",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc48",
+    "legacy_id": 400,
+    "name": "Shi Yomi",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc55",
+    "legacy_id": 413,
+    "name": "Lohardaga",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc5f",
+    "legacy_id": 423,
+    "name": "Sahibganj",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc6b",
+    "legacy_id": 435,
+    "name": "Dakshina Kannada",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc7b",
+    "legacy_id": 451,
+    "name": "Gadag",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc90",
+    "legacy_id": 472,
+    "name": "Dima Hasao",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc9c",
+    "legacy_id": 484,
+    "name": "Sivasagar",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfac8",
+    "legacy_id": 16,
+    "name": "Karnal",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfac9",
+    "legacy_id": 17,
+    "name": "Panipat",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaca",
+    "legacy_id": 18,
+    "name": "Sonipat",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfacb",
+    "legacy_id": 19,
+    "name": "Kaithal",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfacc",
+    "legacy_id": 20,
+    "name": "Jind",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcface",
+    "legacy_id": 22,
+    "name": "Fatehabad",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfada",
+    "legacy_id": 34,
+    "name": "Charkhi Dadri",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfae5",
+    "legacy_id": 45,
+    "name": "Bhandara",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaeb",
+    "legacy_id": 51,
+    "name": "Nanded",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaef",
+    "legacy_id": 55,
+    "name": "Jalna",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfafe",
+    "legacy_id": 70,
+    "name": "Palghar",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb03",
+    "legacy_id": 75,
+    "name": "Tamenglong district",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb12",
+    "legacy_id": 90,
+    "name": "Mahé",
+    "level_1": "69f9be0a711beb75adfcfa98",
+    "level_1_legacy": 6,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb28",
+    "legacy_id": 112,
+    "name": "Nirmal",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb2c",
+    "legacy_id": 116,
+    "name": "Bhadradri Kothagudem",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb6d",
+    "legacy_id": 181,
+    "name": "Banswara",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb9a",
+    "legacy_id": 226,
+    "name": "Barnala",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbbe",
+    "legacy_id": 262,
+    "name": "Dr. B. R. Ambedkar Konaseema",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbc5",
+    "legacy_id": 269,
+    "name": "Phek",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbcb",
+    "legacy_id": 275,
+    "name": "Dimapur",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbcf",
+    "legacy_id": 279,
+    "name": "Noklak",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbd0",
+    "legacy_id": 280,
+    "name": "Tseminyü",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbd5",
+    "legacy_id": 285,
+    "name": "Lahaul and Spiti",
+    "level_1": "69f9be0a711beb75adfcfaa1",
+    "level_1_legacy": 15,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbf0",
+    "legacy_id": 312,
+    "name": "Saharanpur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc22",
+    "legacy_id": 362,
+    "name": "Ballia",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc35",
+    "legacy_id": 381,
+    "name": "South Andaman",
+    "level_1": "69f9be0a711beb75adfcfaa4",
+    "level_1_legacy": 18,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": true
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc41",
+    "legacy_id": 393,
+    "name": "Tirap",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc6c",
+    "legacy_id": 436,
+    "name": "Udupi",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc72",
+    "legacy_id": 442,
+    "name": "Hassan",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc88",
+    "legacy_id": 464,
+    "name": "Bongaigaon",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc8c",
+    "legacy_id": 468,
+    "name": "Kamrup",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcaa",
+    "legacy_id": 498,
+    "name": "Idukki",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfac5",
+    "legacy_id": 13,
+    "name": "Ambala",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfad0",
+    "legacy_id": 24,
+    "name": "Rohtak",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfad6",
+    "legacy_id": 30,
+    "name": "Gurgaon",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaec",
+    "legacy_id": 52,
+    "name": "Hingoli",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaf1",
+    "legacy_id": 57,
+    "name": "Beed",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb0b",
+    "legacy_id": 83,
+    "name": "Noney district",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb41",
+    "legacy_id": 137,
+    "name": "Cuttack",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb51",
+    "legacy_id": 153,
+    "name": "Jagatsinghapur",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb54",
+    "legacy_id": 156,
+    "name": "Barmer",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb7c",
+    "legacy_id": 196,
+    "name": "Jaipur(Rural)",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb81",
+    "legacy_id": 201,
+    "name": "Beaware",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb86",
+    "legacy_id": 206,
+    "name": "Fatehgarh Sahib",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbba",
+    "legacy_id": 258,
+    "name": "Bapatla",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbca",
+    "legacy_id": 274,
+    "name": "Zünheboto",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbd3",
+    "legacy_id": 283,
+    "name": "Niuland",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc06",
+    "legacy_id": 334,
+    "name": "Sharavasti",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc2e",
+    "legacy_id": 374,
+    "name": "Chitrakoot",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc52",
+    "legacy_id": 410,
+    "name": "Kodarma",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc56",
+    "legacy_id": 414,
+    "name": "Hazaribagh",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc65",
+    "legacy_id": 429,
+    "name": "Ramgarh",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc78",
+    "legacy_id": 448,
+    "name": "Bagalkote",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc7c",
+    "legacy_id": 452,
+    "name": "Haveri",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfab9",
+    "legacy_id": 1,
+    "name": "East Garo Hills",
+    "level_1": "69f9be0a711beb75adfcfa93",
+    "level_1_legacy": 1,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfacd",
+    "legacy_id": 21,
+    "name": "Hisar",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfad9",
+    "legacy_id": 33,
+    "name": "Palwal",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfade",
+    "legacy_id": 38,
+    "name": "Ahmednagar",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfae0",
+    "legacy_id": 40,
+    "name": "Satara",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaed",
+    "legacy_id": 53,
+    "name": "Jalgaon",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaf9",
+    "legacy_id": 65,
+    "name": "Mumbai Suburban",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb56",
+    "legacy_id": 158,
+    "name": "Jodhpur(Rural)",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb57",
+    "legacy_id": 159,
+    "name": "Pali",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb58",
+    "legacy_id": 160,
+    "name": "Jaisalmer",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb59",
+    "legacy_id": 161,
+    "name": "Bikaner",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb67",
+    "legacy_id": 175,
+    "name": "Karauli",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb6f",
+    "legacy_id": 183,
+    "name": "Bundi",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb70",
+    "legacy_id": 184,
+    "name": "Dungarpur",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb71",
+    "legacy_id": 185,
+    "name": "Rajsamand",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb77",
+    "legacy_id": 191,
+    "name": "Deeg",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb8f",
+    "legacy_id": 215,
+    "name": "Gurdaspur",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb9f",
+    "legacy_id": 231,
+    "name": "Pithoragarh district",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfba1",
+    "legacy_id": 233,
+    "name": "Rudraprayag",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfba6",
+    "legacy_id": 238,
+    "name": "Pauri Garhwal",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbae",
+    "legacy_id": 246,
+    "name": "West Godavari",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbd4",
+    "legacy_id": 284,
+    "name": "Lakshadweep",
+    "level_1": "69f9be0a711beb75adfcfaa0",
+    "level_1_legacy": 14,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbdb",
+    "legacy_id": 291,
+    "name": "Hamirpur",
+    "level_1": "69f9be0a711beb75adfcfaa1",
+    "level_1_legacy": 15,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbe4",
+    "legacy_id": 300,
+    "name": "North Delhi",
+    "level_1": "69f9be0a711beb75adfcfaa2",
+    "level_1_legacy": 16,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbe8",
+    "legacy_id": 304,
+    "name": "South Delhi",
+    "level_1": "69f9be0a711beb75adfcfaa2",
+    "level_1_legacy": 16,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbea",
+    "legacy_id": 306,
+    "name": "South East Delhi",
+    "level_1": "69f9be0a711beb75adfcfaa2",
+    "level_1_legacy": 16,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbef",
+    "legacy_id": 311,
+    "name": "Muzaffarnagar",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbf4",
+    "legacy_id": 316,
+    "name": "Aligarh",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc15",
+    "legacy_id": 349,
+    "name": "Barabanki",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc1d",
+    "legacy_id": 357,
+    "name": "Kaushambi",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc36",
+    "legacy_id": 382,
+    "name": "Nicobar",
+    "level_1": "69f9be0a711beb75adfcfaa4",
+    "level_1_legacy": 18,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc44",
+    "legacy_id": 396,
+    "name": "West Kameng",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc5c",
+    "legacy_id": 420,
+    "name": "Pakur",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc67",
+    "legacy_id": 431,
+    "name": "Seraikela-Kharsawan",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc69",
+    "legacy_id": 433,
+    "name": "Mysuru District",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc6d",
+    "legacy_id": 437,
+    "name": "Bengaluru Rural",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc71",
+    "legacy_id": 441,
+    "name": "Chikkamagaluru",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc80",
+    "legacy_id": 456,
+    "name": "Kalaburagi",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc93",
+    "legacy_id": 475,
+    "name": "Hailakandi district",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc96",
+    "legacy_id": 478,
+    "name": "Golaghat",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfac1",
+    "legacy_id": 9,
+    "name": "South West Khasi Hills",
+    "level_1": "69f9be0a711beb75adfcfa93",
+    "level_1_legacy": 1,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfac3",
+    "legacy_id": 11,
+    "name": "North Garo Hills",
+    "level_1": "69f9be0a711beb75adfcfa93",
+    "level_1_legacy": 1,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfad1",
+    "legacy_id": 25,
+    "name": "Jhajjar",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfae8",
+    "legacy_id": 48,
+    "name": "Yavatmal",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaf8",
+    "legacy_id": 64,
+    "name": "Buldhana",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb05",
+    "legacy_id": 77,
+    "name": "Imphal West",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb09",
+    "legacy_id": 81,
+    "name": "Ukhrul district",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb14",
+    "legacy_id": 92,
+    "name": "Yanam",
+    "level_1": "69f9be0a711beb75adfcfa98",
+    "level_1_legacy": 6,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb22",
+    "legacy_id": 106,
+    "name": "Jogulamba Gadwal",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb29",
+    "legacy_id": 113,
+    "name": "Peddapalli",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb2f",
+    "legacy_id": 119,
+    "name": "Suryapet",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb40",
+    "legacy_id": 136,
+    "name": "Khordha",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb60",
+    "legacy_id": 168,
+    "name": "Sikar",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb6a",
+    "legacy_id": 178,
+    "name": "Baran",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb73",
+    "legacy_id": 187,
+    "name": "Pratapgarh",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb88",
+    "legacy_id": 208,
+    "name": "Bathinda",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb92",
+    "legacy_id": 218,
+    "name": "Hoshiarpur",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfba4",
+    "legacy_id": 236,
+    "name": "Champawat",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfba7",
+    "legacy_id": 239,
+    "name": "Haridwar",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbb2",
+    "legacy_id": 250,
+    "name": "Prakasam district",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbb5",
+    "legacy_id": 253,
+    "name": "Anantapur",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbbb",
+    "legacy_id": 259,
+    "name": "Parvathipuram Manyam",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbdc",
+    "legacy_id": 292,
+    "name": "Mandi",
+    "level_1": "69f9be0a711beb75adfcfaa1",
+    "level_1_legacy": 15,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc08",
+    "legacy_id": 336,
+    "name": "Kushinagar",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc21",
+    "legacy_id": 361,
+    "name": "Azamgarh",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc3c",
+    "legacy_id": 388,
+    "name": "East Siang",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc4c",
+    "legacy_id": 404,
+    "name": "Longding",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc7e",
+    "legacy_id": 454,
+    "name": "Koppal",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc83",
+    "legacy_id": 459,
+    "name": "Davanagere",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc95",
+    "legacy_id": 477,
+    "name": "Sonitpur",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfac7",
+    "legacy_id": 15,
+    "name": "Kurukshetra",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfadb",
+    "legacy_id": 35,
+    "name": "Dhule",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfae3",
+    "legacy_id": 43,
+    "name": "Gadchiroli",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaf7",
+    "legacy_id": 63,
+    "name": "Dharashiv",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfafb",
+    "legacy_id": 67,
+    "name": "Raigad",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb00",
+    "legacy_id": 72,
+    "name": "South Goa",
+    "level_1": "69f9be0a711beb75adfcfa96",
+    "level_1_legacy": 4,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb13",
+    "legacy_id": 91,
+    "name": "Puducherry",
+    "level_1": "69f9be0a711beb75adfcfa98",
+    "level_1_legacy": 6,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb15",
+    "legacy_id": 93,
+    "name": "Khammam",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb17",
+    "legacy_id": 95,
+    "name": "Karimnagar",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb2d",
+    "legacy_id": 117,
+    "name": "Jayashankar Bhupalapally",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb30",
+    "legacy_id": 120,
+    "name": "Nagarkurnool",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb33",
+    "legacy_id": 123,
+    "name": "Kamareddy",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb36",
+    "legacy_id": 126,
+    "name": "Bargarh",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb3c",
+    "legacy_id": 132,
+    "name": "Sundargarh",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb3e",
+    "legacy_id": 134,
+    "name": "Boudh",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb45",
+    "legacy_id": 141,
+    "name": "Kendujhar",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb69",
+    "legacy_id": 177,
+    "name": "Tonk",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb74",
+    "legacy_id": 188,
+    "name": "Chittorgarh",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb89",
+    "legacy_id": 209,
+    "name": "Moga",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb93",
+    "legacy_id": 219,
+    "name": "Patiala",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbb6",
+    "legacy_id": 254,
+    "name": "Chittoor",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbbc",
+    "legacy_id": 260,
+    "name": "Eluru district",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbc2",
+    "legacy_id": 266,
+    "name": "NTR",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc09",
+    "legacy_id": 337,
+    "name": "Mahrajganj",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc10",
+    "legacy_id": 344,
+    "name": "Jalaun",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc16",
+    "legacy_id": 350,
+    "name": "Gonda",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc28",
+    "legacy_id": 368,
+    "name": "Chandauli",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc3f",
+    "legacy_id": 391,
+    "name": "Dibang Valley",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc53",
+    "legacy_id": 411,
+    "name": "Garhwa",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc54",
+    "legacy_id": 412,
+    "name": "Gumla",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc58",
+    "legacy_id": 416,
+    "name": "West Singhbhum",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc61",
+    "legacy_id": 425,
+    "name": "Palamu",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc6e",
+    "legacy_id": 438,
+    "name": "Bengaluru Urban",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc7f",
+    "legacy_id": 455,
+    "name": "Raichur",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc84",
+    "legacy_id": 460,
+    "name": "Chikkaballapura",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfca8",
+    "legacy_id": 496,
+    "name": "Bajali",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfabc",
+    "legacy_id": 4,
+    "name": "East Khasi Hills",
+    "level_1": "69f9be0a711beb75adfcfa93",
+    "level_1_legacy": 1,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfae4",
+    "legacy_id": 44,
+    "name": "Chandrapur",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfafc",
+    "legacy_id": 68,
+    "name": "Thane",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfafd",
+    "legacy_id": 69,
+    "name": "Amravati",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb4d",
+    "legacy_id": 149,
+    "name": "Gajapati",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb52",
+    "legacy_id": 154,
+    "name": "Bhadrak",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb75",
+    "legacy_id": 189,
+    "name": "Anupgarh",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb79",
+    "legacy_id": 193,
+    "name": "Jodhpur",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfba9",
+    "legacy_id": 241,
+    "name": "Nainital",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbbf",
+    "legacy_id": 263,
+    "name": "Kakinada",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbfb",
+    "legacy_id": 323,
+    "name": "Agra",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbfc",
+    "legacy_id": 324,
+    "name": "Badaun",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc00",
+    "legacy_id": 328,
+    "name": "Mainpuri",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc0d",
+    "legacy_id": 341,
+    "name": "Kanpur Nagar",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc29",
+    "legacy_id": 369,
+    "name": "Jaunpur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc39",
+    "legacy_id": 385,
+    "name": "Lower Subansiri",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc4a",
+    "legacy_id": 402,
+    "name": "Lepa Rada",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc4f",
+    "legacy_id": 407,
+    "name": "Pakke-Kessang",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc77",
+    "legacy_id": 447,
+    "name": "Uttara Kannada",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc79",
+    "legacy_id": 449,
+    "name": "Vijayapura",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc86",
+    "legacy_id": 462,
+    "name": "Vijayanagara",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc87",
+    "legacy_id": 463,
+    "name": "Kokrajhar",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfabe",
+    "legacy_id": 6,
+    "name": "Ri-Bhoi",
+    "level_1": "69f9be0a711beb75adfcfa93",
+    "level_1_legacy": 1,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfabf",
+    "legacy_id": 7,
+    "name": "West Khasi Hills",
+    "level_1": "69f9be0a711beb75adfcfa93",
+    "level_1_legacy": 1,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfadd",
+    "legacy_id": 37,
+    "name": "Nashik",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfae9",
+    "legacy_id": 49,
+    "name": "Washim",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaf5",
+    "legacy_id": 61,
+    "name": "Sindhudurg",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfaff",
+    "legacy_id": 71,
+    "name": "North Goa",
+    "level_1": "69f9be0a711beb75adfcfa96",
+    "level_1_legacy": 4,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb25",
+    "legacy_id": 109,
+    "name": "Vikarabad",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb2a",
+    "legacy_id": 114,
+    "name": "Jagtial",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb4a",
+    "legacy_id": 146,
+    "name": "Koraput",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb50",
+    "legacy_id": 152,
+    "name": "Puri",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb5b",
+    "legacy_id": 163,
+    "name": "Nagaur",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb65",
+    "legacy_id": 173,
+    "name": "Dausa",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb80",
+    "legacy_id": 200,
+    "name": "Kekri",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb82",
+    "legacy_id": 202,
+    "name": "Salumbar",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb8c",
+    "legacy_id": 212,
+    "name": "Firozpur",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb8e",
+    "legacy_id": 214,
+    "name": "Kapurthala",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb96",
+    "legacy_id": 222,
+    "name": "Fazilka",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb98",
+    "legacy_id": 224,
+    "name": "Pathankot",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfba3",
+    "legacy_id": 235,
+    "name": "Almora",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbb7",
+    "legacy_id": 255,
+    "name": "Tirupati",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbc8",
+    "legacy_id": 272,
+    "name": "Mon",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbe7",
+    "legacy_id": 303,
+    "name": "South West Delhi",
+    "level_1": "69f9be0a711beb75adfcfaa2",
+    "level_1_legacy": 16,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbec",
+    "legacy_id": 308,
+    "name": "Baghpat",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc14",
+    "legacy_id": 348,
+    "name": "Lalitpur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc19",
+    "legacy_id": 353,
+    "name": "Fatehpur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc30",
+    "legacy_id": 376,
+    "name": "Kasganj",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc57",
+    "legacy_id": 415,
+    "name": "Ranchi",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc6a",
+    "legacy_id": 434,
+    "name": "Kodagu",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfca9",
+    "legacy_id": 497,
+    "name": "Thiruvananthapuram",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcab",
+    "legacy_id": 499,
+    "name": "Palakkad",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfadc",
+    "legacy_id": 36,
+    "name": "Nandurbar",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfadf",
+    "legacy_id": 39,
+    "name": "Pune",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfae6",
+    "legacy_id": 46,
+    "name": "Nagpur",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfafa",
+    "legacy_id": 66,
+    "name": "Mumbai City",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb08",
+    "legacy_id": 80,
+    "name": "Chandel district",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb10",
+    "legacy_id": 88,
+    "name": "Pherzawl district",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb37",
+    "legacy_id": 127,
+    "name": "Nuapada",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb3d",
+    "legacy_id": 133,
+    "name": "Debagarh",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb42",
+    "legacy_id": 138,
+    "name": "Angul",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb5a",
+    "legacy_id": 162,
+    "name": "Sri Ganganagar",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb8b",
+    "legacy_id": 211,
+    "name": "Faridkot",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb97",
+    "legacy_id": 223,
+    "name": "Mansa",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbcd",
+    "legacy_id": 277,
+    "name": "Longleng",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbd8",
+    "legacy_id": 288,
+    "name": "Chamba",
+    "level_1": "69f9be0a711beb75adfcfaa1",
+    "level_1_legacy": 15,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbdf",
+    "legacy_id": 295,
+    "name": "Sirmaur",
+    "level_1": "69f9be0a711beb75adfcfaa1",
+    "level_1_legacy": 15,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbe1",
+    "legacy_id": 297,
+    "name": "Central Delhi",
+    "level_1": "69f9be0a711beb75adfcfaa2",
+    "level_1_legacy": 16,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbe5",
+    "legacy_id": 301,
+    "name": "North West Delhi",
+    "level_1": "69f9be0a711beb75adfcfaa2",
+    "level_1_legacy": 16,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbeb",
+    "legacy_id": 307,
+    "name": "Unnao",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbfe",
+    "legacy_id": 326,
+    "name": "Firozabad",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc07",
+    "legacy_id": 335,
+    "name": "Siddharthnagar",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc13",
+    "legacy_id": 347,
+    "name": "Kanpur Dehat",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc1f",
+    "legacy_id": 359,
+    "name": "Sultanpur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc31",
+    "legacy_id": 377,
+    "name": "Shamli",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc32",
+    "legacy_id": 378,
+    "name": "Amethi",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc38",
+    "legacy_id": 384,
+    "name": "Papum Pare",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc3b",
+    "legacy_id": 387,
+    "name": "West Siang",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc4b",
+    "legacy_id": 403,
+    "name": "Siang",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc5b",
+    "legacy_id": 419,
+    "name": "Bokaro",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc63",
+    "legacy_id": 427,
+    "name": "Jamtara",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc73",
+    "legacy_id": 443,
+    "name": "Chitradurga",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc75",
+    "legacy_id": 445,
+    "name": "Belagavi",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc7d",
+    "legacy_id": 453,
+    "name": "Ballari",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfca1",
+    "legacy_id": 489,
+    "name": "Baksa",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfac4",
+    "legacy_id": 12,
+    "name": "Eastern West Khasi Hills",
+    "level_1": "69f9be0a711beb75adfcfa93",
+    "level_1_legacy": 1,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb02",
+    "legacy_id": 74,
+    "name": "Imphal East",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb06",
+    "legacy_id": 78,
+    "name": "Senapati",
+    "level_1": "69f9be0a711beb75adfcfa97",
+    "level_1_legacy": 5,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb11",
+    "legacy_id": 89,
+    "name": "Karaikal",
+    "level_1": "69f9be0a711beb75adfcfa98",
+    "level_1_legacy": 6,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb16",
+    "legacy_id": 94,
+    "name": "Adilabad",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb1c",
+    "legacy_id": 100,
+    "name": "Nalgonda",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb20",
+    "legacy_id": 104,
+    "name": "Medchal–Malkajgiri",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb3a",
+    "legacy_id": 130,
+    "name": "Jharsuguda",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb49",
+    "legacy_id": 145,
+    "name": "Nabarangapur",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb4f",
+    "legacy_id": 151,
+    "name": "Ganjam",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb5d",
+    "legacy_id": 165,
+    "name": "Churu",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb5e",
+    "legacy_id": 166,
+    "name": "Hanumangarh",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb63",
+    "legacy_id": 171,
+    "name": "Bharatpur",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb6b",
+    "legacy_id": 179,
+    "name": "Jhalawar",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb83",
+    "legacy_id": 203,
+    "name": "Sanchore",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb9d",
+    "legacy_id": 229,
+    "name": "Uttarkashi",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfba0",
+    "legacy_id": 232,
+    "name": "Bageshwar",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbb0",
+    "legacy_id": 248,
+    "name": "Guntur",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbb3",
+    "legacy_id": 251,
+    "name": "YSR district",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbd1",
+    "legacy_id": 281,
+    "name": "Chümoukedima",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbd2",
+    "legacy_id": 282,
+    "name": "Shamator",
+    "level_1": "69f9be0a711beb75adfcfa9f",
+    "level_1_legacy": 13,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbd6",
+    "legacy_id": 286,
+    "name": "Kinnaur",
+    "level_1": "69f9be0a711beb75adfcfaa1",
+    "level_1_legacy": 15,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbda",
+    "legacy_id": 290,
+    "name": "Una",
+    "level_1": "69f9be0a711beb75adfcfaa1",
+    "level_1_legacy": 15,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbe6",
+    "legacy_id": 302,
+    "name": "West Delhi",
+    "level_1": "69f9be0a711beb75adfcfaa2",
+    "level_1_legacy": 16,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbed",
+    "legacy_id": 309,
+    "name": "Bijnor",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbf9",
+    "legacy_id": 321,
+    "name": "Moradabad",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc01",
+    "legacy_id": 329,
+    "name": "Pilibhit",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc03",
+    "legacy_id": 331,
+    "name": "Bahraich",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc17",
+    "legacy_id": 351,
+    "name": "Basti",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc27",
+    "legacy_id": 367,
+    "name": "Sant Kabir Nagar",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc2f",
+    "legacy_id": 375,
+    "name": "Hapur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc34",
+    "legacy_id": 380,
+    "name": "North and Middle Andaman",
+    "level_1": "69f9be0a711beb75adfcfaa4",
+    "level_1_legacy": 18,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc50",
+    "legacy_id": 408,
+    "name": "Deoghar",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc82",
+    "legacy_id": 458,
+    "name": "Yadgir",
+    "level_1": "69f9be0a711beb75adfcfaa7",
+    "level_1_legacy": 21,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc8b",
+    "legacy_id": 467,
+    "name": "Darrang",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc8d",
+    "legacy_id": 469,
+    "name": "Dhubri",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc91",
+    "legacy_id": 473,
+    "name": "Cachar",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc9a",
+    "legacy_id": 482,
+    "name": "Tinsukia",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfca4",
+    "legacy_id": 492,
+    "name": "South Salmara-Mankachar",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfca5",
+    "legacy_id": 493,
+    "name": "Biswanath",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfca6",
+    "legacy_id": 494,
+    "name": "Hojai",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfabb",
+    "legacy_id": 3,
+    "name": "West Garo Hills",
+    "level_1": "69f9be0a711beb75adfcfa93",
+    "level_1_legacy": 1,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfad3",
+    "legacy_id": 27,
+    "name": "Mahendragarh",
+    "level_1": "69f9be0a711beb75adfcfa94",
+    "level_1_legacy": 2,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfae1",
+    "legacy_id": 41,
+    "name": "Ratnagiri",
+    "level_1": "69f9be0a711beb75adfcfa95",
+    "level_1_legacy": 3,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb19",
+    "legacy_id": 97,
+    "name": "Medak",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb23",
+    "legacy_id": 107,
+    "name": "Warangal",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb2e",
+    "legacy_id": 118,
+    "name": "Mahabubabad",
+    "level_1": "69f9be0a711beb75adfcfa99",
+    "level_1_legacy": 7,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb38",
+    "legacy_id": 128,
+    "name": "Balangir",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb3f",
+    "legacy_id": 135,
+    "name": "Nayagarh",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb53",
+    "legacy_id": 155,
+    "name": "Kendrapara",
+    "level_1": "69f9be0a711beb75adfcfa9a",
+    "level_1_legacy": 8,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb55",
+    "legacy_id": 157,
+    "name": "Jalore",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb68",
+    "legacy_id": 176,
+    "name": "Sawai Madhopur",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb76",
+    "legacy_id": 190,
+    "name": "Didwalna-Kuchaman",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb7f",
+    "legacy_id": 199,
+    "name": "Neem Ka Thana",
+    "level_1": "69f9be0a711beb75adfcfa9b",
+    "level_1_legacy": 9,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb87",
+    "legacy_id": 207,
+    "name": "Ludhiana",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb91",
+    "legacy_id": 217,
+    "name": "Shaheed Bhagat Singh Nagar",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb94",
+    "legacy_id": 220,
+    "name": "Sahibzada Ajit Singh Nagar",
+    "level_1": "69f9be0a711beb75adfcfa9c",
+    "level_1_legacy": 10,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfb9e",
+    "legacy_id": 230,
+    "name": "Chamoli",
+    "level_1": "69f9be0a711beb75adfcfa9d",
+    "level_1_legacy": 11,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbb8",
+    "legacy_id": 256,
+    "name": "Annamayya",
+    "level_1": "69f9be0a711beb75adfcfa9e",
+    "level_1_legacy": 12,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbe0",
+    "legacy_id": 296,
+    "name": "Shimla",
+    "level_1": "69f9be0a711beb75adfcfaa1",
+    "level_1_legacy": 15,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbf2",
+    "legacy_id": 314,
+    "name": "Ghaziabad",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbf3",
+    "legacy_id": 315,
+    "name": "Amroha",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfbf8",
+    "legacy_id": 320,
+    "name": "Bareilly",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc05",
+    "legacy_id": 333,
+    "name": "Lakhimpur Kheri",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc0c",
+    "legacy_id": 340,
+    "name": "Sitapur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc1c",
+    "legacy_id": 356,
+    "name": "Banda",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc3a",
+    "legacy_id": 386,
+    "name": "Upper Subansiri",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc3d",
+    "legacy_id": 389,
+    "name": "Upper Siang",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc45",
+    "legacy_id": 397,
+    "name": "Anjaw district",
+    "level_1": "69f9be0a711beb75adfcfaa5",
+    "level_1_legacy": 19,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc5a",
+    "legacy_id": 418,
+    "name": "Giridih",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc5d",
+    "legacy_id": 421,
+    "name": "Dumka",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc5e",
+    "legacy_id": 422,
+    "name": "Godda",
+    "level_1": "69f9be0a711beb75adfcfaa6",
+    "level_1_legacy": 20,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc8f",
+    "legacy_id": 471,
+    "name": "Marigaon",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfc92",
+    "legacy_id": 474,
+    "name": "Nagaon",
+    "level_1": "69f9be0a711beb75adfcfaa8",
+    "level_1_legacy": 22,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcb2",
+    "legacy_id": 506,
+    "name": "Kasaragod",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcc6",
+    "legacy_id": 526,
+    "name": "Shopian",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcdb",
+    "legacy_id": 547,
+    "name": "Gir Somnath",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfce4",
+    "legacy_id": 556,
+    "name": "Chhota Udaipur",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": true
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd18",
+    "legacy_id": 608,
+    "name": "Chengalpattu",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd19",
+    "legacy_id": 609,
+    "name": "Tirupattur",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd1a",
+    "legacy_id": 610,
+    "name": "Ranipet",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd35",
+    "legacy_id": 637,
+    "name": "Munger",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd36",
+    "legacy_id": 638,
+    "name": "Siwan",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd44",
+    "legacy_id": 652,
+    "name": "Begusarai",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd4c",
+    "legacy_id": 660,
+    "name": "West Tripura",
+    "level_1": "69f9be0a711beb75adfcfab2",
+    "level_1_legacy": 32,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd5e",
+    "legacy_id": 678,
+    "name": "Panna",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd68",
+    "legacy_id": 688,
+    "name": "Dhar",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd7f",
+    "legacy_id": 711,
+    "name": "Agar Malwa",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd88",
+    "legacy_id": 720,
+    "name": "Pandhurna",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd8d",
+    "legacy_id": 725,
+    "name": "Raigarh",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd98",
+    "legacy_id": 736,
+    "name": "Baloda Bazar",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdb1",
+    "legacy_id": 761,
+    "name": "Darjeeling",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdb9",
+    "legacy_id": 769,
+    "name": "Bankura",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdc2",
+    "legacy_id": 778,
+    "name": "Jhargram",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdc4",
+    "legacy_id": 780,
+    "name": "Kolkata",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcc0",
+    "legacy_id": 520,
+    "name": "Baramulla",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfccb",
+    "legacy_id": 531,
+    "name": "Mahesana",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcd0",
+    "legacy_id": 536,
+    "name": "Kheda",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfce7",
+    "legacy_id": 559,
+    "name": "Aravalli",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": "69f9be0a711beb75adfcfab7",
+    "cluster_legacy": null,
+    "is_active": true
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcf6",
+    "legacy_id": 574,
+    "name": "Nilgiris",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcf7",
+    "legacy_id": 575,
+    "name": "Kanniyakumari",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcf9",
+    "legacy_id": 577,
+    "name": "Pudukkottai",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd03",
+    "legacy_id": 587,
+    "name": "Salem",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd15",
+    "legacy_id": 605,
+    "name": "Tiruppur",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd1c",
+    "legacy_id": 612,
+    "name": "Lawngtlai",
+    "level_1": "69f9be0a711beb75adfcfab0",
+    "level_1_legacy": 30,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd2b",
+    "legacy_id": 627,
+    "name": "Kishanganj",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd30",
+    "legacy_id": 632,
+    "name": "Araria District",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd37",
+    "legacy_id": 639,
+    "name": "Saran",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd80",
+    "legacy_id": 712,
+    "name": "Alirajpur",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd89",
+    "legacy_id": 721,
+    "name": "Jashpur",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfda6",
+    "legacy_id": 750,
+    "name": "Manendragarh-Chirimiri-Bharatpur",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfda9",
+    "legacy_id": 753,
+    "name": "Zanskar",
+    "level_1": "69f9be0a711beb75adfcfab5",
+    "level_1_legacy": 35,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcc8",
+    "legacy_id": 528,
+    "name": "Samba district",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcd8",
+    "legacy_id": 544,
+    "name": "Ahmedabad",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcdf",
+    "legacy_id": 551,
+    "name": "Porbandar",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd0f",
+    "legacy_id": 599,
+    "name": "Vellore",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd34",
+    "legacy_id": 636,
+    "name": "Khagaria",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd82",
+    "legacy_id": 714,
+    "name": "Ashoknagar",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd84",
+    "legacy_id": 716,
+    "name": "Singrauli",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfda8",
+    "legacy_id": 752,
+    "name": "Kargil district",
+    "level_1": "69f9be0a711beb75adfcfab5",
+    "level_1_legacy": 35,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdb0",
+    "legacy_id": 760,
+    "name": "Dakshin Dinajpur",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdc5",
+    "legacy_id": 781,
+    "name": "New Delhi",
+    "level_1": "69f9be0a711beb75adfcfaa2",
+    "level_1_legacy": 16,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcbe",
+    "legacy_id": 518,
+    "name": "Pulwama",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcd6",
+    "legacy_id": 542,
+    "name": "Valsad",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfce5",
+    "legacy_id": 557,
+    "name": "Botad",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcee",
+    "legacy_id": 566,
+    "name": "Daman",
+    "level_1": "69f9be0a711beb75adfcfaad",
+    "level_1_legacy": 27,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcf0",
+    "legacy_id": 568,
+    "name": "Mangan",
+    "level_1": "69f9be0a711beb75adfcfaae",
+    "level_1_legacy": 28,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcfa",
+    "legacy_id": 578,
+    "name": "Sivagangai",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd28",
+    "legacy_id": 624,
+    "name": "Supaul",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd4d",
+    "legacy_id": 661,
+    "name": "North Tripura",
+    "level_1": "69f9be0a711beb75adfcfab2",
+    "level_1_legacy": 32,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd79",
+    "legacy_id": 705,
+    "name": "Seoni",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd7c",
+    "legacy_id": 708,
+    "name": "Katni",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd7e",
+    "legacy_id": 710,
+    "name": "Umaria",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd93",
+    "legacy_id": 731,
+    "name": "Bastar",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd99",
+    "legacy_id": 737,
+    "name": "Gariaband",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfda5",
+    "legacy_id": 749,
+    "name": "Khairagarh-Chhuikhadan-Gandai",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdb6",
+    "legacy_id": 766,
+    "name": "Nadia",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdbb",
+    "legacy_id": 771,
+    "name": "Paschim Medinipur",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdbc",
+    "legacy_id": 772,
+    "name": "Purba Medinipur",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdc9",
+    "legacy_id": 785,
+    "name": "Balrampur",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcae",
+    "legacy_id": 502,
+    "name": "Thrissur",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcb3",
+    "legacy_id": 507,
+    "name": "Kozhikode",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcc2",
+    "legacy_id": 522,
+    "name": "Bandipore",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcd5",
+    "legacy_id": 541,
+    "name": "Dang",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcf2",
+    "legacy_id": 570,
+    "name": "Gyalshing",
+    "level_1": "69f9be0a711beb75adfcfaae",
+    "level_1_legacy": 28,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcfd",
+    "legacy_id": 581,
+    "name": "Madurai",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd0e",
+    "legacy_id": 598,
+    "name": "Tiruvannamalai",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd1b",
+    "legacy_id": 611,
+    "name": "Mayiladuthurai",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd32",
+    "legacy_id": 634,
+    "name": "Bhagalpur",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd40",
+    "legacy_id": 648,
+    "name": "Jehanabad",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd41",
+    "legacy_id": 649,
+    "name": "Aurangabad",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd43",
+    "legacy_id": 651,
+    "name": "Nalanda",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd6d",
+    "legacy_id": 693,
+    "name": "Dewas",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd6e",
+    "legacy_id": 694,
+    "name": "Khandwa",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd73",
+    "legacy_id": 699,
+    "name": "Raisen",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd78",
+    "legacy_id": 704,
+    "name": "Narsinghpur",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd8b",
+    "legacy_id": 723,
+    "name": "Koriya",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd91",
+    "legacy_id": 729,
+    "name": "Kabirdham",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdaa",
+    "legacy_id": 754,
+    "name": "Leh district",
+    "level_1": "69f9be0a711beb75adfcfab5",
+    "level_1_legacy": 35,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcb0",
+    "legacy_id": 504,
+    "name": "Wayanad",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcb1",
+    "legacy_id": 505,
+    "name": "Kannur",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcb9",
+    "legacy_id": 513,
+    "name": "Kathua district",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcc3",
+    "legacy_id": 523,
+    "name": "Srinagar",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcc5",
+    "legacy_id": 525,
+    "name": "Kulgam",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcc9",
+    "legacy_id": 529,
+    "name": "Doda",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcca",
+    "legacy_id": 530,
+    "name": "Ramban district",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfccf",
+    "legacy_id": 535,
+    "name": "Gandhinagar",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfce6",
+    "legacy_id": 558,
+    "name": "Amreli",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd01",
+    "legacy_id": 585,
+    "name": "Karur",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd04",
+    "legacy_id": 588,
+    "name": "Tiruchirappalli",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd08",
+    "legacy_id": 592,
+    "name": "Kanchipuram",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd0a",
+    "legacy_id": 594,
+    "name": "Perambalur",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd0d",
+    "legacy_id": 597,
+    "name": "Thiruvarur",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd14",
+    "legacy_id": 604,
+    "name": "Krishnagiri",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd22",
+    "legacy_id": 618,
+    "name": "Khawzawl",
+    "level_1": "69f9be0a711beb75adfcfab0",
+    "level_1_legacy": 30,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd2f",
+    "legacy_id": 631,
+    "name": "Gopalganj",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd3e",
+    "legacy_id": 646,
+    "name": "Kaimur",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd3f",
+    "legacy_id": 647,
+    "name": "Rohtas",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd4e",
+    "legacy_id": 662,
+    "name": "South Tripura",
+    "level_1": "69f9be0a711beb75adfcfab2",
+    "level_1_legacy": 32,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd4f",
+    "legacy_id": 663,
+    "name": "Gomati",
+    "level_1": "69f9be0a711beb75adfcfab2",
+    "level_1_legacy": 32,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd58",
+    "legacy_id": 672,
+    "name": "Morena",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd5b",
+    "legacy_id": 675,
+    "name": "Guna",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd6f",
+    "legacy_id": 695,
+    "name": "Khargone",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd81",
+    "legacy_id": 713,
+    "name": "Anuppur",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd8f",
+    "legacy_id": 727,
+    "name": "Raipur",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd95",
+    "legacy_id": 733,
+    "name": "Dhamtari",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd9b",
+    "legacy_id": 739,
+    "name": "Sukma",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd9d",
+    "legacy_id": 741,
+    "name": "Bemetara",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdb4",
+    "legacy_id": 764,
+    "name": "Birbhum",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdbd",
+    "legacy_id": 773,
+    "name": "Howrah",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdc1",
+    "legacy_id": 777,
+    "name": "Paschim Bardhaman",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcf1",
+    "legacy_id": 569,
+    "name": "Namchi",
+    "level_1": "69f9be0a711beb75adfcfaae",
+    "level_1_legacy": 28,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd09",
+    "legacy_id": 593,
+    "name": "Nagapattinam",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd13",
+    "legacy_id": 603,
+    "name": "Chennai",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd3d",
+    "legacy_id": 645,
+    "name": "Buxar",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd47",
+    "legacy_id": 655,
+    "name": "Lakhisarai",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd50",
+    "legacy_id": 664,
+    "name": "Sipahijala",
+    "level_1": "69f9be0a711beb75adfcfab2",
+    "level_1_legacy": 32,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd59",
+    "legacy_id": 673,
+    "name": "Sheopur",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd5f",
+    "legacy_id": 679,
+    "name": "Satna",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd62",
+    "legacy_id": 682,
+    "name": "Bhopal",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd65",
+    "legacy_id": 685,
+    "name": "Rajgarh",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd6a",
+    "legacy_id": 690,
+    "name": "Jhabua",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd86",
+    "legacy_id": 718,
+    "name": "Mauganj",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd8c",
+    "legacy_id": 724,
+    "name": "Korba",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfda0",
+    "legacy_id": 744,
+    "name": "Narayanpur",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdab",
+    "legacy_id": 755,
+    "name": "Sham Valley",
+    "level_1": "69f9be0a711beb75adfcfab5",
+    "level_1_legacy": 35,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdae",
+    "legacy_id": 758,
+    "name": "Jalpaiguri",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfce9",
+    "legacy_id": 561,
+    "name": "Mahisagar",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcf3",
+    "legacy_id": 571,
+    "name": "Gangtok",
+    "level_1": "69f9be0a711beb75adfcfaae",
+    "level_1_legacy": 28,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcfb",
+    "legacy_id": 579,
+    "name": "Virudhunagar",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcff",
+    "legacy_id": 583,
+    "name": "Coimbatore",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd4a",
+    "legacy_id": 658,
+    "name": "Arwal",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd64",
+    "legacy_id": 684,
+    "name": "Vidisha",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd76",
+    "legacy_id": 702,
+    "name": "Betul",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd9e",
+    "legacy_id": 742,
+    "name": "Janjgir-Champa",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfda4",
+    "legacy_id": 748,
+    "name": "Sarangarh-Bilaigarh",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdb3",
+    "legacy_id": 763,
+    "name": "Maldah",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdc0",
+    "legacy_id": 776,
+    "name": "Alipurduar",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcbd",
+    "legacy_id": 517,
+    "name": "Anantnag",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcc1",
+    "legacy_id": 521,
+    "name": "Kupwara",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcc4",
+    "legacy_id": 524,
+    "name": "Ganderbal",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfccd",
+    "legacy_id": 533,
+    "name": "Sabarkantha",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcd1",
+    "legacy_id": 537,
+    "name": "Panchmahal",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcd9",
+    "legacy_id": 545,
+    "name": "Rajkot",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": "69f9be0a711beb75adfcfab7",
+    "cluster_legacy": 1,
+    "is_active": true
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcde",
+    "legacy_id": 550,
+    "name": "Devbhumi Dwaraka",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd02",
+    "legacy_id": 586,
+    "name": "Namakkal",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd06",
+    "legacy_id": 590,
+    "name": "Ariyalur",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd1f",
+    "legacy_id": 615,
+    "name": "Aizawl",
+    "level_1": "69f9be0a711beb75adfcfab0",
+    "level_1_legacy": 30,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd25",
+    "legacy_id": 621,
+    "name": "Madhubani",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd27",
+    "legacy_id": 623,
+    "name": "Darbhanga",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd2e",
+    "legacy_id": 630,
+    "name": "Sheohar",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd38",
+    "legacy_id": 640,
+    "name": "Muzaffarpur",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd52",
+    "legacy_id": 666,
+    "name": "Unakoti",
+    "level_1": "69f9be0a711beb75adfcfab2",
+    "level_1_legacy": 32,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd56",
+    "legacy_id": 670,
+    "name": "Datia",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd5c",
+    "legacy_id": 676,
+    "name": "Rewa",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd60",
+    "legacy_id": 680,
+    "name": "Chhatarpur",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd67",
+    "legacy_id": 687,
+    "name": "Shajapur",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd6c",
+    "legacy_id": 692,
+    "name": "Barwani",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd97",
+    "legacy_id": 735,
+    "name": "Balod",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfda7",
+    "legacy_id": 751,
+    "name": "Mohla-Manpur-Ambagarh Chowki",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdc3",
+    "legacy_id": 779,
+    "name": "Kalimpong",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcc7",
+    "legacy_id": 527,
+    "name": "Reasi district",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcce",
+    "legacy_id": 534,
+    "name": "Dahod",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": "69f9be0a711beb75adfcfab8",
+    "cluster_legacy": 2,
+    "is_active": true
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcd4",
+    "legacy_id": 540,
+    "name": "Surat",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcd7",
+    "legacy_id": 543,
+    "name": "Surendranagar",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfce1",
+    "legacy_id": 553,
+    "name": "Morbi",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfced",
+    "legacy_id": 565,
+    "name": "Dadra and Nagar Haveli",
+    "level_1": "69f9be0a711beb75adfcfaad",
+    "level_1_legacy": 27,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcf5",
+    "legacy_id": 573,
+    "name": "Soreng",
+    "level_1": "69f9be0a711beb75adfcfaae",
+    "level_1_legacy": 28,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd0c",
+    "legacy_id": 596,
+    "name": "Thiruvallur",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd20",
+    "legacy_id": 616,
+    "name": "Champhai district",
+    "level_1": "69f9be0a711beb75adfcfab0",
+    "level_1_legacy": 30,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd29",
+    "legacy_id": 625,
+    "name": "Sitamarhi",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd46",
+    "legacy_id": 654,
+    "name": "Sheikhpura",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd55",
+    "legacy_id": 669,
+    "name": "Bhind",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd8a",
+    "legacy_id": 722,
+    "name": "Surguja",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd90",
+    "legacy_id": 728,
+    "name": "Durg",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd96",
+    "legacy_id": 734,
+    "name": "Uttar Bastar Kanker",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd9c",
+    "legacy_id": 740,
+    "name": "Bijapur",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdbe",
+    "legacy_id": 774,
+    "name": "South 24 Parganas",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdbf",
+    "legacy_id": 775,
+    "name": "North 24 Parganas",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcbf",
+    "legacy_id": 519,
+    "name": "Budgam",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcea",
+    "legacy_id": 562,
+    "name": "Jamnagar",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": "69f9be0a711beb75adfcfab7",
+    "cluster_legacy": 1,
+    "is_active": true
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfceb",
+    "legacy_id": 563,
+    "name": "Banaskantha",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": true
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcf8",
+    "legacy_id": 576,
+    "name": "Tirunelveli",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcfe",
+    "legacy_id": 582,
+    "name": "Theni",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd10",
+    "legacy_id": 600,
+    "name": "Viluppuram",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd11",
+    "legacy_id": 601,
+    "name": "Ramanathapuram",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd17",
+    "legacy_id": 607,
+    "name": "Tenkasi",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd2a",
+    "legacy_id": 626,
+    "name": "East Champaran",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd69",
+    "legacy_id": 689,
+    "name": "Indore",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd6b",
+    "legacy_id": 691,
+    "name": "Ujjain",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd70",
+    "legacy_id": 696,
+    "name": "Sehore",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd7b",
+    "legacy_id": 707,
+    "name": "Dindori",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd92",
+    "legacy_id": 730,
+    "name": "Rajnandgaon",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdb7",
+    "legacy_id": 767,
+    "name": "Purba Bardhaman",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdba",
+    "legacy_id": 770,
+    "name": "Purulia",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcaf",
+    "legacy_id": 503,
+    "name": "Malappuram",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcb4",
+    "legacy_id": 508,
+    "name": "Ernakulam",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcb5",
+    "legacy_id": 509,
+    "name": "Alappuzha",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcba",
+    "legacy_id": 514,
+    "name": "Jammu district",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcbb",
+    "legacy_id": 515,
+    "name": "Rajouri",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcbc",
+    "legacy_id": 516,
+    "name": "Poonch",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcd2",
+    "legacy_id": 538,
+    "name": "Vadodara",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcda",
+    "legacy_id": 546,
+    "name": "Anand",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": "69f9be0a711beb75adfcfab8",
+    "cluster_legacy": 2,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfce8",
+    "legacy_id": 560,
+    "name": "Tapi",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd0b",
+    "legacy_id": 595,
+    "name": "Thanjavur",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd12",
+    "legacy_id": 602,
+    "name": "Thoothukudi",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd33",
+    "legacy_id": 635,
+    "name": "Madhepura",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd39",
+    "legacy_id": 641,
+    "name": "Vaishali",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd3c",
+    "legacy_id": 644,
+    "name": "Patna",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd4b",
+    "legacy_id": 659,
+    "name": "Dhalai",
+    "level_1": "69f9be0a711beb75adfcfab2",
+    "level_1_legacy": 32,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd5a",
+    "legacy_id": 674,
+    "name": "Shivpuri",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd7d",
+    "legacy_id": 709,
+    "name": "Mandla",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd83",
+    "legacy_id": 715,
+    "name": "Burhanpur",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd9f",
+    "legacy_id": 743,
+    "name": "Kondagaon",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfda3",
+    "legacy_id": 747,
+    "name": "Sakti",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdac",
+    "legacy_id": 756,
+    "name": "Nubra tehsil",
+    "level_1": "69f9be0a711beb75adfcfab5",
+    "level_1_legacy": 35,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdaf",
+    "legacy_id": 759,
+    "name": "Cooch Behar",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdb2",
+    "legacy_id": 762,
+    "name": "Uttar Dinajpur",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdc8",
+    "legacy_id": 784,
+    "name": "Bilaspur",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcdc",
+    "legacy_id": 548,
+    "name": "Junagadh",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcdd",
+    "legacy_id": 549,
+    "name": "Bhavnagar",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": "69f9be0a711beb75adfcfab7",
+    "cluster_legacy": 1,
+    "is_active": true
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfce2",
+    "legacy_id": 554,
+    "name": "Kutch",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd05",
+    "legacy_id": 589,
+    "name": "Dharmapuri",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd16",
+    "legacy_id": 606,
+    "name": "Kallakurichi",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd1e",
+    "legacy_id": 614,
+    "name": "Mamit",
+    "level_1": "69f9be0a711beb75adfcfab0",
+    "level_1_legacy": 30,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd23",
+    "legacy_id": 619,
+    "name": "Hnahthial",
+    "level_1": "69f9be0a711beb75adfcfab0",
+    "level_1_legacy": 30,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd2d",
+    "legacy_id": 629,
+    "name": "West Champaran",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd53",
+    "legacy_id": 667,
+    "name": "Mandsaur",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd57",
+    "legacy_id": 671,
+    "name": "Gwalior",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd5d",
+    "legacy_id": 677,
+    "name": "Sidhi",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd71",
+    "legacy_id": 697,
+    "name": "Harda",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd74",
+    "legacy_id": 700,
+    "name": "Damoh",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd75",
+    "legacy_id": 701,
+    "name": "Jabalpur",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd85",
+    "legacy_id": 717,
+    "name": "Niwari",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd8e",
+    "legacy_id": 726,
+    "name": "Mahasamund",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd9a",
+    "legacy_id": 738,
+    "name": "Surajpur",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfda1",
+    "legacy_id": 745,
+    "name": "Mungeli",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcb8",
+    "legacy_id": 512,
+    "name": "Udhampur district",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcd3",
+    "legacy_id": 539,
+    "name": "Narmada",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcfc",
+    "legacy_id": 580,
+    "name": "Dindigul",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd00",
+    "legacy_id": 584,
+    "name": "Erode",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd48",
+    "legacy_id": 656,
+    "name": "Jamui",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd61",
+    "legacy_id": 681,
+    "name": "Tikamgarh",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd63",
+    "legacy_id": 683,
+    "name": "Sagar",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd66",
+    "legacy_id": 686,
+    "name": "Ratlam",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd87",
+    "legacy_id": 719,
+    "name": "Maihar",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdb5",
+    "legacy_id": 765,
+    "name": "Murshidabad",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdc6",
+    "legacy_id": 782,
+    "name": "Hamirpur",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdc7",
+    "legacy_id": 783,
+    "name": "Pratapgarh",
+    "level_1": "69f9be0a711beb75adfcfaa3",
+    "level_1_legacy": 17,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcad",
+    "legacy_id": 501,
+    "name": "Pathanamthitta",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcb7",
+    "legacy_id": 511,
+    "name": "Kishtwar",
+    "level_1": "69f9be0a711beb75adfcfaaa",
+    "level_1_legacy": 24,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfccc",
+    "legacy_id": 532,
+    "name": "Patan",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfce0",
+    "legacy_id": 552,
+    "name": "Navsari",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd24",
+    "legacy_id": 620,
+    "name": "Saitual",
+    "level_1": "69f9be0a711beb75adfcfab0",
+    "level_1_legacy": 30,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd26",
+    "legacy_id": 622,
+    "name": "Saharsa",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd3a",
+    "legacy_id": 642,
+    "name": "Samastipur",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd3b",
+    "legacy_id": 643,
+    "name": "Bhojpur",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd42",
+    "legacy_id": 650,
+    "name": "Gaya",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd45",
+    "legacy_id": 653,
+    "name": "Nawada",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd49",
+    "legacy_id": 657,
+    "name": "Banka",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd51",
+    "legacy_id": 665,
+    "name": "Khowai",
+    "level_1": "69f9be0a711beb75adfcfab2",
+    "level_1_legacy": 32,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd54",
+    "legacy_id": 668,
+    "name": "Neemuch",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd7a",
+    "legacy_id": 706,
+    "name": "Balaghat",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd94",
+    "legacy_id": 732,
+    "name": "Dantewada",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfda2",
+    "legacy_id": 746,
+    "name": "Gaurela-Pendra-Marwahi",
+    "level_1": "69f9be0a711beb75adfcfab4",
+    "level_1_legacy": 34,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcb6",
+    "legacy_id": 510,
+    "name": "Kottayam",
+    "level_1": "69f9be0a711beb75adfcfaa9",
+    "level_1_legacy": 23,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfce3",
+    "legacy_id": 555,
+    "name": "Bharuch",
+    "level_1": "69f9be0a711beb75adfcfaab",
+    "level_1_legacy": 25,
+    "cluster": "69f9be0a711beb75adfcfab7",
+    "cluster_legacy": 2,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcec",
+    "legacy_id": 564,
+    "name": "Chandigarh",
+    "level_1": "69f9be0a711beb75adfcfaac",
+    "level_1_legacy": 26,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcef",
+    "legacy_id": 567,
+    "name": "Diu",
+    "level_1": "69f9be0a711beb75adfcfaad",
+    "level_1_legacy": 27,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfcf4",
+    "legacy_id": 572,
+    "name": "Pakyong",
+    "level_1": "69f9be0a711beb75adfcfaae",
+    "level_1_legacy": 28,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd07",
+    "legacy_id": 591,
+    "name": "Cuddalore",
+    "level_1": "69f9be0a711beb75adfcfaaf",
+    "level_1_legacy": 29,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd1d",
+    "legacy_id": 613,
+    "name": "Lunglei",
+    "level_1": "69f9be0a711beb75adfcfab0",
+    "level_1_legacy": 30,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd21",
+    "legacy_id": 617,
+    "name": "Serchhip",
+    "level_1": "69f9be0a711beb75adfcfab0",
+    "level_1_legacy": 30,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd2c",
+    "legacy_id": 628,
+    "name": "Katihar",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd31",
+    "legacy_id": 633,
+    "name": "Purnia",
+    "level_1": "69f9be0a711beb75adfcfab1",
+    "level_1_legacy": 31,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd72",
+    "legacy_id": 698,
+    "name": "Narmadapuram",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfd77",
+    "legacy_id": 703,
+    "name": "Chhindwara",
+    "level_1": "69f9be0a711beb75adfcfab3",
+    "level_1_legacy": 33,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdad",
+    "legacy_id": 757,
+    "name": "Drass district",
+    "level_1": "69f9be0a711beb75adfcfab5",
+    "level_1_legacy": 35,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  },
+  {
+    "_id": "69f9be0a711beb75adfcfdb8",
+    "legacy_id": 768,
+    "name": "Hooghly",
+    "level_1": "69f9be0a711beb75adfcfab6",
+    "level_1_legacy": 36,
+    "cluster": null,
+    "cluster_legacy": null,
+    "is_active": false
+  }
+]

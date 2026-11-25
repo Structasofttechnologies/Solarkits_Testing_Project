@@ -1,0 +1,22 @@
+[
+  {
+    "_id": "6a0c02e8623d0970cd491f72",
+    "name": "Solar Shop - SolarKits",
+    "slug": "solar-shop",
+    "description": "Solar Shop - SolarKits SaaS Product",
+    "is_active": true,
+    "is_system": false,
+    "is_protected": false,
+    "is_deleted": false
+  },
+  {
+    "_id": "6a0c02e8623d0970cd491f73",
+    "name": "Solar Shop - BOS Kits",
+    "slug": "solar-shop-bos-kits",
+    "description": "Solar Shop - BOS Kits SaaS Product",
+    "is_active": true,
+    "is_system": false,
+    "is_protected": false,
+    "is_deleted": false
+  }
+]

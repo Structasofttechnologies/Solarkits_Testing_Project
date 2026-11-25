@@ -1,0 +1,145 @@
+server {
+        # Render provides the port dynamically via the PORT env variable
+        listen ${PORT};
+        server_name localhost;
+
+        # ---------------- AUTH APP (Root /) ----------------
+        location / {
+            root /usr/share/nginx/html/auth;
+            index index.html;
+            try_files $uri $uri/ /index.html;
+        }
+
+        # ---------------- ADMIN APP ----------------
+        location /admin-panel/ {
+            alias /usr/share/nginx/html/admin-panel/;
+            try_files $uri $uri/ /admin-panel/index.html;
+        }
+
+        # ---------------- DEVELOPER APP ----------------
+        location /developer-panel/ {
+            alias /usr/share/nginx/html/developer-panel/;
+            try_files $uri $uri/ /developer-panel/index.html;
+        }
+
+        # ---------------- OPERATION MANAGEMENT APP ----------------
+        location /operation-management-panel/ {
+            alias /usr/share/nginx/html/operation-management-panel/;
+            try_files $uri $uri/ /operation-management-panel/index.html;
+        }
+
+        # ---------------- WAREHOUSE APP ----------------
+        location /warehouse-management-panel/ {
+            alias /usr/share/nginx/html/warehouse-management-panel/;
+            try_files $uri $uri/ /warehouse-management-panel/index.html;
+        }
+
+        # ---------------- ACCOUNT PANEL APP ----------------
+        location /account-panel/ {
+            alias /usr/share/nginx/html/account-panel/;
+            try_files $uri $uri/ /account-panel/index.html;
+        }
+
+        # ---------------- EPC PANEL APP ----------------
+        location /epc-panel/ {
+            alias /usr/share/nginx/html/epc-panel/;
+            try_files $uri $uri/ /epc-panel/index.html;
+        }
+
+        # ---------------- SOLARSHOP INDIA APP ----------------
+        location /solarshop-india/ {
+            alias /usr/share/nginx/html/solarshop-india/;
+            try_files $uri $uri/ /solarshop-india/index.html;
+        }
+
+        # ---------------- SUPPLIER PANEL APP ----------------
+        location /supplier-panel/ {
+            alias /usr/share/nginx/html/supplier-panel/;
+            try_files $uri $uri/ /supplier-panel/index.html;
+        }
+
+        # ---------------- API PROXY ROUTING TO NODE.JS BACKEND ----------------
+        location /auth-api/ {
+            proxy_pass http://127.0.0.1:5000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /admin-api/ {
+            proxy_pass http://127.0.0.1:5000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /developer-api/ {
+            proxy_pass http://127.0.0.1:5000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /operation-management-api/ {
+            proxy_pass http://127.0.0.1:5000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /warehouse-api/ {
+            proxy_pass http://127.0.0.1:5000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /account-api/ {
+            proxy_pass http://127.0.0.1:5000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /api/ {
+            proxy_pass http://127.0.0.1:5000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /supplier-api/ {
+            proxy_pass http://127.0.0.1:5000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /developer-api/events/ {
+            proxy_pass http://127.0.0.1:5000/developer-api/events/;
+            proxy_http_version 1.1;
+            proxy_set_header Connection '';
+            proxy_buffering off;      
+            proxy_cache off;
+            proxy_read_timeout 1h; 
+            proxy_send_timeout 1h;
+            chunked_transfer_encoding off;
+            add_header Cache-Control no-cache;
+        }
+    }

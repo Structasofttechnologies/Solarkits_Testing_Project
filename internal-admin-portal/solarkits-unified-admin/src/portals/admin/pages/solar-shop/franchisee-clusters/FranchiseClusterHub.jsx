@@ -1,0 +1,91 @@
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import {
+  FiLayers,
+  FiMap,
+  FiTarget,
+  FiAward,
+  FiTool,
+} from 'react-icons/fi';
+
+import ClusterManagement from './ClusterManagement';
+import FranchiseeTerritoryMap from './FranchiseeTerritoryMap';
+import FranchiseeGoalSettings from './FranchiseeGoalSettings';
+import BdeClusterManagement from './BdeClusterManagement';
+import FranchiseeTicketsAdmin from './FranchiseeTicketsAdmin';
+
+export default function FranchiseClusterHub({ defaultTab }) {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawTab = searchParams.get('tab');
+  const currentTab = (rawTab && rawTab !== 'agreements') ? rawTab : (defaultTab || 'clusters');
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'performance') {
+      navigate('/admin-panel/franchisee-performance-dashboard', { replace: true });
+    } else if (searchParams.get('tab') === 'agreements') {
+      setSearchParams({ tab: 'clusters' }, { replace: true });
+    }
+  }, [searchParams, navigate, setSearchParams]);
+
+  const tabs = [
+    { key: 'clusters', label: 'Cluster Management', icon: FiLayers, desc: 'Create Cluster, Districts, Fees' },
+    { key: 'map', label: 'India Territory Map', icon: FiMap, desc: 'Interactive Allocation Map' },
+    { key: 'goals', label: 'Goal Tracking', icon: FiTarget, desc: 'Annual EPC & Monthly Kits Tracking' },
+    { key: 'bde', label: 'BDE Management', icon: FiAward, desc: 'Cluster Assignment & Support' },
+    { key: 'tickets', label: 'Support & Tickets', icon: FiTool, desc: 'Centralized SLA & Replacement' },
+  ];
+
+  const handleTabChange = (key) => {
+    setSearchParams({ tab: key });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Top Navigation Bar with Quick Descriptions */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-xs flex items-center gap-1.5 overflow-x-auto">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = currentTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => handleTabChange(tab.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs whitespace-nowrap transition-all ${isActive
+                ? 'bg-orange-500 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+            >
+              <Icon size={15} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab Panels */}
+      <div>
+        {currentTab === 'clusters' && (
+          <ClusterManagement
+            onOpenMapWithDistrict={(district) => {
+              handleTabChange('map');
+            }}
+            onOpenGoalTracking={(clusterId) => {
+              setSearchParams({ tab: 'goals', cluster_id: clusterId });
+            }}
+          />
+        )}
+        {currentTab === 'map' && (
+          <FranchiseeTerritoryMap
+            onCreateClusterFromDistrict={(district) => {
+              handleTabChange('clusters');
+            }}
+          />
+        )}
+        {currentTab === 'goals' && <FranchiseeGoalSettings />}
+        {currentTab === 'bde' && <BdeClusterManagement />}
+        {currentTab === 'tickets' && <FranchiseeTicketsAdmin />}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,695 @@
+/**
+ * franchisee.goal.service.js
+ *
+ * Franchisee Kit Order Goal resolution and progress calculation.
+ *
+ * Target priority cascade (highest to lowest):
+ *   1. FRANCHISEE-specific override
+ *   2. DISTRICT-level target
+ *   3. STATE-level target
+ *   4. PLAN-level target
+ *   5. GLOBAL monthly target
+ *
+ * Calculation formula:
+ *   eligible_quantity = delivered_quantity - cancelled_quantity - returned_quantity
+ *   balance_quantity  = max(target_quantity - eligible_quantity, 0)
+ *   achievement_pct   = target_quantity > 0 ? (eligible_quantity / target_quantity) * 100 : 0
+ */
+
+const mongoose = require('mongoose');
+const {
+  FranchiseeKitTarget,
+  FranchiseeTargetProgress,
+  FranchiseeCluster,
+  FranchiseeClusterGoal,
+  EpcAccount,
+  FpoOrder,
+  Reseller,
+  ResellerPlanSubscription,
+  ResellerTerritory,
+} = require('../models/india_solarshop_db');
+const { logAudit } = require('../utils/audit.service');
+
+const PERFORMANCE_THRESHOLDS = {
+  EXCEEDED: 120,
+  ACHIEVED: 100,
+  ON_TRACK: 75,
+  BEHIND: 1,
+  LOW_PERFORMANCE: 0,
+};
+
+/**
+ * Classify performance status from achievement percentage.
+ * Thresholds are currently hardcoded to defaults; they should come from admin config
+ * when franchisee_alert_configs is extended with threshold settings.
+ */
+function classifyPerformance(achievement_pct, target_quantity) {
+  if (!target_quantity || target_quantity === 0) return 'NO_TARGET';
+  if (achievement_pct === 0) return 'NOT_STARTED';
+  if (achievement_pct >= PERFORMANCE_THRESHOLDS.EXCEEDED) return 'EXCEEDED';
+  if (achievement_pct >= PERFORMANCE_THRESHOLDS.ACHIEVED) return 'ACHIEVED';
+  if (achievement_pct >= PERFORMANCE_THRESHOLDS.ON_TRACK) return 'ON_TRACK';
+  if (achievement_pct >= PERFORMANCE_THRESHOLDS.BEHIND) return 'BEHIND';
+  return 'LOW_PERFORMANCE';
+}
+
+/**
+ * Resolve the effective kit target for a franchisee for a given month/year.
+ * Follows the priority cascade: FRANCHISEE → DISTRICT → STATE → PLAN → GLOBAL.
+ *
+ * @param {object} params
+ * @param {string|ObjectId} params.franchisee_id
+ * @param {number} params.month - 1-12
+ * @param {number} params.year
+ * @returns {Promise<object|null>} The matching target doc or null
+ */
+async function resolveEffectiveTarget({ franchisee_id, month, year }) {
+  const now = new Date();
+  const currentMonth = month || now.getMonth() + 1;
+  const currentYear = year || now.getFullYear();
+
+  const baseQuery = {
+    is_active: true,
+    deleted_at: null,
+    $or: [
+      { is_recurring: true },
+      { target_month: currentMonth, target_year: currentYear },
+      { target_month: null, target_year: null },
+    ],
+  };
+
+  // 0. Unified Territory Cluster Goal (Primary Single Source of Truth)
+  if (franchisee_id) {
+    const fId = mongoose.Types.ObjectId.isValid(franchisee_id)
+      ? new mongoose.Types.ObjectId(franchisee_id)
+      : franchisee_id;
+
+    const cluster = await FranchiseeCluster.findOne({
+      $or: [
+        { assigned_franchisee_id: fId },
+        { assigned_franchisee_id: franchisee_id },
+      ],
+      deleted_at: null,
+    }).populate('state_id', 'name').lean();
+
+    if (cluster) {
+      const fy = currentMonth >= 4 ? `${currentYear}-${String(currentYear + 1).slice(2)}` : `${currentYear - 1}-${String(currentYear).slice(2)}`;
+      const clusterGoal = await FranchiseeClusterGoal.findOne({
+        cluster_id: cluster._id,
+        financial_year: fy,
+        deleted_at: null,
+      }).lean();
+
+      if (clusterGoal) {
+        const mGoal = (clusterGoal.monthly_kit_goals || []).find((m) => m.month === currentMonth);
+        return {
+          _id: clusterGoal._id,
+          target_type: 'CLUSTER',
+          cluster_id: cluster._id,
+          cluster_code: cluster.cluster_code || cluster.code || 'CLU',
+          cluster_name: cluster.cluster_name || cluster.name || 'Territory Cluster',
+          target_quantity: mGoal ? mGoal.target_kits_quantity : (clusterGoal.monthly_kits_target || 100),
+          monthly_kits_target: clusterGoal.monthly_kits_target || 100,
+          annual_kits_target: clusterGoal.annual_kits_target || 1200,
+          annual_epc_goal: clusterGoal.annual_epc_goal || 50,
+          epc_onboard_days: clusterGoal.epc_onboard_days || 90,
+          annual_live_epc_goal: clusterGoal.annual_live_epc_goal || 60,
+          live_epc_criteria_days: clusterGoal.live_epc_criteria_days || 90,
+          annual_po_orders_goal: clusterGoal.annual_po_orders_goal || 50,
+          calculation_stage: 'DELIVERED_QUANTITY',
+        };
+      }
+    }
+  }
+
+  // 1. Franchisee-specific override
+  if (franchisee_id) {
+    const franchiseeTarget = await FranchiseeKitTarget.findOne({
+      ...baseQuery,
+      target_type: 'FRANCHISEE',
+      franchisee_id: new mongoose.Types.ObjectId(franchisee_id),
+    }).lean();
+    if (franchiseeTarget) return franchiseeTarget;
+  }
+
+  // Fetch territory for state/district lookup
+  const territory = await ResellerTerritory.findOne({
+    reseller_id: franchisee_id,
+    deleted_at: null,
+  }).lean();
+
+  // 2. District-level target
+  if (territory?.district_id) {
+    const districtTarget = await FranchiseeKitTarget.findOne({
+      ...baseQuery,
+      target_type: 'DISTRICT',
+      district_id: territory.district_id,
+    }).lean();
+    if (districtTarget) return districtTarget;
+  }
+
+  // 3. State-level target
+  if (territory?.state_id) {
+    const stateTarget = await FranchiseeKitTarget.findOne({
+      ...baseQuery,
+      target_type: 'STATE',
+      state_id: territory.state_id,
+    }).lean();
+    if (stateTarget) return stateTarget;
+  }
+
+  // 4. Plan-level target
+  // Check subscription table or reseller doc
+  let planId = null;
+  const subscription = await ResellerPlanSubscription.findOne({
+    reseller_id: franchisee_id,
+  })
+    .sort({ created_at: -1, start_date: -1 })
+    .lean();
+
+  if (subscription?.plan_id) {
+    planId = subscription.plan_id;
+  } else {
+    const resellerDoc = await Reseller.findById(franchisee_id).lean();
+    if (resellerDoc?.plan_subscription_id) {
+      const sub = await ResellerPlanSubscription.findById(resellerDoc.plan_subscription_id).lean();
+      if (sub?.plan_id) planId = sub.plan_id;
+    }
+  }
+
+  if (planId) {
+    const planTarget = await FranchiseeKitTarget.findOne({
+      ...baseQuery,
+      target_type: 'PLAN',
+      plan_id: planId,
+    }).lean();
+    if (planTarget) return planTarget;
+  }
+
+  // 5. Global fallback
+  const globalTarget = await FranchiseeKitTarget.findOne({
+    ...baseQuery,
+    target_type: 'GLOBAL',
+  }).lean();
+  if (globalTarget) return globalTarget;
+
+  // 6. First plan target fallback if available
+  const anyPlanTarget = await FranchiseeKitTarget.findOne({
+    is_active: true,
+    deleted_at: null,
+  }).lean();
+
+  return anyPlanTarget || null;
+}
+
+/**
+ * Recalculate and upsert progress for a franchisee for the given month/year.
+ *
+ * @param {object|string|ObjectId} paramsOrId
+ * @param {number} [maybeMonth]
+ * @param {number} [maybeYear]
+ * @returns {Promise<object>} Updated progress record
+ */
+async function recalculateProgress(paramsOrId, maybeMonth, maybeYear) {
+  let franchisee_id, month, year, actor_id = null, req = null;
+  if (typeof paramsOrId === 'object' && paramsOrId !== null && !paramsOrId._bsontype && !(paramsOrId instanceof mongoose.Types.ObjectId)) {
+    franchisee_id = paramsOrId.franchisee_id;
+    month = paramsOrId.month || (new Date().getMonth() + 1);
+    year = paramsOrId.year || new Date().getFullYear();
+    actor_id = paramsOrId.actor_id || null;
+    req = paramsOrId.req || null;
+  } else {
+    franchisee_id = paramsOrId;
+    month = maybeMonth || (new Date().getMonth() + 1);
+    year = maybeYear || new Date().getFullYear();
+  }
+
+  if (!franchisee_id) {
+    return null;
+  }
+  const target = await resolveEffectiveTarget({ franchisee_id, month, year });
+
+  // Aggregate quantities from delivered FPO orders in the period
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 1);
+
+  const pipeline = [
+    {
+      $match: {
+        franchisee_id: new mongoose.Types.ObjectId(franchisee_id),
+        created_at: { $gte: startDate, $lt: endDate },
+        deleted_at: null,
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        ordered_quantity: {
+          $sum: {
+            $cond: [{ $not: [{ $in: ['$status', ['CANCELLED', 'REJECTED', 'DRAFT']] }] }, { $sum: '$items.quantity' }, 0],
+          },
+        },
+        approved_quantity: {
+          $sum: {
+            $cond: [{ $in: ['$status', ['APPROVED', 'AWAITING_PAYMENT', 'PARTIALLY_PAID', 'PAID', 'STOCK_ALLOCATED', 'PROCESSING', 'PARTIALLY_DISPATCHED', 'DISPATCHED', 'PARTIALLY_DELIVERED', 'DELIVERED', 'COMPLETED']] }, { $sum: '$items.quantity' }, 0],
+          },
+        },
+        paid_quantity: {
+          $sum: {
+            $cond: [{ $in: ['$status', ['PAID', 'STOCK_ALLOCATED', 'PROCESSING', 'PARTIALLY_DISPATCHED', 'DISPATCHED', 'PARTIALLY_DELIVERED', 'DELIVERED', 'COMPLETED']] }, { $sum: '$items.quantity' }, 0],
+          },
+        },
+        dispatched_quantity: {
+          $sum: {
+            $cond: [{ $in: ['$status', ['DISPATCHED', 'PARTIALLY_DELIVERED', 'DELIVERED', 'COMPLETED']] }, { $sum: '$items.quantity' }, 0],
+          },
+        },
+        delivered_quantity: {
+          $sum: {
+            $cond: [
+              { $in: ['$status', ['DELIVERED', 'COMPLETED']] },
+              {
+                $sum: {
+                  $map: {
+                    input: '$items',
+                    as: 'it',
+                    in: {
+                      $cond: [
+                        { $gt: [{ $ifNull: ['$$it.delivered_quantity', 0] }, 0] },
+                        '$$it.delivered_quantity',
+                        { $ifNull: ['$$it.quantity', 0] }
+                      ]
+                    }
+                  }
+                }
+              },
+              0
+            ],
+          },
+        },
+        cancelled_quantity: { $sum: { $sum: { $ifNull: ['$items.cancelled_quantity', 0] } } },
+        returned_quantity: { $sum: { $sum: { $ifNull: ['$items.returned_quantity', 0] } } },
+        actual_revenue: {
+          $sum: {
+            $cond: [
+              { $in: ['$status', ['APPROVED', 'AWAITING_PAYMENT', 'PARTIALLY_PAID', 'PAID', 'STOCK_ALLOCATED', 'PROCESSING', 'PARTIALLY_DISPATCHED', 'DISPATCHED', 'PARTIALLY_DELIVERED', 'DELIVERED', 'COMPLETED']] },
+              { $divide: [{ $ifNull: ['$total_amount_paise', 0] }, 100] },
+              0
+            ]
+          }
+        },
+      },
+    },
+  ];
+
+  const [agg] = await FpoOrder.aggregate(pipeline);
+
+  const ordered_quantity = agg?.ordered_quantity || 0;
+  const approved_quantity = agg?.approved_quantity || 0;
+  const paid_quantity = agg?.paid_quantity || 0;
+  const dispatched_quantity = agg?.dispatched_quantity || 0;
+  const delivered_quantity = agg?.delivered_quantity || 0;
+  const cancelled_quantity = agg?.cancelled_quantity || 0;
+  const returned_quantity = agg?.returned_quantity || 0;
+  const actual_revenue = agg?.actual_revenue || 0;
+
+  const target_quantity = target?.target_quantity || 0;
+  const stage = target?.calculation_stage || 'DELIVERED_QUANTITY';
+
+  let rawStageQty = delivered_quantity;
+  if (stage === 'ORDERED_QUANTITY' || stage === 'ORDERED_PO_QUANTITY') {
+    rawStageQty = ordered_quantity;
+  } else if (stage === 'APPROVED_PO_QUANTITY') {
+    rawStageQty = approved_quantity;
+  } else if (stage === 'PAID_QUANTITY') {
+    rawStageQty = paid_quantity;
+  } else if (stage === 'DISPATCHED_QUANTITY') {
+    rawStageQty = dispatched_quantity;
+  } else {
+    rawStageQty = delivered_quantity;
+  }
+
+  const eligible_quantity = Math.max(0, rawStageQty - cancelled_quantity - returned_quantity);
+  const balance_quantity = Math.max(0, target_quantity - eligible_quantity);
+  const achievement_pct = target_quantity > 0
+    ? Math.round((eligible_quantity / target_quantity) * 10000) / 100 // 2 decimal places
+    : 0;
+
+  const performance_status = classifyPerformance(achievement_pct, target_quantity);
+
+  const progressData = {
+    franchisee_id,
+    target_id: target?._id || null,
+    target_month: month,
+    target_year: year,
+    target_quantity,
+    ordered_quantity,
+    approved_quantity,
+    paid_quantity,
+    dispatched_quantity,
+    delivered_quantity,
+    cancelled_quantity,
+    returned_quantity,
+    eligible_quantity,
+    actual_revenue,
+    balance_quantity,
+    achievement_pct,
+    performance_status,
+    calculation_stage: stage,
+    last_calculated_at: new Date(),
+  };
+
+  const progress = await FranchiseeTargetProgress.findOneAndUpdate(
+    { franchisee_id, target_year: year, target_month: month },
+    { $set: progressData },
+    { upsert: true, new: true }
+  );
+
+  return progress;
+}
+
+// In-memory cache for franchisee goal widget (TTL: 60s)
+const goalWidgetCache = new Map();
+const GOAL_WIDGET_CACHE_TTL = 60 * 1000;
+
+function invalidateGoalCache(franchisee_id) {
+  if (!franchisee_id) return;
+  goalWidgetCache.delete(franchisee_id.toString());
+}
+
+/**
+ * Get goal widget data for the franchisee dashboard.
+ *
+ * @param {string|ObjectId} franchisee_id
+ * @returns {Promise<object>}
+ */
+async function getGoalWidget(franchisee_id) {
+  const fIdStr = franchisee_id ? franchisee_id.toString() : null;
+  if (fIdStr) {
+    const cached = goalWidgetCache.get(fIdStr);
+    if (cached && Date.now() - cached.timestamp < GOAL_WIDGET_CACHE_TTL) {
+      return cached.data;
+    }
+  }
+
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+
+  // Load Cluster & Cluster Goals (Primary Source of Truth)
+  const fId = mongoose.Types.ObjectId.isValid(franchisee_id)
+    ? new mongoose.Types.ObjectId(franchisee_id)
+    : franchisee_id;
+
+  const cluster = await FranchiseeCluster.findOne({
+    $or: [
+      { assigned_franchisee_id: fId },
+      { assigned_franchisee_id: franchisee_id },
+    ],
+    deleted_at: null,
+  }).populate('state_id', 'name').lean();
+
+  let clusterGoal = null;
+  let annualEpcGoal = null;
+  let liveEpcGoal = null;
+  let clusterInfo = null;
+
+  const currentYear = year;
+  const currentMonth = month;
+  const fy = currentMonth >= 4 ? `${currentYear}-${String(currentYear + 1).slice(2)}` : `${currentYear - 1}-${String(currentYear).slice(2)}`;
+
+  let annualKitsTargetTotal = 0;
+  let annualRevenueTargetTotal = 0;
+
+  if (cluster) {
+    clusterGoal = await FranchiseeClusterGoal.findOne({
+      cluster_id: cluster._id,
+      financial_year: fy,
+      deleted_at: null,
+    }).lean();
+
+    if (clusterGoal?.monthly_kit_goals && Array.isArray(clusterGoal.monthly_kit_goals)) {
+      for (const m of clusterGoal.monthly_kit_goals) {
+        annualKitsTargetTotal += Number(m.target_kits_quantity || 0);
+        annualRevenueTargetTotal += Number(m.target_revenue || 0);
+      }
+    }
+
+    // Approved EPCs onboarded for this franchisee or within this cluster
+    const approvedEpcs = await EpcAccount.find({
+      $or: [
+        { onboarded_by_reseller_id: fId },
+        { primary_reseller_id: fId },
+        { districts: { $in: cluster.district_ids || [] } },
+      ],
+      status: 'approved',
+      deleted_at: null,
+    }).lean();
+
+    const actualEpcs = approvedEpcs.length;
+    const targetEpcs = clusterGoal?.annual_epc_goal || 50;
+    const epcAchievedPct = targetEpcs > 0 ? Math.round((actualEpcs / targetEpcs) * 100) : 0;
+    const epcOnboardDays = clusterGoal?.epc_onboard_days || 90;
+
+    const thresholdDays = clusterGoal?.live_epc_criteria_days || 90;
+    const cutoffDate = new Date(Date.now() - thresholdDays * 24 * 60 * 60 * 1000);
+    const liveEpcs = approvedEpcs.filter(
+      (e) => e.last_activity_at && new Date(e.last_activity_at) >= cutoffDate
+    ).length;
+    const targetLiveEpcs = clusterGoal?.annual_live_epc_goal || 60;
+    const liveAchievedPct = targetLiveEpcs > 0 ? Math.round((liveEpcs / targetLiveEpcs) * 100) : 0;
+
+    annualEpcGoal = {
+      total_epc_target: targetEpcs,
+      epc_onboard_days: epcOnboardDays,
+      actual_epcs_onboarded: actualEpcs,
+      achievement_pct: epcAchievedPct,
+    };
+
+    liveEpcGoal = {
+      live_epc_target: targetLiveEpcs,
+      actual_live_epcs: liveEpcs,
+      achievement_pct: liveAchievedPct,
+      criteria_days: thresholdDays,
+    };
+
+    clusterInfo = {
+      id: cluster._id,
+      code: cluster.cluster_code || cluster.code || 'CLU',
+      name: cluster.cluster_name || cluster.name || 'Franchise Cluster',
+      state: cluster.state_id?.name || cluster.state_name || '',
+      districts_count: (cluster.district_ids || []).length,
+    };
+  }
+
+  // Calculate current Financial Year date range (April 1 to March 31)
+  const [startYrStr] = fy.split('-').map(Number);
+  const fyStart = new Date(startYrStr, 3, 1, 0, 0, 0); // 1st April
+  const fyEnd = new Date(startYrStr + 1, 2, 31, 23, 59, 59); // 31st March
+
+  // Calculate actual yearly kits sold and annual PO orders count in this FY
+  let yearlyKitsActual = 0;
+  let actualPoOrdersCount = 0;
+  if (fId) {
+    const validStatuses = ['CONFIRMED', 'PAID', 'PROCESSING', 'DISPATCHED', 'DELIVERED', 'COMPLETED'];
+    const fyOrders = await FpoOrder.find({
+      reseller_id: fId,
+      status: { $in: validStatuses },
+      created_at: { $gte: fyStart, $lte: fyEnd },
+      deleted_at: null,
+    }).lean();
+
+    for (const ord of fyOrders) {
+      yearlyKitsActual += Number(ord.total_kits_count || ord.total_quantity || 1);
+    }
+
+    actualPoOrdersCount = await FpoOrder.countDocuments({
+      reseller_id: fId,
+      created_at: { $gte: fyStart, $lte: fyEnd },
+      deleted_at: null,
+    });
+  }
+
+  const annualPoOrdersGoal = clusterGoal?.annual_po_orders_goal || 50;
+  const poOrdersAchPct = annualPoOrdersGoal > 0 ? Math.round((actualPoOrdersCount / annualPoOrdersGoal) * 100) : 0;
+  const poOrdersPending = Math.max(0, annualPoOrdersGoal - actualPoOrdersCount);
+
+  // Recalculate dynamically to ensure fresh real-time data
+  let progress = await recalculateProgress({ franchisee_id, month, year });
+  if (progress && progress.toObject) {
+    progress = progress.toObject();
+  } else if (!progress) {
+    progress = await FranchiseeTargetProgress.findOne({
+      franchisee_id,
+      target_year: year,
+      target_month: month,
+    }).lean() || {};
+  }
+
+  // Previous month comparison
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const prevProgress = await FranchiseeTargetProgress.findOne({
+    franchisee_id,
+    target_year: prevYear,
+    target_month: prevMonth,
+  }).lean();
+
+  // Days remaining in the month
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const daysRemaining = daysInMonth - now.getDate();
+
+  const monthName = new Date(year, month - 1, 1).toLocaleString('en-IN', { month: 'long' });
+
+  const currentMonthGoal = (clusterGoal?.monthly_kit_goals || []).find((m) => m.month === month);
+  const monthlyGoalTarget = clusterGoal?.monthly_kits_target || currentMonthGoal?.target_kits_quantity || progress.target_quantity || 100;
+  const eligibleKits = progress.eligible_quantity || 0;
+  const balanceKits = Math.max(0, monthlyGoalTarget - eligibleKits);
+  const achievementPct = monthlyGoalTarget > 0 ? Math.round((eligibleKits / monthlyGoalTarget) * 100) : 0;
+
+  const annualKitsTarget = clusterGoal?.annual_kits_target || annualKitsTargetTotal || (monthlyGoalTarget * 12);
+  const annualKitsAchPct = annualKitsTarget > 0 ? Math.round((yearlyKitsActual / annualKitsTarget) * 100) : 0;
+  const annualKitsPending = Math.max(0, annualKitsTarget - yearlyKitsActual);
+
+  const widgetData = {
+    period: `${monthName} ${year}`,
+    financial_year: fy,
+    target_month: month,
+    target_year: year,
+
+    // ── 1. Monthly Sell Kit Target ──
+    monthly_goal: monthlyGoalTarget,
+    eligible_kits: eligibleKits,
+    balance_kits: balanceKits,
+    achievement_pct: achievementPct,
+    monthly_kits: {
+      target: monthlyGoalTarget,
+      actual: eligibleKits,
+      pending: balanceKits,
+      achievement_pct: achievementPct,
+    },
+
+    // ── 2. Yearly Sell Kit Target ──
+    annual_kits_target: annualKitsTarget,
+    annual_kits_actual: yearlyKitsActual,
+    annual_kits_pending: annualKitsPending,
+    annual_kits_achievement_pct: annualKitsAchPct,
+    yearly_kits: {
+      target: annualKitsTarget,
+      actual: yearlyKitsActual,
+      pending: annualKitsPending,
+      achievement_pct: annualKitsAchPct,
+    },
+
+    // ── 3. EPC Onboarding Goal (Day 90 Target) ──
+    annual_epc_goal: annualEpcGoal || {
+      total_epc_target: clusterGoal?.annual_epc_goal || 50,
+      epc_onboard_days: clusterGoal?.epc_onboard_days || 90,
+      actual_epcs_onboarded: 0,
+      achievement_pct: 0,
+    },
+    epc_onboarding: {
+      target: clusterGoal?.annual_epc_goal || 50,
+      timeframe_days: clusterGoal?.epc_onboard_days || 90,
+      actual: annualEpcGoal?.actual_epcs_onboarded || 0,
+      pending: Math.max(0, (clusterGoal?.annual_epc_goal || 50) - (annualEpcGoal?.actual_epcs_onboarded || 0)),
+      achievement_pct: annualEpcGoal?.achievement_pct || 0,
+    },
+
+    // ── 4. EPC Active Goal - Yearly ──
+    live_epc_goal: liveEpcGoal || {
+      live_epc_target: clusterGoal?.annual_live_epc_goal || 60,
+      actual_live_epcs: 0,
+      achievement_pct: 0,
+      criteria_days: clusterGoal?.live_epc_criteria_days || 90,
+    },
+    epc_active: {
+      target: clusterGoal?.annual_live_epc_goal || 60,
+      criteria_days: clusterGoal?.live_epc_criteria_days || 90,
+      actual: liveEpcGoal?.actual_live_epcs || 0,
+      pending: Math.max(0, (clusterGoal?.annual_live_epc_goal || 60) - (liveEpcGoal?.actual_live_epcs || 0)),
+      achievement_pct: liveEpcGoal?.achievement_pct || 0,
+    },
+
+    // ── 5. PO Orders -> Yearly ──
+    annual_po_orders_goal: annualPoOrdersGoal,
+    actual_po_orders_count: actualPoOrdersCount,
+    po_orders_pending: poOrdersPending,
+    po_orders_achievement_pct: poOrdersAchPct,
+    po_orders: {
+      target: annualPoOrdersGoal,
+      actual: actualPoOrdersCount,
+      pending: poOrdersPending,
+      achievement_pct: poOrdersAchPct,
+    },
+
+    performance_status: classifyPerformance(achievementPct, monthlyGoalTarget),
+    days_remaining: Math.max(0, daysRemaining),
+    has_target: true,
+    cluster: clusterInfo,
+    previous_month: prevProgress ? {
+      month: prevMonth,
+      year: prevYear,
+      eligible_kits: prevProgress.eligible_quantity,
+      achievement_pct: prevProgress.achievement_pct,
+      performance_status: prevProgress.performance_status,
+    } : null,
+  };
+
+  if (fIdStr) {
+    goalWidgetCache.set(fIdStr, { data: widgetData, timestamp: Date.now() });
+  }
+
+  return widgetData;
+}
+
+/**
+ * Get aggregated performance analytics for all franchisees (admin view).
+ *
+ * @param {object} filters
+ * @param {number} filters.month
+ * @param {number} filters.year
+ * @param {string} [filters.state_id]
+ * @param {string} [filters.district_id]
+ * @param {string} [filters.plan_id]
+ * @param {string} [filters.performance_status]
+ * @returns {Promise<Array>}
+ */
+async function getPerformanceAnalytics({ month, year, state_id, district_id, plan_id, performance_status } = {}) {
+  const currentMonth = Number(month) || (new Date().getMonth() + 1);
+  const currentYear = Number(year) || new Date().getFullYear();
+
+  const matchStage = { target_year: currentYear, target_month: currentMonth };
+  if (performance_status) matchStage.performance_status = performance_status;
+
+  const rows = await FranchiseeTargetProgress.find(matchStage)
+    .populate({
+      path: 'franchisee_id',
+      select: 'business_name mobile email address plan_subscription_id reseller_lifecycle_status',
+      populate: {
+        path: 'plan_subscription_id',
+        select: 'plan_id status',
+        populate: { path: 'plan_id', select: 'name territory_level' },
+      },
+    })
+    .lean();
+
+  // Filter by state/district/plan on populated data
+  return rows.filter((r) => {
+    const f = r.franchisee_id;
+    if (!f) return false;
+    if (state_id && String(f.address?.state_id) !== String(state_id)) return false;
+    if (district_id && String(f.address?.district_id) !== String(district_id)) return false;
+    if (plan_id && f.plan_subscription_id?.plan_id && String(f.plan_subscription_id.plan_id._id) !== String(plan_id)) return false;
+    return true;
+  });
+}
+
+module.exports = {
+  resolveEffectiveTarget,
+  recalculateProgress,
+  classifyPerformance,
+  getGoalWidget,
+  invalidateGoalCache,
+  getPerformanceAnalytics,
+};

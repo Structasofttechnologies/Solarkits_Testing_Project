@@ -1,0 +1,2167 @@
+{
+  "templates": [
+    {
+      "name": "Solar Panel",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "Mono PERC"
+        },
+        {
+          "name": "Bifacial"
+        },
+        {
+          "name": "TOPCon"
+        },
+        {
+          "name": "HJT"
+        },
+        {
+          "name": "Poly"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Pmax",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Power"
+        },
+        {
+          "name": "Voc",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "Isc",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Vmp",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "Imp",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Efficiency",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Performance"
+        },
+        {
+          "name": "Cell Type",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Cell Count",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Module Dimensions",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Weight",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Mass"
+        },
+        {
+          "name": "Glass Type",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Frame Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Operating Temperature",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Temperature"
+        }
+      ]
+    },
+    {
+      "name": "Inverter",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "String"
+        },
+        {
+          "name": "Micro",
+          "attributes": [
+            {
+              "name": "AC Capacity",
+              "group": "Electrical",
+              "attribute_type": "sku",
+              "data_type": "number",
+              "is_required": true,
+              "is_variant": true,
+              "is_filterable": true,
+              "is_system": true,
+              "unitGroupName": "Power"
+            },
+            {
+              "name": "Max DC Input Voltage",
+              "group": "Electrical",
+              "attribute_type": "engineering",
+              "data_type": "number",
+              "is_required": true,
+              "is_variant": true,
+              "is_filterable": false,
+              "is_system": true,
+              "unitGroupName": "Voltage"
+            },
+            {
+              "name": "AC Output Current",
+              "group": "Electrical",
+              "attribute_type": "engineering",
+              "data_type": "number",
+              "is_required": true,
+              "is_variant": true,
+              "is_filterable": false,
+              "is_system": true,
+              "unitGroupName": "Current"
+            },
+            {
+              "name": "MPPT Count",
+              "group": "Technical",
+              "attribute_type": "engineering",
+              "data_type": "number",
+              "is_required": true,
+              "is_variant": true,
+              "is_filterable": true,
+              "is_system": true,
+              "unitGroupName": "Count"
+            },
+            {
+              "name": "Strings per MPPT",
+              "group": "Technical",
+              "attribute_type": "engineering",
+              "data_type": "number",
+              "is_required": true,
+              "is_variant": true,
+              "is_filterable": true,
+              "is_system": true,
+              "unitGroupName": "Count"
+            },
+            {
+              "name": "Total PV Inputs",
+              "group": "Technical",
+              "attribute_type": "engineering",
+              "data_type": "number",
+              "is_required": true,
+              "is_variant": true,
+              "is_filterable": true,
+              "is_system": true,
+              "unitGroupName": "Count"
+            },
+            {
+              "name": "Max Panel Power",
+              "group": "Electrical",
+              "attribute_type": "engineering",
+              "data_type": "number",
+              "is_required": true,
+              "is_variant": true,
+              "is_filterable": true,
+              "is_system": true,
+              "unitGroupName": "Power"
+            },
+            {
+              "name": "Min Panel Power",
+              "group": "Electrical",
+              "attribute_type": "engineering",
+              "data_type": "number",
+              "is_required": true,
+              "is_variant": true,
+              "is_filterable": true,
+              "is_system": true,
+              "unitGroupName": "Power"
+            },
+            {
+              "name": "Max DC Input Power",
+              "group": "Electrical",
+              "attribute_type": "engineering",
+              "data_type": "number",
+              "is_required": true,
+              "is_variant": true,
+              "is_filterable": true,
+              "is_system": true,
+              "unitGroupName": "Power"
+            },
+            {
+              "name": "Efficiency",
+              "group": "Electrical",
+              "attribute_type": "engineering",
+              "data_type": "number",
+              "is_required": true,
+              "is_variant": true,
+              "is_filterable": true,
+              "is_system": true,
+              "unitGroupName": "Performance"
+            },
+            {
+              "name": "IP Rating",
+              "group": "Technical",
+              "attribute_type": "engineering",
+              "data_type": "text",
+              "is_required": false,
+              "is_variant": false,
+              "is_filterable": true,
+              "is_system": true
+            },
+            {
+              "name": "Communication Protocol",
+              "group": "Technical",
+              "attribute_type": "engineering",
+              "data_type": "text",
+              "is_required": false,
+              "is_variant": false,
+              "is_filterable": true,
+              "is_system": true
+            },
+            {
+              "name": "Cooling Method",
+              "group": "Technical",
+              "attribute_type": "engineering",
+              "data_type": "text",
+              "is_required": false,
+              "is_variant": false,
+              "is_filterable": false,
+              "is_system": true
+            },
+            {
+              "name": "Protection Class",
+              "group": "Technical",
+              "attribute_type": "engineering",
+              "data_type": "text",
+              "is_required": false,
+              "is_variant": false,
+              "is_filterable": false,
+              "is_system": true
+            },
+            {
+              "name": "Phase",
+              "group": "Electrical",
+              "attribute_type": "phase",
+              "data_type": "dropdown",
+              "is_required": true,
+              "is_variant": true,
+              "is_filterable": true,
+              "is_system": true,
+              "options": ["Single Phase"]
+            }
+          ]
+        },
+        {
+          "name": "Hybrid"
+        },
+        {
+          "name": "Central"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Power Rating",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Power"
+        },
+        {
+          "name": "Max DC Input Voltage",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "AC Output Current",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "MPPT Count",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Count"
+        },
+        {
+          "name": "Efficiency",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Performance"
+        },
+        {
+          "name": "IP Rating",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Communication Protocol",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Cooling Method",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Protection Class",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Phase",
+          "group": "Electrical",
+          "attribute_type": "phase",
+          "data_type": "dropdown",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "options": ["Single Phase", "Three Phase"]
+        },
+        {
+          "name": "Tolerance",
+          "group": "Electrical",
+          "attribute_type": "tolerance",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Performance"
+        },
+        {
+          "name": "Minimum Input Watt",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Power"
+        },
+        {
+          "name": "Maximum Input Watt",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Power"
+        },
+        {
+          "name": "Start-up Voltage",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "Connected Panels",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Battery",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "Lithium-Ion"
+        },
+        {
+          "name": "Lead Acid"
+        },
+        {
+          "name": "LFP"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Capacity",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Energy"
+        },
+        {
+          "name": "Nominal Voltage",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "Charge Current",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Discharge Current",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Cycle Life",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "DoD",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Performance"
+        },
+        {
+          "name": "Weight",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Mass"
+        },
+        {
+          "name": "Dimensions",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "IP Rating",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "ACDB",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "Single Phase"
+        },
+        {
+          "name": "Three Phase"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Current Rating",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Outgoing Feeders",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "SPD Type",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Enclosure Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "IP Rating",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Busbar Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "DCDB",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "1 String"
+        },
+        {
+          "name": "2 String"
+        },
+        {
+          "name": "4 String"
+        },
+        {
+          "name": "6 String"
+        },
+        {
+          "name": "8 String"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "String Current",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Max DC Voltage",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "SPD Type",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Fuse Type",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "IP Rating",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Enclosure Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Cable",
+      "is_system": true,
+      "qty_unitGroupName": "Length",
+      "qty_unitName": "Meter",
+      "subtypes": [
+        {
+          "name": "DC Cable"
+        },
+        {
+          "name": "AC Cable"
+        },
+        {
+          "name": "Earthing Cable"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Cross Section",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Dimensions"
+        },
+        {
+          "name": "Core Count",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Voltage Rating",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "Insulation Type",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Conductor Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Temperature Rating",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Temperature"
+        }
+      ]
+    },
+    {
+      "name": "Charge Controller",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "PWM"
+        },
+        {
+          "name": "MPPT"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Current Rating",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Max PV Voltage",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "Battery Voltage",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "Efficiency",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Performance"
+        },
+        {
+          "name": "Protection Features",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Mounting Structure",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Set",
+      "subtypes": [
+        {
+          "name": "RCC Roof"
+        },
+        {
+          "name": "Metal Roof"
+        },
+        {
+          "name": "Ground Mount"
+        },
+        {
+          "name": "Carport"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Panel Capacity",
+          "group": "Technical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Rail Length",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Coating Type",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Wind Load",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Tilt Angle",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Angle"
+        }
+      ]
+    },
+    {
+      "name": "Earthing Rod",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "Copper Bonded"
+        },
+        {
+          "name": "GI Rod"
+        },
+        {
+          "name": "Pure Copper"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Length",
+          "group": "Technical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Diameter",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Coating Thickness",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Standard",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Earthing Pit",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "Chemical Earthing"
+        },
+        {
+          "name": "Maintenance Free"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Electrode Length",
+          "group": "Technical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Backfill Compound",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Resistance Value",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Pit Size",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Lightning Arrester",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "ESE Type"
+        },
+        {
+          "name": "Franklin Rod"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Protection Radius",
+          "group": "Technical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Height",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Response Time",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Standard",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Junction Box",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "MC4"
+        },
+        {
+          "name": "MC4-EVO2"
+        },
+        {
+          "name": "Tyco"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Max DC Current",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Max DC Voltage",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "Inputs",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Outputs",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "IP Rating",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Cable Cross Section",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Dimensions"
+        },
+        {
+          "name": "Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Mounting Type",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "MC4 Connector",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "Standard MC4"
+        },
+        {
+          "name": "T-Branch MC4"
+        },
+        {
+          "name": "Y-Branch MC4"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Current Rating",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Voltage Rating",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "IP Rating",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Contact Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Temperature Rating",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Temperature"
+        }
+      ]
+    },
+    {
+      "name": "Surge Protection Device",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "AC SPD"
+        },
+        {
+          "name": "DC SPD"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Voltage Rating",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "Discharge Current",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Protection Level",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Pole Count",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Response Time",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Net Meter",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "Single Phase"
+        },
+        {
+          "name": "Three Phase"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Current Rating",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Voltage Rating",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "Accuracy Class",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Communication Protocol",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Wire",
+      "is_system": true,
+      "qty_unitGroupName": "Length",
+      "qty_unitName": "Meter",
+      "subtypes": [
+        {
+          "name": "Copper Wire"
+        },
+        {
+          "name": "Aluminium Wire"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Cross Section",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Dimensions"
+        },
+        {
+          "name": "Core Count",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Insulation Type",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Voltage Rating",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "Temperature Rating",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Temperature"
+        }
+      ]
+    },
+    {
+      "name": "Conduit Pipe",
+      "is_system": true,
+      "qty_unitGroupName": "Length",
+      "qty_unitName": "Meter",
+      "subtypes": [
+        {
+          "name": "GI Conduit"
+        },
+        {
+          "name": "PVC Conduit"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Diameter",
+          "group": "Technical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Thickness",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Material Grade",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Length",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "UV Resistance",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Cable Tray",
+      "is_system": true,
+      "qty_unitGroupName": "Length",
+      "qty_unitName": "Meter",
+      "subtypes": [
+        {
+          "name": "Perforated"
+        },
+        {
+          "name": "Ladder Type"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Width",
+          "group": "Technical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Thickness",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Finish",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Load Capacity",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Rail",
+      "is_system": true,
+      "qty_unitGroupName": "Length",
+      "qty_unitName": "Meter",
+      "subtypes": [
+        {
+          "name": "Aluminium Rail"
+        },
+        {
+          "name": "GI Rail"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Length",
+          "group": "Technical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Material Grade",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Surface Finish",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Clamp",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "Mid Clamp"
+        },
+        {
+          "name": "End Clamp"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Panel Thickness",
+          "group": "Technical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Finish",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Isolator",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "AC Isolator"
+        },
+        {
+          "name": "DC Isolator"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Current Rating",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Voltage Rating",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Voltage"
+        },
+        {
+          "name": "Pole Count",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "IP Rating",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "MCB",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "SP"
+        },
+        {
+          "name": "DP"
+        },
+        {
+          "name": "TP"
+        },
+        {
+          "name": "TPN"
+        },
+        {
+          "name": "FP"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Current Rating",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Breaking Capacity",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Curve Type",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Pole Count",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "MCCB",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "3 Pole"
+        },
+        {
+          "name": "4 Pole"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Current Rating",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Breaking Capacity",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Adjustable Trip",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Pole Count",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Changeover Switch",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "Manual"
+        },
+        {
+          "name": "Automatic"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Current Rating",
+          "group": "Electrical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true,
+          "unitGroupName": "Current"
+        },
+        {
+          "name": "Pole Count",
+          "group": "Electrical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Operation Type",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Distribution Board",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "SPN"
+        },
+        {
+          "name": "TPN"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Way Count",
+          "group": "Technical",
+          "attribute_type": "sku",
+          "data_type": "number",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Enclosure Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "IP Rating",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        }
+      ]
+    },
+    {
+      "name": "Screw & Fastener",
+      "is_system": true,
+      "qty_unitGroupName": "Count",
+      "qty_unitName": "Piece",
+      "subtypes": [
+        {
+          "name": "Hex Bolt"
+        },
+        {
+          "name": "Self-Tapping Screw"
+        },
+        {
+          "name": "Nut & Bolt"
+        }
+      ],
+      "shared_attributes": [
+        {
+          "name": "Size",
+          "group": "Technical",
+          "attribute_type": "sku",
+          "data_type": "text",
+          "is_required": true,
+          "is_variant": true,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Length",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "number",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true,
+          "unitGroupName": "Length"
+        },
+        {
+          "name": "Material",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": true,
+          "is_system": true
+        },
+        {
+          "name": "Coating",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        },
+        {
+          "name": "Thread Type",
+          "group": "Technical",
+          "attribute_type": "engineering",
+          "data_type": "text",
+          "is_required": false,
+          "is_variant": false,
+          "is_filterable": false,
+          "is_system": true
+        }
+      ]
+    }
+  ]
+}

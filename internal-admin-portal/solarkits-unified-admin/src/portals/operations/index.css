@@ -1,0 +1,305 @@
+﻿@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════
+   SOLARKITS ADMIN — PREMIUM BLUE THEME
+   Light & Dark mode with CSS custom properties
+   ═══════════════════════════════════════════════════════════════ */
+
+@theme {
+  /* ── Primary: Deep Blue ── */
+  --color-primary: #263880;
+  --color-primary-end: #3a56c9;
+  --color-primary-hover: #1e2d66;
+
+  /* ── Secondary: Golden Amber ── */
+  --color-secondary: #f5d324;
+  --color-secondary-hover: #eac90f;
+
+  /* ── Surfaces (Light) ── */
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f1f5f9;
+
+  /* ── Borders & Rings ── */
+  --color-border: #cbd5e1;
+  --color-ring: #26388040;
+
+  /* ── Text ── */
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+  --color-text-inverse: #ffffff;
+
+  /* ── Status ── */
+  --color-success: #16a34a;
+  --color-success-hover: #15803d;
+  --color-success-soft: #f0fdf4;
+
+  --color-warning: #f59e0b;
+  --color-warning-hover: #d97706;
+  --color-warning-soft: #fffbeb;
+
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-soft: #fef2f2;
+
+  --color-info: #0ea5e9;
+  --color-info-hover: #0284c7;
+  --color-info-soft: #f0f9ff;
+
+  /* ── Shadows ── */
+  --shadow-xs: 0 1px 3px rgba(38, 56, 128, 0.06);
+  --shadow-sm: 0 2px 8px rgba(38, 56, 128, 0.08);
+  --shadow-md: 0 4px 16px rgba(38, 56, 128, 0.10);
+  --shadow-lg: 0 8px 32px rgba(38, 56, 128, 0.14);
+  --shadow-xl: 0 12px 48px rgba(38, 56, 128, 0.18);
+
+  /* ── Gradients ── */
+  --gradient-primary: linear-gradient(135deg, #263880 0%, #3a56c9 50%, #4f6ae0 100%);
+  --gradient-primary-soft: linear-gradient(135deg, #26388015 0%, #3a56c910 100%);
+  --gradient-danger: linear-gradient(135deg, var(--color-danger), var(--color-danger-hover));
+  --gradient-danger-soft: linear-gradient(135deg, #dc262615 0%, #b91c1c10 100%);
+  --gradient-warning: linear-gradient(135deg, var(--color-warning), var(--color-warning-hover));
+  --gradient-warning-soft: linear-gradient(135deg, #f59e0b15 0%, #d9770610 100%);
+  --gradient-success: linear-gradient(135deg, var(--color-success), var(--color-success-hover));
+  --gradient-success-soft: linear-gradient(135deg, #16a34a15 0%, #15803d10 100%);
+  --gradient-info: linear-gradient(135deg, var(--color-info), var(--color-info-hover));
+  --gradient-info-soft: linear-gradient(135deg, #0ea5e915 0%, #0284c710 100%);
+  --gradient-secondary: linear-gradient(135deg, var(--color-secondary), #ffdf5e);
+  --gradient-bg-subtle: linear-gradient(145deg, #f8fafc 0%, #eef2ff 50%, #e8ecf8 100%);
+  --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%);
+  --gradient-card-glass: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.85) 100%);
+
+  /* ── Button ── */
+  --color-button-primary: var(--color-primary);
+  --color-button-primary-hover: var(--color-primary-hover);
+  --color-button-disabled: #cbd5e1;
+  --color-button-disabled-text: #64748b;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE — class-based (.dark on <html>)
+   ═══════════════════════════════════════════════════════════════ */
+
+.dark {
+  --color-primary: #4f6ae0;
+  --color-primary-end: #6b82f0;
+  --color-primary-hover: #3a56c9;
+
+  --color-bg: #0b0f1a;
+  --color-surface: #111827;
+  --color-surface-hover: #1e293b;
+
+  --color-border: #1e3a5f;
+  --color-ring: #4f6ae050;
+
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-text-inverse: #ffffff;
+
+  --color-success-soft: #052e16;
+  --color-warning-soft: #451a03;
+  --color-danger-soft: #450a0a;
+  --color-info-soft: #0c4a6e;
+
+  --shadow-xs: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.35);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+  --shadow-xl: 0 12px 48px rgba(0,0,0,0.6);
+
+  --gradient-bg-subtle: linear-gradient(145deg, #0b0f1a 0%, #0f1629 50%, #111d33 100%);
+  --gradient-glass: linear-gradient(135deg, rgba(17,24,39,0.8) 0%, rgba(17,24,39,0.5) 100%);
+  --gradient-card-glass: linear-gradient(135deg, rgba(17,24,39,0.95) 0%, rgba(17,24,39,0.9) 100%);
+  --gradient-primary-soft: linear-gradient(135deg, #4f6ae018 0%, #3a56c912 100%);
+
+  --color-button-disabled: #1e293b;
+  --color-button-disabled-text: #475569;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BASE STYLES
+   ═══════════════════════════════════════════════════════════════ */
+
+* {
+  /* user-select: none; */
+}
+
+body {
+  min-width: 280px;
+  overflow-x: hidden;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ── Scrollbar ── */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 20px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+  background-clip: content-box;
+}
+
+.scrollbar-hover {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+.scrollbar-hover::-webkit-scrollbar {
+  width: 5px;
+}
+.scrollbar-hover::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 10px;
+}
+.scrollbar-hover:hover::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+}
+
+/* ── Card ── */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Glassmorphism ── */
+.glass {
+  background: var(--gradient-glass);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.18);
+}
+.card-glass {
+  background: var(--gradient-card-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.15);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Gradient Utilities ── */
+.gradient-primary { background: var(--gradient-primary); }
+.gradient-primary-soft { background: var(--gradient-primary-soft); }
+.gradient-danger { background: var(--gradient-danger); }
+.gradient-danger-soft { background: var(--gradient-danger-soft); }
+.gradient-warning { background: var(--gradient-warning); }
+.gradient-warning-soft { background: var(--gradient-warning-soft); }
+.gradient-success { background: var(--gradient-success); }
+.gradient-success-soft { background: var(--gradient-success-soft); }
+.gradient-info { background: var(--gradient-info); }
+.gradient-info-soft { background: var(--gradient-info-soft); }
+.gradient-secondary { background: var(--gradient-secondary); }
+.gradient-bg-subtle { background: var(--gradient-bg-subtle); }
+.gradient-glass { background: var(--gradient-glass); }
+.gradient-card-glass { background: var(--gradient-card-glass); }
+
+/* ── Gradient Text ── */
+.gradient-text-primary {
+  background: var(--gradient-primary);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* ── Buttons ── */
+.btn-primary {
+  background: var(--gradient-primary);
+  color: var(--color-text-inverse);
+  box-shadow: var(--shadow-sm), 0 0 0 0 rgba(13, 148, 136, 0);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn-primary:hover {
+  box-shadow: var(--shadow-md), 0 0 20px rgba(13, 148, 136, 0.2);
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-danger {
+  background: var(--gradient-danger);
+  color: var(--color-text-inverse);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+}
+.btn-danger:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-warning {
+  background: var(--gradient-warning);
+  color: var(--color-text-inverse);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+}
+.btn-warning:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-success {
+  background: var(--gradient-success);
+  color: var(--color-text-inverse);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+}
+.btn-success:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-info {
+  background: var(--gradient-info);
+  color: var(--color-text-inverse);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+}
+.btn-info:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* ── Theme Toggle Animation ── */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease !important;
+}
+
+/* ── Focus Ring ── */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ── Mesh Grid Background ── */
+.mesh-grid {
+  background-size: 40px 40px;
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+}
