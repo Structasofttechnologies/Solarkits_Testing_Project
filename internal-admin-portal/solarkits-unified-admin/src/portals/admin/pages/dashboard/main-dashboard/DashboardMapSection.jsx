@@ -53,6 +53,39 @@ const STATE_INFO = {
 
 const clean = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
+// Safely calculate geometric centroid for a GeoJSON feature
+const getFeatureCentroid = (feat, pathGen, proj) => {
+  if (pathGen && typeof pathGen.centroid === 'function') {
+    try {
+      const c = pathGen.centroid(feat);
+      if (c && !isNaN(c[0]) && !isNaN(c[1])) return c;
+    } catch (_) {}
+  }
+  if (!feat?.geometry?.coordinates) return null;
+  let sumX = 0;
+  let sumY = 0;
+  let count = 0;
+  const walk = (coords) => {
+    if (Array.isArray(coords) && coords.length > 0 && typeof coords[0][0] === 'number') {
+      const pts = (coords.length > 1 && coords[0][0] === coords[coords.length - 1][0] && coords[0][1] === coords[coords.length - 1][1])
+        ? coords.slice(0, -1)
+        : coords;
+      for (let i = 0; i < pts.length; i++) {
+        const p = proj ? proj(pts[i]) : pts[i];
+        if (p && !isNaN(p[0]) && !isNaN(p[1])) {
+          sumX += p[0];
+          sumY += p[1];
+          count += 1;
+        }
+      }
+    } else if (Array.isArray(coords)) {
+      coords.forEach(walk);
+    }
+  };
+  walk(feat.geometry.coordinates);
+  return count > 0 ? [sumX / count, sumY / count] : null;
+};
+
 const METRICS = [
   { id: 'revenue', label: 'Revenue (₹)', unit: '₹' },
   { id: 'estimatedDemandKw', label: 'Kit Demand (kW)', unit: ' kW' },
@@ -193,7 +226,7 @@ export default function DashboardMapSection({ data = [], onDrillDown, onExport }
       // Show if district has EPCs, and if state is selected, match state
       if (epcCount > 0) {
         if (!selectedState || clean(stName) === clean(selectedState)) {
-          const centroid = pathGenerator.centroid(feat);
+          const centroid = getFeatureCentroid(feat, pathGenerator, projection);
           if (centroid && !isNaN(centroid[0]) && !isNaN(centroid[1])) {
             badges.push({
               district: distName,
@@ -209,7 +242,7 @@ export default function DashboardMapSection({ data = [], onDrillDown, onExport }
     });
 
     return badges;
-  }, [districtFeatures, districtDataMap, selectedState, pathGenerator]);
+  }, [districtFeatures, districtDataMap, selectedState, pathGenerator, projection]);
 
   // State-level EPC summary for national view
   const stateEpcBadges = useMemo(() => {

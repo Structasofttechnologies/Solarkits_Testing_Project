@@ -55,6 +55,7 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
   const [fetching, setFetching] = useState(true);
   const [viewRole, setViewRole] = useState(null);
   const [viewRoleLoading, setViewRoleLoading] = useState(false);
+  const [newlyCreatedRoleId, setNewlyCreatedRoleId] = useState(null);
 
   // Scoped Role Hierarchies states
   const [countries, setCountries] = useState([]);
@@ -371,6 +372,15 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
           duration: 3000
         })
       );
+
+      const createdRole = res.data.data;
+      if (createdRole && (createdRole._id || createdRole.id)) {
+        const newId = (createdRole._id || createdRole.id).toString();
+        setNewlyCreatedRoleId(newId);
+        if (createdRole.parent_role_id) {
+          setExpandedNodes(prev => new Set([...prev, createdRole.parent_role_id.toString(), newId]));
+        }
+      }
 
       setRoleName("");
       setSelectedDepartment(null);
@@ -787,11 +797,14 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
     const map = {};
     const roots = [];
 
-    rolesList.forEach(r => {
+    // Prioritize newest roles first by created_at descending
+    const sorted = [...rolesList].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+    sorted.forEach(r => {
       map[r.id] = { ...r, children: [] };
     });
 
-    rolesList.forEach(r => {
+    sorted.forEach(r => {
       if (r.parent_role_id && map[r.parent_role_id]) {
         map[r.parent_role_id].children.push(map[r.id]);
       } else {
@@ -816,86 +829,106 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
   const RoleTreeItem = ({ node, depth = 0 }) => {
     const isExpanded = expandedNodes.has(node.id) || !!searchQuery || !!filterDepartment || !!filterLevel;
     const hasChildren = node.children && node.children.length > 0;
-    const indent = depth * 24;
+    const indent = depth * 20;
 
     return (
       <div className="flex flex-col">
         <div
-          className={`group flex items-center py-3 px-4 border-b border-border/40 hover:bg-primary/5 transition-all duration-200 ${depth > 0 ? 'bg-surface/30' : ''}`}
+          className={`group grid grid-cols-[minmax(240px,1.6fr)_150px_100px_130px_70px_160px] min-w-[850px] items-center py-3 px-4 border-b border-border/40 hover:bg-primary/5 transition-all duration-200 ${depth > 0 ? 'bg-surface/30' : ''}`}
         >
-          <div className="flex items-center gap-3 flex-1 min-w-0" style={{ paddingLeft: `${indent}px` }}>
+          {/* Col 1: Role Node & Hierarchy */}
+          <div className="flex items-center gap-2.5 min-w-0 pr-3" style={{ paddingLeft: `${indent}px` }}>
             {hasChildren ? (
               <button
+                type="button"
                 onClick={() => toggleExpand(node.id)}
-                className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-primary/10 text-text-secondary transition-colors"
+                className="w-6 h-6 shrink-0 flex items-center justify-center rounded-md hover:bg-primary/10 text-text-secondary transition-colors"
               >
                 {isExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
               </button>
             ) : (
-              <div className="w-6 h-6 flex items-center justify-center text-text-muted">
+              <div className="w-6 h-6 shrink-0 flex items-center justify-center text-text-muted">
                 <FiFile size={14} />
               </div>
             )}
 
             <div className="flex items-center gap-2 min-w-0 flex-1">
               {hasChildren && <FiFolder className="text-blue-600 shrink-0" size={16} />}
-              <span className={`font-bold ${depth === 0 ? 'text-slate-900 text-sm' : 'text-slate-700 text-xs'} inline-flex items-center gap-1.5`}>
-                {node.name || node.role_name || 'Unnamed Role'}
+              <span className={`font-bold ${depth === 0 ? 'text-slate-900 text-sm' : 'text-slate-700 text-xs'} truncate inline-flex items-center gap-1.5`} title={node.name || node.role_name}>
+                <span className="truncate">{node.name || node.role_name || 'Unnamed Role'}</span>
                 {node.is_protected && (
-                  <span className="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-md">
+                  <span className="shrink-0 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-md">
                     System
+                  </span>
+                )}
+                {newlyCreatedRoleId === (node.id || node._id) && (
+                  <span className="shrink-0 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-md animate-pulse">
+                    New
                   </span>
                 )}
               </span>
             </div>
           </div>
 
-          <div className="hidden lg:flex items-center shrink-0">
-            <div className="w-48 px-2 text-sm text-text-secondary truncate">{node.department_name || '-'}</div>
-            <div className="w-32 px-2 text-sm text-text-secondary capitalize truncate">{node.level_name || '-'}</div>
-            <div className="w-32 px-2 text-xs text-text-muted truncate" title={node.panel_names}>{node.panel_names || 'None'}</div>
-            <div className="w-24 px-2 text-center">
-              <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full">
-                {node.assigned_modules_count ?? 0}
-              </span>
-            </div>
-            <div className="w-56 flex items-center justify-end gap-2 pl-4">
-              <button
-                type="button"
-                onClick={() => navigate(`/admin-panel/settings/role-settings/role-based-access-control/role/${node.id}`)}
-                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-info/10 hover:bg-info/20 text-info transition-colors flex items-center gap-1 cursor-pointer border border-info/30"
-                title="Configure permissions & authorization rules"
-              >
-                <FiEye size={13} />
-                <span>Rules</span>
-              </button>
-              {!node.is_protected ? (
-                <>
-                  <IconButton
-                    variant="ghost"
-                    onClick={() => handleEditRole(node)}
-                    size="sm"
-                    className="text-primary hover:bg-primary/10"
-                    title="Edit role name & scope"
-                  >
-                    <FiEdit size={15} />
-                  </IconButton>
-                  <IconButton
-                    variant="ghost"
-                    onClick={() => handleDeleteRoleClick(node)}
-                    size="sm"
-                    className="text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
-                    title="Delete role"
-                  >
-                    <FiTrash2 size={15} />
-                  </IconButton>
-                </>
-              ) : (
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 cursor-not-allowed" title="Protected root system role.">
-                  <FiLock size={14} />
-                </div>
-              )}
-            </div>
+          {/* Col 2: Department Node */}
+          <div className="px-2 text-sm text-text-secondary truncate font-medium" title={node.department_name || '-'}>
+            {node.department_name || '-'}
+          </div>
+
+          {/* Col 3: Level Node */}
+          <div className="px-2 text-sm text-text-secondary capitalize truncate font-medium">
+            {node.level_name || '-'}
+          </div>
+
+          {/* Col 4: Panel Scopes */}
+          <div className="px-2 text-xs text-text-muted truncate font-medium" title={node.panel_names || 'None'}>
+            {node.panel_names || 'None'}
+          </div>
+
+          {/* Col 5: Modules Count */}
+          <div className="px-2 text-center">
+            <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full">
+              {node.assigned_modules_count ?? 0}
+            </span>
+          </div>
+
+          {/* Col 6: Rules & Operations */}
+          <div className="flex items-center justify-end gap-2 pr-2">
+            <button
+              type="button"
+              onClick={() => navigate(`/admin-panel/settings/role-settings/role-based-access-control/role/${node.id}`)}
+              className="px-2.5 py-1 text-xs font-bold rounded-lg bg-info/10 hover:bg-info/20 text-info transition-colors flex items-center gap-1 cursor-pointer border border-info/30 hover:shadow-xs"
+              title="Configure permissions & authorization rules"
+            >
+              <FiEye size={13} />
+              <span>Rules</span>
+            </button>
+            {!node.is_protected ? (
+              <>
+                <IconButton
+                  variant="ghost"
+                  onClick={() => handleEditRole(node)}
+                  size="sm"
+                  className="text-primary hover:bg-primary/10"
+                  title="Edit role name & scope"
+                >
+                  <FiEdit size={15} />
+                </IconButton>
+                <IconButton
+                  variant="ghost"
+                  onClick={() => handleDeleteRoleClick(node)}
+                  size="sm"
+                  className="text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
+                  title="Delete role"
+                >
+                  <FiTrash2 size={15} />
+                </IconButton>
+              </>
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 cursor-not-allowed" title="Protected root system role.">
+                <FiLock size={14} />
+              </div>
+            )}
           </div>
         </div>
 
@@ -1177,13 +1210,13 @@ export default function RoleBasedAccessControl({ moduleUniqueId }) {
                 </div>
               ) : filteredRoles.length > 0 ? (
                 <div className="border border-border/60 rounded-2xl overflow-hidden bg-surface/20">
-                  <div className="hidden lg:flex items-center py-4 px-4 bg-bg/20 border-b border-border font-black text-[10px] text-text-secondary uppercase tracking-wider">
-                    <div className="flex-1">Role Node & Hierarchy</div>
-                    <div className="w-48 px-2">Department Node</div>
-                    <div className="w-32 px-2">Level Node</div>
-                    <div className="w-32 px-2">Panel Scopes</div>
-                    <div className="w-24 px-2 text-center">Modules</div>
-                    <div className="w-56 text-right pr-4">Rules & Operations</div>
+                  <div className="grid grid-cols-[minmax(240px,1.6fr)_150px_100px_130px_70px_160px] min-w-[850px] items-center py-3.5 px-4 bg-bg/20 border-b border-border font-black text-[10px] text-text-secondary uppercase tracking-wider">
+                    <div>Role Node & Hierarchy</div>
+                    <div className="px-2">Department Node</div>
+                    <div className="px-2">Level Node</div>
+                    <div className="px-2">Panel Scopes</div>
+                    <div className="px-2 text-center">Modules</div>
+                    <div className="pr-4 text-right">Rules & Operations</div>
                   </div>
                   <div className="divide-y divide-border/40">
                     {getFilteredTree(roles, searchQuery, filterDepartment, filterLevel).map(node => (

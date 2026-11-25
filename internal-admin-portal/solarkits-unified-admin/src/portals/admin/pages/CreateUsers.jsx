@@ -27,7 +27,7 @@ import {
 } from "react-icons/hi";
 import { FaSync, FaWarehouse, FaMapMarkerAlt, FaCheck, FaExclamationTriangle } from "react-icons/fa";
 import { MdManageAccounts } from "react-icons/md";
-import { FiUser, FiGrid } from "react-icons/fi";
+import { FiUser, FiGrid, FiShield } from "react-icons/fi";
 
 // Components
 import CustomInput from "@/components/CustomInput";
@@ -95,8 +95,10 @@ export default function CreateUsers() {
     const [provisioningFormData, setProvisioningFormData] = useState({
         name: "", email: "", country_id: "", phone_code: "", phone: "",
         department_id: "", role_id: "", scope_ids: [], parent_user_id: "",
-        min_phone_length: null, max_phone_length: null
+        state_name: "", min_phone_length: null, max_phone_length: null
     });
+    const [roleRbacDetails, setRoleRbacDetails] = useState(null);
+    const [loadingRoleRbac, setLoadingRoleRbac] = useState(false);
     const [editId, setEditId] = useState(null);
     // Snapshot of the user's original scope_ids at the moment Edit is clicked.
     // Stored separately so the cascading scope-sync effect cannot overwrite it before
@@ -211,16 +213,45 @@ export default function CreateUsers() {
     const getRoles = useCallback(async (levelId, deptId, type) => {
         if (!levelId) return;
         try {
-            const url = deptId
-                ? `${import.meta.env.VITE_API_URL}/cms/users/roles/${deptId}/${levelId}`
-                : `${import.meta.env.VITE_API_URL}/cms/users/roles/${levelId}`;
-            const res = await axios.get(url, { headers: authHeaderObj() });
-            if (type === "overview") return; // roles filter removed from overview
-            else setProvisioningRoles(res.data?.data || []);
+            // Check if selected department is the unified Warehouse & Delivery Management department
+            const selectedDept = departments.find(d => String(d.id || d._id) === String(deptId));
+            const isWarehouseOrDelivery = (selectedDept?.name || "").toLowerCase().includes("warehouse") || (selectedDept?.name || "").toLowerCase().includes("deliver");
+
+            let roles = [];
+            if (isWarehouseOrDelivery) {
+                // Fetch roles for both Warehouse and Delivery departments and combine them
+                const matchingDeptIds = departments
+                    .filter(d => (d.name || "").toLowerCase().includes("warehouse") || (d.name || "").toLowerCase().includes("deliver"))
+                    .map(d => String(d.id || d._id));
+
+                const uniqueIds = [...new Set([deptId, ...matchingDeptIds])];
+                const reqs = uniqueIds.map(id =>
+                    axios.get(`${import.meta.env.VITE_API_URL}/cms/users/roles/${id}/${levelId}`, { headers: authHeaderObj() })
+                        .catch(() => ({ data: { data: [] } }))
+                );
+                const responses = await Promise.all(reqs);
+                const roleMap = new Map();
+                responses.forEach(r => {
+                    (r.data?.data || []).forEach(role => {
+                        const rId = String(role.id || role._id);
+                        if (!roleMap.has(rId)) roleMap.set(rId, role);
+                    });
+                });
+                roles = Array.from(roleMap.values());
+            } else {
+                const url = deptId
+                    ? `${import.meta.env.VITE_API_URL}/cms/users/roles/${deptId}/${levelId}`
+                    : `${import.meta.env.VITE_API_URL}/cms/users/roles/${levelId}`;
+                const res = await axios.get(url, { headers: authHeaderObj() });
+                roles = res.data?.data || [];
+            }
+
+            if (type === "overview") return;
+            else setProvisioningRoles(roles);
         } catch (err) {
             console.error("Error fetching roles:", err);
         }
-    }, []);
+    }, [departments]);
 
     const getParentUsers = useCallback(async () => {
         if (!provisioningFormData.role_id) {
@@ -246,6 +277,38 @@ export default function CreateUsers() {
             setProvisioningParentUsers([]);
         }
     }, [provisioningFormData.role_id, provisioningFormData.scope_ids, provisioningLevel, levels]);
+
+    // Fetch role RBAC panels & module permissions when role changes
+    useEffect(() => {
+        const roleId = provisioningFormData.role_id;
+        if (!roleId) {
+            setRoleRbacDetails(null);
+            return;
+        }
+        let isMounted = true;
+        setLoadingRoleRbac(true);
+        axios.get(`${import.meta.env.VITE_API_URL}/roles/${roleId}?unique_id=ADM_RBAC&req_for=view`, {
+            headers: authHeaderObj()
+        }).then(res => {
+            if (!isMounted) return;
+            const rData = res.data?.data;
+            setRoleRbacDetails(rData);
+            if (rData && rData.panels && rData.panels.length > 0) {
+                const autoPanels = rData.panels.map(p => ({
+                    panel_id: p.id || p._id,
+                    panel_name: p.name,
+                    saas_product_ids: p.saas_product_ids || []
+                }));
+                setSelectedPanels(autoPanels);
+            }
+        }).catch(err => {
+            console.error("Error fetching role RBAC details:", err);
+        }).finally(() => {
+            if (isMounted) setLoadingRoleRbac(false);
+        });
+
+        return () => { isMounted = false; };
+    }, [provisioningFormData.role_id]);
 
     // Hierarchy Hydration for Edit Mode
     useEffect(() => {
@@ -666,56 +729,16 @@ export default function CreateUsers() {
             }
 
             // Case 2: New User or Edit User
-            // Mapping validations
-            // 1. If countries selected and states are populated:
-            //    Ensure each selected country has at least one state in selectedStates
-            if (selectedCountries.length > 0 && selectedStates.length > 0) {
-                for (const cid of selectedCountries) {
-                    const hasState = selectedStates.some(sid => {
-                        const stateObj = geoData.provisioning.states.find(s => s.id === sid);
-                        return stateObj && stateObj.country_id === cid;
-                    });
-                    if (!hasState) {
-                        const countryName = activeCountries.find(c => c.id === cid)?.name || cid;
-                        dispatch(setAlert({ type: "error", message: `Please select at least one state for country: ${countryName}` }));
-                        setProvisioningAdding(false);
-                        return;
-                    }
-                }
+            const levelName = levels.find(l => (l.id || l._id)?.toString() === provisioningLevel?.toString())?.name?.toLowerCase() || "";
+            if (["state", "cluster", "district", "urban city", "rural city"].includes(levelName) && !provisioningFormData.state_name) {
+                dispatch(setAlert({ type: "error", message: "Please select an operating state for this staff member." }));
+                setProvisioningAdding(false);
+                return;
             }
-
-            // 2. If states selected and clusters are populated:
-            //    Ensure each selected state has at least one cluster in selectedClusters
-            if (selectedStates.length > 0 && selectedClusters.length > 0) {
-                for (const sid of selectedStates) {
-                    const hasCluster = selectedClusters.some(clid => {
-                        const clusterObj = geoData.provisioning.clusters.find(c => c.id === clid);
-                        return clusterObj && clusterObj.state_id === sid;
-                    });
-                    if (!hasCluster) {
-                        const stateName = geoData.provisioning.states.find(s => s.id === sid)?.name || sid;
-                        dispatch(setAlert({ type: "error", message: `Please select at least one cluster for state: ${stateName}` }));
-                        setProvisioningAdding(false);
-                        return;
-                    }
-                }
-            }
-
-            // 3. If clusters selected and districts are populated:
-            //    Ensure each selected cluster has at least one district in selectedDistricts
-            if (selectedClusters.length > 0 && selectedDistricts.length > 0) {
-                for (const clid of selectedClusters) {
-                    const hasDistrict = selectedDistricts.some(did => {
-                        const distObj = geoData.provisioning.districts.find(d => d.id === did);
-                        return distObj && distObj.cluster_id === clid;
-                    });
-                    if (!hasDistrict) {
-                        const clusterName = geoData.provisioning.clusters.find(c => c.id === clid)?.name || clid;
-                        dispatch(setAlert({ type: "error", message: `Please select at least one district for cluster: ${clusterName}` }));
-                        setProvisioningAdding(false);
-                        return;
-                    }
-                }
+            if (["cluster", "district", "urban city", "rural city"].includes(levelName) && !provisioningFormData.cluster_id) {
+                dispatch(setAlert({ type: "error", message: "Please select a franchisee cluster for this staff member." }));
+                setProvisioningAdding(false);
+                return;
             }
 
             const whObj = liveWarehouses.find(w => String(w._id || w.id) === String(assignedWarehouseId));
@@ -733,9 +756,9 @@ export default function CreateUsers() {
                 panels: selectedPanels,
                 warehouse_id: assignedWarehouseId || undefined,
                 warehouse_name: whObj ? (whObj.name || whObj.warehouse_name) : undefined,
-                cluster_id: assignedClusterId || undefined,
-                cluster_name: cluObj ? (cluObj.cluster_name || cluObj.name) : undefined,
-                state_name: assignedStateName || (cluObj ? cluObj.state_name : undefined),
+                cluster_id: assignedClusterId || provisioningFormData.cluster_id || undefined,
+                cluster_name: cluObj ? (cluObj.cluster_name || cluObj.name) : provisioningFormData.cluster_name || undefined,
+                state_name: assignedStateName || provisioningFormData.state_name || (cluObj ? cluObj.state_name : undefined),
                 department_name: deptObj ? deptObj.name : undefined
             };
 
@@ -998,32 +1021,68 @@ export default function CreateUsers() {
 
     const handleQuickAssignCluster = (clu) => {
         setEditId(null);
-        setProvisioningMode("new");
+        setProvisioningMode("existing");
         setSelectedExistingUserId("");
-        setAssignedStateName(clu.state_name || "");
-        setAssignedClusterId(clu._id || clu.id);
-        const matchingWh = liveWarehouses.find(w => (w.state || w.level_1?.name || '').toLowerCase() === (clu.state_name || '').toLowerCase());
+        const cluId = String(clu._id || clu.id);
+        const cluState = clu.state_name || "";
+        setAssignedClusterId(cluId);
+        setAssignedStateName(cluState);
+        const matchingWh = liveWarehouses.find(w => 
+            (w.serviced_cluster_ids && w.serviced_cluster_ids.some(cid => String(cid) === cluId)) ||
+            (w.state || w.level_1?.name || '').toLowerCase() === cluState.toLowerCase()
+        );
         if (matchingWh) setAssignedWarehouseId(matchingWh._id || matchingWh.id);
+        else setAssignedWarehouseId("");
         setActiveTab("add");
     };
 
+    const stateFilteredExistingUsers = useMemo(() => {
+        if (!assignedStateName) return users;
+        const target = assignedStateName.trim().toLowerCase();
+        return users.filter(u => {
+            const uState = (u.state_name || u.state || '').trim().toLowerCase();
+            const uLevel = (u.level_name || '').trim().toLowerCase();
+            // Global, Country-level, or Super Admin staff have jurisdiction across all states including this cluster's state
+            const isHigherTier = uLevel === 'global' || uLevel === 'country' || !u.state_name || u.state_name === 'All' || u.state_name === 'India';
+            return uState === target || isHigherTier;
+        });
+    }, [users, assignedStateName]);
+
     const filteredDepartmentsOptions = useMemo(() => {
-        const list = [...departments];
-        // Ensure standard core departments always exist in the list
-        const CORE_DEPT_NAMES = [
-            "Accounts & Finance",
-            "Delivery Management",
-            "Warehouse Management",
-            "Operations",
-            "Super Admin"
-        ];
-        CORE_DEPT_NAMES.forEach(name => {
-            if (!list.some(d => d.name?.toLowerCase() === name.toLowerCase())) {
-                list.push({ id: `core_${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`, name, level: 'country' });
+        // Consolidate Delivery Management and Warehouse Management into single "Warehouse & Delivery Management"
+        const unified = [];
+        let mergedWarehouseId = null;
+        const seenNames = new Set();
+
+        departments.forEach(d => {
+            const nameLower = (d.name || "").toLowerCase().trim();
+            if (nameLower.includes("warehouse") || nameLower.includes("deliver")) {
+                if (!mergedWarehouseId) {
+                    mergedWarehouseId = String(d.id || d._id);
+                    unified.push({ id: mergedWarehouseId, name: "Warehouse & Delivery Management" });
+                    seenNames.add("warehouse & delivery management");
+                }
+            } else if (!seenNames.has(nameLower)) {
+                seenNames.add(nameLower);
+                unified.push({ id: String(d.id || d._id), name: d.name });
             }
         });
 
-        return list.map(d => ({ value: String(d.id || d._id), text: d.name }));
+        // Ensure standard departments exist
+        const STANDARD_DEPTS = [
+            { name: "Super Admin", id: "core_super_admin" },
+            { name: "Accounts & Finance", id: "core_accounts_finance" },
+            { name: "Warehouse & Delivery Management", id: mergedWarehouseId || "core_warehouse_delivery" },
+            { name: "Operations", id: "core_operations" }
+        ];
+
+        STANDARD_DEPTS.forEach(core => {
+            if (!unified.some(d => d.name.toLowerCase() === core.name.toLowerCase())) {
+                unified.push({ id: core.id, name: core.name });
+            }
+        });
+
+        return unified.map(d => ({ value: String(d.id), text: d.name }));
     }, [departments]);
 
     const availableCountriesForDept = useMemo(() => {
@@ -1053,16 +1112,12 @@ export default function CreateUsers() {
                 { id: "role_acc_exec", name: "Accountant" },
                 { id: "role_acc_lead", name: "Finance & Accounts Lead" }
             ];
-        } else if (deptName.includes("deliver")) {
-            return [
-                { id: "role_del_mgr", name: "Delivery Manager" },
-                { id: "role_del_logistics", name: "Logistics Lead" },
-                { id: "role_del_fleet", name: "Fleet Supervisor" }
-            ];
-        } else if (deptName.includes("warehouse")) {
+        } else if (deptName.includes("deliver") || deptName.includes("warehouse")) {
             return [
                 { id: "role_wh_mgr", name: "Warehouse Manager" },
-                { id: "role_wh_inv", name: "Inventory Supervisor" },
+                { id: "role_del_mgr", name: "Delivery Operations Lead" },
+                { id: "role_wh_inv", name: "Inventory & Dispatch Supervisor" },
+                { id: "role_del_fleet", name: "Fleet & Logistics Lead" },
                 { id: "role_wh_assembly", name: "BOS Kit Assembly Lead" }
             ];
         } else if (deptName.includes("operat")) {
@@ -1090,17 +1145,21 @@ export default function CreateUsers() {
         if (provisioningMode === "existing") {
             return !selectedExistingUserId || !assignedClusterId;
         }
-        // New user mode:
-        if (!provisioningFormData.name || !provisioningFormData.email || !provisioningFormData.role_id) {
+        // New user mode
+        const levelName = levels.find(l => (l.id || l._id)?.toString() === provisioningLevel?.toString())?.name?.toLowerCase() || "";
+        if (!provisioningFormData.name?.trim() || !provisioningFormData.email?.trim() || !provisioningFormData.role_id) {
             return true;
         }
-        const levelName = levels.find(l => (l.id || l._id)?.toString() === provisioningLevel?.toString())?.name?.toLowerCase() || "";
-        // If not global and not universal country role, require scopes OR warehouse/cluster assignment
-        if (levelName !== "global" && !isUniversalCountryRole && provisioningFormData.scope_ids.length === 0 && !assignedClusterId) {
+        // If State tier or lower, state is required
+        if (["state", "cluster", "district", "urban city", "rural city"].includes(levelName) && !provisioningFormData.state_name) {
+            return true;
+        }
+        // If Cluster tier or lower, cluster is required
+        if (["cluster", "district", "urban city", "rural city"].includes(levelName) && !provisioningFormData.cluster_id) {
             return true;
         }
         return false;
-    }, [provisioningAdding, provisioningMode, selectedExistingUserId, assignedClusterId, provisioningFormData.name, provisioningFormData.email, provisioningFormData.role_id, provisioningFormData.scope_ids.length, levels, provisioningLevel, isUniversalCountryRole]);
+    }, [provisioningAdding, provisioningMode, selectedExistingUserId, assignedClusterId, provisioningFormData.name, provisioningFormData.email, provisioningFormData.role_id, provisioningFormData.state_name, provisioningFormData.cluster_id, provisioningLevel, levels]);
 
     const tabs = [
         { id: "overview", name: "User Directory", icon: <HiUsers /> },
@@ -1533,7 +1592,7 @@ export default function CreateUsers() {
                                             <HiIdentification size={20} />
                                         </div>
                                         <h2 className="font-bold text-text-primary uppercase tracking-wider text-sm">
-                                            {editId ? "Edit Staff Identity" : provisioningMode === "existing" ? "Assign Existing Staff Member" : "Identity Credentials"}
+                                            {editId ? "Edit Staff Identity" : provisioningMode === "existing" ? "Assign Existing Staff Member to Cluster" : "Create New User & Identity Credentials"}
                                         </h2>
                                     </div>
                                     {editId && (
@@ -1543,285 +1602,352 @@ export default function CreateUsers() {
                                     )}
                                 </div>
 
+                                {/* CASE 1: ASSIGN EXISTING USER TO CLUSTER */}
                                 {provisioningMode === "existing" && !editId && (
-                                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-3">
-                                        <label className="text-xs font-black text-primary uppercase tracking-wider block">
-                                            Select Existing Staff Member To Assign To Cluster *
-                                        </label>
-                                        <select
-                                            value={selectedExistingUserId}
-                                            onChange={(e) => {
-                                                const uid = e.target.value;
-                                                setSelectedExistingUserId(uid);
-                                                const found = users.find(u => String(u.id || u._id) === String(uid));
-                                                if (found) {
-                                                    setProvisioningFormData(prev => ({
-                                                        ...prev,
-                                                        name: found.name,
-                                                        email: found.email,
-                                                        phone: found.phone || "",
-                                                        department_id: found.department_id ? String(found.department_id) : prev.department_id,
-                                                        role_id: found.role_id ? String(found.role_id) : prev.role_id,
-                                                    }));
-                                                    if (found.warehouse_id) setAssignedWarehouseId(found.warehouse_id);
-                                                    if (found.state_name) setAssignedStateName(found.state_name);
-                                                    if (found.cluster_id) setAssignedClusterId(found.cluster_id);
-                                                }
-                                            }}
-                                            className="w-full py-2.5 px-3 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-bold"
-                                        >
-                                            <option value="">-- Choose Existing Staff Member ({users.length} available) --</option>
-                                            {users.map(u => (
-                                                <option key={u.id} value={u.id}>
-                                                    {u.name} ({u.email}) - {u.role_name || u.department_name || 'Staff'} {u.cluster_name ? `[Current: ${u.cluster_name}]` : '[Unassigned Cluster]'}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        {selectedExistingUserId && (
-                                            <div className="text-[11px] text-text-secondary flex flex-wrap gap-4 font-semibold pt-1">
-                                                <span>Department: <b className="text-text-primary">{departments.find(d => String(d.id || d._id) === String(provisioningFormData.department_id))?.name || 'Assigned'}</b></span>
-                                                <span>Assigned Warehouse: <b className="text-text-primary">{assignedWarehouseId ? (liveWarehouses.find(w => String(w._id || w.id) === String(assignedWarehouseId))?.name || 'Assigned') : 'None'}</b></span>
-                                                <span>Assigned Cluster: <b className="text-text-primary">{assignedClusterId ? (liveClusters.find(c => String(c._id || c.id) === String(assignedClusterId))?.cluster_name || 'None') : 'None'}</b></span>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="md:col-span-1">
-                                            <Dropdown
-                                                label="Admin Tier"
-                                                options={levels.map(l => ({ value: l.id, text: <span className="uppercase font-bold text-[10px]">{l.name}</span> }))}
-                                                value={provisioningLevel}
-                                                onChange={v => {
-                                                    setProvisioningLevel(v);
-                                                    setSelectedCountries([]);
-                                                    setSelectedStates([]);
-                                                    setSelectedClusters([]);
-                                                    setSelectedDistricts([]);
-                                                    setProvisioningScope({ country: "", state: "", cluster: "", district: "", urban_city: "", rural_city: "" });
-                                                    setProvisioningFormData(p => ({ ...p, scope_ids: [] }));
-                                                }}
-                                            />
-                                        </div>
-                                        <div className="md:col-span-1">
-                                            <CustomInput
-                                                label="Full Legal Name"
-                                                placeholder="Alexander Pierce"
-                                                value={provisioningFormData.name}
-                                                onChange={e => setProvisioningFormData(p => ({ ...p, name: e.target.value }))}
-                                                leftIcon={<FiUser />}
-                                                disabled={provisioningMode === "existing" && !editId}
-                                            />
-                                        </div>
-                                        <div className="md:col-span-1">
-                                            <CustomInput
-                                                label="Corporate Email"
-                                                type="email"
-                                                placeholder="alex@solarkits.com"
-                                                value={provisioningFormData.email}
-                                                onChange={e => setProvisioningFormData(p => ({ ...p, email: e.target.value }))}
-                                                leftIcon={<HiMail />}
-                                                disabled={provisioningMode === "existing" && !editId}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Warehouse - State - Cluster Operational Assignment (As per Boss's Directive & Screenshot) */}
-                                    <div className="p-4 bg-surface-hover/40 border-2 border-primary/20 rounded-xl space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <FaWarehouse className="text-primary" size={14} />
-                                            <h3 className="text-xs font-black text-text-primary uppercase tracking-wider">
-                                                Operational Assignment (Warehouse ➔ State ➔ Franchisee Cluster)
-                                            </h3>
-                                        </div>
-                                        <p className="text-[11px] text-text-muted">
-                                            Assign this user to a warehouse and cluster so that orders in this cluster can be handled and unlocked for dispatch.
-                                        </p>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
-                                            <div>
-                                                <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
-                                                    Assigned Warehouse *
-                                                </label>
-                                                <select
-                                                    value={assignedWarehouseId}
-                                                    onChange={(e) => {
-                                                        const wid = e.target.value;
-                                                        setAssignedWarehouseId(wid);
-                                                        const foundWh = liveWarehouses.find(w => String(w._id || w.id) === String(wid));
-                                                        if (foundWh) {
-                                                            const whState = foundWh.state || foundWh.level_1?.name;
-                                                            if (whState) {
-                                                                setAssignedStateName(whState);
-                                                            }
-                                                        }
-                                                    }}
-                                                    className="w-full py-2 px-2.5 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-medium"
-                                                >
-                                                    <option value="">-- Select Warehouse ({liveWarehouses.length}) --</option>
-                                                    {liveWarehouses.map(w => (
-                                                        <option key={w._id || w.id} value={w._id || w.id}>
-                                                            {w.name || w.warehouse_name || `Warehouse ${w.id}`} {w.state ? `(${w.state})` : ''}
-                                                        </option>
-                                                    ))}
-                                                </select>
+                                    <div className="space-y-5">
+                                        {/* Target Cluster Info Box */}
+                                        <div className="p-4 bg-amber-500/10 border-2 border-amber-500/30 rounded-xl space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <FaWarehouse className="text-amber-600" size={16} />
+                                                    <h3 className="text-xs font-black text-text-primary uppercase tracking-wider">
+                                                        Target Franchisee Cluster Operational Assignment
+                                                    </h3>
+                                                </div>
+                                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700">
+                                                    {assignedClusterId ? "Target Cluster Selected" : "Select Cluster to Assign"}
+                                                </span>
                                             </div>
 
-                                            <div>
-                                                <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
-                                                    Serviced State *
-                                                </label>
-                                                <select
-                                                    value={assignedStateName}
-                                                    onChange={(e) => {
-                                                        setAssignedStateName(e.target.value);
-                                                        setAssignedClusterId("");
-                                                    }}
-                                                    className="w-full py-2 px-2.5 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-medium"
-                                                >
-                                                    <option value="">-- Select State --</option>
-                                                    {INDIAN_STATES.map(s => (
-                                                        <option key={s} value={s}>{s}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-
-                                            <div>
-                                                <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
-                                                    Franchisee Cluster * {loadingClusters && <span className="text-primary font-normal text-[9px]">(Loading...)</span>}
-                                                </label>
-                                                <select
-                                                    value={assignedClusterId}
-                                                    onChange={(e) => {
-                                                        const cid = e.target.value;
-                                                        setAssignedClusterId(cid);
-                                                        if (cid) {
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+                                                <div>
+                                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
+                                                        Franchisee Cluster *
+                                                    </label>
+                                                    <select
+                                                        value={assignedClusterId}
+                                                        onChange={(e) => {
+                                                            const cid = e.target.value;
+                                                            setAssignedClusterId(cid);
                                                             const clu = liveClusters.find(c => String(c._id || c.id) === String(cid));
-                                                            if (clu && clu.state_name && !assignedStateName) {
-                                                                setAssignedStateName(clu.state_name);
+                                                            if (clu) {
+                                                                const cluState = clu.state_name || "";
+                                                                setAssignedStateName(cluState);
+                                                                const matchingWh = liveWarehouses.find(w => 
+                                                                    (w.serviced_cluster_ids && w.serviced_cluster_ids.some(cId => String(cId) === String(cid))) ||
+                                                                    (w.state || w.level_1?.name || '').toLowerCase() === cluState.toLowerCase()
+                                                                );
+                                                                if (matchingWh) setAssignedWarehouseId(matchingWh._id || matchingWh.id);
+                                                                else setAssignedWarehouseId("");
                                                             }
-                                                        }
-                                                    }}
-                                                    className="w-full py-2 px-2.5 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-medium"
-                                                >
-                                                    <option value="">
-                                                        {assignedStateName
-                                                            ? `-- Select Cluster in ${assignedStateName} --`
-                                                            : `-- Select Cluster (${liveClusters.length}) --`}
-                                                    </option>
-                                                    {liveClusters
-                                                        .filter(c => !assignedStateName || (c.state_name && c.state_name.toLowerCase() === assignedStateName.toLowerCase()))
-                                                        .map(c => {
+                                                        }}
+                                                        className="w-full py-2.5 px-3 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-bold"
+                                                    >
+                                                        <option value="">-- Choose Cluster ({liveClusters.length}) --</option>
+                                                        {liveClusters.map(c => {
                                                             const isStaffed = c.assigned_staff_users && c.assigned_staff_users.length > 0 && c.staffing_status !== 'unassigned';
                                                             return (
                                                                 <option key={c._id || c.id} value={c._id || c.id}>
-                                                                    {c.cluster_name || c.name} {isStaffed ? '✓ (Staffed)' : '⚠️ (Unstaffed)'}
+                                                                    {c.cluster_name || c.name} ({c.state_name || 'All States'}) {isStaffed ? '✓ (Staffed)' : '⚠️ (Unstaffed)'}
                                                                 </option>
                                                             );
-                                                        })
-                                                    }
-                                                </select>
+                                                        })}
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
+                                                        Serviced State (Locked from Cluster)
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        readOnly
+                                                        value={assignedStateName || "Derived from Cluster"}
+                                                        className="w-full py-2.5 px-3 text-xs bg-surface-hover/60 border border-border/80 rounded-lg text-text-primary font-bold cursor-not-allowed"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
+                                                        Servicing Warehouse (Linked to Cluster)
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        readOnly
+                                                        value={
+                                                            assignedWarehouseId
+                                                                ? (liveWarehouses.find(w => String(w._id || w.id) === String(assignedWarehouseId))?.name || "Assigned Warehouse")
+                                                                : "Auto-resolved from Cluster State"
+                                                        }
+                                                        className="w-full py-2.5 px-3 text-xs bg-surface-hover/60 border border-border/80 rounded-lg text-text-primary font-bold cursor-not-allowed"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <DropdownWithSearchInput
-                                            label="Country Code"
-                                            options={provisioningCountries.map(c => ({
-                                                value: c.id || c._id,
-                                                text: <span className="flex items-center gap-2"><ReactCountryFlag countryCode={c.iso2 || c.code || ""} svg /> {c.name}<span className="font-bold ml-1">({c.phone_code})</span></span>
-                                            }))}
-                                            value={provisioningFormData.country_id}
-                                            onChange={v => {
-                                                const country = provisioningCountries.find(c => (c.id || c._id).toString() === v.toString());
-                                                setProvisioningFormData(p => ({
-                                                    ...p,
-                                                    country_id: v,
-                                                    phone_code: country?.phone_code || "",
-                                                    min_phone_length: country?.min_phone_length,
-                                                    max_phone_length: country?.max_phone_length
-                                                }));
-                                            }}
-                                        />
-                                        <div className="md:col-span-2">
-                                            <CustomInput
-                                                label="Mobile Contact"
-                                                placeholder="9876543210"
-                                                value={provisioningFormData.phone}
-                                                onChange={e => setProvisioningFormData(p => ({ ...p, phone: e.target.value.replace(/\D/g, "") }))}
-                                                leftIcon={<HiPhone />}
-                                                prefix={provisioningFormData.phone_code}
-                                            />
+                                        {/* Step 2: Choose Existing Staff Member filtered by State */}
+                                        <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-xs font-black text-primary uppercase tracking-wider block">
+                                                    Select Existing Staff Member To Assign To Cluster *
+                                                </label>
+                                                {assignedStateName && (
+                                                    <span className="text-[10px] font-bold text-text-secondary bg-surface px-2.5 py-0.5 rounded-md border border-border shadow-xs">
+                                                        Filtered by State: <b className="text-primary">{assignedStateName}</b>
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <select
+                                                value={selectedExistingUserId}
+                                                onChange={(e) => {
+                                                    const uid = e.target.value;
+                                                    setSelectedExistingUserId(uid);
+                                                    const found = users.find(u => String(u.id || u._id) === String(uid));
+                                                    if (found) {
+                                                        setProvisioningFormData(prev => ({
+                                                            ...prev,
+                                                            name: found.name,
+                                                            email: found.email,
+                                                            phone: found.phone || "",
+                                                            department_id: found.department_id ? String(found.department_id) : prev.department_id,
+                                                            role_id: found.role_id ? String(found.role_id) : prev.role_id,
+                                                            state_name: found.state_name || assignedStateName || prev.state_name
+                                                        }));
+                                                    }
+                                                }}
+                                                className="w-full py-2.5 px-3 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-bold"
+                                            >
+                                                <option value="">
+                                                    {assignedStateName
+                                                        ? `-- Choose Staff Member for ${assignedStateName} (${stateFilteredExistingUsers.length} available) --`
+                                                        : `-- Choose Existing Staff Member (${users.length} available) --`}
+                                                </option>
+                                                {stateFilteredExistingUsers.map(u => {
+                                                    const uLevel = (u.level_name || 'Staff').toUpperCase();
+                                                    const isHigherTier = (u.level_name?.toLowerCase() === 'global' || u.level_name?.toLowerCase() === 'country' || !u.state_name || u.state_name === 'All' || u.state_name === 'India');
+                                                    return (
+                                                        <option key={u.id} value={u.id}>
+                                                            {u.name} ({u.email}) - {u.role_name || u.department_name || 'Staff'} [{uLevel}] {isHigherTier ? '(Global / All States Authority)' : `(${u.state_name})`} {u.cluster_name ? `[Current: ${u.cluster_name}]` : ''}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+
+                                            {stateFilteredExistingUsers.length === 0 && assignedStateName && (
+                                                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 flex items-center justify-between">
+                                                    <span>No staff members found for <b>{assignedStateName}</b> or with Country/Global authority.</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setProvisioningMode("new");
+                                                            setProvisioningFormData(prev => ({ ...prev, state_name: assignedStateName }));
+                                                        }}
+                                                        className="text-xs font-bold underline hover:text-amber-900 cursor-pointer"
+                                                    >
+                                                        Create New User for {assignedStateName}
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {selectedExistingUserId && (
+                                                <div className="text-[11px] text-text-secondary flex flex-wrap gap-4 font-semibold pt-1">
+                                                    <span>Department: <b className="text-text-primary">{departments.find(d => String(d.id || d._id) === String(provisioningFormData.department_id))?.name || 'Assigned'}</b></span>
+                                                    <span>Role: <b className="text-text-primary">{provisioningRoles.find(r => String(r.id || r._id) === String(provisioningFormData.role_id))?.name || 'Staff'}</b></span>
+                                                    <span>State: <b className="text-text-primary">{assignedStateName || 'State Assigned'}</b></span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
+                                )}
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border">
-                                        <Dropdown
-                                            label="Department"
-                                            options={filteredDepartmentsOptions}
-                                            value={provisioningFormData.department_id}
-                                            onChange={v => setProvisioningFormData(p => ({ ...p, department_id: v, role_id: "" }))}
-                                            disabled={filteredDepartmentsOptions.length === 0}
-                                            placeholder={
-                                                filteredDepartmentsOptions.length === 0
-                                                    ? (provisioningLevelName === "global" ? "No global departments available" : "Select boundaries first")
-                                                    : "Select Department"
-                                            }
-                                        />
-
-                                        {provisioningLevelName === "country" && (
-                                            <div className="flex flex-col justify-center mt-4 md:mt-0 pt-2 md:pt-0">
-                                                <ToggleButton
-                                                    label="Universal Country-level Role"
-                                                    checked={isUniversalCountryRole}
-                                                    onChange={(checked) => {
-                                                        setIsUniversalCountryRole(checked);
-                                                        setProvisioningFormData(p => ({ ...p, role_id: "", scope_ids: [] }));
+                                {/* CASE 2: CREATE NEW USER OR EDIT USER */}
+                                {(provisioningMode === "new" || editId) && (
+                                    <div className="space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="md:col-span-1">
+                                                <Dropdown
+                                                    label="Operational Scope"
+                                                    options={levels.map(l => ({ value: l.id, text: <span className="uppercase font-bold text-[10px]">{l.name} LEVEL</span> }))}
+                                                    value={provisioningLevel}
+                                                    onChange={v => {
+                                                        setProvisioningLevel(v);
                                                         setSelectedCountries([]);
                                                         setSelectedStates([]);
                                                         setSelectedClusters([]);
                                                         setSelectedDistricts([]);
-                                                        setProvisioningScope(p => ({ ...p, country: "" }));
+                                                        setProvisioningScope({ country: "", state: "", cluster: "", district: "", urban_city: "", rural_city: "" });
+                                                        setProvisioningFormData(p => ({ ...p, scope_ids: [] }));
                                                     }}
                                                 />
                                             </div>
-                                        )}
+                                            <div className="md:col-span-1">
+                                                <CustomInput
+                                                    label="Full Legal Name"
+                                                    placeholder="Alexander Pierce"
+                                                    value={provisioningFormData.name}
+                                                    onChange={e => setProvisioningFormData(p => ({ ...p, name: e.target.value }))}
+                                                    leftIcon={<FiUser />}
+                                                />
+                                            </div>
+                                            <div className="md:col-span-1">
+                                                <CustomInput
+                                                    label="Corporate Email"
+                                                    type="email"
+                                                    placeholder="alex@solarkits.com"
+                                                    value={provisioningFormData.email}
+                                                    onChange={e => setProvisioningFormData(p => ({ ...p, email: e.target.value }))}
+                                                    leftIcon={<HiMail />}
+                                                />
+                                            </div>
+                                        </div>
 
-                                        {provisioningLevelName !== "country" && (
-                                            <Dropdown
-                                                label="Assigned Role"
-                                                options={filteredRoles.map(r => ({ value: r.id, text: r.name }))}
-                                                value={provisioningFormData.role_id}
-                                                disabled={!provisioningFormData.department_id}
-                                                onChange={v => setProvisioningFormData(p => ({ ...p, role_id: v }))}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            {/* Operating State - If State / Cluster / District tier */}
+                                            {["state", "cluster", "district", "urban city", "rural city"].includes(provisioningLevelName) && (
+                                                <div>
+                                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
+                                                        User Operating State *
+                                                    </label>
+                                                    <select
+                                                        value={provisioningFormData.state_name || ""}
+                                                        onChange={(e) => setProvisioningFormData(p => ({ ...p, state_name: e.target.value, cluster_id: "", cluster_name: "" }))}
+                                                        className="w-full py-2.5 px-3 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-bold"
+                                                    >
+                                                        <option value="">-- Select State for User --</option>
+                                                        {INDIAN_STATES.map(s => (
+                                                            <option key={s} value={s}>{s}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
+
+                                            {/* Franchisee Cluster - Only if Cluster / District tier */}
+                                            {["cluster", "district", "urban city", "rural city"].includes(provisioningLevelName) && (
+                                                <div>
+                                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
+                                                        Franchisee Cluster *
+                                                    </label>
+                                                    <select
+                                                        value={provisioningFormData.cluster_id || ""}
+                                                        onChange={(e) => {
+                                                            const cid = e.target.value;
+                                                            const clu = liveClusters.find(c => String(c._id || c.id) === String(cid));
+                                                            setProvisioningFormData(p => ({
+                                                                ...p,
+                                                                cluster_id: cid,
+                                                                cluster_name: clu ? (clu.cluster_name || clu.name) : ""
+                                                            }));
+                                                        }}
+                                                        disabled={!provisioningFormData.state_name}
+                                                        className="w-full py-2.5 px-3 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-bold disabled:opacity-50"
+                                                    >
+                                                        <option value="">
+                                                            {provisioningFormData.state_name ? `-- Select Cluster in ${provisioningFormData.state_name} --` : '-- Select State First --'}
+                                                        </option>
+                                                        {liveClusters
+                                                            .filter(c => !provisioningFormData.state_name || (c.state_name && c.state_name.toLowerCase() === provisioningFormData.state_name.toLowerCase()))
+                                                            .map(c => (
+                                                                <option key={c._id || c.id} value={c._id || c.id}>
+                                                                    {c.cluster_name || c.name}
+                                                                </option>
+                                                            ))}
+                                                    </select>
+                                                </div>
+                                            )}
+
+                                            <DropdownWithSearchInput
+                                                label="Country Code"
+                                                options={provisioningCountries.map(c => ({
+                                                    value: c.id || c._id,
+                                                    text: <span className="flex items-center gap-2"><ReactCountryFlag countryCode={c.iso2 || c.code || ""} svg /> {c.name}<span className="font-bold ml-1">({c.phone_code})</span></span>
+                                                }))}
+                                                value={provisioningFormData.country_id}
+                                                onChange={v => {
+                                                    const country = provisioningCountries.find(c => (c.id || c._id).toString() === v.toString());
+                                                    setProvisioningFormData(p => ({
+                                                        ...p,
+                                                        country_id: v,
+                                                        phone_code: country?.phone_code || "",
+                                                        min_phone_length: country?.min_phone_length,
+                                                        max_phone_length: country?.max_phone_length
+                                                    }));
+                                                }}
                                             />
-                                        )}
-                                    </div>
+                                            <div>
+                                                <CustomInput
+                                                    label="Mobile Contact"
+                                                    placeholder="9876543210"
+                                                    value={provisioningFormData.phone}
+                                                    onChange={e => setProvisioningFormData(p => ({ ...p, phone: e.target.value.replace(/\D/g, "") }))}
+                                                    leftIcon={<HiPhone />}
+                                                    prefix={provisioningFormData.phone_code}
+                                                />
+                                            </div>
+                                        </div>
 
-                                    {provisioningLevelName === "country" && (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                                            {!isUniversalCountryRole ? (
-                                                <>
-                                                    <DropdownWithSearchInput
-                                                        label="Select Scope Country First"
-                                                        options={availableCountriesForDept.map(c => ({ value: c.id, text: c.name }))}
-                                                        value={selectedCountries[0] || ""}
-                                                        onChange={v => {
-                                                            setSelectedCountries(v ? [v] : []);
+                                        {/* Helper Banners for Scope Tiers */}
+                                        {provisioningLevelName === "global" && (
+                                            <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-center gap-2.5 text-xs text-purple-700">
+                                                <FiShield className="shrink-0 text-purple-600" size={16} />
+                                                <span><strong>Global Scope:</strong> Full authority across all geographic jurisdictions, countries, and clusters worldwide.</span>
+                                            </div>
+                                        )}
+
+                                        {provisioningLevelName === "country" && (
+                                            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center gap-2.5 text-xs text-blue-700">
+                                                <ReactCountryFlag countryCode="IN" svg className="text-base shrink-0" />
+                                                <span><strong>Country Scope (India):</strong> By default, this staff member handles operations across the entire country (all states, warehouses & franchisee clusters).</span>
+                                            </div>
+                                        )}
+
+                                        {provisioningLevelName === "state" && (
+                                            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2.5 text-xs text-emerald-700">
+                                                <FaWarehouse className="shrink-0 text-emerald-600" size={14} />
+                                                <span><strong>State Scope:</strong> {provisioningFormData.state_name ? `By default, this staff member handles operations, clusters and warehouses under ${provisioningFormData.state_name}.` : 'Please select an operating state above.'}</span>
+                                            </div>
+                                        )}
+
+                                        {provisioningLevelName === "cluster" && (
+                                            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2.5 text-xs text-amber-700">
+                                                <HiLocationMarker className="shrink-0 text-amber-600" size={16} />
+                                                <span><strong>Cluster Scope:</strong> By default, all districts and territories inside this franchisee cluster are handled by this staff member.</span>
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border">
+                                            <Dropdown
+                                                label="Department"
+                                                options={filteredDepartmentsOptions}
+                                                value={provisioningFormData.department_id}
+                                                onChange={v => setProvisioningFormData(p => ({ ...p, department_id: v, role_id: "" }))}
+                                                disabled={filteredDepartmentsOptions.length === 0}
+                                                placeholder={
+                                                    filteredDepartmentsOptions.length === 0
+                                                        ? (provisioningLevelName === "global" ? "No global departments available" : "Select boundaries first")
+                                                        : "Select Department"
+                                                }
+                                            />
+
+                                            {provisioningLevelName === "country" && (
+                                                <div className="flex flex-col justify-center mt-4 md:mt-0 pt-2 md:pt-0">
+                                                    <ToggleButton
+                                                        label="Universal Country-level Role"
+                                                        checked={isUniversalCountryRole}
+                                                        onChange={(checked) => {
+                                                            setIsUniversalCountryRole(checked);
+                                                            setProvisioningFormData(p => ({ ...p, role_id: "", scope_ids: [] }));
+                                                            setSelectedCountries([]);
+                                                            setSelectedStates([]);
+                                                            setSelectedClusters([]);
+                                                            setSelectedDistricts([]);
+                                                            setProvisioningScope(p => ({ ...p, country: "" }));
                                                         }}
                                                     />
-                                                    <Dropdown
-                                                        label="Assigned Role"
-                                                        options={filteredRoles.map(r => ({ value: r.id, text: r.name }))}
-                                                        value={provisioningFormData.role_id}
-                                                        disabled={selectedCountries.length === 0}
-                                                        onChange={v => setProvisioningFormData(p => ({ ...p, role_id: v }))}
-                                                    />
-                                                </>
-                                            ) : (
+                                                </div>
+                                            )}
+
+                                            {provisioningLevelName !== "country" && (
                                                 <Dropdown
                                                     label="Assigned Role"
                                                     options={filteredRoles.map(r => ({ value: r.id, text: r.name }))}
@@ -1831,7 +1957,113 @@ export default function CreateUsers() {
                                                 />
                                             )}
                                         </div>
-                                    )}
+
+                                        {provisioningLevelName === "country" && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                                                {!isUniversalCountryRole ? (
+                                                    <>
+                                                        <DropdownWithSearchInput
+                                                            label="Select Scope Country First"
+                                                            options={availableCountriesForDept.map(c => ({ value: c.id, text: c.name }))}
+                                                            value={selectedCountries[0] || ""}
+                                                            onChange={v => {
+                                                                setSelectedCountries(v ? [v] : []);
+                                                            }}
+                                                        />
+                                                        <Dropdown
+                                                            label="Assigned Role"
+                                                            options={filteredRoles.map(r => ({ value: r.id, text: r.name }))}
+                                                            value={provisioningFormData.role_id}
+                                                            disabled={selectedCountries.length === 0}
+                                                            onChange={v => setProvisioningFormData(p => ({ ...p, role_id: v }))}
+                                                        />
+                                                    </>
+                                                ) : (
+                                                    <Dropdown
+                                                        label="Assigned Role"
+                                                        options={filteredRoles.map(r => ({ value: r.id, text: r.name }))}
+                                                        value={provisioningFormData.role_id}
+                                                        disabled={!provisioningFormData.department_id}
+                                                        onChange={v => setProvisioningFormData(p => ({ ...p, role_id: v }))}
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Dynamic Role-Based Access Control (RBAC) Preview Card */}
+                                        {provisioningFormData.role_id && (
+                                            <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <FiShield className="text-primary" size={16} />
+                                                        <h4 className="text-xs font-black text-text-primary uppercase tracking-wider">
+                                                            Role-Based Access Control (RBAC) Permissions & Panels
+                                                        </h4>
+                                                    </div>
+                                                    {loadingRoleRbac ? (
+                                                        <span className="text-[10px] text-primary font-bold animate-pulse">Syncing RBAC config...</span>
+                                                    ) : (
+                                                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                                            Role Permissions Inherited
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <p className="text-[11px] text-text-muted">
+                                                    The portal panels and functional modules below are dynamically inherited from the <strong>{provisioningRoles.find(r => String(r.id || r._id) === String(provisioningFormData.role_id))?.name || 'Selected'}</strong> role as configured in Role-Based Access Control settings.
+                                                </p>
+
+                                                {roleRbacDetails && (
+                                                    <div className="space-y-3 pt-1">
+                                                        {/* Allowed Panels */}
+                                                        <div>
+                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary block mb-1.5">
+                                                                Authorized Portal Panels ({roleRbacDetails.panels?.length || 0})
+                                                            </span>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {roleRbacDetails.panels && roleRbacDetails.panels.length > 0 ? (
+                                                                    roleRbacDetails.panels.map(p => (
+                                                                        <span key={p.id || p._id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-surface border border-primary/30 text-primary shadow-xs">
+                                                                            <FiGrid size={12} />
+                                                                            {p.name}
+                                                                        </span>
+                                                                    ))
+                                                                ) : (
+                                                                    <span className="text-xs text-text-muted italic">No specific panels assigned to this role yet.</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Allowed Modules */}
+                                                        {roleRbacDetails.assigned_modules && roleRbacDetails.assigned_modules.length > 0 && (
+                                                            <div>
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary block mb-1.5">
+                                                                    Permitted Modules ({roleRbacDetails.assigned_modules.length})
+                                                                </span>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                                                    {roleRbacDetails.assigned_modules.map((am, idx) => (
+                                                                        <div key={idx} className="p-2 rounded-lg bg-surface border border-border/70 flex items-center justify-between text-xs">
+                                                                            <span className="font-semibold text-text-primary truncate" title={am.module_id?.name}>
+                                                                                {am.module_id?.name || 'Module'}
+                                                                            </span>
+                                                                            <div className="flex items-center gap-1 shrink-0">
+                                                                                {(am.actions || []).map(act => (
+                                                                                    <span key={act} className="text-[9px] font-mono font-bold uppercase px-1 rounded bg-bg-light border border-border/60 text-text-secondary">
+                                                                                        {act}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                     {/* Primary Action Button directly inside Identity Credentials Form */}
                                     <div className="pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-primary/5 p-4 rounded-xl border border-primary/20 shadow-xs">
@@ -1857,143 +2089,6 @@ export default function CreateUsers() {
                                         </Button>
                                     </div>
                                 </div>
-                            </div>
-
-                            {(() => {
-                                const levelName = levels.find(l => (l.id || l._id)?.toString() === provisioningLevel?.toString())?.name?.toLowerCase() || "";
-                                if (levelName === "global") return null;
-
-                                return (
-                                    <div className="card p-6 space-y-6">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                                                <HiLocationMarker size={20} />
-                                            </div>
-                                            <h2 className="font-bold text-text-primary uppercase tracking-wider text-sm">Regional Jurisdictions</h2>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {/* Country tier */}
-                                            <div>
-                                                {(() => {
-                                                    const isMulti = levelName === "country" && isUniversalCountryRole;
-                                                    const options = levelName === "country"
-                                                        ? availableCountriesForDept.map(c => ({ value: c.id, text: c.name }))
-                                                        : activeCountries.map(c => ({
-                                                            value: c.id,
-                                                            text: (
-                                                                <span className="flex items-center gap-2 font-bold">
-                                                                    <ReactCountryFlag countryCode={c.iso2 || ""} svg /> {c.name}
-                                                                </span>
-                                                            )
-                                                        }));
-
-                                                    return isMulti ? (
-                                                        <MultiSelectDropdownWithSearchInput
-                                                            label="Countries"
-                                                            options={options}
-                                                            values={selectedCountries}
-                                                            onChange={setSelectedCountries}
-                                                            placeholder="Select countries..."
-                                                        />
-                                                    ) : (
-                                                        <DropdownWithSearchInput
-                                                            label="Country"
-                                                            options={options}
-                                                            value={selectedCountries[0] || ""}
-                                                            onChange={v => setSelectedCountries(v ? [v] : [])}
-                                                            placeholder="Select a country..."
-                                                        />
-                                                    );
-                                                })()}
-                                            </div>
-
-                                            {/* State tier */}
-                                            {["state", "cluster", "district", "urban city", "rural city"].includes(levelName) && (
-                                                <div>
-                                                    {(() => {
-                                                        const isMulti = levelName === "country" || levelName === "state";
-                                                        const options = geoData.provisioning.states.map(s => ({ value: s.id, text: s.name }));
-                                                        const isDisabled = selectedCountries.length === 0;
-
-                                                        return isMulti ? (
-                                                            <MultiSelectDropdownWithSearchInput
-                                                                label="States"
-                                                                options={options}
-                                                                values={selectedStates}
-                                                                onChange={setSelectedStates}
-                                                                placeholder={isDisabled ? "Select a country first" : "Select states..."}
-                                                                disabled={isDisabled}
-                                                            />
-                                                        ) : (
-                                                            <DropdownWithSearchInput
-                                                                label="State"
-                                                                options={options}
-                                                                value={selectedStates[0] || ""}
-                                                                onChange={v => setSelectedStates(v ? [v] : [])}
-                                                                placeholder={isDisabled ? "Select a country first" : "Select a state..."}
-                                                                disabled={isDisabled}
-                                                            />
-                                                        );
-                                                    })()}
-                                                </div>
-                                            )}
-
-                                            {/* Cluster tier */}
-                                            {["state", "cluster", "district", "urban city", "rural city"].includes(levelName) && (
-                                                <div>
-                                                    {(() => {
-                                                        const isMulti = levelName === "country" || levelName === "state" || levelName === "cluster";
-                                                        const options = geoData.provisioning.clusters.map(c => ({ value: c.id, text: c.name }));
-                                                        const isDisabled = selectedStates.length === 0;
-
-                                                        return isMulti ? (
-                                                            <MultiSelectDropdownWithSearchInput
-                                                                label="Clusters"
-                                                                options={options}
-                                                                values={selectedClusters}
-                                                                onChange={setSelectedClusters}
-                                                                placeholder={isDisabled ? "Select a state first" : "Select clusters..."}
-                                                                disabled={isDisabled}
-                                                            />
-                                                        ) : (
-                                                            <DropdownWithSearchInput
-                                                                label="Cluster"
-                                                                options={options}
-                                                                value={selectedClusters[0] || ""}
-                                                                onChange={v => setSelectedClusters(v ? [v] : [])}
-                                                                placeholder={isDisabled ? "Select a state first" : "Select a cluster..."}
-                                                                disabled={isDisabled}
-                                                            />
-                                                        );
-                                                    })()}
-                                                </div>
-                                            )}
-
-                                            {/* District tier */}
-                                            {["state", "cluster", "district", "urban city", "rural city"].includes(levelName) && (
-                                                <div>
-                                                    {(() => {
-                                                        const options = geoData.provisioning.districts.map(d => ({ value: d.id, text: d.name }));
-                                                        const isDisabled = selectedClusters.length === 0;
-
-                                                        return (
-                                                            <MultiSelectDropdownWithSearchInput
-                                                                label="Districts"
-                                                                options={options}
-                                                                values={selectedDistricts}
-                                                                onChange={setSelectedDistricts}
-                                                                placeholder={isDisabled ? "Select a cluster first" : "Select districts..."}
-                                                                disabled={isDisabled}
-                                                            />
-                                                        );
-                                                    })()}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })()}
 
                             {(() => {
                                 const selectedRoleObj = provisioningRoles.find(r => (r.id || r._id)?.toString() === provisioningFormData.role_id?.toString());
