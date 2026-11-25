@@ -1,10 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-<<<<<<< HEAD
 import { useNavigate } from "react-router-dom";
-=======
-import { Link, useNavigate } from "react-router-dom";
->>>>>>> origin/main
 import axios from "axios";
 import axiosInstance from "../../utils/axiosInstance";
 import {
@@ -304,7 +300,6 @@ export default function Footer({ footerConfig }) {
                         </p>
                       </div>
 
-<<<<<<< HEAD
                       {/* Pincode or Quantity (Optional) */}
  
                       {/* <div className="sm:col-span-2">
@@ -321,9 +316,6 @@ export default function Footer({ footerConfig }) {
                         />
                       </div> */}
  
-=======
-
->>>>>>> origin/main
                     </div>
 
                     <div className="mt-3.5 flex items-center justify-between gap-3 pt-1 border-t border-white/10">
@@ -358,11 +350,7 @@ export default function Footer({ footerConfig }) {
 
         {/* Main footer: essential sections only */}
         <div className="grid gap-10 py-12 md:grid-cols-2 lg:grid-cols-12 lg:gap-8 lg:py-16">
-<<<<<<< HEAD
           <div className="lg:col-span-4">
-=======
-          <div className="lg:col-span-5">
->>>>>>> origin/main
             <div className="mb-5 inline-flex rounded-xl bg-white px-3 py-2">
               <img src={logo} alt="SolarKits" className="h-8 w-auto" />
             </div>
@@ -403,7 +391,6 @@ export default function Footer({ footerConfig }) {
             </nav>
           </div>
 
-<<<<<<< HEAD
           <div className="lg:col-span-2">
             <h4 className="mb-5 text-xs font-bold uppercase tracking-[0.18em] text-white">Legal & Policies</h4>
             <nav className="flex flex-col items-start gap-3.5">
@@ -427,9 +414,6 @@ export default function Footer({ footerConfig }) {
           </div>
 
           <div className="md:col-span-2 lg:col-span-3">
-=======
-          <div className="md:col-span-2 lg:col-span-4">
->>>>>>> origin/main
             <h4 className="text-xs font-bold uppercase tracking-[0.18em] text-white">Solar tips, once a week</h4>
             <p className="mt-3 text-sm leading-6 text-white/55">
               Useful tips, subsidy updates and offers. No spam.
@@ -454,7 +438,6 @@ export default function Footer({ footerConfig }) {
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 text-xs text-white/45 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <span>{copyright}</span>
-<<<<<<< HEAD
             <span className="hidden sm:inline text-white/20">•</span>
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -494,8 +477,6 @@ export default function Footer({ footerConfig }) {
             {['UPI', 'Visa', 'Mastercard', 'Net Banking', 'EMI'].map((method) => (
               <span key={method} className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold tracking-wide text-white/55">{method}</span>
             ))}
-=======
->>>>>>> origin/main
           </div>
         </div>
       </div>

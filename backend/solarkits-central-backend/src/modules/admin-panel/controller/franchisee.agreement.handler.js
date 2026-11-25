@@ -33,11 +33,7 @@ const evaluateAgreementStatus = (agreement) => {
  */
 exports.list_agreements = async (req, res) => {
   try {
-<<<<<<< HEAD
-    const { status, search, franchisee_id, cluster_id } = req.query;
-=======
     const { status, search, franchisee_id, cluster_id, agreement_type } = req.query;
->>>>>>> origin/main
 
     const query = { deleted_at: null };
     if (franchisee_id) query.franchisee_id = franchisee_id;
@@ -49,25 +45,16 @@ exports.list_agreements = async (req, res) => {
         { agreement_number: { $regex: s, $options: 'i' } },
         { title: { $regex: s, $options: 'i' } },
         { signer_name: { $regex: s, $options: 'i' } },
-<<<<<<< HEAD
-=======
         { agreement_type: { $regex: s, $options: 'i' } },
         { franchise_type: { $regex: s, $options: 'i' } },
->>>>>>> origin/main
       ];
     }
 
     const agreements = await FranchiseeAgreement.find(query)
-<<<<<<< HEAD
-      .populate('franchisee_id', 'business_name mobile email store_category gst_number')
-      .populate('cluster_id', 'cluster_name cluster_code state_name district_names setup_fee_config')
-      .populate('assigned_bde_id', 'full_name mobile_number email bde_id')
-=======
       .populate('franchisee_id', 'business_name mobile email store_category gst_number franchisee_subtype_id plan_subscription_id')
       .populate('cluster_id', 'cluster_name cluster_code state_name district_names setup_fee_config')
       .populate('assigned_bde_id', 'full_name mobile_number email bde_id')
       .populate('store_type_id', 'name slug territory_level store_category')
->>>>>>> origin/main
       .sort({ created_at: -1 })
       .lean();
 
@@ -77,12 +64,9 @@ exports.list_agreements = async (req, res) => {
       return {
         ...ag,
         computed_status: computedStatus,
-<<<<<<< HEAD
-=======
         agreement_type: ag.agreement_type || 'District Franchise Agreement',
         agreement_type_key: ag.agreement_type_key || 'district_franchise_agreement',
         franchise_type: ag.franchise_type || (ag.franchisee_id?.store_category === 'company_store' ? 'Company Store' : 'District Franchise Store'),
->>>>>>> origin/main
       };
     });
 
@@ -91,8 +75,6 @@ exports.list_agreements = async (req, res) => {
       filtered = processed.filter(a => a.computed_status === status || a.status === status);
     }
 
-<<<<<<< HEAD
-=======
     if (agreement_type && agreement_type !== 'all') {
       filtered = filtered.filter(a =>
         a.agreement_type === agreement_type ||
@@ -101,7 +83,6 @@ exports.list_agreements = async (req, res) => {
       );
     }
 
->>>>>>> origin/main
     // Status counts for tabs
     const counts = {
       all: processed.length,
@@ -134,10 +115,7 @@ exports.get_agreement_detail = async (req, res) => {
       .populate('franchisee_id')
       .populate('cluster_id')
       .populate('assigned_bde_id')
-<<<<<<< HEAD
-=======
       .populate('store_type_id')
->>>>>>> origin/main
       .populate('created_by', 'full_name email')
       .lean();
 
@@ -152,12 +130,9 @@ exports.get_agreement_detail = async (req, res) => {
       data: {
         ...agreement,
         computed_status: computedStatus,
-<<<<<<< HEAD
-=======
         agreement_type: agreement.agreement_type || 'District Franchise Agreement',
         agreement_type_key: agreement.agreement_type_key || 'district_franchise_agreement',
         franchise_type: agreement.franchise_type || (agreement.franchisee_id?.store_category === 'company_store' ? 'Company Store' : 'District Franchise Store'),
->>>>>>> origin/main
       },
     });
   } catch (err) {
@@ -185,15 +160,12 @@ exports.create_agreement = async (req, res) => {
       security_deposit,
       renewal_conditions,
       assigned_bde_id,
-<<<<<<< HEAD
-=======
       agreement_type,
       agreement_type_key,
       franchise_type,
       store_type_id,
       title,
       version,
->>>>>>> origin/main
     } = req.body;
 
     if (!franchisee_id || !cluster_id || !start_date || !end_date) {
@@ -215,8 +187,6 @@ exports.create_agreement = async (req, res) => {
       }
     }
 
-<<<<<<< HEAD
-=======
     let resolvedFranchiseType = franchise_type;
     let resolvedStoreTypeId = store_type_id || null;
     if (!resolvedFranchiseType || !resolvedStoreTypeId) {
@@ -238,7 +208,6 @@ exports.create_agreement = async (req, res) => {
     const resolvedTitle = title || `SolarKits Authorized ${resolvedAgreementType}`;
     const resolvedVersion = version || '1.0';
 
->>>>>>> origin/main
     const count = await FranchiseeAgreement.countDocuments();
     const currentYear = new Date().getFullYear();
     const agreement_number = `AGR-SKT-${currentYear}-${String(count + 1).padStart(4, '0')}`;
@@ -247,15 +216,12 @@ exports.create_agreement = async (req, res) => {
       agreement_number,
       franchisee_id,
       cluster_id,
-<<<<<<< HEAD
-=======
       title: resolvedTitle,
       version: resolvedVersion,
       agreement_type: resolvedAgreementType,
       agreement_type_key: resolvedAgreementKey,
       franchise_type: resolvedFranchiseType,
       store_type_id: resolvedStoreTypeId,
->>>>>>> origin/main
       agreement_duration_type: agreement_duration_type || '2_years',
       duration_months: duration_months || 24,
       start_date: new Date(start_date),
@@ -297,15 +263,11 @@ exports.create_agreement = async (req, res) => {
       { reseller_id: franchisee_id },
       {
         agreement_number: agreement.agreement_number,
-<<<<<<< HEAD
-        title: agreement.title || 'SolarKits Authorized Franchise Partner Agreement',
-=======
         title: agreement.title,
         agreement_type: agreement.agreement_type,
         agreement_type_key: agreement.agreement_type_key,
         franchise_type: agreement.franchise_type,
         store_type_id: agreement.store_type_id,
->>>>>>> origin/main
         document_url: final_document_url,
         pdf_storage_key: final_document_url,
         status: 'pending',

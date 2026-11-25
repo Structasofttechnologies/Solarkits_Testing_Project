@@ -327,7 +327,6 @@ export default function CreateCampaignWizard() {
     return fetchAreaKits(formData.servingWarehouses, liveKitsCatalog);
   }, [formData.servingWarehouses, liveKitsCatalog]);
 
-<<<<<<< HEAD
   // Detect if ONLY Registered EPC is selected (Registered EPCs haven't logged in yet and have no preferences)
   const isOnlyRegistered = useMemo(() => {
     return Boolean(formData.audienceGroups.registered && !formData.audienceGroups.verified && !formData.audienceGroups.buyer);
@@ -381,26 +380,6 @@ export default function CreateCampaignWizard() {
     }
   }, [isOnlyRegistered, formData.industryPreference]);
 
-=======
-  // Calculated audience count based on selected clusters & groups
-  const audienceCalculation = useMemo(() => {
-    let basePerCluster = 0;
-    if (formData.audienceGroups.registered) basePerCluster += 620;
-    if (formData.audienceGroups.verified) basePerCluster += 840;
-    if (formData.audienceGroups.buyer) basePerCluster += 350;
-
-    const clusterCount = Math.max(formData.selectedClusterIds.length, 1);
-    const rawTotal = basePerCluster * clusterCount;
-    // Deduplication overlap discount (15%)
-    const deduplicatedTotal = Math.round(rawTotal * 0.85);
-
-    return {
-      rawTotal,
-      deduplicatedTotal: deduplicatedTotal || 1200
-    };
-  }, [formData.selectedClusterIds, formData.audienceGroups]);
-
->>>>>>> origin/main
   // Projected campaign revenue based on selected kits and individual kit targets
   const selectedKitsRevenue = useMemo(() => {
     return formData.selectedKitIds.reduce((sum, kid) => {
@@ -1204,7 +1183,6 @@ export default function CreateCampaignWizard() {
                   ))}
                 </div>
 
-<<<<<<< HEAD
                 {/* Industry Preference Segment Filter (PRD Section 5 & 7) */}
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
                   <div className="flex items-center justify-between mb-2">
@@ -1293,8 +1271,6 @@ export default function CreateCampaignWizard() {
                   </span>
                 </div>
 
-=======
->>>>>>> origin/main
                 {/* Live Area Audience Count vs Account Wallet Counter */}
                 <div className="p-4 rounded-xl bg-slate-900 text-white flex items-center justify-between">
                   <div>

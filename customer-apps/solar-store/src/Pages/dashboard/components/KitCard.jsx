@@ -5,11 +5,7 @@ import {
   FaShoppingCart, FaTag, FaStar, FaGem, FaHome, FaBolt,
   FaInfoCircle, FaTruck, FaPiggyBank, FaAward,
   FaShieldAlt, FaLeaf, FaChevronDown, FaChevronUp,
-<<<<<<< HEAD
   FaCogs, FaSolarPanel, FaFilePdf, FaLandmark, FaVideo
-=======
-  FaCogs, FaSolarPanel, FaFilePdf
->>>>>>> origin/main
 } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -467,10 +463,7 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
 
   const displayImage = useMemo(() => {
     return resolveImageUrl(
-<<<<<<< HEAD
       kit?.govt_tender_image ||
-=======
->>>>>>> origin/main
       kit?.kitImage ||
       kit?.image_url ||
       kit?.image ||
@@ -482,15 +475,10 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
   }, [kit, currentVariant]);
 
   const displayDescription = useMemo(() => {
-<<<<<<< HEAD
     if (kit?.is_govt_tender && kit?.govt_tender_tagline) return kit.govt_tender_tagline;
     if (kit?.is_govt_tender && kit?.govt_tender_description) return kit.govt_tender_description;
     return kit?.description || kit?.summary || currentVariant?.description || "High-efficiency Tier-1 Solar PV Module engineered for rooftop and ground mount installations.";
   }, [kit?.description, kit?.summary, kit?.is_govt_tender, kit?.govt_tender_tagline, kit?.govt_tender_description, currentVariant?.description]);
-=======
-    return kit?.description || kit?.summary || currentVariant?.description || "High-efficiency Tier-1 Solar PV Module engineered for rooftop and ground mount installations.";
-  }, [kit?.description, kit?.summary, currentVariant?.description]);
->>>>>>> origin/main
 
   const displayKitName = useMemo(() => {
     return kit?.kitName || kit?.title || kit?.name || "Solar Module";
@@ -612,22 +600,18 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
           )}
           <span>{kit.usageType}</span>
         </span>
-<<<<<<< HEAD
         {kit?.is_govt_tender && (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-black rounded-full bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 text-white border border-blue-400/40 shadow-xs uppercase tracking-wider">
             <FaLandmark className="text-amber-300 text-[10px]" />
             <span>{kit.govt_tender_badge || "Govt. Tender"}</span>
           </span>
         )}
-=======
->>>>>>> origin/main
       </div>
 
       {/* Image container with gradient and hover zoom */}
       <div className={`relative z-[2] mb-4 flex justify-center items-center bg-gradient-to-tr from-gray-50/50 to-slate-100/50 rounded-xl overflow-hidden border border-border w-full ${compact ? 'h-36' : 'h-64'}`}>
         {/* Badges Overlay */}
         <div className="absolute top-2 left-2 flex flex-col gap-1.5 z-10">
-<<<<<<< HEAD
           {kit.is_govt_tender && (
             <>
               <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 uppercase tracking-wider border border-blue-400/30">
@@ -641,8 +625,6 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
               )}
             </>
           )}
-=======
->>>>>>> origin/main
           {(kit.is_best_seller || kit.best_seller_badge) && (
             <span className="bg-gradient-to-r from-amber-500 to-amber-600 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1 uppercase tracking-wider">
               <FaStar className="text-yellow-200 text-[9px]" />
@@ -1196,15 +1178,12 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
           }`}>
           {/* Badges Overlay */}
           <div className="absolute top-1 left-1 flex flex-col gap-1 z-10">
-<<<<<<< HEAD
             {kit.is_govt_tender && (
               <span className="bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow flex items-center gap-1 uppercase tracking-wider border border-blue-400/30">
                 <FaLandmark className="text-amber-300 text-[8px]" />
                 <span>{kit.govt_tender_badge || "GOVT. TENDER"}</span>
               </span>
             )}
-=======
->>>>>>> origin/main
             {(kit.is_best_seller || kit.best_seller_badge) && (
               <span className="bg-gradient-to-r from-amber-500 to-amber-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow flex items-center gap-1 uppercase tracking-wider">
                 <FaStar className="text-yellow-200 text-[8px]" />

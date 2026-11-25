@@ -178,13 +178,8 @@ export default function ApproveNewEPCIndia({ moduleUniqueId, countryId }) {
         if (res.data?.status === "success" && Array.isArray(res.data.data) && res.data.data.length > 0) {
           setEpcTypes(res.data.data);
         }
-<<<<<<< HEAD
-      } catch {
-        // Fallback silently to default types
-=======
       } catch (e) {
         console.warn("Could not fetch active EPC types:", e?.message);
->>>>>>> origin/main
       }
     };
     fetchEpcTypes();
@@ -195,11 +190,8 @@ export default function ApproveNewEPCIndia({ moduleUniqueId, countryId }) {
     setLoading(true);
     let apiRequests = [];
     let localRequests = [];
-<<<<<<< HEAD
     let serverTotal = 0;
     let serverPages = 1;
-=======
->>>>>>> origin/main
 
     // 1. Read from Cookie (shared across all localhost ports: 5173, 5174, 5176)
     try {
@@ -208,13 +200,8 @@ export default function ApproveNewEPCIndia({ moduleUniqueId, countryId }) {
         const val = decodeURIComponent(match.split('=')[1]);
         if (val) localRequests = JSON.parse(val);
       }
-<<<<<<< HEAD
-    } catch {
-      localRequests = [];
-=======
     } catch (e) {
       console.error("Failed to read cookie pending requests:", e);
->>>>>>> origin/main
     }
 
     // 2. Read from localStorage if cookie was empty
@@ -224,13 +211,8 @@ export default function ApproveNewEPCIndia({ moduleUniqueId, countryId }) {
         if (stored) {
           localRequests = JSON.parse(stored);
         }
-<<<<<<< HEAD
-      } catch {
-        localRequests = [];
-=======
       } catch (e) {
         console.error("Failed to read local pending requests:", e);
->>>>>>> origin/main
       }
     }
 
@@ -251,7 +233,6 @@ export default function ApproveNewEPCIndia({ moduleUniqueId, countryId }) {
 
       if (response.data.status === "success") {
         apiRequests = response.data.data || [];
-<<<<<<< HEAD
         serverTotal = response.data.pagination?.total ?? apiRequests.length;
         serverPages = response.data.pagination?.total_pages ?? Math.max(1, Math.ceil(serverTotal / itemsPerPage));
 
@@ -262,33 +243,18 @@ export default function ApproveNewEPCIndia({ moduleUniqueId, countryId }) {
             thisWeek: response.data.summary.this_week_requests ?? 0
           });
         }
-=======
->>>>>>> origin/main
         if (response.data.summary?.by_epc_type) {
           setEpcTypeStats(response.data.summary.by_epc_type);
         }
       }
-<<<<<<< HEAD
-    } catch {
-      // Handled cleanly with empty results
-      apiRequests = [];
-=======
     } catch (error) {
       console.warn("Backend API fetch for EPC requests warning:", error.message);
->>>>>>> origin/main
     }
 
     // Merge local requests with API requests (deduplicating by ID)
     const combinedMap = new Map();
     localRequests.forEach((req) => combinedMap.set(req.id, req));
     apiRequests.forEach((req) => combinedMap.set(req.id, req));
-<<<<<<< HEAD
-    const combined = Array.from(combinedMap.values());
-
-    setRequests(combined);
-    setTotalRecords(Math.max(serverTotal, combined.length));
-    setTotalPages(Math.max(serverPages, 1));
-=======
     const rawAll = Array.from(combinedMap.values());
     let combined = [...rawAll];
 
@@ -342,7 +308,6 @@ export default function ApproveNewEPCIndia({ moduleUniqueId, countryId }) {
       countsByType[type] = (countsByType[type] || 0) + 1;
     });
     setEpcTypeStats((prev) => ({ ...countsByType, ...prev, ...countsByType }));
->>>>>>> origin/main
 
     setLoading(false);
   };
@@ -713,11 +678,7 @@ export default function ApproveNewEPCIndia({ moduleUniqueId, countryId }) {
   // Calculate displayed record range
   const startIndex = totalRecords === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const endIndex = Math.min(currentPage * itemsPerPage, totalRecords);
-<<<<<<< HEAD
-  const displayedRequests = requests;
-=======
   const displayedRequests = requests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
->>>>>>> origin/main
 
   // Table Headers
   const tableHeaders = [

@@ -1,11 +1,5 @@
 const { WarehouseTriggerConfig, WarehouseOpportunity } = require('../models/india_solarshop_db/warehouse_finance.schema');
 let FranchiseeCluster = null;
-<<<<<<< HEAD
-try {
-  FranchiseeCluster = require('../../admin-panel/models/india_solarshop_db').FranchiseeCluster;
-} catch (e) {
-  console.warn("Notice loading FranchiseeCluster in warehouse_finance.module.handler:", e.message);
-=======
 let EpcAccount = null;
 try {
   const indiaDb = require('../../admin-panel/models/india_solarshop_db');
@@ -13,7 +7,6 @@ try {
   EpcAccount = indiaDb.EpcAccount;
 } catch (e) {
   console.warn("Notice loading models in warehouse_finance.module.handler:", e.message);
->>>>>>> origin/main
 }
 
 // Initial seed default triggers & cluster opportunities if empty
@@ -38,131 +31,7 @@ const DEFAULT_TRIGGER_CONFIG = {
   min_dscr_threshold: 1.35
 };
 
-<<<<<<< HEAD
-const SEED_OPPORTUNITIES = [
-  {
-    cluster_name: 'Varanasi-Purvanchal Cluster',
-    cluster_code: 'CLU-UP-001',
-    state: 'Uttar Pradesh',
-    district: 'Varanasi',
-    current_monthly_turnover: 3450000,
-    current_monthly_kits: 58,
-    pipeline_order_value: 5200000,
-    active_epc_count: 24,
-    current_avg_delivery_tat_days: 6.2,
-    current_delivery_cost_pct: 8.4,
-    projected_monthly_delivery_savings: 185000,
-    projected_tat_reduction_days: 4.5,
-    growth_score: 94,
-    status: 'OPPORTUNITY_IDENTIFIED',
-    admin_notes: 'PM Surya Ghar scheme high uptake. High inter-state transit costs from Delhi hub.'
-  },
-  {
-    cluster_name: 'Devbhumi Dwarka cluster',
-    cluster_code: 'CLU-GJ-001',
-    state: 'Gujarat',
-    district: 'Devbhumi Dwarka',
-    current_monthly_turnover: 3200000,
-    current_monthly_kits: 51,
-    pipeline_order_value: 4900000,
-    active_epc_count: 21,
-    current_avg_delivery_tat_days: 6.0,
-    current_delivery_cost_pct: 8.1,
-    projected_monthly_delivery_savings: 175000,
-    projected_tat_reduction_days: 4.0,
-    growth_score: 95,
-    status: 'OPPORTUNITY_IDENTIFIED',
-    admin_notes: 'Coastal territory delivery bottlenecks. Severe TAT lag exceeding 4 days national policy.'
-  },
-  {
-    cluster_name: 'Porbandar Cluster',
-    cluster_code: 'CLU-GJ-002',
-    state: 'Gujarat',
-    district: 'Porbandar',
-    current_monthly_turnover: 2950000,
-    current_monthly_kits: 44,
-    pipeline_order_value: 4300000,
-    active_epc_count: 18,
-    current_avg_delivery_tat_days: 5.6,
-    current_delivery_cost_pct: 7.8,
-    projected_monthly_delivery_savings: 155000,
-    projected_tat_reduction_days: 3.5,
-    growth_score: 91,
-    status: 'OPPORTUNITY_IDENTIFIED',
-    admin_notes: 'Saurashtra delivery costs exceed 6.5% threshold. High kit order pipeline.'
-  },
-  {
-    cluster_name: 'Pune & Western Maharashtra Cluster',
-    cluster_code: 'CLU-MH-001',
-    state: 'Maharashtra',
-    district: 'Pune',
-    current_monthly_turnover: 4200000,
-    current_monthly_kits: 68,
-    pipeline_order_value: 6500000,
-    active_epc_count: 32,
-    current_avg_delivery_tat_days: 3.1,
-    current_delivery_cost_pct: 4.9,
-    projected_monthly_delivery_savings: 210000,
-    projected_tat_reduction_days: 2.0,
-    growth_score: 96,
-    status: 'UNDER_FINANCIAL_REVIEW',
-    admin_notes: 'Healthy logistics node with excellent TAT. Prime candidate for debt-financed warehouse facility.'
-  },
-  {
-    cluster_name: 'Indore-Malwa Cluster',
-    cluster_code: 'CLU-MP-001',
-    state: 'Madhya Pradesh',
-    district: 'Indore',
-    current_monthly_turnover: 2890000,
-    current_monthly_kits: 46,
-    pipeline_order_value: 4400000,
-    active_epc_count: 19,
-    current_avg_delivery_tat_days: 5.5,
-    current_delivery_cost_pct: 7.2,
-    projected_monthly_delivery_savings: 140000,
-    projected_tat_reduction_days: 3.5,
-    growth_score: 88,
-    status: 'UNDER_FINANCIAL_REVIEW',
-    admin_notes: 'Central logistics junction. Fast growing EPC base.'
-  },
-  {
-    cluster_name: 'Jaipur-Marwar Cluster',
-    cluster_code: 'CLU-RJ-001',
-    state: 'Rajasthan',
-    district: 'Jaipur',
-    current_monthly_turnover: 3100000,
-    current_monthly_kits: 52,
-    pipeline_order_value: 4800000,
-    active_epc_count: 22,
-    current_avg_delivery_tat_days: 4.8,
-    current_delivery_cost_pct: 6.9,
-    projected_monthly_delivery_savings: 125000,
-    projected_tat_reduction_days: 3.0,
-    growth_score: 85,
-    status: 'OPPORTUNITY_IDENTIFIED',
-    admin_notes: 'Direct proximity to module manufacturers. High potential for commercial rooftop solar.'
-  },
-  {
-    cluster_name: 'Rajkot Cluster',
-    cluster_code: 'CLU-GJ-003',
-    state: 'Gujarat',
-    district: 'Rajkot',
-    current_monthly_turnover: 2100000,
-    current_monthly_kits: 28,
-    pipeline_order_value: 3200000,
-    active_epc_count: 12,
-    current_avg_delivery_tat_days: 3.6,
-    current_delivery_cost_pct: 5.4,
-    projected_monthly_delivery_savings: 80000,
-    projected_tat_reduction_days: 1.5,
-    growth_score: 74,
-    status: 'DEVELOPING',
-    admin_notes: 'Turnover building steadily. Below trigger volume.'
-  }
-];
 
-=======
->>>>>>> origin/main
 async function ensureTriggerData() {
   const cfgCount = await WarehouseTriggerConfig.countDocuments();
   if (cfgCount === 0) {
@@ -170,40 +39,6 @@ async function ensureTriggerData() {
   }
   const cfg = await WarehouseTriggerConfig.findOne().lean() || DEFAULT_TRIGGER_CONFIG;
 
-<<<<<<< HEAD
-  // Sync Franchisee Clusters if model exists
-  if (FranchiseeCluster) {
-    try {
-      const liveClusters = await FranchiseeCluster.find({ deleted_at: null }).lean();
-      for (const fc of liveClusters) {
-        const exists = await WarehouseOpportunity.findOne({
-          $or: [
-            { cluster_name: fc.cluster_name },
-            { cluster_code: fc.cluster_code }
-          ]
-        });
-        if (!exists) {
-          const matchedSeed = SEED_OPPORTUNITIES.find(s => s.cluster_name.toLowerCase() === fc.cluster_name.toLowerCase());
-          const newOpp = matchedSeed || {
-            cluster_name: fc.cluster_name,
-            cluster_code: fc.cluster_code,
-            state: fc.state_name || 'Gujarat',
-            district: fc.district_names?.[0] || 'Main Hub',
-            current_monthly_turnover: 2600000,
-            current_monthly_kits: 42,
-            pipeline_order_value: 3900000,
-            active_epc_count: 16,
-            current_avg_delivery_tat_days: 5.2,
-            current_delivery_cost_pct: 7.1,
-            projected_monthly_delivery_savings: 140000,
-            projected_tat_reduction_days: 3.0,
-            growth_score: 82,
-            status: 'OPPORTUNITY_IDENTIFIED',
-            admin_notes: `Synced from Franchise Cluster Management (${fc.cluster_code}).`
-          };
-          calculateOpportunityFinancials(newOpp, cfg);
-          await WarehouseOpportunity.create(newOpp);
-=======
   // Sync strictly with live Franchisee Clusters
   if (FranchiseeCluster) {
     try {
@@ -280,24 +115,13 @@ async function ensureTriggerData() {
             calculateOpportunityFinancials(opp, cfg);
             await opp.save();
           }
->>>>>>> origin/main
         }
       }
     } catch (err) {
       console.warn("Notice syncing FranchiseeCluster in ensureTriggerData:", err.message);
     }
   }
-<<<<<<< HEAD
 
-  const oppCount = await WarehouseOpportunity.countDocuments();
-  if (oppCount === 0) {
-    for (const opp of SEED_OPPORTUNITIES) {
-      calculateOpportunityFinancials(opp, cfg);
-      await WarehouseOpportunity.create(opp);
-    }
-  }
-=======
->>>>>>> origin/main
 }
 
 function calculateOpportunityFinancials(opp, cfg) {
@@ -388,11 +212,7 @@ exports.get_warehouse_opportunities = async (req, res) => {
   try {
     await ensureTriggerData();
     const cfg = await WarehouseTriggerConfig.findOne({ is_active: true }).lean() || DEFAULT_TRIGGER_CONFIG;
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> origin/main
     const filter = {};
     if (req.query.state && req.query.state !== 'ALL') {
       filter.state = req.query.state;
@@ -468,54 +288,11 @@ exports.get_warehouse_opportunities = async (req, res) => {
   }
 };
 
-<<<<<<< HEAD
-// 4. Create / Evaluate New Warehouse Opportunity
-=======
 // 4. Create / Evaluate New Warehouse Opportunity (Restricted to Franchise Clusters)
->>>>>>> origin/main
 exports.create_warehouse_opportunity = async (req, res) => {
   try {
     const cfg = await WarehouseTriggerConfig.findOne({ is_active: true }).lean() || DEFAULT_TRIGGER_CONFIG;
     const oppData = { ...req.body };
-<<<<<<< HEAD
-    calculateOpportunityFinancials(oppData, cfg);
-
-    const opportunity = await WarehouseOpportunity.create(oppData);
-    return res.status(201).json({
-      status: 'success',
-      message: `Warehouse opportunity for ${opportunity.cluster_name} evaluated successfully!`,
-      data: opportunity
-    });
-  } catch (error) {
-    return res.status(500).json({ status: 'error', message: error.message });
-  }
-};
-
-// 5. Update Opportunity Status (e.g. Approved for Expansion, Shelved)
-exports.update_opportunity_status = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, admin_notes } = req.body;
-    const updated = await WarehouseOpportunity.findByIdAndUpdate(
-      id,
-      { status, admin_notes },
-      { new: true }
-    );
-    return res.status(200).json({ status: 'success', message: 'Opportunity status updated.', data: updated });
-  } catch (error) {
-    return res.status(500).json({ status: 'error', message: error.message });
-  }
-};
-
-// 4. Create / Evaluate New Warehouse Opportunity
-exports.create_warehouse_opportunity = async (req, res) => {
-  try {
-    const cfg = await WarehouseTriggerConfig.findOne({ is_active: true }).lean() || DEFAULT_TRIGGER_CONFIG;
-    const oppData = { ...req.body };
-    calculateOpportunityFinancials(oppData, cfg);
-
-    const opportunity = await WarehouseOpportunity.create(oppData);
-=======
 
     if (!oppData.cluster_id && FranchiseeCluster) {
       const fc = await FranchiseeCluster.findOne({
@@ -544,7 +321,6 @@ exports.create_warehouse_opportunity = async (req, res) => {
       { upsert: true, new: true, runValidators: true }
     );
 
->>>>>>> origin/main
     return res.status(201).json({
       status: 'success',
       message: `Warehouse opportunity for ${opportunity.cluster_name} evaluated successfully!`,

@@ -10,10 +10,7 @@ import IconButton from "../Components/IconButton";
 import DropdownWithSearchInput from "../Components/DropdownWithSearchInput";
 import OTPInput from "../Components/OTPInput";
 import { setAlert } from "../features/alert.slice";
-<<<<<<< HEAD
 import { getStorePolicies } from "../services/storeLandingService";
-=======
->>>>>>> origin/main
 
 // Create axios instance with base URL
 const api = axios.create({
@@ -79,7 +76,6 @@ export default function SignUp() {
   const [isVerified, setIsVerified] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [verificationAttempted, setVerificationAttempted] = useState(false);
-<<<<<<< HEAD
   const [verifyingGst, setVerifyingGst] = useState(false);
   const [gstVerifyStatus, setGstVerifyStatus] = useState(null);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
@@ -94,8 +90,6 @@ export default function SignUp() {
       })
       .catch((err) => console.warn("Could not load dynamic terms policy for signup:", err));
   }, []);
-=======
->>>>>>> origin/main
 
   const [formData, setFormData] = useState({
     // Step 1 - Basic Info
@@ -119,12 +113,9 @@ export default function SignUp() {
     password: "",
     confirmPassword: "",
     agreeToTerms: [],
-<<<<<<< HEAD
     emailMarketingConsent: false,
     whatsappMarketingConsent: false,
     agreeToUserPolicy: false,
-=======
->>>>>>> origin/main
   });
 
   const [errors, setErrors] = useState({});
@@ -413,7 +404,6 @@ export default function SignUp() {
 
   // Handle email selection
   const handleEmailChange = (selectedEmail) => {
-<<<<<<< HEAD
     const cleanEmail = (selectedEmail || '').toLowerCase().replace(/\s+/g, '');
     setFormData(prev => ({
       ...prev,
@@ -422,15 +412,6 @@ export default function SignUp() {
 
     if (cleanEmail && selectedEpcName && groupedEpcs[selectedEpcName]) {
       const selectedEpc = groupedEpcs[selectedEpcName].find(epc => (epc.email || '').toLowerCase() === cleanEmail);
-=======
-    setFormData(prev => ({
-      ...prev,
-      epcEmail: selectedEmail
-    }));
-
-    if (selectedEmail && selectedEpcName && groupedEpcs[selectedEpcName]) {
-      const selectedEpc = groupedEpcs[selectedEpcName].find(epc => epc.email === selectedEmail);
->>>>>>> origin/main
       if (selectedEpc) {
         setSelectedEpcData(selectedEpc);
         setFormData(prev => ({
@@ -446,7 +427,6 @@ export default function SignUp() {
     }
   };
 
-<<<<<<< HEAD
   // Quick eKYC GST Verification handler
   const handleVerifyGstin = async () => {
     const cleanGst = (formData.gstin || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -499,8 +479,6 @@ export default function SignUp() {
     }
   };
 
-=======
->>>>>>> origin/main
   // Handle district selection
   const handleDistrictChange = (selectedDistrictId) => {
     const selectedDistrict = districts.find(d => (d.id || d._id).toString() === selectedDistrictId.toString());
@@ -529,7 +507,6 @@ export default function SignUp() {
         [name]: checked ? [value] : []
       }));
     } else {
-<<<<<<< HEAD
       let cleanedValue = value;
       // Strict Email validation: Always lowercase, strictly remove all spaces/gaps
       if (name === "epcEmail") {
@@ -545,11 +522,6 @@ export default function SignUp() {
       setFormData(prev => ({
         ...prev,
         [name]: cleanedValue
-=======
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
->>>>>>> origin/main
       }));
     }
   };
@@ -797,7 +769,6 @@ export default function SignUp() {
     setLoading(prev => ({ ...prev, resendOtp: true }));
 
     try {
-<<<<<<< HEAD
       const whatsappTarget = formData.whatsappNumber || formData.registeredNumber;
       const response = await api.post('/india/v1/auth/resend-otp', {
         email: formData.epcEmail,
@@ -807,11 +778,6 @@ export default function SignUp() {
         use_same_whatsapp: useSameWhatsapp,
         use_registered_as_whatsapp: useSameWhatsapp,
         user_type: userType
-=======
-      const response = await api.post('/india/v1/auth/resend-otp', {
-        email: formData.epcEmail,
-        whatsapp: formData.whatsappNumber
->>>>>>> origin/main
       });
 
       if (type === 'email') {
@@ -865,23 +831,16 @@ export default function SignUp() {
         name: formData.epcName,
         email: formData.epcEmail,
         password: formData.password,
-<<<<<<< HEAD
         pin: formData.password,
-=======
->>>>>>> origin/main
         user_type: userType,
         use_same_whatsapp: useSameWhatsapp,
         state: formData.stateId,
         district: formData.districtId,
         company_id: formData.epcId || null,
         company_name: isCustomEpc ? formData.customEpcName : null,
-<<<<<<< HEAD
         gstin: formData.gstin ? formData.gstin.trim().toUpperCase() : null,
         email_marketing_consent: Boolean(formData.emailMarketingConsent),
         whatsapp_marketing_consent: Boolean(formData.whatsappMarketingConsent)
-=======
-        gstin: formData.gstin ? formData.gstin.trim().toUpperCase() : null
->>>>>>> origin/main
       };
 
       if (userType === "predefined") {
@@ -947,22 +906,12 @@ export default function SignUp() {
       }
 
       // Manual EPC specific validations
-<<<<<<< HEAD
       // GSTIN Validation (Optional for New / Custom EPC)
       if (formData.gstin?.trim()) {
         if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(formData.gstin.trim())) {
           newErrors.gstin = "Please enter a valid 15-character GSTIN (e.g. 24AAAAA0000A1Z5)";
           isValid = false;
         }
-=======
-      // GSTIN Validation (Mandatory for New / Custom EPC)
-      if (!formData.gstin?.trim()) {
-        newErrors.gstin = "GSTIN is mandatory for new EPC registration";
-        isValid = false;
-      } else if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(formData.gstin.trim())) {
-        newErrors.gstin = "Please enter a valid 15-character GSTIN (e.g. 24AAAAA0000A1Z5)";
-        isValid = false;
->>>>>>> origin/main
       }
 
       if (!formData.registeredNumber?.trim()) {
@@ -1009,14 +958,11 @@ export default function SignUp() {
       isValid = false;
     }
 
-<<<<<<< HEAD
     if (!formData.agreeToUserPolicy) {
       newErrors.agreeToUserPolicy = "Please accept the SolarKits User Policy & Terms of Service to continue";
       isValid = false;
     }
 
-=======
->>>>>>> origin/main
     setErrors(newErrors);
 
     if (!isValid) {
@@ -1503,7 +1449,6 @@ export default function SignUp() {
                                 OTP will be sent to {formData.registeredNumber}
                               </div>
                             )}
-<<<<<<< HEAD
 
                             {/* Optional GSTIN Input for Custom EPC with Quick eKYC Verification */}
                             <div className="space-y-1.5">
@@ -1555,8 +1500,6 @@ export default function SignUp() {
                                 </div>
                               )}
                             </div>
-=======
->>>>>>> origin/main
                           </div>
                         )}
                       </div>
@@ -1603,7 +1546,6 @@ export default function SignUp() {
                       )}
                     </div>
 
-<<<<<<< HEAD
                     {/* Step 1 Marketing Communication Consent (Optional Unified Checkbox) */}
                     <div className="mt-4 p-3.5 rounded-xl border border-blue-200 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-950/20 space-y-2.5">
                       <div className="flex items-center gap-2">
@@ -1670,8 +1612,6 @@ export default function SignUp() {
                       )}
                     </div>
 
-=======
->>>>>>> origin/main
                     <div className="mt-6">
                       <Button
                         type="submit"
@@ -1929,7 +1869,6 @@ export default function SignUp() {
                       </div>
                     </div>
 
-<<<<<<< HEAD
                     {/* Marketing Communication Preferences Module (Optional) */}
                     <div className="bg-blue-50/60 dark:bg-slate-800/60 border border-blue-200 dark:border-slate-700 rounded-xl p-4 space-y-3">
                       <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-blue-900 dark:text-blue-300">
@@ -1975,8 +1914,6 @@ export default function SignUp() {
                       </p>
                     </div>
 
-=======
->>>>>>> origin/main
                     <div className="space-y-1">
                       <CustomInput
                         name="agreeToTerms"
@@ -2017,7 +1954,6 @@ export default function SignUp() {
           </div>
         </div>
       </div>
-<<<<<<< HEAD
 
       {/* User Policy & Operating Terms Modal */}
       {showPolicyModal && (
@@ -2108,8 +2044,6 @@ export default function SignUp() {
           </div>
         </div>
       )}
-=======
->>>>>>> origin/main
     </div>
   );
 }

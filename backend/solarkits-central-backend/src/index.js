@@ -105,10 +105,9 @@ adminRouter.use('/combo-kit-variants', require('./modules/admin-panel/routes/com
 adminRouter.use('/datasheet-settings', require('./modules/admin-panel/routes/datasheet_settings.route'));
 adminRouter.use('/pincode-delivery-costs', require('./modules/admin-panel/routes/pincode_delivery_costs.route'));
 adminRouter.use('/best-seller-configs', require('./modules/admin-panel/routes/best_seller_kits.route'));
-<<<<<<< HEAD
+
 adminRouter.use('/govt-tender-configs', require('./modules/admin-panel/routes/govt_tender_kits.route'));
-=======
->>>>>>> origin/main
+
 adminRouter.use('/product-sku-prices', require('./modules/admin-panel/routes/product_sku_prices.route'));
 adminRouter.use('/price-requests', require('./modules/admin-panel/routes/price_requests.route'));
 adminRouter.use('/industry-types', require('./modules/admin-panel/routes/industry.types.route'));
@@ -232,10 +231,7 @@ adminRouter.use('/business-profiles', require('./modules/admin-panel/routes/busi
 adminRouter.use('/operations-dashboard', require('./modules/admin-panel/routes/operations.dashboard.route'));
 adminRouter.use('/store-dashboard', require('./modules/admin-panel/routes/store.dashboard.route'));
 adminRouter.use('/epc-analytics', require('./modules/admin-panel/routes/epc.analytics.route'));
-<<<<<<< HEAD
-=======
 adminRouter.use('/main-dashboard', require('./modules/admin-panel/routes/main.dashboard.route'));
->>>>>>> origin/main
 adminRouter.use('/knowledge-center', require('./modules/solarshop-india/routes/v1.routes/knowledge_center.route'));
 
 // ─── Franchisee Cluster & Business Model Module ───
@@ -247,7 +243,7 @@ adminRouter.use('/registers', require('./modules/account-panel/routes/registers.
 
 // ─── SOLARKITS: Trial Kit Management Module ───
 adminRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
- 
+
 
 // ─── SOLARKITS: Email & WhatsApp Marketing & Campaign Automation Engine ───
 adminRouter.use('/marketing', require('./modules/admin-panel/marketing/routes/marketing.route'));
@@ -257,8 +253,8 @@ try {
 } catch (schedErr) {
   console.warn('⚠️ Marketing scheduler startup notice:', schedErr.message);
 }
- 
- 
+
+
 
 app.use('/admin-api', adminRouter);
 app.use('/api', adminRouter);

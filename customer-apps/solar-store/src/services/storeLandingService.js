@@ -20,7 +20,6 @@ export const getStoreLandingContent = async () => {
   }
   return null;
 };
-<<<<<<< HEAD
 
 export const getStorePolicies = async () => {
   try {
@@ -34,5 +33,3 @@ export const getStorePolicies = async () => {
   }
   return null;
 };
-=======
->>>>>>> origin/main

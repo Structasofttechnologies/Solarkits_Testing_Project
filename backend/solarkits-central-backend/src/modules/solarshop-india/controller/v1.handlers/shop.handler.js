@@ -486,10 +486,7 @@ const get_combo_kits_by_district = async (req, res) => {
 
     // Best Seller lookup for this district and state
     const BestSellerKit = require("../../../admin-panel/models/india_solarshop_db").BestSellerKit;
-<<<<<<< HEAD
     const GovtTenderKit = require("../../../admin-panel/models/india_solarshop_db").GovtTenderKit;
-=======
->>>>>>> origin/main
     const stateId = districtDoc?.level_1 || null;
     let bestSellerMap = new Map();
     try {
@@ -534,7 +531,6 @@ const get_combo_kits_by_district = async (req, res) => {
       console.warn('Error querying BestSellerKit for district:', bsErr.message);
     }
 
-<<<<<<< HEAD
     // Government Tender Kits lookup for active state
     let govtTenderMap = new Map();
     const effectiveStateId = stateId || (req.query.state_id && mongoose.Types.ObjectId.isValid(req.query.state_id) ? req.query.state_id : null);
@@ -567,8 +563,6 @@ const get_combo_kits_by_district = async (req, res) => {
       }
     }
 
-=======
->>>>>>> origin/main
     // Resolve fulfillment warehouses (Priority 1: Cluster Routing, Priority 2: District sub, Priority 3: Master)
     const { warehouses, stateName: resolvedStateName } = await resolveWarehousesForLocation({
       targetDistrictId,
@@ -644,11 +638,7 @@ const get_combo_kits_by_district = async (req, res) => {
           orConditions.push({ district_id: new mongoose.Types.ObjectId(targetDistrictId) });
         }
         if (stateId && mongoose.Types.ObjectId.isValid(stateId)) {
-<<<<<<< HEAD
-          orConditions.push({ state_id: new mongoose.Types.ObjectId(stateId), district_id: null, cluster_id: null });
-=======
           orConditions.push({ state_id: new mongoose.Types.ObjectId(stateId), district_id: null });
->>>>>>> origin/main
         }
 
         if (orConditions.length > 0) {
@@ -661,11 +651,7 @@ const get_combo_kits_by_district = async (req, res) => {
 
           if (deauthorizedDocs.length > 0) {
             const deauthorizedKitIdSet = new Set(deauthorizedDocs.map(d => d.combo_kit_id?.toString()));
-<<<<<<< HEAD
             kits = kits.filter(k => !deauthorizedKitIdSet.has(k._id.toString()) || govtTenderMap.has(k._id.toString()));
-=======
-            kits = kits.filter(k => !deauthorizedKitIdSet.has(k._id.toString()));
->>>>>>> origin/main
           }
         }
       }
@@ -1008,17 +994,10 @@ const get_combo_kits_by_district = async (req, res) => {
     });
     const uniqueAllSkuIds = [...new Set(allSkuIds.map(id => id.toString()))].map(id => new mongoose.Types.ObjectId(id));
 
-<<<<<<< HEAD
-    // Bulk fetch SKUs + prices + attributes
-    const [skuDocs, skuPriceDocs, attrDefs] = await Promise.all([
-      ProductSku.find({ _id: { $in: uniqueAllSkuIds }, deleted_at: null }).lean(),
-      ProductSkuPrice.find({ sku_id: { $in: uniqueAllSkuIds }, cluster_id: clusterId }).lean(),
-=======
     // Bulk fetch SKUs + prices + attributes (look up prices across all matching clusters)
     const [skuDocs, skuPriceDocs, attrDefs] = await Promise.all([
       ProductSku.find({ _id: { $in: uniqueAllSkuIds }, deleted_at: null }).lean(),
       ProductSkuPrice.find({ sku_id: { $in: uniqueAllSkuIds } }).lean(),
->>>>>>> origin/main
       SubtypeAttribute.find({}).lean()
     ]);
 
@@ -1347,13 +1326,6 @@ const get_combo_kits_by_district = async (req, res) => {
       }
     }
 
-<<<<<<< HEAD
-    // Fetch prices for these SKUs in the current cluster
-    const priceMap = {};
-    skuPriceDocs.forEach(record => {
-      if (record.sku_id) {
-        priceMap[record.sku_id.toString()] = record.price || 0;
-=======
     // Fetch prices for these SKUs in the current cluster (prioritizing district cluster, then warehouse cluster, then general cluster)
     const priceMap = {};
     const clusterIdStr = clusterId ? clusterId.toString() : null;
@@ -1378,7 +1350,6 @@ const get_combo_kits_by_district = async (req, res) => {
       if ((skuScoreMap[skuKey] === undefined || score > skuScoreMap[skuKey]) && Number(record.price) > 0) {
         skuScoreMap[skuKey] = score;
         priceMap[skuKey] = Number(record.price);
->>>>>>> origin/main
       }
     });
 
@@ -1417,11 +1388,6 @@ const get_combo_kits_by_district = async (req, res) => {
         });
       }
 
-<<<<<<< HEAD
-      // Fallback base price if priceMap yields 0
-      if (totalBasePrice === 0) {
-        if (kit.base_price_paise) {
-=======
       // Fallback base price if priceMap yields 0 (prioritize cached base price and selling price)
       if (totalBasePrice === 0) {
         if (Number(kit.base_price_cached) > 0) {
@@ -1431,7 +1397,6 @@ const get_combo_kits_by_district = async (req, res) => {
         } else if (Number(kit.selling_price_cached) > 0) {
           totalBasePrice = Math.round(Number(kit.selling_price_cached) / 1.07);
         } else if (kit.base_price_paise) {
->>>>>>> origin/main
           totalBasePrice = kit.base_price_paise / 100;
         } else if (kit.base_price) {
           totalBasePrice = kit.base_price;
@@ -1465,9 +1430,6 @@ const get_combo_kits_by_district = async (req, res) => {
 
       const gstRate = marginDoc?.gst_rate ?? shopSettings.gst_rate ?? 13.8;
 
-<<<<<<< HEAD
-      const standardPrice = calculatePriceWithMarginAndGst(totalBasePrice, standardMargin, gstRate);
-=======
       // When kit has selling_price_cached and totalBasePrice aligns with base_price_cached,
       // standardPrice before GST should strictly be kit.selling_price_cached to align 100% with quotation engine
       let standardPrice;
@@ -1476,7 +1438,6 @@ const get_combo_kits_by_district = async (req, res) => {
       } else {
         standardPrice = calculatePriceWithMarginAndGst(totalBasePrice, standardMargin, gstRate);
       }
->>>>>>> origin/main
       const premiumPrice = calculatePriceWithMarginAndGst(totalBasePrice, showcaseMargin, gstRate);
       const basicPrice = calculatePriceWithMarginAndGst(totalBasePrice, poDiscountedMargin, gstRate);
 
@@ -2214,7 +2175,6 @@ const get_combo_kits_by_district = async (req, res) => {
       mappedKit.best_seller_priority = bsInfo ? bsInfo.priority : 999;
       mappedKit.best_seller_info = bsInfo;
 
-<<<<<<< HEAD
       const gtInfo = govtTenderMap.get(kit._id.toString()) || null;
       mappedKit.is_govt_tender = !!gtInfo;
       mappedKit.govt_tender_badge = gtInfo ? gtInfo.display_tag : null;
@@ -2227,8 +2187,6 @@ const get_combo_kits_by_district = async (req, res) => {
       mappedKit.govt_tender_dcr = gtInfo ? gtInfo.has_dcr_option : null;
       mappedKit.govt_tender_info = gtInfo;
 
-=======
->>>>>>> origin/main
       // Attach resolved payment milestones for multi-cart & milestone checkout separation
       const kitMilestoneRule = milestoneMap.get(kit._id.toString()) || defaultMilestoneDoc;
       const sortedMilestones = [...(kitMilestoneRule?.milestones || [])].sort((a, b) => a.milestone_number - b.milestone_number);
@@ -2869,13 +2827,10 @@ const confirm_order = async (req, res) => {
         }
       }
 
-<<<<<<< HEAD
-=======
       if (totalBasePrice === 0 && Number(kit.base_price_cached) > 0) {
         totalBasePrice = Number(kit.base_price_cached);
       }
 
->>>>>>> origin/main
       // Calculate selling price
       const marginDoc = await CompanyMargin.findOne({
         warehouse_id: resolvedWarehouseId,

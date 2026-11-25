@@ -84,24 +84,16 @@ export default function TrialKitOrderModal({
     return combined.length > 0 ? combined : [200, 500, 1000];
   }, [kit?.orderQuantities, kit?.order_quantities, kit?.po_order_pricing]);
 
-<<<<<<< HEAD
-  // Future Purchase Intent Questionnaire State (Trial Kit Special Form - Only 'loose' or 'bulk_po')
-  const [purchaseMode, setPurchaseMode] = useState("loose"); // 'loose' | 'bulk_po'
-=======
   // Regional Feedback Policy (Admin-configured state/district mode: 'loose_only' | 'po_only' | 'both')
   const [regionalConfig, setRegionalConfig] = useState(null);
   const [loadingConfig, setLoadingConfig] = useState(false);
 
   // Future Purchase Intent Questionnaire State (Trial Kit Special Form - 'loose' | 'bulk_po')
   const [purchaseMode, setPurchaseMode] = useState("loose");
->>>>>>> origin/main
   const [selectedQuantity, setSelectedQuantity] = useState(() => looseOrderQuantities[0] || 25);
   const [timeline, setTimeline] = useState("within_15_days");
   const [remarks, setRemarks] = useState("");
 
-<<<<<<< HEAD
-  const handleSelectMode = (mode) => {
-=======
   // Fetch regional feedback policy
   const fetchRegionalFeedbackConfig = useCallback(async (stateName, districtName, pin) => {
     try {
@@ -155,7 +147,6 @@ export default function TrialKitOrderModal({
     if (regionalConfig?.feedback_mode === "loose_only" && mode !== "loose") return;
     if (regionalConfig?.feedback_mode === "po_only" && mode !== "bulk_po") return;
 
->>>>>>> origin/main
     setPurchaseMode(mode);
     if (mode === "loose") {
       setSelectedQuantity(looseOrderQuantities[0] || 25);
@@ -267,14 +258,8 @@ export default function TrialKitOrderModal({
     }
   };
 
-<<<<<<< HEAD
-  // Grand total calculation
-  const deliveryFreight = deliveryData ? Number(deliveryData.delivery_cost || 0) : 0;
-  const grandTotal = kitSubtotal + deliveryFreight;
-=======
   // Grand total calculation (freight + product aligned with commercial quotation taxation)
   const rawDeliveryCost = deliveryData ? Number(deliveryData.delivery_cost || 0) : 0;
->>>>>>> origin/main
   const gstRate = useMemo(() => {
     const rawRate =
       deliveryData?.pricing?.gst_rate ??
@@ -286,11 +271,6 @@ export default function TrialKitOrderModal({
       kit?.pricing?.gst_rate;
     return rawRate !== undefined && rawRate !== null && !isNaN(Number(rawRate))
       ? Number(rawRate)
-<<<<<<< HEAD
-      : 13.8;
-  }, [deliveryData, currentVariant, kit]);
-
-=======
       : 5;
   }, [deliveryData, currentVariant, kit]);
 
@@ -299,7 +279,6 @@ export default function TrialKitOrderModal({
     : 0;
   const grandTotal = kitSubtotal + deliveryFreight;
 
->>>>>>> origin/main
   const gstIncludedAmount =
     grandTotal > 0 ? Math.round(grandTotal - grandTotal / (1 + gstRate / 100)) : 0;
 
@@ -567,52 +546,6 @@ export default function TrialKitOrderModal({
 
           {/* Question 1: Loose vs Bulk PO */}
           <div>
-<<<<<<< HEAD
-            <label className="text-xs font-black text-text-secondary uppercase tracking-wider block mb-2 flex items-center gap-1.5">
-              <FaLayerGroup className="text-amber-500" />
-              1. Which Purchase Option Will You Choose in the Future? *
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => handleSelectMode("loose")}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  purchaseMode === "loose"
-                    ? "bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs"
-                    : "bg-surface border-border hover:bg-surface-hover text-text-secondary"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-xs">Loose Kits</span>
-                  {purchaseMode === "loose" && <FaCheckCircle className="text-amber-600 dark:text-amber-400 text-xs" />}
-                </div>
-                <p className="text-[10px] text-text-muted mt-1">
-                  Flexible on-demand order ({looseOrderQuantities[0]} - {looseOrderQuantities[looseOrderQuantities.length - 1]} Kits)
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectMode("bulk_po")}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  purchaseMode === "bulk_po"
-                    ? "bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs"
-                    : "bg-surface border-border hover:bg-surface-hover text-text-secondary"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-xs">Bulk PO</span>
-                  {purchaseMode === "bulk_po" && <FaCheckCircle className="text-amber-600 dark:text-amber-400 text-xs" />}
-                </div>
-                <p className="text-[10px] text-text-muted mt-1">
-                  Commercial Bulk PO ({poOrderQuantities[0]}+ Kits scheduled deliveries)
-                </p>
-              </button>
-            </div>
-          </div>
-
-          {/* Question 2: Expected Quantities (Configured Pills Only - No Manual Text Input) */}
-=======
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-2">
               <label className="text-xs font-black text-text-secondary uppercase tracking-wider flex items-center gap-1.5">
                 <FaLayerGroup className="text-amber-500" />
@@ -703,7 +636,6 @@ export default function TrialKitOrderModal({
           </div>
 
           {/* Question 2: Expected Quantities (Configured Pills Only - Directly from Kit Configuration) */}
->>>>>>> origin/main
           <div className="space-y-3 pt-1">
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -723,18 +655,10 @@ export default function TrialKitOrderModal({
                       key={qty}
                       type="button"
                       onClick={() => setSelectedQuantity(qty)}
-<<<<<<< HEAD
-                      className={`px-4 py-2.5 rounded-xl font-black text-xs transition-all flex items-center gap-2 border shadow-xs ${
-                        isSelected
-                          ? "bg-amber-500 text-white border-amber-600 ring-2 ring-amber-500/30 scale-[1.02]"
-                          : "bg-surface hover:bg-surface-hover text-text-primary border-border"
-                      }`}
-=======
                       className={`px-4 py-2.5 rounded-xl font-black text-xs transition-all flex items-center gap-2 border shadow-xs ${isSelected
                           ? "bg-amber-500 text-white border-amber-600 ring-2 ring-amber-500/30 scale-[1.02]"
                           : "bg-surface hover:bg-surface-hover text-text-primary border-border"
                         }`}
->>>>>>> origin/main
                     >
                       <span>{qty} Kits</span>
                       {isSelected && <FaCheckCircle className="text-white text-xs" />}
@@ -842,13 +766,8 @@ export default function TrialKitOrderModal({
                   Delivery Charge ({deliveryData.pincode}):
                 </span>
                 <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-sm">
-<<<<<<< HEAD
-                  {deliveryData.delivery_cost > 0
-                    ? `+₹${deliveryData.delivery_cost.toLocaleString("en-IN")}`
-=======
                   {deliveryFreight > 0
                     ? `+₹${deliveryFreight.toLocaleString("en-IN")}`
->>>>>>> origin/main
                     : "FREE Delivery"}
                 </span>
               </div>

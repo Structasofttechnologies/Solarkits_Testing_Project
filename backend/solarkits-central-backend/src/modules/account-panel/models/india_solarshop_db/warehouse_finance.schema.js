@@ -31,19 +31,12 @@ const warehouseTriggerConfigSchema = new mongoose.Schema({
 
 // Warehouse Opportunity identified by evaluating real cluster metrics
 const warehouseOpportunitySchema = new mongoose.Schema({
-<<<<<<< HEAD
-  cluster_name: { type: String, required: true },
-  cluster_id: { type: String },
-  state: { type: String, required: true },
-  district: { type: String },
-=======
   cluster_name: { type: String, required: true, trim: true },
   cluster_id: { type: mongoose.Schema.Types.ObjectId, ref: 'franchisee_clusters', required: true, unique: true, index: true },
   cluster_code: { type: String, required: true, trim: true },
   state: { type: String, required: true },
   district: { type: String },
   district_names: [{ type: String }],
->>>>>>> origin/main
   
   // Actual cluster metrics evaluated
   current_monthly_turnover: { type: Number, default: 0 },
