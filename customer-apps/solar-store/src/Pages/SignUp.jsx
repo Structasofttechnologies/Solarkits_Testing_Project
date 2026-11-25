@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import axios from "axios";
-import { FiEye, FiEyeOff, FiArrowRight, FiArrowLeft, FiPhone, FiMail, FiPackage, FiTrendingUp, FiShield, FiCheckCircle, FiInfo } from "react-icons/fi";
+import { FiEye, FiEyeOff, FiArrowRight, FiArrowLeft, FiPhone, FiMail, FiPackage, FiTrendingUp, FiShield, FiCheckCircle, FiInfo, FiSmartphone, FiMessageSquare } from "react-icons/fi";
 import Button from "../Components/Button";
 import CustomInput from "../Components/CustomInput";
 import IconButton from "../Components/IconButton";
@@ -677,10 +677,10 @@ export default function SignUp() {
       startEmailTimer();
       startWhatsappTimer();
 
-      const whatsappNumber = payload.whatsapp;
+      const mobileNumber = payload.whatsapp;
       dispatch(setAlert({
         type: "success",
-        message: `Verification codes sent to ${formData.epcEmail} and ${whatsappNumber}`
+        message: `Verification codes sent to ${formData.epcEmail} and mobile SMS ${mobileNumber}`
       }));
 
       setCurrentStep(2);
@@ -709,7 +709,7 @@ export default function SignUp() {
     if (!formData.emailOTP || !formData.whatsappOTP) {
       dispatch(setAlert({
         type: "error",
-        message: "Please enter both Email and WhatsApp OTPs"
+        message: "Please enter both Email and Mobile SMS OTPs"
       }));
       return;
     }
@@ -730,7 +730,13 @@ export default function SignUp() {
         email: formData.epcEmail,
         emailOtp: formData.emailOTP,
         whatsapp: formData.whatsappNumber,
-        whatsappOtp: formData.whatsappOTP
+        mobile: formData.whatsappNumber,
+        registered_whatsapp: formData.registeredNumber || formData.whatsappNumber,
+        registered_number: formData.registeredNumber,
+        use_same_whatsapp: useSameWhatsapp,
+        whatsappOtp: formData.whatsappOTP,
+        smsOtp: formData.whatsappOTP,
+        mobileOtp: formData.whatsappOTP
       });
 
       setIsVerified(true);
@@ -790,7 +796,7 @@ export default function SignUp() {
         startWhatsappTimer();
         dispatch(setAlert({
           type: "info",
-          message: `New verification code sent to ${formData.whatsappNumber}`
+          message: `New SMS verification code sent to ${whatsappTarget}`
         }));
       }
 
@@ -1113,7 +1119,7 @@ export default function SignUp() {
   const getStepDescription = () => {
     switch (currentStep) {
       case 1: return "Tell us about your company and contact details";
-      case 2: return "Please verify both your email and WhatsApp number together";
+      case 2: return "Please verify both your email and mobile number via SMS together";
       case 3: return "Create a strong password for your account";
       default: return "";
     }
@@ -1348,21 +1354,20 @@ export default function SignUp() {
                         )}
 
                         {selectedEpcData && !isCustomEpc && (
-                            <div className={`mt-2 mb-2 p-2.5 rounded-lg border text-xs flex items-center justify-between ${
-                              selectedEpcData.has_gstin ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'
+                          <div className={`mt-2 mb-2 p-2.5 rounded-lg border text-xs flex items-center justify-between ${selectedEpcData.has_gstin ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'
                             }`}>
-                              <span className="font-semibold">
-                                {selectedEpcData.has_gstin
-                                  ? `✓ Pre-verified Database GST: ${selectedEpcData.gst_number || 'On file'}`
-                                  : 'ℹ️ GSTIN is optional during signup. You will be prompted at checkout.'}
-                              </span>
-                              <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-white/80 border">
-                                {selectedEpcData.has_gstin ? 'Verified' : 'Checkout Prompt'}
-                              </span>
-                            </div>
-                          )}
+                            <span className="font-semibold">
+                              {selectedEpcData.has_gstin
+                                ? `✓ Pre-verified Database GST: ${selectedEpcData.gst_number || 'On file'}`
+                                : 'ℹ️ GSTIN is optional during signup. You will be prompted at checkout.'}
+                            </span>
+                            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-white/80 border">
+                              {selectedEpcData.has_gstin ? 'Verified' : 'Checkout Prompt'}
+                            </span>
+                          </div>
+                        )}
 
-                          {selectedEpcData && !showEmailDropdown && !isCustomEpc && (
+                        {selectedEpcData && !showEmailDropdown && !isCustomEpc && (
                           <div className="mt-3">
                             <CustomInput
                               label="Email"
@@ -1479,11 +1484,10 @@ export default function SignUp() {
 
                               {/* Quick eKYC Verification Status Banner */}
                               {gstVerifyStatus && (
-                                <div className={`p-2.5 rounded-lg border text-xs flex items-start justify-between gap-2 ${
-                                  gstVerifyStatus.valid
+                                <div className={`p-2.5 rounded-lg border text-xs flex items-start justify-between gap-2 ${gstVerifyStatus.valid
                                     ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
                                     : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
-                                }`}>
+                                  }`}>
                                   <div>
                                     <span className="font-bold block">
                                       {gstVerifyStatus.valid ? `✓ Quick eKYC Verified` : `ℹ️ Quick eKYC Notice`}
@@ -1492,9 +1496,8 @@ export default function SignUp() {
                                       {gstVerifyStatus.trade_name ? `Trade: ${gstVerifyStatus.trade_name}` : gstVerifyStatus.message}
                                     </span>
                                   </div>
-                                  <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border shrink-0 ${
-                                    gstVerifyStatus.valid ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300'
-                                  }`}>
+                                  <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border shrink-0 ${gstVerifyStatus.valid ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300'
+                                    }`}>
                                     {gstVerifyStatus.valid ? 'Verified' : 'Manual Review'}
                                   </span>
                                 </div>
@@ -1505,13 +1508,13 @@ export default function SignUp() {
                       </div>
                     )}
 
-                    {/* Predefined EPC WhatsApp Field */}
+                    {/* Predefined EPC Mobile / WhatsApp Field */}
                     {!isCustomEpc && formData.stateId && userType === 'predefined' && (
                       <div>
                         <CustomInput
-                          label="WhatsApp Number"
+                          label="Mobile Number (for SMS OTP)"
                           name="whatsappNumber"
-                          placeholder="Enter 10-digit WhatsApp number"
+                          placeholder="Enter 10-digit mobile number"
                           value={formData.whatsappNumber}
                           onChange={handleInputChange}
                           type="tel"
@@ -1702,8 +1705,8 @@ export default function SignUp() {
                       }`}>
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <FiPhone className="text-primary dark:text-info" size={18} />
-                          <span className="font-medium text-text-primary dark:text-info">WhatsApp Verification</span>
+                          <FiSmartphone className="text-primary dark:text-info" size={18} />
+                          <span className="font-medium text-text-primary dark:text-info">Mobile SMS Verification</span>
                           {isVerified && (
                             <span className="text-success text-sm flex items-center gap-1">
                               <FiCheckCircle size={14} /> Verified
@@ -1712,7 +1715,7 @@ export default function SignUp() {
                         </div>
                         {otpSent && (
                           <span className="text-xs text-text-secondary">
-                            Code sent to {getWhatsAppDisplayNumber()}
+                            SMS code sent to {getWhatsAppDisplayNumber()}
                           </span>
                         )}
                       </div>
@@ -1774,7 +1777,7 @@ export default function SignUp() {
                       <div>
                         <p className="text-sm font-medium text-text-primary dark:text-info">Verification Complete!</p>
                         <p className="text-xs text-text-secondary">
-                          Your email and WhatsApp have been verified. Now set up your password.
+                          Your email and mobile number have been verified. Now set up your password.
                         </p>
                       </div>
                     </div>

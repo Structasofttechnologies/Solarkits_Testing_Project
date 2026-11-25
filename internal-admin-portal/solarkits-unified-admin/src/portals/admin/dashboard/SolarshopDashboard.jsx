@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine, FaCreditCard, FaClipboardList } from "react-icons/fa";
+import { FaHome, FaUserCheck, FaUsers, FaUserShield, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaWallet, FaBoxes, FaStore, FaPercent, FaTruck, FaAward, FaHandshake, FaFilePdf, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaChartLine, FaCreditCard, FaClipboardList, FaLandmark } from "react-icons/fa";
 import { HiCube } from "react-icons/hi";
 import { useSelector, useDispatch } from "react-redux";
 import { setAlert } from "../features/alert.slice";

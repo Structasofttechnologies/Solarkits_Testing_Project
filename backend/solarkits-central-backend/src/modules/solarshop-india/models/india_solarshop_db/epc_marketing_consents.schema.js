@@ -18,7 +18,7 @@ const schema = new mongoose.Schema({
   },
   consent_source: {
     type: String,
-    enum: ['first_login_popup', 'new_kit_modal', 'profile_settings', 'admin_import'],
+    enum: ['first_login_popup', 'new_kit_modal', 'profile_settings', 'admin_import', 'signup', 'portal', 'register'],
     default: 'first_login_popup'
   },
   consent_wording: {
