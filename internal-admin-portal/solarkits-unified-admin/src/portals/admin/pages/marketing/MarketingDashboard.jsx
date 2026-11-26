@@ -33,7 +33,10 @@ import {
 } from 'react-icons/fa';
 import { MdTrendingUp, MdVisibility } from 'react-icons/md';
 import IndiaCampaignMap from './IndiaCampaignMap';
+import axios from 'axios';
+import { authHeaderObj } from '../../app/authHeader';
 import {
+  API_BASE_URL,
   getQuotaState,
   rechargeQuota,
   getCouponsList,
@@ -400,16 +403,16 @@ export default function MarketingDashboard() {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin-panel/marketing/analytics', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-        }
+      const res = await axios.get(`${API_BASE_URL}/marketing/analytics`, {
+        headers: authHeaderObj(),
+        timeout: 15000
       });
-      const json = await res.json();
-      if (json.success && json.data) {
+      const json = res.data;
+      if (json?.success && json.data) {
         setData(json.data);
       }
     } catch (err) {
+      console.warn('Notice loading marketing analytics:', err.message);
       // Retain fallback data
     } finally {
       setLoading(false);

@@ -475,14 +475,15 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
   }, [kit, currentVariant]);
 
   const displayDescription = useMemo(() => {
-    if (kit?.is_govt_tender && kit?.govt_tender_tagline) return kit.govt_tender_tagline;
-    if (kit?.is_govt_tender && kit?.govt_tender_description) return kit.govt_tender_description;
     return kit?.description || kit?.summary || currentVariant?.description || "High-efficiency Tier-1 Solar PV Module engineered for rooftop and ground mount installations.";
-  }, [kit?.description, kit?.summary, kit?.is_govt_tender, kit?.govt_tender_tagline, kit?.govt_tender_description, currentVariant?.description]);
+  }, [kit?.description, kit?.summary, currentVariant?.description]);
 
   const displayKitName = useMemo(() => {
+    if (kit?.is_govt_tender && (kit?.govt_tender_name || kit?.govt_tender_display_name)) {
+      return kit.govt_tender_name || kit.govt_tender_display_name;
+    }
     return kit?.kitName || kit?.title || kit?.name || "Solar Module";
-  }, [kit?.kitName, kit?.title, kit?.name]);
+  }, [kit?.is_govt_tender, kit?.govt_tender_name, kit?.govt_tender_display_name, kit?.kitName, kit?.title, kit?.name]);
 
   // Use dynamic discount percent (tier price vs market price)
   const discountPercentage = useMemo(() => {
@@ -683,9 +684,27 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
         <h3 className={`font-bold text-text-primary mb-1.5 line-clamp-1 leading-tight group-hover:text-primary dark:group-hover:text-info transition-colors ${compact ? 'text-base' : 'text-lg'}`}>
           {displayKitName}
         </h3>
-        <p className="text-text-secondary text-xs line-clamp-2 leading-relaxed mb-4">
+        {kit?.is_govt_tender && kit?.govt_tender_tagline && (
+          <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 italic mb-1.5 flex items-center gap-1.5 line-clamp-1">
+            <span>🏛️</span> {kit.govt_tender_tagline}
+          </p>
+        )}
+        <p className="text-text-secondary text-xs line-clamp-2 leading-relaxed mb-3">
           {displayDescription}
         </p>
+
+        {/* Dedicated Tender Specifications & Eligibility Box */}
+        {kit?.is_govt_tender && kit?.govt_tender_description && (
+          <div className="mb-4 p-2.5 rounded-xl bg-blue-50/80 dark:bg-slate-800/80 border border-blue-200 dark:border-blue-700/60 text-xs shadow-2xs">
+            <div className="flex items-center gap-1.5 font-bold text-blue-900 dark:text-blue-300 mb-1">
+              <FaLandmark className="text-amber-500 text-[10px]" />
+              <span className="text-[11px] uppercase tracking-wider">Tender Specifications & Eligibility</span>
+            </div>
+            <p className="text-text-secondary text-[11px] leading-relaxed line-clamp-3">
+              {kit.govt_tender_description}
+            </p>
+          </div>
+        )}
 
         {/* Dynamic Capacity Badge & Warranty Info Row */}
         <div className="flex items-center gap-2 mb-4">
@@ -1288,9 +1307,25 @@ const KitCard = memo(({ kit, selected, setSelected, viewMode = "grid", compact =
               <h3 className={`font-bold text-text-primary mb-1 line-clamp-1 leading-tight group-hover:text-primary dark:group-hover:text-info transition-colors ${compact ? 'text-base' : 'text-lg'}`}>
                 {displayKitName}
               </h3>
+              {kit?.is_govt_tender && kit?.govt_tender_tagline && (
+                <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 italic mb-1 flex items-center gap-1.5 line-clamp-1">
+                  <span>🏛️</span> {kit.govt_tender_tagline}
+                </p>
+              )}
               <p className="text-text-secondary text-xs line-clamp-2 leading-relaxed mb-3">
                 {displayDescription}
               </p>
+              {kit?.is_govt_tender && kit?.govt_tender_description && (
+                <div className="mb-3 p-2.5 rounded-xl bg-blue-50/80 dark:bg-slate-800/80 border border-blue-200 dark:border-blue-700/60 text-xs shadow-2xs">
+                  <div className="flex items-center gap-1.5 font-bold text-blue-900 dark:text-blue-300 mb-0.5">
+                    <FaLandmark className="text-amber-500 text-[10px]" />
+                    <span className="text-[11px] uppercase tracking-wider">Tender Specifications & Eligibility</span>
+                  </div>
+                  <p className="text-text-secondary text-[11px] leading-relaxed line-clamp-2">
+                    {kit.govt_tender_description}
+                  </p>
+                </div>
+              )}
             </div>
 
             <KitComponentsRow kit={kit} />

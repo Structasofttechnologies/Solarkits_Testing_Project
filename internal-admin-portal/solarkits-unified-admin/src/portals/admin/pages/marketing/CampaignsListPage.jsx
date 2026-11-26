@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { authHeaderObj } from '../../app/authHeader';
+import { API_BASE_URL } from './services/marketingDataService';
 import {
   FaBullhorn,
   FaPlus,
@@ -84,18 +87,18 @@ export default function CampaignsListPage() {
   const fetchCampaigns = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin-panel/marketing/campaigns', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-        }
+      const res = await axios.get(`${API_BASE_URL}/marketing/campaigns`, {
+        headers: authHeaderObj(),
+        timeout: 15000
       });
-      const json = await res.json();
-      if (json.success && json.data && json.data.length > 0) {
+      const json = res.data;
+      if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
         setCampaigns(json.data);
       } else {
         setCampaigns(demoCampaigns);
       }
     } catch (err) {
+      console.warn('Notice loading campaigns from API:', err.message);
       setCampaigns(demoCampaigns);
     } finally {
       setLoading(false);
@@ -108,21 +111,27 @@ export default function CampaignsListPage() {
 
   const handleLaunch = async (id) => {
     try {
-      await fetch(`/api/admin-panel/marketing/campaigns/${id}/launch`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
-          'Content-Type': 'application/json'
+      const res = await axios.post(
+        `${API_BASE_URL}/marketing/campaigns/${id}/launch`,
+        {},
+        {
+          headers: authHeaderObj(),
+          timeout: 15000
         }
-      });
+      );
+      if (res.data?.success) {
+        alert(res.data.message || 'Campaign launched successfully.');
+      }
       fetchCampaigns();
     } catch (err) {
-      alert('Launch command issued.');
+      console.warn('Campaign launch notice:', err.message);
+      alert(err.response?.data?.message || 'Unable to launch campaign right now.');
     }
   };
 
   const handleCopyLink = (code) => {
-    const url = `https://solarkits.in/t/${code}`;
+    const publicSite = (import.meta.env.VITE_PUBLIC_SITE_URL || 'https://solarkits.in').replace(/\/+$/, '');
+    const url = `${publicSite}/t/${code}`;
     navigator.clipboard.writeText(url);
     setCopiedId(code);
     setTimeout(() => setCopiedId(null), 2500);

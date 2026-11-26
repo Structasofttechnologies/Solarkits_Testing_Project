@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { authHeaderObj } from '@/app/authHeader';
+import { getAdminApiBaseUrl } from '@/utils/resolveApiUrl';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE = getAdminApiBaseUrl();
 
 /**
  * Fetch paginated admin notifications

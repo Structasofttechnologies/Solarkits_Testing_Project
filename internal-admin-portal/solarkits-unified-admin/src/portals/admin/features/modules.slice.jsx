@@ -2,7 +2,7 @@ import { createSlice, createAsyncThunk, createSelector } from "@reduxjs/toolkit"
 import axios from "axios";
 import { setAlert } from "./alert.slice";
 import { refreshAccessToken } from "./auth.slice";
-import { resolveApiUrl } from "@/utils/resolveApiUrl";
+import { getAdminApiBaseUrl } from "@/utils/resolveApiUrl";
 
 const extractUniqueIdsFromModules = (modules = []) => {
   let uniqueIds = [];
@@ -48,9 +48,9 @@ export const fetchUserModules = createAsyncThunk(
       }
 
       const authHeader = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-      const res = await axios.get(`${resolveApiUrl(import.meta.env.VITE_API_URL, 'http://localhost:5000/admin-api')}/user-modules`, {
+      const res = await axios.get(`${getAdminApiBaseUrl()}/user-modules`, {
         headers: { Authorization: authHeader },
-        timeout: 10000,
+        timeout: 30000,
       });
 
       const modules = res.data?.data || [];
