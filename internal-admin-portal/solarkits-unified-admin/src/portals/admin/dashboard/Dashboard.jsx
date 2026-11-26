@@ -98,7 +98,7 @@ const OrderJourneyDashboard = lazy(() => import("../pages/solar-shop/order-manag
 const menus = [
   [
     { name: "Dashboard", icon: <FaHome />, path: "/admin-panel/home", unique_id: "00000000" },
-
+ 
     {
       name: "Accounts Module",
       icon: <FaFileInvoiceDollar />,

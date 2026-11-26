@@ -22,7 +22,8 @@ import {
   FiPlus,
   FiTrash2,
   FiSliders,
-  FiFolder
+  FiFolder,
+  FiAlertCircle
 } from "react-icons/fi";
 import PageHeader from "@/components/PageHeader";
 
