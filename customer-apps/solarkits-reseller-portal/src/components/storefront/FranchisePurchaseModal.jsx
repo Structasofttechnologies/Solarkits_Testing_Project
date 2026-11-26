@@ -36,6 +36,7 @@ import {
 } from "react-icons/fi";
 import api from "../../services/api";
 import { INDIAN_STATES_DISTRICTS, getClustersForState } from "../../data/territoryData";
+import { getTelemetryContext, trackFormSubmission } from "../../utils/websiteTelemetry";
 
 const SAMPLE_SHOP_PHOTOS = [
   {
@@ -459,10 +460,12 @@ export default function FranchisePurchaseModal({
       territoryLevel,
       plan_id: plan?._id || plan?.id || null,
       actionType: "franchise_apply",
+      tracking: getTelemetryContext("franchise_apply"),
     };
 
     try {
       const res = await api.post("/india/v1/reseller/leads/submit", payload);
+      trackFormSubmission("franchise_apply");
       const leadData = res.data?.data || { id: `LEAD-${Date.now()}` };
       setSubmissionSuccessData(leadData);
       setStep(5);

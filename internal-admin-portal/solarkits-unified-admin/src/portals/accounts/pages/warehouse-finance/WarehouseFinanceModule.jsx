@@ -132,11 +132,38 @@ export default function WarehouseFinanceModule() {
         projected_monthly_delivery_savings: existing ? existing.projected_monthly_delivery_savings : 160000,
         admin_notes: ""
       });
+    } else {
+      setNewOppData({
+        cluster_id: "",
+        cluster_name: "",
+        cluster_code: "",
+        state: "",
+        district: "",
+        current_monthly_turnover: 2800000,
+        current_monthly_kits: 45,
+        pipeline_order_value: 4500000,
+        active_epc_count: 0,
+        current_avg_delivery_tat_days: 5.5,
+        current_delivery_cost_pct: 7.5,
+        projected_monthly_delivery_savings: 160000,
+        admin_notes: ""
+      });
     }
     setShowAddModal(true);
   };
 
   const handleModalClusterSelect = (clusterId) => {
+    if (!clusterId) {
+      setNewOppData(prev => ({
+        ...prev,
+        cluster_id: "",
+        cluster_name: "",
+        cluster_code: "",
+        state: "",
+        district: ""
+      }));
+      return;
+    }
     const fc = franchiseClusters.find(c => (c._id || c.id) === clusterId);
     if (!fc) return;
 
@@ -788,7 +815,9 @@ export default function WarehouseFinanceModule() {
                   onChange={(e) => handleModalClusterSelect(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold bg-white"
                 >
-                  <option value="">Select a Franchise Cluster</option>
+                  <option value="">
+                    {franchiseClusters.length > 0 ? "Select a Franchise Cluster" : "Loading Franchise Clusters..."}
+                  </option>
                   {franchiseClusters.map((fc) => (
                     <option key={fc._id || fc.id} value={fc._id || fc.id}>
                       {fc.cluster_name} ({fc.cluster_code}) — {fc.state_name || fc.state_id?.name || ""}

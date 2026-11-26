@@ -188,13 +188,13 @@ const menus = [
                     unique_id: "ADM_CUSTOMIZE_KITS",
                     badgeKey: "customize-kits"
                 },
-                {
-                    name: "Bulk Combo Kits",
-                    icon: <HiCube />,
-                    path: "/admin-panel/solar-shop/combokit-configurations/bulk-combo-kits",
-                    unique_id: "ADM_BULK_COMBO",
-                    badgeKey: "bulk-combo-kits"
-                },
+                // {
+                //     name: "Bulk Combo Kits",
+                //     icon: <HiCube />,
+                //     path: "/admin-panel/solar-shop/combokit-configurations/bulk-combo-kits",
+                //     unique_id: "ADM_BULK_COMBO",
+                //     badgeKey: "bulk-combo-kits"
+                // },
                 {
                     name: "Combo Kit Variants",
                     icon: <HiCube />,
@@ -292,13 +292,13 @@ const menus = [
                     unique_id: "ADM_DELIVERY_MGMT",
                     badgeKey: "routes"
                 },
-                {
-                    name: "7. Dashboard & Analytics",
-                    icon: <FiBarChart2 />,
-                    path: "/admin-panel/solar-shop/delivery-management/dashboard",
-                    unique_id: "ADM_DELIVERY_MGMT",
-                    badgeKey: "delivery-dashboard"
-                },
+                // {
+                //     name: "7. Dashboard & Analytics",
+                //     icon: <FiBarChart2 />,
+                //     path: "/admin-panel/solar-shop/delivery-management/dashboard",
+                //     unique_id: "ADM_DELIVERY_MGMT",
+                //     badgeKey: "delivery-dashboard"
+                // },
                 {
                     name: "8. Approval Queue",
                     icon: <FiShield />,
@@ -398,18 +398,13 @@ const menus = [
                     unique_id: "ADM_ORDER_SETTINGS",
                     badgeKey: "overdue-settings"
                 },
-                {
-                    name: "Order Journey Dashboard",
-                    icon: <FiBarChart2 />,
-                    path: "/admin-panel/solar-shop/order-management-settings/journey-dashboard",
-                    unique_id: "ADM_ORDER_SETTINGS"
-                },
-                {
-                    name: "Invoice & DO Settings",
-                    icon: <FaFileInvoiceDollar />,
-                    path: "/admin-panel/solar-shop/order-management-settings/invoice-do-settings",
-                    unique_id: "ADM_ORDER_SETTINGS"
-                }
+                // {
+                //     name: "Order Journey Dashboard",
+                //     icon: <FiBarChart2 />,
+                //     path: "/admin-panel/solar-shop/order-management-settings/journey-dashboard",
+                //     unique_id: "ADM_ORDER_SETTINGS"
+                // },
+
             ]
         },
         // ── Trial Kit Management Module ─────────────────────────────────────

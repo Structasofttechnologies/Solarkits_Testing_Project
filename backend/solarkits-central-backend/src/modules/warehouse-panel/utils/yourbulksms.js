@@ -2,29 +2,53 @@ const axios = require("axios");
 
 const SMS_API_URL = "http://control.yourbulksms.com/api/sendhttp.php";
 
-const sendOTP = async (country, to) => {
+const sendOTP = async (country, to, customOtp = null) => {
     try {
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const cleanTo = String(to).replace(/\D/g, '').slice(-10);
+        const otp = customOtp ? String(customOtp).trim() : Math.floor(100000 + Math.random() * 900000).toString();
 
         const message = `Dear user, ${otp} is the OTP for your login at Solarkits. In case you have not requested this, please contact us at office@sunnovative.com`;
 
+        const authKey = process.env.SMS_AUTH_KEY || "3232617469766532323818";
+        const sender = process.env.SMS_SENDER_ID || "SUNNOV";
+        const dltTeId = process.env.DLT_TE_ID || "1707172191371418218";
+
         const params = {
-            authkey: process.env.SMS_AUTH_KEY,
-            mobiles: to,
+            authkey: authKey,
+            mobiles: cleanTo,
             message,
-            sender: process.env.SMS_SENDER_ID,
+            sender: sender,
             route: "2",
-            country: country,
-            DLT_TE_ID : process.env.DLT_TE_ID,
+            country: country || "91",
+            DLT_TE_ID: dltTeId,
         };
 
         const response = await axios.get(SMS_API_URL, { params });
+        let resData = response.data;
+        if (typeof resData === "string") {
+            try {
+                resData = JSON.parse(resData);
+            } catch (_) { }
+        }
 
-        return { success: true, response: response.data, otp };
+        const isSuccess = resData && (
+            resData.Status === "Success" ||
+            resData.Code === "000" ||
+            (typeof resData === "string" && (resData.includes("Success") || /^\d+$/.test(resData.trim())))
+        );
+
+        if (!isSuccess) {
+            const errorMsg = resData?.Description || (typeof resData === "string" ? resData : JSON.stringify(resData));
+            console.error(`[YourBulkSMS Error] Failed to send SMS to ${cleanTo}:`, errorMsg);
+            throw new Error(`SMS Gateway Error: ${errorMsg}`);
+        }
+
+        return { success: true, response: resData, otp };
     } catch (error) {
         console.error("Error sending OTP:", error.response?.data || error.message);
-        throw new Error("Failed to send OTP");
+        throw error;
     }
 };
 
 module.exports = { sendOTP };
+
