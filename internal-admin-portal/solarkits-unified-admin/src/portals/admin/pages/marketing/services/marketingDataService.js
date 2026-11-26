@@ -16,6 +16,7 @@ const API_BASE_URL = import.meta.env.VITE_ADMIN_API_URL || import.meta.env.VITE_
 export const CAMPAIGN_OBJECTIVES = [
   { id: 'coupon_discount', label: 'Discount Coupon & Promotional Offer', name: 'Discount Coupon & Promotional Offer', kpi: 'Coupons redeemed, kit orders', desc: 'Distribute exclusive discount coupon vouchers for eligible solar kits' },
   { id: 'sales', label: 'Kit Sales & Repeat Orders', name: 'Kit Sales & Repeat Orders', kpi: 'Kits sold, sales revenue', desc: 'Direct commercial kit sales & bulk orders' },
+  { id: 'govt_tender_promotion', label: 'Government & PSU Tender Kits Promotion', name: 'Government & PSU Tender Kits Promotion', kpi: 'Tender kit inquiries, state bids', desc: 'Promote state-specific approved Government & PSU tender solar kits to regional EPC contractors' },
   { id: 'epc_signup', label: 'New EPC Registration & Sign-Up Drive', name: 'New EPC Registration & Sign-Up Drive', kpi: 'New verified EPC sign-ups', desc: 'Acquire and onboard new verified solar contractors' },
   { id: 'store_visits', label: 'Franchisee Store Visits', name: 'Franchisee Store Visits', kpi: 'Verified check-ins', desc: 'Drive local EPC traffic to regional franchise depots' },
   { id: 'epc_onboarding', label: 'EPC Verification & KYC Drive', name: 'EPC Verification & KYC Drive', kpi: 'KYC verified EPCs', desc: 'Accelerate pending GST & KYC verifications' },
@@ -120,6 +121,26 @@ export const STORE_KITS_CATALOG = [
     }
   }
 ];
+
+export async function fetchLiveGovtTenderConfigs() {
+  try {
+    const authHeaders = authHeaderObj();
+    const res = await axios.get(
+      `${API_BASE_URL}/govt-tender-configs?status=active&limit=100&unique_id=ADM_COMBO_KITS&req_for=view`,
+      {
+        headers: authHeaders,
+        timeout: 4000
+      }
+    );
+    if (res.data?.status === 'success' && Array.isArray(res.data.data)) {
+      return res.data.data;
+    }
+    return [];
+  } catch (err) {
+    console.warn('Failed to fetch live govt tender configs:', err.message);
+    return [];
+  }
+}
 
 export async function fetchLiveComboKits() {
   try {
@@ -534,6 +555,57 @@ export async function fetchLiveActiveStates() {
   return ALL_36_INDIAN_STATES;
 }
 
+// ── Live Audience Preview (Dynamic EPC Counts & Industry Preferences from Database) ──
+export async function fetchLiveAudiencePreview(params = {}) {
+  try {
+    const authHeaders = authHeaderObj();
+    const res = await axios.post(`${API_BASE_URL}/marketing/audience/preview`, params, {
+      headers: authHeaders,
+      timeout: 5000
+    });
+    if (res.data?.success && res.data?.data) {
+      return res.data.data;
+    }
+    return null;
+  } catch (err) {
+    console.warn('Failed to fetch live audience preview:', err.message);
+    return null;
+  }
+}
+
+// ── Live Account Message Quota (Dynamic from Connected Providers in Central Email Engine) ──
+export async function fetchLiveMarketingQuota() {
+  try {
+    const authHeaders = authHeaderObj();
+    const res = await axios.get(`${API_BASE_URL}/email-management/quotas`, {
+      headers: authHeaders,
+      timeout: 4000
+    });
+    if (res.data?.success && Array.isArray(res.data.data)) {
+      const quotas = res.data.data;
+      const total = quotas.reduce((sum, q) => sum + (Number(q.allocated_limit) || 0), 0);
+      const used = quotas.reduce((sum, q) => sum + (Number(q.used_count) || 0), 0);
+      const available = Math.max(0, total - used);
+      const liveState = {
+        total,
+        totalQuota: total,
+        used,
+        dispatchedUsed: used,
+        available,
+        providers: quotas
+      };
+      try {
+        localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(liveState));
+      } catch (e) { }
+      window.dispatchEvent(new Event('solarkits-quota-updated'));
+      return liveState;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch live email quotas from backend:', err.message);
+  }
+  return getQuotaState();
+}
+
 // ── 4. Dynamic API Fetch: Franchisee Clusters ──
 export async function fetchLiveClusters() {
   try {
@@ -644,14 +716,14 @@ export async function fetchLiveWarehouses() {
 
 // ── 6. Centralized Quota Management (Persisted in localStorage) ──
 const QUOTA_STORAGE_KEY = 'solarkits_marketing_quota_v2';
-const DEFAULT_TOTAL_QUOTA = 15000;
+const DEFAULT_TOTAL_QUOTA = 0;
 
 export function getQuotaState() {
   try {
     const saved = localStorage.getItem(QUOTA_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      const total = Number(parsed.total || parsed.totalQuota) || DEFAULT_TOTAL_QUOTA;
+      const total = Number(parsed.total || parsed.totalQuota) || 0;
       const used = Number(parsed.used || parsed.dispatchedUsed) || 0;
       const available = Math.max(0, total - used);
       return {
@@ -665,22 +737,14 @@ export function getQuotaState() {
     }
   } catch (e) { }
 
-  // Default initial quota state
-  const initial = {
-    total: DEFAULT_TOTAL_QUOTA,
-    totalQuota: DEFAULT_TOTAL_QUOTA,
-    used: 2450, // Active campaigns already dispatched in staging
-    dispatchedUsed: 2450,
-    available: DEFAULT_TOTAL_QUOTA - 2450,
-    campaigns: [
-      { name: 'Diwali 3kW EPC Wholesale Flash Sale', quota: 1500, date: '2026-11-18' },
-      { name: 'Maharashtra Inactive EPC Reactivation', quota: 950, date: '2026-11-18' }
-    ]
+  return {
+    total: 0,
+    totalQuota: 0,
+    used: 0,
+    dispatchedUsed: 0,
+    available: 0,
+    campaigns: []
   };
-  try {
-    localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(initial));
-  } catch (e) { }
-  return initial;
 }
 
 export function deductQuotaOnLaunch(nameOrQuota, maybeQuota) {

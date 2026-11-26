@@ -105,7 +105,6 @@ adminRouter.use('/combo-kit-variants', require('./modules/admin-panel/routes/com
 adminRouter.use('/datasheet-settings', require('./modules/admin-panel/routes/datasheet_settings.route'));
 adminRouter.use('/pincode-delivery-costs', require('./modules/admin-panel/routes/pincode_delivery_costs.route'));
 adminRouter.use('/best-seller-configs', require('./modules/admin-panel/routes/best_seller_kits.route'));
-
 adminRouter.use('/govt-tender-configs', require('./modules/admin-panel/routes/govt_tender_kits.route'));
 
 adminRouter.use('/product-sku-prices', require('./modules/admin-panel/routes/product_sku_prices.route'));
@@ -254,6 +253,12 @@ try {
 } catch (schedErr) {
   console.warn('⚠️ Marketing scheduler startup notice:', schedErr.message);
 }
+
+// ─── SOLARKITS: Central Email Management & Monitoring Engine ───
+const emailManagementRouter = require('./modules/admin-panel/email-management/routes/emailManagement.routes');
+adminRouter.use('/email-management', emailManagementRouter);
+app.use('/api/admin/email-management', emailManagementRouter);
+app.use('/api/email-management', emailManagementRouter);
 
 
 
