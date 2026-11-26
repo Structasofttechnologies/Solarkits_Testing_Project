@@ -31,6 +31,7 @@ export default function Home() {
     dateRange: 'last_30_days',
     startDate: '',
     endDate: '',
+    website: 'all',
     state: 'all',
     district: 'all',
     epcStatus: 'all',
@@ -84,6 +85,7 @@ export default function Home() {
       dateRange: 'last_30_days',
       startDate: '',
       endDate: '',
+      website: 'all',
       state: 'all',
       district: 'all',
       epcStatus: 'all',
@@ -281,6 +283,8 @@ export default function Home() {
       {/* 3. Website Performance */}
       <DashboardWebsiteSection
         data={websiteData}
+        activeWebsite={filters.website}
+        onWebsiteChange={(siteKey) => handleFilterChange('website', siteKey)}
         onDrillDown={handleOpenDrillDown}
       />
 

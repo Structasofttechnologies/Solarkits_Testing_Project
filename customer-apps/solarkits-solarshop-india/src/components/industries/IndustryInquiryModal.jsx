@@ -14,19 +14,16 @@ import {
 } from "react-icons/fi";
 import axios from "axios";
 import { trackIndustryEvent } from "../../services/industryContentService";
+import { getTelemetryContext, trackFormSubmission } from "../../utils/websiteTelemetry";
 
-const PRECONFIGURED_KITS = [
-  "1 kW DCR Solarkits On-Grid Combo Kit",
-  "2 kW DCR Solarkits On-Grid Combo Kit",
-  "3 kW DCR Solarkits Complete Home Combo Kit",
-  "5 kW Solarkits Heavy-Duty Hybrid Kit",
-  "10 kW Solarkits Commercial 3-Phase Kit",
-  "25 kW - 100 kW Industrial Rooftop Package",
-  "3 HP Solar Agriculture Pump Kit (PM-KUSUM)",
-  "5 HP Solar Agriculture Pump Kit (PM-KUSUM)",
-  "7.5 HP Solar Agriculture Pump Kit (PM-KUSUM)",
-  "Custom BOS, Mounting Structure & Cable Kit",
+const DEFAULT_SOLUTIONS = [
   "Custom Tailored Solution / Other",
+  "Residential Rooftop Solar System",
+  "Commercial & Industrial Solar System",
+  "Agricultural Solar Water Pumping System",
+  "Energy Storage System (BESS)",
+  "Solar Street Lighting System",
+  "Custom BOS, Mounting Structure & Cable Kit",
 ];
 
 export default function IndustryInquiryModal({
@@ -35,18 +32,40 @@ export default function IndustryInquiryModal({
   activeIndustry = null,
   industries = [],
 }) {
+  const [availableKits, setAvailableKits] = useState(DEFAULT_SOLUTIONS);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     email: "",
     city: "",
-    selectedKit: PRECONFIGURED_KITS[2], // Default 3 kW Home Kit
+    selectedKit: DEFAULT_SOLUTIONS[0],
     quantity: 1,
     capacityKw: "",
     industryId: activeIndustry?.id || activeIndustry?._id || "",
     projectType: "Rooftop On-Grid",
     notes: "",
   });
+
+  // Dynamically load real kits from API if available
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "")
+      : (import.meta.env.VITE_BACKEND_URL || "http://localhost:5000");
+
+    axios
+      .get(`${apiBase}/solar-kits/get-kits?req_for=view`, { timeout: 3000 })
+      .then((res) => {
+        const kits = res.data?.data || res.data?.kits || (Array.isArray(res.data) ? res.data : []);
+        if (Array.isArray(kits) && kits.length > 0) {
+          const names = kits.map((k) => k.name).filter(Boolean);
+          if (names.length > 0) {
+            setAvailableKits([...names, "Custom Tailored Solution / Other"]);
+            setFormData((prev) => ({ ...prev, selectedKit: names[0] }));
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -103,7 +122,12 @@ export default function IndustryInquiryModal({
         industry_sector: activeIndObj?.name || "General Industry",
         query_message: `Industry RFP: Kit "${formData.selectedKit}" (Qty: ${formData.quantity} kits) | Estimated Capacity: ${formData.capacityKw || "Standard"} | City: ${formData.city}`,
         project_type: formData.projectType || "Rooftop On-Grid",
+        source: "solarkits-in-industry-rfp",
+        website_key: "solarkits_main",
+        tracking: getTelemetryContext("industry_rfp"),
       };
+
+      trackFormSubmission("industry_rfp");
 
       // Track event
       trackIndustryEvent({
@@ -326,7 +350,7 @@ export default function IndustryInquiryModal({
                       onChange={(e) => setFormData({ ...formData, selectedKit: e.target.value })}
                       className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      {PRECONFIGURED_KITS.map((kitName, idx) => (
+                      {availableKits.map((kitName, idx) => (
                         <option key={idx} value={kitName}>
                           {kitName}
                         </option>

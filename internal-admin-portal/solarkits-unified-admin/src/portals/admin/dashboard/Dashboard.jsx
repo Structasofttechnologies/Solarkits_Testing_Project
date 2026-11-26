@@ -90,22 +90,18 @@ const WhatsAppSettingsPage = lazy(() => import("../pages/marketing/WhatsAppSetti
 const WebsiteFormMappingPage = lazy(() => import("../pages/marketing/WebsiteFormMappingPage"));
 const UtmTrackingPage = lazy(() => import("../pages/marketing/UtmTrackingPage"));
 const MarketingReportsPage = lazy(() => import("../pages/marketing/MarketingReportsPage"));
+// Lazy import OrderJourneyDashboard from solar-shop pages
+const OrderJourneyDashboard = lazy(() => import("../pages/solar-shop/order-management-settings/OrderJourneyDashboard"));
 
 /* ===================== Email Management & Monitoring Module ===================== */
 const EmailManagementHub = lazy(() => import("../pages/email-management/EmailManagementHub"));
-
 
 /* ===================== MENU CONFIG ===================== */
 
 const menus = [
   [
     { name: "Dashboard", icon: <FaHome />, path: "/admin-panel/home", unique_id: "00000000" },
-    {
-      name: "Invoice & DO Settings",
-      icon: <FaReceipt />,
-      path: "/admin-panel/invoice-do-settings",
-      unique_id: "00000000",
-    },
+ 
     {
       name: "Accounts Module",
       icon: <FaFileInvoiceDollar />,
@@ -149,6 +145,18 @@ const menus = [
       icon: <FaEnvelope />,
       path: "/admin-panel/email-management",
       unique_id: "00000000",
+    },
+    {
+      name: "BDE Dashboard",
+      icon: <FaHome />,
+      path: "/admin-panel/bde-management/dashboard",
+      unique_id: "ADM_BDE_MGMT",
+    },
+    {
+      name: "Order Journey Dashboard",
+      icon: <FiBarChart2 />,
+      path: "/admin-panel/order-journey-dashboard",
+      unique_id: "00000000"
     },
     // {
     //   name: "Marketing Overview",
@@ -196,12 +204,7 @@ const menus = [
       path: "/admin-panel/bde-management",
       unique_id: "ADM_BDE_MGMT",
       subMenu: [
-        {
-          name: "BDE Dashboard",
-          icon: <FaHome />,
-          path: "/admin-panel/bde-management/dashboard",
-          unique_id: "ADM_BDE_MGMT",
-        },
+
         {
           name: "All BDEs",
           icon: <FaUsers />,
@@ -1044,6 +1047,17 @@ export default function Dashboard() {
                       <Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}>
                         <TrialKitFeedbackConfigPage />
                       </Suspense>
+                    }
+                  />
+
+                  <Route
+                    path="/order-journey-dashboard"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Order Journey Dashboard..." />}>
+                          <OrderJourneyDashboard />
+                        </Suspense>
+                      </PermissionGuard>
                     }
                   />
                   <Route

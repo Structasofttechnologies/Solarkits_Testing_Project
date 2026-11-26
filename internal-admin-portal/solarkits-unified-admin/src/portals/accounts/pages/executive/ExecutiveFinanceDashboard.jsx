@@ -8,13 +8,14 @@ import {
   FaSolarPanel,
   FaUsers,
   FaMapMarkedAlt,
-  FaClock
+  FaClock,
+  FaSpinner
 } from "react-icons/fa";
 import { getExecutiveOverview } from "../../api/accounts";
 
 export default function ExecutiveFinanceDashboard() {
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
@@ -25,6 +26,23 @@ export default function ExecutiveFinanceDashboard() {
   }, []);
 
   const formatInr = (val) => `₹${Number(val || 0).toLocaleString("en-IN")}`;
+
+  // Dynamic percentage of receivables within 60 days
+  const agingTotal = (data?.receivables_aging?.current_0_30_days || 0) +
+    (data?.receivables_aging?.aging_31_60_days || 0) +
+    (data?.receivables_aging?.aging_61_90_days || 0) +
+    (data?.receivables_aging?.over_90_days || 0);
+  const within60Days = (data?.receivables_aging?.current_0_30_days || 0) + (data?.receivables_aging?.aging_31_60_days || 0);
+  const within60Pct = agingTotal > 0 ? Math.round((within60Days / agingTotal) * 100) : 100;
+
+  if (loading && !data) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center min-h-[60vh] space-y-3 text-slate-500">
+        <FaSpinner className="animate-spin text-3xl text-indigo-600" />
+        <span className="text-sm font-medium">Loading live executive financial metrics...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6 bg-slate-50 min-h-screen text-slate-800">
@@ -61,7 +79,7 @@ export default function ExecutiveFinanceDashboard() {
           <p className="text-2xl font-extrabold text-emerald-600 mt-2">{formatInr(data?.kpis?.total_collections_received)}</p>
           <div className="flex items-center justify-between text-xs mt-1">
             <span className="text-slate-500">Collection Efficiency:</span>
-            <span className="font-bold text-emerald-700">{data?.kpis?.collection_efficiency_pct}%</span>
+            <span className="font-bold text-emerald-700">{data?.kpis?.collection_efficiency_pct ?? 0}%</span>
           </div>
         </div>
 
@@ -73,8 +91,8 @@ export default function ExecutiveFinanceDashboard() {
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Delivered Solar Kits</span>
-          <p className="text-2xl font-extrabold text-indigo-600 mt-2">{data?.kpis?.total_delivered_kits || 348} Kits</p>
-          <span className="text-xs text-slate-500 mt-1 block">Active Partners: {data?.kpis?.active_epc_partners || 64} EPCs</span>
+          <p className="text-2xl font-extrabold text-indigo-600 mt-2">{data?.kpis?.total_delivered_kits ?? 0} Kits</p>
+          <span className="text-xs text-slate-500 mt-1 block">Active Partners: {data?.kpis?.active_epc_partners ?? 0} EPCs</span>
         </div>
       </div>
 
@@ -114,9 +132,9 @@ export default function ExecutiveFinanceDashboard() {
           </div>
 
           <div className="flex justify-between text-xs text-slate-600 pt-2 border-t border-slate-100">
-            <span>📦 Complete Solar Kits: <strong>{data?.inventory_valuation?.total_kit_units_stock} Units</strong></span>
-            <span>⚡ Solar Panels: <strong>{data?.inventory_valuation?.total_solar_panels_stock} Units</strong></span>
-            <span>🔋 Inverters: <strong>{data?.inventory_valuation?.total_inverters_stock} Units</strong></span>
+            <span>📦 Complete Solar Kits: <strong>{data?.inventory_valuation?.total_kit_units_stock ?? 0} Units</strong></span>
+            <span>⚡ Solar Panels: <strong>{data?.inventory_valuation?.total_solar_panels_stock ?? 0} Units</strong></span>
+            <span>🔋 Inverters: <strong>{data?.inventory_valuation?.total_inverters_stock ?? 0} Units</strong></span>
           </div>
         </div>
 
@@ -162,7 +180,7 @@ export default function ExecutiveFinanceDashboard() {
           </div>
 
           <p className="text-[11px] text-slate-400">
-            * Over 85% of outstanding receivables remain within the standard 60-day solar commercial credit window.
+            * Over {within60Pct}% of outstanding receivables remain within the standard 60-day solar commercial credit window.
           </p>
         </div>
       </div>
@@ -189,20 +207,28 @@ export default function ExecutiveFinanceDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {data?.regional_breakdown?.map((reg, idx) => (
-                <tr key={idx} className="hover:bg-slate-50">
-                  <td className="p-3 pl-5 font-bold text-slate-800">{reg.state}</td>
-                  <td className="p-3 text-right font-medium text-slate-900">{formatInr(reg.turnover)}</td>
-                  <td className="p-3 text-right">
-                    <span className="px-2 py-0.5 text-xs font-bold bg-indigo-50 text-indigo-700 rounded-md">
-                      {reg.share_pct}%
-                    </span>
+              {data?.regional_breakdown && data.regional_breakdown.length > 0 ? (
+                data.regional_breakdown.map((reg, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="p-3 pl-5 font-bold text-slate-800">{reg.state}</td>
+                    <td className="p-3 text-right font-medium text-slate-900">{formatInr(reg.turnover)}</td>
+                    <td className="p-3 text-right">
+                      <span className="px-2 py-0.5 text-xs font-bold bg-indigo-50 text-indigo-700 rounded-md">
+                        {reg.share_pct}%
+                      </span>
+                    </td>
+                    <td className="p-3 text-center text-slate-600">{reg.active_warehouses}</td>
+                    <td className="p-3 text-center text-slate-600">{reg.clusters}</td>
+                    <td className="p-3 text-right pr-5 font-bold text-emerald-700">{reg.kits_delivered}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-400 text-xs">
+                    No regional financial distribution data available.
                   </td>
-                  <td className="p-3 text-center text-slate-600">{reg.active_warehouses}</td>
-                  <td className="p-3 text-center text-slate-600">{reg.clusters}</td>
-                  <td className="p-3 text-right pr-5 font-bold text-emerald-700">{reg.kits_delivered}</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

@@ -246,6 +246,7 @@ adminRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.
 
 // ─── SOLARKITS: Email & WhatsApp Marketing & Campaign Automation Engine ───
 adminRouter.use('/marketing', require('./modules/admin-panel/marketing/routes/marketing.route'));
+adminRouter.use('/telemetry', require('./modules/admin-panel/marketing/routes/webTelemetry.route'));
 try {
   const { initScheduler } = require('./modules/admin-panel/marketing/services/scheduler.service');
   initScheduler();
@@ -290,6 +291,7 @@ app.use('/warehouse-api', warehouseRouter);
 // 6. Account Panel routes
 const accountRouter = express.Router();
 accountRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
+accountRouter.use('/franchise-clusters', require('./modules/admin-panel/routes/franchisee.cluster.route'));
 accountRouter.use('/', require('./modules/account-panel/routes/root.route'));
 app.use('/account-api', accountRouter);
 

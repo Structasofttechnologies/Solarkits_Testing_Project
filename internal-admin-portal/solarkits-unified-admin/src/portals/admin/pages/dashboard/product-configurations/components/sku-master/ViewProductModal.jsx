@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Dialog from "@/components/Dialog";
-import { FaImage, FaCheck, FaTag, FaStar, FaSync, FaTags, FaFilePdf, FaExternalLinkAlt } from "react-icons/fa";
+import { FaImage, FaCheck, FaTag, FaStar, FaSync, FaTags, FaFilePdf, FaExternalLinkAlt, FaMicrochip } from "react-icons/fa";
 import axios from "axios";
 import { authHeaderObj } from "@/app/authHeader";
 
