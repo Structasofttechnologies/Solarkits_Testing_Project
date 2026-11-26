@@ -9,8 +9,9 @@
 
 import axios from 'axios';
 import { getAuthToken, authHeaderObj } from '../../../app/authHeader';
+import { getAdminApiBaseUrl } from '../../../utils/resolveApiUrl';
 
-const API_BASE_URL = import.meta.env.VITE_ADMIN_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/admin-api';
+export const API_BASE_URL = getAdminApiBaseUrl();
 
 // ── 1. Unified Campaign Objectives (Exact Match between Create & Map) ──
 export const CAMPAIGN_OBJECTIVES = [
@@ -129,7 +130,7 @@ export async function fetchLiveGovtTenderConfigs() {
       `${API_BASE_URL}/govt-tender-configs?status=active&limit=100&unique_id=ADM_COMBO_KITS&req_for=view`,
       {
         headers: authHeaders,
-        timeout: 4000
+        timeout: 15000
       }
     );
     if (res.data?.status === 'success' && Array.isArray(res.data.data)) {
@@ -149,7 +150,7 @@ export async function fetchLiveComboKits() {
       `${API_BASE_URL}/combo-kits/india/get-kits?unique_id=ADM_COMBO_KITS&req_for=view&is_custom=false`,
       {
         headers: authHeaders,
-        timeout: 4000
+        timeout: 15000
       }
     );
     if (res.data?.status === 'success' && Array.isArray(res.data.data) && res.data.data.length > 0) {
@@ -538,7 +539,7 @@ export async function fetchLiveActiveStates() {
       `${API_BASE_URL}/geolocation/active-states?unique_id=ADM_SETUP_LOC&req_for=view`,
       {
         headers: authHeaders,
-        timeout: 4000
+        timeout: 15000
       }
     );
     if (res.data?.status === 'success' && Array.isArray(res.data.states) && res.data.states.length > 0) {
@@ -561,7 +562,7 @@ export async function fetchLiveAudiencePreview(params = {}) {
     const authHeaders = authHeaderObj();
     const res = await axios.post(`${API_BASE_URL}/marketing/audience/preview`, params, {
       headers: authHeaders,
-      timeout: 5000
+      timeout: 15000
     });
     if (res.data?.success && res.data?.data) {
       return res.data.data;
@@ -579,7 +580,7 @@ export async function fetchLiveMarketingQuota() {
     const authHeaders = authHeaderObj();
     const res = await axios.get(`${API_BASE_URL}/email-management/quotas`, {
       headers: authHeaders,
-      timeout: 4000
+      timeout: 15000
     });
     if (res.data?.success && Array.isArray(res.data.data)) {
       const quotas = res.data.data;
@@ -614,7 +615,7 @@ export async function fetchLiveClusters() {
       `${API_BASE_URL}/franchise-clusters/list?unique_id=ADM_CLUSTER_SETUP&req_for=view`,
       {
         headers: authHeaders,
-        timeout: 4000
+        timeout: 15000
       }
     );
 
@@ -669,7 +670,7 @@ export async function fetchLiveWarehouses() {
       `${API_BASE_URL}/warehouses?unique_id=ADM_WAREHOUSES&req_for=view`,
       {
         headers: authHeaders,
-        timeout: 4000
+        timeout: 15000
       }
     );
 

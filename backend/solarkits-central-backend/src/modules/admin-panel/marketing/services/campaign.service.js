@@ -85,9 +85,14 @@ const dispatchCampaignBatch = async (campaign) => {
     console.warn('⚠️ Could not load unsubscribed list:', err.message);
   }
 
-  const backendBase = process.env.UNSUBSCRIBE_BASE_URL
-    ? process.env.UNSUBSCRIBE_BASE_URL.replace('/api/admin/marketing/unsubscribe', '')
-    : (process.env.BACKEND_PUBLIC_URL || process.env.IPV4 || 'http://10.252.78.244:5000');
+  const rawIpv4 = process.env.IPV4
+    ? (/:\d+$/.test(process.env.IPV4) || process.env.IPV4.startsWith('https://') ? process.env.IPV4 : `${process.env.IPV4}:${process.env.PORT || 5000}`)
+    : '';
+  const backendBase = (
+    process.env.UNSUBSCRIBE_BASE_URL
+      ? process.env.UNSUBSCRIBE_BASE_URL.replace('/api/admin/marketing/unsubscribe', '')
+      : (process.env.BACKEND_PUBLIC_URL || rawIpv4 || `http://localhost:${process.env.PORT || 5000}`)
+  ).replace(/\/+$/, '');
   const rateLimitDelayMs = parseInt(process.env.EMAIL_RATE_LIMIT_DELAY_MS || '350', 10);
   console.log(`🚀 [CAMPAIGN_QUEUE] Starting sequential dispatch for ${campaign.recipients.length} recipients (Pacing: ${rateLimitDelayMs}ms between sends)...`);
 

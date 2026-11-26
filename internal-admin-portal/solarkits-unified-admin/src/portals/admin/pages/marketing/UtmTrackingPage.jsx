@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { FaLink, FaCopy, FaCheck, FaExternalLinkAlt, FaQrcode } from 'react-icons/fa';
 
+const PUBLIC_SITE_URL = (import.meta.env.VITE_PUBLIC_SITE_URL || 'https://solarkits.in').replace(/\/+$/, '');
+
 export default function UtmTrackingPage() {
-  const [baseUrl, setBaseUrl] = useState('https://solarkits.in/franchisee');
+  const [baseUrl, setBaseUrl] = useState(`${PUBLIC_SITE_URL}/franchisee`);
   const [source, setSource] = useState('whatsapp');
   const [medium, setMedium] = useState('campaign');
   const [campaign, setCampaign] = useState('franchisee_growth_2026');
@@ -12,7 +14,7 @@ export default function UtmTrackingPage() {
   const [copied, setCopied] = useState(false);
 
   const fullUrl = `${baseUrl}?utm_source=${source}&utm_medium=${medium}&utm_campaign=${campaign}&utm_content=${content}&utm_term=${term}`;
-  const shortUrl = `https://solarkits.in/t/${shortCode}`;
+  const shortUrl = `${PUBLIC_SITE_URL}/t/${shortCode}`;
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
