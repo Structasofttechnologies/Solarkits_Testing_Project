@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FaMousePointer, FaCheckCircle, FaUsers, FaClock, FaSave, FaSpinner, FaGlobe, FaExclamationCircle } from 'react-icons/fa';
 import axios from 'axios';
-import { getAuthToken } from '../../app/authHeader';
-
-const API_BASE = import.meta.env.VITE_ADMIN_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/admin-api';
+import { authHeaderObj } from '../../app/authHeader';
+import { API_BASE_URL } from './services/marketingDataService';
 
 const DEFAULT_FORMS = [
   {
@@ -116,8 +115,9 @@ export default function WebsiteFormMappingPage() {
   const fetchFormMappings = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/marketing/form-mappings`, {
-        headers: { Authorization: `Bearer ${getAuthToken()}` }
+      const res = await axios.get(`${API_BASE_URL}/marketing/form-mappings`, {
+        headers: authHeaderObj(),
+        timeout: 15000
       });
       if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
         setForms(res.data.data);
@@ -150,9 +150,9 @@ export default function WebsiteFormMappingPage() {
     setSavedNotice(null);
     try {
       const res = await axios.put(
-        `${API_BASE}/marketing/form-mappings/bulk-update`,
+        `${API_BASE_URL}/marketing/form-mappings/bulk-update`,
         { mappings: forms },
-        { headers: { Authorization: `Bearer ${getAuthToken()}` } }
+        { headers: authHeaderObj(), timeout: 15000 }
       );
       if (res.data?.success) {
         setSavedNotice({ type: 'success', message: '✓ Website form mappings and SLA routing saved to database!' });

@@ -23,7 +23,7 @@ import axios from "axios";
 import { authHeaderObj } from "@/app/authHeader";
 import ReactCountryFlag from "react-country-flag";
 import DropdownWithSearchInput from "./DropdownWithSearchInput";
-import { getAuthPortalUrl } from "@/utils/resolveApiUrl";
+import { getAdminApiBaseUrl, getAuthPortalUrl } from "@/utils/resolveApiUrl";
 import useAdminNotifications from "../hooks/useAdminNotifications";
 
 const formatTimeAgo = (dateStr) => {
@@ -136,7 +136,7 @@ export default function Header({ isOpen, setIsOpen, isMobile, title = "Dashboard
         const fetchCountries = async () => {
             try {
                 const res = await axios.get(
-                    `${import.meta.env.VITE_API_URL}/saas-products/company-products?unique_id=ADM_SAAS_PRODS&req_for=view`,
+                    `${getAdminApiBaseUrl()}/saas-products/company-products?unique_id=ADM_SAAS_PRODS&req_for=view`,
                     { headers: authHeaderObj() }
                 );
                 if (res.data?.status === "success") {
@@ -192,6 +192,7 @@ export default function Header({ isOpen, setIsOpen, isMobile, title = "Dashboard
             if (matched) return matched.name;
         }
         const path = window.location.pathname;
+        if (path.startsWith('/marketing-panel')) return 'Marketing Management Panel';
         if (path.startsWith('/admin-panel')) return 'Admin Panel';
         if (path.startsWith('/developer-panel')) return 'Developer Panel';
         if (path.startsWith('/operation-management-panel')) return 'Operation Management Panel';
@@ -323,7 +324,10 @@ export default function Header({ isOpen, setIsOpen, isMobile, title = "Dashboard
                                 </div>
                                 <div className="max-h-[300px] overflow-y-auto scrollbar-hover">
                                     {user.allowed_panels.map((p) => {
-                                        const isPanelActive = window.location.pathname === p.url_prefix || window.location.pathname === p.url_prefix + '/';
+                                        const isPanelActive =
+                                            window.location.pathname === p.url_prefix ||
+                                            window.location.pathname === p.url_prefix + '/' ||
+                                            (p.url_prefix === '/marketing-panel' && window.location.pathname.startsWith('/marketing-panel'));
                                         
                                         const resolvePanelUrl = (urlPrefix, path = '') => {
                                             const cleanPath = path ? path : '/';

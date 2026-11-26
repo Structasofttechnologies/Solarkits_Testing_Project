@@ -27,15 +27,14 @@ import {
 } from 'react-icons/fa';
 import { FiZoomIn, FiZoomOut, FiRefreshCw, FiMapPin, FiCheck, FiSliders } from 'react-icons/fi';
 import axios from 'axios';
-import { getAuthToken } from '../../app/authHeader';
+import { authHeaderObj } from '../../app/authHeader';
 import {
+  API_BASE_URL,
   ALL_36_INDIAN_STATES,
   fetchLiveActiveStates,
   fetchLiveClusters,
   fetchLiveWarehouses
 } from './services/marketingDataService';
-
-const API_BASE = import.meta.env.VITE_ADMIN_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/admin-api';
 
 // Center coordinates for key Indian states
 const STATE_CENTERS = {
@@ -325,7 +324,6 @@ export default function AudienceManagementPage() {
   const fetchAudience = useCallback(async () => {
     setLoading(true);
     try {
-      const token = getAuthToken();
       const params = new URLSearchParams();
       if (search.trim()) params.append('search', search.trim());
       if (selectedGroup !== 'ALL') params.append('epc_type', selectedGroup);
@@ -333,8 +331,9 @@ export default function AudienceManagementPage() {
       if (selectedCluster !== 'ALL') params.append('cluster', selectedCluster);
       if (selectedWarehouse !== 'ALL') params.append('warehouse', selectedWarehouse);
 
-      const res = await axios.get(`${API_BASE}/marketing/audience/list?${params.toString()}`, {
-        headers: token ? { Authorization: token } : {}
+      const res = await axios.get(`${API_BASE_URL}/marketing/audience/list?${params.toString()}`, {
+        headers: authHeaderObj(),
+        timeout: 15000
       });
 
       if (res.data?.success && Array.isArray(res.data.audiences) && res.data.audiences.length > 0) {
@@ -737,7 +736,6 @@ export default function AudienceManagementPage() {
   const handleUploadAndProcess = async () => {
     setImporting(true);
     try {
-      const token = getAuthToken();
       // Prepare full transformed payload
       const transformedPayload = rawCsvRows.map(row => {
         const item = {
@@ -763,11 +761,12 @@ export default function AudienceManagementPage() {
         return item;
       });
 
-      const res = await axios.post(`${API_BASE}/marketing/audience/import-leads`, {
+      const res = await axios.post(`${API_BASE_URL}/marketing/audience/import-leads`, {
         leads: transformedPayload,
         customFieldMappings: fieldMappings
       }, {
-        headers: token ? { Authorization: token } : {}
+        headers: authHeaderObj(),
+        timeout: 15000
       });
 
       if (res.data?.success) {
