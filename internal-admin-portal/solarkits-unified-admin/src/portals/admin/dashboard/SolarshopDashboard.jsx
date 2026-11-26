@@ -292,13 +292,13 @@ const menus = [
                     unique_id: "ADM_DELIVERY_MGMT",
                     badgeKey: "routes"
                 },
-                {
-                    name: "7. Dashboard & Analytics",
-                    icon: <FiBarChart2 />,
-                    path: "/admin-panel/solar-shop/delivery-management/dashboard",
-                    unique_id: "ADM_DELIVERY_MGMT",
-                    badgeKey: "delivery-dashboard"
-                },
+                // {
+                //     name: "7. Dashboard & Analytics",
+                //     icon: <FiBarChart2 />,
+                //     path: "/admin-panel/solar-shop/delivery-management/dashboard",
+                //     unique_id: "ADM_DELIVERY_MGMT",
+                //     badgeKey: "delivery-dashboard"
+                // },
                 {
                     name: "8. Approval Queue",
                     icon: <FiShield />,
@@ -398,12 +398,12 @@ const menus = [
                     unique_id: "ADM_ORDER_SETTINGS",
                     badgeKey: "overdue-settings"
                 },
-                {
-                    name: "Order Journey Dashboard",
-                    icon: <FiBarChart2 />,
-                    path: "/admin-panel/solar-shop/order-management-settings/journey-dashboard",
-                    unique_id: "ADM_ORDER_SETTINGS"
-                },
+                // {
+                //     name: "Order Journey Dashboard",
+                //     icon: <FiBarChart2 />,
+                //     path: "/admin-panel/solar-shop/order-management-settings/journey-dashboard",
+                //     unique_id: "ADM_ORDER_SETTINGS"
+                // },
 
             ]
         },

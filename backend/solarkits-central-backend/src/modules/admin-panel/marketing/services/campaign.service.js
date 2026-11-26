@@ -2,6 +2,8 @@ const { MarketingCampaign, MarketingTemplate, MarketingSender, UtmVisit } = requ
 const emailService = require('./email.service');
 const whatsappService = require('./whatsapp.service');
 const audienceService = require('./audience.service');
+const { resolveWebsiteInfo } = require('../constants/websiteRegistry');
+const { normalizePagePath } = require('./webTelemetry.service');
 
 /**
  * Atomic Campaign Launch Execution
@@ -195,16 +197,22 @@ const handleShortUrlClick = async (shortCode, req) => {
     return { redirectUrl: 'https://solarkits.in' };
   }
 
-  // Record UtmVisit
+  // Record UtmVisit with canonical website identity
+  const targetUrl = campaign.destination_url || 'https://solarkits.in';
+  const siteInfo = resolveWebsiteInfo({ landing_url: targetUrl });
   await UtmVisit.create({
     campaign_id: campaign._id,
     short_code: shortCode,
+    website_key: siteInfo.website_key,
+    site_domain: siteInfo.site_domain,
+    site_url: siteInfo.site_url,
     utm_source: campaign.utm_source,
     utm_medium: campaign.utm_medium,
     utm_campaign: campaign.utm_campaign,
     utm_content: campaign.utm_content,
     utm_term: campaign.utm_term,
-    landing_url: campaign.destination_url || 'https://solarkits.in',
+    landing_url: normalizePagePath(targetUrl),
+    page_path: normalizePagePath(targetUrl),
     referrer: req.headers['referer'] || null,
     ip_address: req.ip || req.connection?.remoteAddress,
     user_agent: req.headers['user-agent'] || null

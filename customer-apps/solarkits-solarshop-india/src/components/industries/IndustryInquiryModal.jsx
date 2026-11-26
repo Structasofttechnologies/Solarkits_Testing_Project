@@ -14,6 +14,7 @@ import {
 } from "react-icons/fi";
 import axios from "axios";
 import { trackIndustryEvent } from "../../services/industryContentService";
+import { getTelemetryContext, trackFormSubmission } from "../../utils/websiteTelemetry";
 
 const DEFAULT_SOLUTIONS = [
   "Custom Tailored Solution / Other",
@@ -121,7 +122,12 @@ export default function IndustryInquiryModal({
         industry_sector: activeIndObj?.name || "General Industry",
         query_message: `Industry RFP: Kit "${formData.selectedKit}" (Qty: ${formData.quantity} kits) | Estimated Capacity: ${formData.capacityKw || "Standard"} | City: ${formData.city}`,
         project_type: formData.projectType || "Rooftop On-Grid",
+        source: "solarkits-in-industry-rfp",
+        website_key: "solarkits_main",
+        tracking: getTelemetryContext("industry_rfp"),
       };
+
+      trackFormSubmission("industry_rfp");
 
       // Track event
       trackIndustryEvent({

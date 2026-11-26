@@ -42,6 +42,7 @@ export default function DashboardDrilldownDrawer({
         endDate: filters.endDate,
         state: filters.state,
         district: filters.district,
+        website: filters.website,
       })
       .then((res) => {
         if (!isMounted) return;
@@ -61,7 +62,7 @@ export default function DashboardDrilldownDrawer({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, section, kpiId, page, filters.dateRange, filters.startDate, filters.endDate, filters.state, filters.district]);
+  }, [isOpen, section, kpiId, page, filters.dateRange, filters.startDate, filters.endDate, filters.state, filters.district, filters.website]);
 
   if (!isOpen) return null;
 
@@ -82,6 +83,11 @@ export default function DashboardDrilldownDrawer({
       (r.quote_number && r.quote_number.toLowerCase().includes(s)) ||
       (r.state_name && r.state_name.toLowerCase().includes(s)) ||
       (r.district_name && r.district_name.toLowerCase().includes(s)) ||
+      (r.site_domain && r.site_domain.toLowerCase().includes(s)) ||
+      (r.landing_url && r.landing_url.toLowerCase().includes(s)) ||
+      (r.traffic_source_label && r.traffic_source_label.toLowerCase().includes(s)) ||
+      (r.utm_source && r.utm_source.toLowerCase().includes(s)) ||
+      (r.utm_campaign && r.utm_campaign.toLowerCase().includes(s)) ||
       (r.gstin && r.gstin.toLowerCase().includes(s)) ||
       (r._id && String(r._id).toLowerCase().includes(s))
     );
@@ -169,9 +175,11 @@ export default function DashboardDrilldownDrawer({
                   {section === 'website' && (
                     <tr>
                       <th className="py-2.5 px-3 font-semibold">Date</th>
-                      <th className="py-2.5 px-3 font-semibold">Session ID</th>
+                      <th className="py-2.5 px-3 font-semibold">Website</th>
+                      <th className="py-2.5 px-3 font-semibold">Visitor / Session</th>
                       <th className="py-2.5 px-3 font-semibold">Traffic Source</th>
                       <th className="py-2.5 px-3 font-semibold">Landing Page</th>
+                      <th className="py-2.5 px-3 font-semibold">Engagement</th>
                       <th className="py-2.5 px-3 font-semibold text-center">Form Submitted</th>
                     </tr>
                   )}
@@ -235,10 +243,25 @@ export default function DashboardDrilldownDrawer({
                     <tr key={r._id || i} className="hover:bg-primary/5 transition-colors">
                       {section === 'website' && (
                         <>
-                          <td className="py-2.5 px-3">{new Date(r.created_at || Date.now()).toLocaleDateString()}</td>
-                          <td className="py-2.5 px-3 font-mono text-[11px]">{r.visitor_session_id?.slice(0, 12) || 'Direct'}</td>
-                          <td className="py-2.5 px-3 font-medium">{r.utm_source || r.referrer || 'Direct'}</td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">{new Date(r.created_at || Date.now()).toLocaleDateString()}</td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+                              {r.site_domain || 'solarkits.in'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-[11px]">
+                            <div>{(r.visitor_session_id || 'Direct').slice(0, 14)}</div>
+                            <span className="text-[10px] text-text-secondary font-sans">
+                              {r.is_returning ? 'Returning' : 'New'} • {r.device_type || 'desktop'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-medium">
+                            {r.traffic_source_label || r.utm_source || r.referrer || 'Direct'}
+                          </td>
                           <td className="py-2.5 px-3 text-text-secondary">{r.landing_url || '/'}</td>
+                          <td className="py-2.5 px-3 text-text-secondary whitespace-nowrap">
+                            {r.page_views || 1} pg • {Math.floor((r.duration_seconds || 0) / 60)}m {(r.duration_seconds || 0) % 60}s
+                          </td>
                           <td className="py-2.5 px-3 text-center">
                             {r.has_form_submitted ? (
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Yes</span>
@@ -280,11 +303,10 @@ export default function DashboardDrilldownDrawer({
                             )}
                           </td>
                           <td className="py-2.5 px-3 font-medium">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              r.behavior_status === 'active' || r.is_active || r.is_behavior_active
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.behavior_status === 'active' || r.is_active || r.is_behavior_active
                                 ? 'bg-primary/10 text-primary'
                                 : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                            }`}>
+                              }`}>
                               {r.behavior_status || (r.is_active || r.is_behavior_active ? 'active' : 'inactive')}
                             </span>
                           </td>
@@ -333,11 +355,10 @@ export default function DashboardDrilldownDrawer({
                           <td className="py-2.5 px-3 font-bold text-primary font-mono">{r.lead_id}</td>
                           <td className="py-2.5 px-3 text-text-secondary whitespace-nowrap">{new Date(r.created_at || Date.now()).toLocaleDateString()}</td>
                           <td className="py-2.5 px-3">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              r.lead_type === 'BDE Sales Lead'
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.lead_type === 'BDE Sales Lead'
                                 ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
                                 : 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400'
-                            }`}>
+                              }`}>
                               {r.lead_type || 'Sales Lead'}
                             </span>
                           </td>

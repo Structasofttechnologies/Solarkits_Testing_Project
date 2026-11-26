@@ -247,6 +247,7 @@ adminRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.
 
 // ─── SOLARKITS: Email & WhatsApp Marketing & Campaign Automation Engine ───
 adminRouter.use('/marketing', require('./modules/admin-panel/marketing/routes/marketing.route'));
+adminRouter.use('/telemetry', require('./modules/admin-panel/marketing/routes/webTelemetry.route'));
 try {
   const { initScheduler } = require('./modules/admin-panel/marketing/services/scheduler.service');
   initScheduler();
