@@ -150,6 +150,11 @@ const resolveAudience = async (filterConfig = {}) => {
   let excludedCount = 0;
   let emailConsentedCount = 0;
   let whatsappConsentedCount = 0;
+  let solarPvCount = 0;
+  let solarAgriCount = 0;
+  let commercialCount = 0;
+  let solarEvCount = 0;
+  let energyStorageCount = 0;
   const now = new Date();
   const cutoffDate = new Date(now.getTime() - last_order_days * 24 * 60 * 60 * 1000);
 
@@ -217,6 +222,32 @@ const resolveAudience = async (filterConfig = {}) => {
 
     // ── Check Industry & Kit Preferences (Section 5 of PRD) ──
     const pref = prefMap.get(epcIdStr);
+    const indNames = (pref?.selected_industry_names || []).map(s => String(s).toLowerCase());
+
+    // Tally real industry preferences across eligible audience pool
+    if (indNames.length > 0) {
+      if (indNames.some(s => s.includes('pv') || s.includes('rooftop') || s.includes('solar pv'))) solarPvCount++;
+      if (indNames.some(s => s.includes('agri') || s.includes('pump') || s.includes('kusum'))) solarAgriCount++;
+      if (indNames.some(s => s.includes('commercial') || s.includes('industrial') || s.includes('c&i'))) commercialCount++;
+      if (indNames.some(s => s.includes('ev') || s.includes('charging'))) solarEvCount++;
+      if (indNames.some(s => s.includes('storage') || s.includes('bess') || s.includes('battery'))) energyStorageCount++;
+    }
+
+    if (filterConfig.industry_preference && filterConfig.industry_preference !== 'all') {
+      const pKey = filterConfig.industry_preference.toLowerCase();
+      let match = false;
+      if (pKey === 'solar_pv') match = indNames.some(s => s.includes('pv') || s.includes('rooftop') || s.includes('solar pv'));
+      else if (pKey === 'solar_agri') match = indNames.some(s => s.includes('agri') || s.includes('pump') || s.includes('kusum'));
+      else if (pKey === 'commercial') match = indNames.some(s => s.includes('commercial') || s.includes('industrial') || s.includes('c&i'));
+      else if (pKey === 'solar_ev') match = indNames.some(s => s.includes('ev') || s.includes('charging'));
+      else if (pKey === 'energy_storage') match = indNames.some(s => s.includes('storage') || s.includes('bess') || s.includes('battery'));
+
+      if (!match) {
+        excludedCount++;
+        continue;
+      }
+    }
+
     if (industry_ids && industry_ids.length > 0) {
       const epcInds = (pref?.selected_industry_ids || []).map(String);
       const hasInd = industry_ids.some(id => epcInds.includes(String(id)));
@@ -297,6 +328,14 @@ const resolveAudience = async (filterConfig = {}) => {
     consent_breakdown: {
       email_consented: emailConsentedCount,
       whatsapp_consented: whatsappConsentedCount
+    },
+    industry_breakdown: {
+      all: recipients.length,
+      solar_pv: solarPvCount,
+      solar_agri: solarAgriCount,
+      commercial: commercialCount,
+      solar_ev: solarEvCount,
+      energy_storage: energyStorageCount
     }
   };
 };

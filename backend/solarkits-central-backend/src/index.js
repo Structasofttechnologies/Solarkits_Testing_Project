@@ -253,6 +253,12 @@ try {
   console.warn('⚠️ Marketing scheduler startup notice:', schedErr.message);
 }
 
+// ─── SOLARKITS: Central Email Management & Monitoring Engine ───
+const emailManagementRouter = require('./modules/admin-panel/email-management/routes/emailManagement.routes');
+adminRouter.use('/email-management', emailManagementRouter);
+app.use('/api/admin/email-management', emailManagementRouter);
+app.use('/api/email-management', emailManagementRouter);
+
 
 
 app.use('/admin-api', adminRouter);

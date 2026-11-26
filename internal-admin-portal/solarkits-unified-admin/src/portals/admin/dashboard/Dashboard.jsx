@@ -91,6 +91,9 @@ const WebsiteFormMappingPage = lazy(() => import("../pages/marketing/WebsiteForm
 const UtmTrackingPage = lazy(() => import("../pages/marketing/UtmTrackingPage"));
 const MarketingReportsPage = lazy(() => import("../pages/marketing/MarketingReportsPage"));
 
+/* ===================== Email Management & Monitoring Module ===================== */
+const EmailManagementHub = lazy(() => import("../pages/email-management/EmailManagementHub"));
+
 
 /* ===================== MENU CONFIG ===================== */
 
@@ -141,6 +144,12 @@ const menus = [
     { name: "Operations Dashboard", icon: <MdEngineering />, path: "/admin-panel/operations-dashboard", unique_id: "00000000" },
     { name: "Store Dashboard", icon: <FaStore />, path: "/admin-panel/store-dashboard", unique_id: "00000000" },
     { name: "EPC Analytics", icon: <FaChartLine />, path: "/admin-panel/epc-analytics", unique_id: "00000000" },
+    {
+      name: "Email Management",
+      icon: <FaEnvelope />,
+      path: "/admin-panel/email-management",
+      unique_id: "00000000",
+    },
     // {
     //   name: "Marketing Overview",
     //   icon: <FaBullhorn />,
@@ -1057,6 +1066,24 @@ export default function Dashboard() {
                   <Route path="/marketing/form-mapping" element={<Suspense fallback={<Loader text="Loading Form Mappings..." />}><WebsiteFormMappingPage /></Suspense>} />
                   <Route path="/marketing/utm-tracking" element={<Suspense fallback={<Loader text="Loading UTM Tracking..." />}><UtmTrackingPage /></Suspense>} />
                   <Route path="/marketing/reports" element={<Suspense fallback={<Loader text="Loading Marketing Reports..." />}><MarketingReportsPage /></Suspense>} />
+
+                  {/* Email Management & Monitoring Module Routes */}
+                  <Route
+                    path="/email-management/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Email Management..." />}>
+                        <EmailManagementHub />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/email-management"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Email Management..." />}>
+                        <EmailManagementHub />
+                      </Suspense>
+                    }
+                  />
 
                   <Route
                     path="/profile"
