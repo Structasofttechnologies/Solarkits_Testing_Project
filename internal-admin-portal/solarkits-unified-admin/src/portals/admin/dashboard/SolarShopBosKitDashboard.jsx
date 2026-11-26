@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { FaHome, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn } from "react-icons/fa";
+import { FaHome, FaLayerGroup, FaFileInvoiceDollar, FaCoins, FaToggleOn, FaBoxes } from "react-icons/fa";
 import { HiCube } from "react-icons/hi";
 import { useSelector, useDispatch } from "react-redux";
 import { setAlert } from "../features/alert.slice";

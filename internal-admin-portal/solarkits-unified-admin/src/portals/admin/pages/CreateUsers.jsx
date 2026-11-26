@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useCallback } from "react";
+﻿import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import { authHeaderObj } from "@/app/authHeader";
 import { useDispatch, useSelector } from "react-redux";
@@ -27,7 +27,7 @@ import {
 } from "react-icons/hi";
 import { FaSync, FaWarehouse, FaMapMarkerAlt, FaCheck, FaExclamationTriangle } from "react-icons/fa";
 import { MdManageAccounts } from "react-icons/md";
-import { FiUser, FiGrid, FiShield } from "react-icons/fi";
+import { FiUser, FiGrid, FiShield, FiCheckCircle, FiDollarSign } from "react-icons/fi";
 
 // Components
 import CustomInput from "@/components/CustomInput";
@@ -48,6 +48,24 @@ const INDIAN_STATES = [
     "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
 ];
 
+const findWarehouseForCluster = (clu, warehouses = []) => {
+    if (!clu) return null;
+    const cluId = String(clu._id || clu.id || '');
+    const cluState = (clu.state_name || '').trim().toLowerCase();
+    return warehouses.find(w => 
+        (w.serviced_cluster_ids && w.serviced_cluster_ids.some(cid => String(cid) === cluId)) ||
+        (w.cluster_ids && w.cluster_ids.some(cid => String(cid) === cluId)) ||
+        (w.cluster_id && String(w.cluster_id) === cluId) ||
+        (clu.warehouse_id && String(w._id || w.id) === String(clu.warehouse_id)) ||
+        (clu.assigned_warehouse_id && String(w._id || w.id) === String(clu.assigned_warehouse_id)) ||
+        (w.state_name && w.state_name.trim().toLowerCase() === cluState) ||
+        (w.state && w.state.trim().toLowerCase() === cluState) ||
+        (w.location && w.location.toLowerCase().includes(cluState))
+    ) || warehouses.find(w => 
+        cluState && (w.warehouse_name || w.name || '').toLowerCase().includes(cluState)
+    ) || null;
+};
+
 export default function CreateUsers() {
     const dispatch = useDispatch();
     const currentUserId = useSelector(state => state.user_slice.user?.id || state.user_slice.user?._id);
@@ -61,6 +79,7 @@ export default function CreateUsers() {
     // --- LIVE WAREHOUSES & FRANCHISE CLUSTERS ---
     const [liveWarehouses, setLiveWarehouses] = useState([]);
     const [liveClusters, setLiveClusters] = useState([]);
+    const [warehouseMappings, setWarehouseMappings] = useState([]);
     const [loadingClusters, setLoadingClusters] = useState(false);
 
     // --- PROVISIONING MODE: NEW USER VS ASSIGN EXISTING USER ---
@@ -69,11 +88,15 @@ export default function CreateUsers() {
     const [assignedWarehouseId, setAssignedWarehouseId] = useState("");
     const [assignedStateName, setAssignedStateName] = useState("");
     const [assignedClusterId, setAssignedClusterId] = useState("");
+    const [selectedWarehouseManagerId, setSelectedWarehouseManagerId] = useState("");
+    const [selectedWarehouseAccountantId, setSelectedWarehouseAccountantId] = useState("");
+    const [clusterRequiredPopup, setClusterRequiredPopup] = useState(null); // { warehouseName, warehouseId }
 
     // --- OVERVIEW STATES ---
     const [users, setUsers] = useState([]);
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [overviewSearch, setOverviewSearch] = useState("");
+    const [directoryViewMode, setDirectoryViewMode] = useState("list"); // "list" | "tree"
     const [overviewFilters, setOverviewFilters] = useState({
         status: "",
         country: "",
@@ -93,7 +116,7 @@ export default function CreateUsers() {
         country: "", state: "", cluster: "", district: "", urban_city: "", rural_city: ""
     });
     const [provisioningFormData, setProvisioningFormData] = useState({
-        name: "", email: "", country_id: "", phone_code: "", phone: "",
+        name: "", email: "", country_id: "", phone_code: "+91", phone: "",
         department_id: "", role_id: "", scope_ids: [], parent_user_id: "",
         state_name: "", min_phone_length: null, max_phone_length: null
     });
@@ -168,7 +191,18 @@ export default function CreateUsers() {
             setLevels(levelsRes.data?.data || []);
             setActiveCountries(countriesRes.data?.data || []);
             setDepartments(deptsRes.data?.data || []);
-            setProvisioningCountries(allCountriesRes.data?.data || allCountriesRes.data || []);
+            const countryList = allCountriesRes.data?.data || allCountriesRes.data || [];
+            setProvisioningCountries(countryList);
+            const defaultCountry = countryList.find(c => (c.name || '').toLowerCase() === 'india' || c.phone_code === '+91' || c.phone_code === '91') || countryList[0];
+            if (defaultCountry) {
+                setProvisioningFormData(prev => ({
+                    ...prev,
+                    country_id: prev.country_id || defaultCountry.id || defaultCountry._id,
+                    phone_code: prev.phone_code || defaultCountry.phone_code || '+91',
+                    min_phone_length: defaultCountry.min_phone_length || prev.min_phone_length,
+                    max_phone_length: defaultCountry.max_phone_length || prev.max_phone_length
+                }));
+            }
             setAllPanels(panelsRes.data?.data || []);
             setSaasProducts(saasRes.data?.data || []);
 
@@ -197,14 +231,22 @@ export default function CreateUsers() {
     const fetchWarehouseClusterData = useCallback(async () => {
         setLoadingClusters(true);
         try {
-            const [whRes, cluRes] = await Promise.all([
+            const [whRes, cluRes, mapRes] = await Promise.allSettled([
                 axios.get(`${import.meta.env.VITE_API_URL}/solarshop/cluster-routing/available-warehouses`, { headers: authHeaderObj() }),
-                axios.get(`${import.meta.env.VITE_API_URL}/franchise-clusters/list`, { headers: authHeaderObj() })
+                axios.get(`${import.meta.env.VITE_API_URL}/franchise-clusters/list`, { headers: authHeaderObj() }),
+                axios.get(`${import.meta.env.VITE_API_URL}/solarshop/cluster-routing/mappings`, { headers: authHeaderObj() })
             ]);
-            setLiveWarehouses(whRes.data?.data || whRes.data?.warehouses || whRes.data || []);
-            setLiveClusters(cluRes.data?.data || cluRes.data || []);
+            if (whRes.status === "fulfilled") {
+                setLiveWarehouses(whRes.value?.data?.data || whRes.value?.data?.warehouses || whRes.value?.data || []);
+            }
+            if (cluRes.status === "fulfilled") {
+                setLiveClusters(cluRes.value?.data?.data || cluRes.value?.data || []);
+            }
+            if (mapRes.status === "fulfilled") {
+                setWarehouseMappings(mapRes.value?.data?.data || []);
+            }
         } catch (err) {
-            console.error("Error fetching warehouses and clusters:", err);
+            console.error("Error fetching warehouses, clusters, and routing mappings:", err);
         } finally {
             setLoadingClusters(false);
         }
@@ -681,46 +723,51 @@ export default function CreateUsers() {
     const handleProvisionIdentity = async () => {
         setProvisioningAdding(true);
         try {
-            // Case 1: Existing User Assignment to Cluster
+            // Case 1: Warehouse Staff Assignment (Warehouse Manager & Accountant)
             if (provisioningMode === "existing" && !editId) {
-                if (!selectedExistingUserId) {
-                    dispatch(setAlert({ type: "error", message: "Please select an existing staff member." }));
+                if (!assignedWarehouseId) {
+                    dispatch(setAlert({ type: "error", message: "Please select a Regional Warehouse to assign staff." }));
                     setProvisioningAdding(false);
                     return;
                 }
-                if (!assignedClusterId) {
-                    dispatch(setAlert({ type: "error", message: "Please select a Franchisee Cluster to assign." }));
+                if (servicedClustersForSelectedWh.length === 0) {
+                    const whName = selectedWarehouseObj?.name || selectedWarehouseObj?.warehouse_name || "this warehouse";
+                    setClusterRequiredPopup({
+                        warehouseName: whName,
+                        warehouseId: assignedWarehouseId
+                    });
+                    dispatch(setAlert({
+                        type: "error",
+                        message: `First assign clusters to ${whName} before designating staff!`
+                    }));
+                    setProvisioningAdding(false);
+                    return;
+                }
+                if (!selectedWarehouseManagerId && !selectedWarehouseAccountantId) {
+                    dispatch(setAlert({ type: "error", message: "Please select at least one designated staff role (Warehouse Manager or Accountant)." }));
                     setProvisioningAdding(false);
                     return;
                 }
 
-                const whObj = liveWarehouses.find(w => String(w._id || w.id) === String(assignedWarehouseId));
-                const cluObj = liveClusters.find(c => String(c._id || c.id) === String(assignedClusterId));
-                const deptObj = departments.find(d => String(d.id || d._id) === String(provisioningFormData.department_id));
+                const res = await axios.post(
+                    `${import.meta.env.VITE_API_URL}/warehouses/${assignedWarehouseId}/assign-staff`,
+                    {
+                        manager_id: selectedWarehouseManagerId || null,
+                        accountant_id: selectedWarehouseAccountantId || null
+                    },
+                    { headers: authHeaderObj() }
+                );
 
-                const updatePayload = {
-                    warehouse_id: assignedWarehouseId || undefined,
-                    warehouse_name: whObj ? (whObj.name || whObj.warehouse_name) : undefined,
-                    cluster_id: assignedClusterId,
-                    cluster_name: cluObj ? (cluObj.cluster_name || cluObj.name) : undefined,
-                    state_name: assignedStateName || (cluObj ? cluObj.state_name : undefined),
-                    department_id: provisioningFormData.department_id || undefined,
-                    department_name: deptObj ? deptObj.name : undefined,
-                    role_id: provisioningFormData.role_id || undefined,
-                };
+                const count = res.data?.data?.cascaded_clusters_count || servicedClustersForSelectedWh.length;
+                dispatch(setAlert({
+                    type: "success",
+                    message: `Staff assigned successfully to warehouse! Automatically inherited by ${count} serviced cluster(s).`
+                }));
 
-                await axios.put(`${import.meta.env.VITE_API_URL}/cms/users/${selectedExistingUserId}`, updatePayload, { headers: authHeaderObj() });
-
-                // Link to cluster
-                await axios.post(`${import.meta.env.VITE_API_URL}/franchise-clusters/${assignedClusterId}/assign-staff`, {
-                    user_id: selectedExistingUserId
-                }, { headers: authHeaderObj() });
-
-                dispatch(setAlert({ type: "success", message: "Staff member assigned to cluster successfully!" }));
-                setSelectedExistingUserId("");
+                setSelectedWarehouseManagerId("");
+                setSelectedWarehouseAccountantId("");
                 setAssignedWarehouseId("");
                 setAssignedStateName("");
-                setAssignedClusterId("");
                 setActiveTab("overview");
                 fetchAllSubordinates();
                 fetchWarehouseClusterData();
@@ -728,21 +775,7 @@ export default function CreateUsers() {
                 return;
             }
 
-            // Case 2: New User or Edit User
-            const levelName = levels.find(l => (l.id || l._id)?.toString() === provisioningLevel?.toString())?.name?.toLowerCase() || "";
-            if (["state", "cluster", "district", "urban city", "rural city"].includes(levelName) && !provisioningFormData.state_name) {
-                dispatch(setAlert({ type: "error", message: "Please select an operating state for this staff member." }));
-                setProvisioningAdding(false);
-                return;
-            }
-            if (["cluster", "district", "urban city", "rural city"].includes(levelName) && !provisioningFormData.cluster_id) {
-                dispatch(setAlert({ type: "error", message: "Please select a franchisee cluster for this staff member." }));
-                setProvisioningAdding(false);
-                return;
-            }
-
-            const whObj = liveWarehouses.find(w => String(w._id || w.id) === String(assignedWarehouseId));
-            const cluObj = liveClusters.find(c => String(c._id || c.id) === String(assignedClusterId));
+            // Case 2: New User or Edit User (Pure Identity Provisioning)
             const deptObj = departments.find(d => String(d.id || d._id) === String(provisioningFormData.department_id));
 
             const url = editId
@@ -752,32 +785,18 @@ export default function CreateUsers() {
 
             const userPayload = {
                 ...provisioningFormData,
+                phone_code: provisioningFormData.phone_code || "+91",
+                country_id: provisioningFormData.country_id || provisioningCountries.find(c => (c.name || '').toLowerCase() === 'india')?.id || provisioningCountries.find(c => (c.name || '').toLowerCase() === 'india')?._id || undefined,
                 level_id: provisioningLevel,
                 panels: selectedPanels,
-                warehouse_id: assignedWarehouseId || undefined,
-                warehouse_name: whObj ? (whObj.name || whObj.warehouse_name) : undefined,
-                cluster_id: assignedClusterId || provisioningFormData.cluster_id || undefined,
-                cluster_name: cluObj ? (cluObj.cluster_name || cluObj.name) : provisioningFormData.cluster_name || undefined,
-                state_name: assignedStateName || provisioningFormData.state_name || (cluObj ? cluObj.state_name : undefined),
                 department_name: deptObj ? deptObj.name : undefined
             };
 
-            const response = await axios[method](url, userPayload, { headers: authHeaderObj() });
-            const createdUserId = response.data?.data?._id || response.data?.data?.id || response.data?._id || editId;
-
-            if (assignedClusterId && createdUserId) {
-                try {
-                    await axios.post(`${import.meta.env.VITE_API_URL}/franchise-clusters/${assignedClusterId}/assign-staff`, {
-                        user_id: createdUserId
-                    }, { headers: authHeaderObj() });
-                } catch (assignErr) {
-                    console.warn("Could not automatically link user to cluster:", assignErr);
-                }
-            }
-
+            await axios[method](url, userPayload, { headers: authHeaderObj() });
             dispatch(setAlert({ type: "success", message: editId ? "Identity updated successfully" : "Identity provisioned successfully" }));
+            const defCountry = provisioningCountries.find(c => (c.name || '').toLowerCase() === 'india' || c.phone_code === '+91' || c.phone_code === '91') || provisioningCountries[0];
             setProvisioningFormData({
-                name: "", email: "", country_id: "", phone_code: "", phone: "",
+                name: "", email: "", country_id: defCountry?.id || defCountry?._id || "", phone_code: defCountry?.phone_code || "+91", phone: "",
                 department_id: "", role_id: "", scope_ids: [], parent_user_id: "",
                 min_phone_length: null, max_phone_length: null
             });
@@ -962,58 +981,485 @@ export default function CreateUsers() {
         ];
     }, [activeCountries, saasProducts, overviewFilters.saasProduct]);
 
-    const filteredUsers = useMemo(() => {
-        const search = overviewSearch.toLowerCase();
-        return users.filter(u => {
-            const matchesSearch = !search ||
-                u.name.toLowerCase().includes(search) ||
-                u.email.toLowerCase().includes(search) ||
-                (u.role_name && u.role_name.toLowerCase().includes(search)) ||
-                (u.level_name && u.level_name.toLowerCase().includes(search));
+    // Dynamically cross-reference live warehouse staff assignments with live users directory (zero static data)
+    const { warehouseAssignedStaffRows, userWarehouseAssignmentsMap } = useMemo(() => {
+        const whRows = [];
+        const uMap = new Map();
 
-            const matchesStatus = overviewFilters.status === "" || String(u.is_active) === overviewFilters.status;
-
-            const matchesCountry = !overviewFilters.country ||
-                u.country_id === overviewFilters.country ||
-                (u.scope_ids && u.scope_ids.includes(overviewFilters.country));
-
-            const matchesSaaS = !overviewFilters.saasProduct ||
-                (u.saas_product_ids && u.saas_product_ids.includes(overviewFilters.saasProduct));
-
-            let matchesPanel = !overviewFilters.panel;
-            if (overviewFilters.panel) {
-                if (u.panel_ids && u.panel_ids.includes(overviewFilters.panel)) {
-                    matchesPanel = true;
-                } else if (u.saas_product_ids && u.saas_product_ids.length > 0) {
-                    const panelObj = allPanels.find(p => String(p.id || p._id) === String(overviewFilters.panel));
-                    if (panelObj && panelObj.products) {
-                        matchesPanel = u.saas_product_ids.some(spid =>
-                            panelObj.products.some(p => String(p.id || p._id) === String(spid))
-                        );
-                    }
+        const addToUserMap = (userId, whInfo) => {
+            if (!userId) return;
+            const key = String(userId);
+            if (!uMap.has(key)) uMap.set(key, []);
+            const list = uMap.get(key);
+            const existingWh = list.find(item => String(item.warehouseId) === String(whInfo.warehouseId));
+            if (existingWh) {
+                if (whInfo.warehouseRole && !existingWh.warehouseRoles.includes(whInfo.warehouseRole)) {
+                    existingWh.warehouseRoles.push(whInfo.warehouseRole);
                 }
+            } else {
+                list.push({
+                    warehouseId: whInfo.warehouseId,
+                    warehouseName: whInfo.warehouseName,
+                    warehouseCode: whInfo.warehouseCode,
+                    warehouseRoles: whInfo.warehouseRole ? [whInfo.warehouseRole] : []
+                });
+            }
+        };
+
+        (liveWarehouses || []).forEach(wh => {
+            const whId = String(wh._id || wh.id || "");
+            const whName = wh.name || wh.warehouse_name || "Unnamed Warehouse";
+            const whCode = wh.warehouse_code || "";
+            const memberMap = new Map();
+
+            const upsertMember = (key, memberData, assignedSlotRole) => {
+                if (!key) return;
+                if (memberMap.has(key)) {
+                    const existing = memberMap.get(key);
+                    if (assignedSlotRole && !existing.warehouseRoles.includes(assignedSlotRole)) {
+                        existing.warehouseRoles.push(assignedSlotRole);
+                    }
+                } else {
+                    memberMap.set(key, {
+                        id: memberData.id || key,
+                        name: memberData.name || "Assigned Staff",
+                        email: memberData.email || "",
+                        phone: memberData.phone || "",
+                        phoneCode: memberData.phone_code || "+91",
+                        warehouseRoles: assignedSlotRole ? [assignedSlotRole] : [],
+                        systemRole: memberData.role_name || assignedSlotRole || "Staff",
+                        departmentId: memberData.department_id ? String(memberData.department_id) : "",
+                        departmentName: memberData.department_name || "",
+                        levelName: memberData.level_name || "",
+                        isActive: memberData.is_active !== undefined ? Boolean(memberData.is_active) : true,
+                        userObj: memberData.userObj || null
+                    });
+                }
+                if (memberData.userIdForMap) {
+                    addToUserMap(memberData.userIdForMap, {
+                        warehouseId: whId,
+                        warehouseName: whName,
+                        warehouseCode: whCode,
+                        warehouseRole: assignedSlotRole
+                    });
+                }
+            };
+
+            // 1. Warehouse Manager resolution
+            const rawMgrId = wh.assigned_staff?.manager_id?._id || wh.assigned_staff?.manager_id || wh.manager?.user_id?._id || wh.manager?.user_id;
+            let mgrUser = null;
+            if (rawMgrId && String(rawMgrId) !== "null" && String(rawMgrId) !== "undefined") {
+                mgrUser = (users || []).find(u => String(u.id || u._id) === String(rawMgrId));
+            }
+            if (!mgrUser && wh.manager?.email) {
+                mgrUser = (users || []).find(u => u.email && u.email.toLowerCase() === wh.manager.email.toLowerCase());
+            }
+            if (!mgrUser) {
+                mgrUser = (users || []).find(u =>
+                    u.warehouse_id && String(u.warehouse_id) === whId &&
+                    u.role_name && (u.role_name.toLowerCase().includes("manager") || u.role_name.toLowerCase().includes("incharge"))
+                );
             }
 
-            const matchesWarehouse = !overviewFilters.warehouse ||
-                u.warehouse_id === overviewFilters.warehouse ||
-                (u.warehouse_name && u.warehouse_name.toLowerCase().includes(overviewFilters.warehouse.toLowerCase()));
+            if (mgrUser) {
+                const uid = String(mgrUser.id || mgrUser._id);
+                upsertMember(uid, { ...mgrUser, userIdForMap: uid, userObj: mgrUser }, "Warehouse Manager");
+            } else if (wh.manager && (wh.manager.name || wh.manager.email)) {
+                const fallbackKey = wh.manager.user_id ? String(wh.manager.user_id) : `mgr_${whId}_${wh.manager.email || wh.manager.name}`;
+                upsertMember(fallbackKey, {
+                    id: fallbackKey,
+                    name: wh.manager.name || "Warehouse Manager",
+                    email: wh.manager.email || "",
+                    phone: wh.manager.phone || "",
+                    phone_code: wh.manager.phone_code || "+91",
+                    role_name: "Warehouse Manager",
+                    department_name: "Warehouse & Delivery Management",
+                    level_name: "Warehouse",
+                    is_active: 1,
+                    userIdForMap: wh.manager.user_id ? String(wh.manager.user_id) : null
+                }, "Warehouse Manager");
+            }
 
-            const matchesState = !overviewFilters.state ||
-                (u.state_name && u.state_name.toLowerCase() === overviewFilters.state.toLowerCase()) ||
-                (u.scope_ids && u.scope_ids.includes(overviewFilters.state));
+            // 2. Accountant resolution
+            const rawAccId = wh.assigned_staff?.accountant_id?._id || wh.assigned_staff?.accountant_id;
+            let accUser = null;
+            if (rawAccId && String(rawAccId) !== "null" && String(rawAccId) !== "undefined") {
+                accUser = (users || []).find(u => String(u.id || u._id) === String(rawAccId));
+            }
+            if (!accUser) {
+                accUser = (users || []).find(u =>
+                    u.warehouse_id && String(u.warehouse_id) === whId &&
+                    u.role_name && (u.role_name.toLowerCase().includes("account") || u.role_name.toLowerCase().includes("billing") || u.role_name.toLowerCase().includes("finance"))
+                );
+            }
 
-            const matchesCluster = !overviewFilters.cluster ||
-                u.cluster_id === overviewFilters.cluster ||
-                (u.cluster_name && u.cluster_name.toLowerCase().includes(overviewFilters.cluster.toLowerCase())) ||
-                (u.scope_ids && u.scope_ids.includes(overviewFilters.cluster));
+            if (accUser) {
+                const uid = String(accUser.id || accUser._id);
+                upsertMember(uid, { ...accUser, userIdForMap: uid, userObj: accUser }, "Accountant");
+            }
 
-            const matchesDept = !overviewFilters.department ||
-                u.department_id === overviewFilters.department ||
-                (u.department_name && u.department_name.toLowerCase().includes(overviewFilters.department.toLowerCase()));
+            // 3. Additional warehouse-linked users (assigned_staff_users, u.warehouse_id, or u.scope_ids)
+            (wh.assigned_staff_users || []).forEach(staffRef => {
+                const sid = String(staffRef?._id || staffRef?.id || staffRef || "");
+                if (!sid || sid === "null" || sid === "undefined") return;
+                const foundU = (users || []).find(u => String(u.id || u._id) === sid);
+                if (foundU && !memberMap.has(sid)) {
+                    upsertMember(sid, { ...foundU, userIdForMap: sid, userObj: foundU }, foundU.role_name || "Assigned Staff");
+                }
+            });
 
-            return matchesSearch && matchesStatus && matchesCountry && matchesSaaS && matchesPanel && matchesWarehouse && matchesState && matchesCluster && matchesDept;
+            (users || []).forEach(u => {
+                const uid = String(u.id || u._id);
+                const matchesById = u.warehouse_id && String(u.warehouse_id) === whId;
+                const matchesByName = !u.warehouse_id && u.warehouse_name && u.warehouse_name.trim().toLowerCase() === whName.trim().toLowerCase();
+                const matchesByScope = Array.isArray(u.scope_ids) && whId && u.scope_ids.map(String).includes(whId);
+                if ((matchesById || matchesByName || matchesByScope) && !memberMap.has(uid)) {
+                    upsertMember(uid, { ...u, userIdForMap: uid, userObj: u }, u.role_name || "Warehouse Staff");
+                }
+            });
+
+            const assignedMembers = Array.from(memberMap.values());
+            if (assignedMembers.length > 0) {
+                const hasMgr = Boolean(wh.assigned_staff?.manager_id || (wh.manager && (wh.manager.user_id || wh.manager.name)) || assignedMembers.some(m => m.warehouseRoles.includes("Warehouse Manager")));
+                const hasAcc = Boolean(wh.assigned_staff?.accountant_id || assignedMembers.some(m => m.warehouseRoles.includes("Accountant")));
+                whRows.push({
+                    warehouse: wh,
+                    warehouseId: whId,
+                    warehouseName: whName,
+                    warehouseCode: whCode,
+                    stateName: wh.state_name || wh.state || "",
+                    location: wh.location || wh.district_name || "",
+                    fulfillmentStates: wh.fulfillment_states || [],
+                    assignedMembers,
+                    hasManager: hasMgr,
+                    hasAccountant: hasAcc,
+                    isFullyStaffed: Boolean(hasMgr && hasAcc)
+                });
+            }
         });
-    }, [users, overviewSearch, overviewFilters, allPanels]);
+
+        // Also preserve direct u.warehouse_id / u.warehouse_name assignments if warehouse record wasn't matched
+        (users || []).forEach(u => {
+            const uid = String(u.id || u._id);
+            if ((u.warehouse_id || u.warehouse_name) && !uMap.has(uid)) {
+                addToUserMap(uid, {
+                    warehouseId: u.warehouse_id ? String(u.warehouse_id) : u.warehouse_name,
+                    warehouseName: u.warehouse_name || "Assigned Warehouse",
+                    warehouseCode: "",
+                    warehouseRole: u.role_name || "Warehouse Staff"
+                });
+            }
+        });
+
+        return { warehouseAssignedStaffRows: whRows, userWarehouseAssignmentsMap: uMap };
+    }, [liveWarehouses, users]);
+
+    const doesUserMatchOverviewFilters = useCallback((u) => {
+        const search = overviewSearch.trim().toLowerCase();
+        const uid = String(u.id || u._id || "");
+        const userWhList = userWarehouseAssignmentsMap.get(uid) || [];
+
+        const matchesSearch = !search ||
+            (u.name && u.name.toLowerCase().includes(search)) ||
+            (u.email && u.email.toLowerCase().includes(search)) ||
+            (u.role_name && u.role_name.toLowerCase().includes(search)) ||
+            (u.department_name && u.department_name.toLowerCase().includes(search)) ||
+            (u.level_name && u.level_name.toLowerCase().includes(search)) ||
+            userWhList.some(uw =>
+                (uw.warehouseName && uw.warehouseName.toLowerCase().includes(search)) ||
+                (uw.warehouseCode && uw.warehouseCode.toLowerCase().includes(search)) ||
+                uw.warehouseRoles.some(r => r.toLowerCase().includes(search))
+            );
+
+        const matchesStatus = overviewFilters.status === "" || String(u.is_active) === overviewFilters.status;
+
+        const matchesCountry = !overviewFilters.country ||
+            u.country_id === overviewFilters.country ||
+            (u.scope_ids && u.scope_ids.includes(overviewFilters.country));
+
+        const matchesSaaS = !overviewFilters.saasProduct ||
+            (u.saas_product_ids && u.saas_product_ids.includes(overviewFilters.saasProduct));
+
+        let matchesPanel = !overviewFilters.panel;
+        if (overviewFilters.panel) {
+            if (u.panel_ids && u.panel_ids.includes(overviewFilters.panel)) {
+                matchesPanel = true;
+            } else if (u.saas_product_ids && u.saas_product_ids.length > 0) {
+                const panelObj = allPanels.find(p => String(p.id || p._id) === String(overviewFilters.panel));
+                if (panelObj && panelObj.products) {
+                    matchesPanel = u.saas_product_ids.some(spid =>
+                        panelObj.products.some(p => String(p.id || p._id) === String(spid))
+                    );
+                }
+            }
+        }
+
+        const matchesWarehouse = !overviewFilters.warehouse ||
+            String(u.warehouse_id || "") === String(overviewFilters.warehouse) ||
+            (u.warehouse_name && u.warehouse_name.toLowerCase().includes(overviewFilters.warehouse.toLowerCase())) ||
+            userWhList.some(uw =>
+                String(uw.warehouseId) === String(overviewFilters.warehouse) ||
+                (uw.warehouseName && uw.warehouseName.toLowerCase() === String(overviewFilters.warehouse).toLowerCase())
+            );
+
+        const matchesState = !overviewFilters.state ||
+            (u.state_name && u.state_name.toLowerCase() === overviewFilters.state.toLowerCase()) ||
+            (u.scope_ids && u.scope_ids.includes(overviewFilters.state));
+
+        const matchesCluster = !overviewFilters.cluster ||
+            u.cluster_id === overviewFilters.cluster ||
+            (u.cluster_name && u.cluster_name.toLowerCase().includes(overviewFilters.cluster.toLowerCase())) ||
+            (u.scope_ids && u.scope_ids.includes(overviewFilters.cluster));
+
+        const matchesDept = !overviewFilters.department ||
+            u.department_id === overviewFilters.department ||
+            (u.department_name && u.department_name.toLowerCase().includes(overviewFilters.department.toLowerCase()));
+
+        return matchesSearch && matchesStatus && matchesCountry && matchesSaaS && matchesPanel && matchesWarehouse && matchesState && matchesCluster && matchesDept;
+    }, [overviewSearch, overviewFilters, allPanels, userWarehouseAssignmentsMap]);
+
+    const filteredUsers = useMemo(() => {
+        return users.filter(doesUserMatchOverviewFilters);
+    }, [users, doesUserMatchOverviewFilters]);
+
+    const unstaffedWarehouses = useMemo(() => {
+        return liveWarehouses.filter(w => {
+            const hasMgr = Boolean(w.assigned_staff?.manager_id || (w.manager && (w.manager.user_id || w.manager.name)));
+            const hasAcc = Boolean(w.assigned_staff?.accountant_id);
+            return !hasMgr || !hasAcc || !w.is_staffed;
+        });
+    }, [liveWarehouses]);
+
+    const resolveAssignedStaffForWarehouse = useCallback((wh, usersList = []) => {
+        if (!wh) return { managerId: "", accountantId: "" };
+        const whId = String(wh._id || wh.id || "");
+
+        // 1. Resolve Manager ID (ONLY if legitimately assigned to this specific warehouse)
+        let managerId = "";
+        const rawMgrId = wh.assigned_staff?.manager_id?._id || wh.assigned_staff?.manager_id || wh.manager?.user_id?._id || wh.manager?.user_id;
+        if (rawMgrId && String(rawMgrId) !== "null" && String(rawMgrId) !== "undefined") {
+            managerId = String(rawMgrId);
+        } else if (wh.manager?.email && Array.isArray(usersList) && usersList.length > 0) {
+            const matchedByEmail = usersList.find(u => u.email && u.email.toLowerCase() === wh.manager.email.toLowerCase());
+            if (matchedByEmail) {
+                managerId = String(matchedByEmail.id || matchedByEmail._id);
+            }
+        } else if (Array.isArray(usersList) && usersList.length > 0) {
+            // Check if any user in live directory is assigned to this warehouse specifically as manager
+            const explicitWhMgr = usersList.find(u => 
+                u.warehouse_id && String(u.warehouse_id) === whId &&
+                (u.role_name && (u.role_name.toLowerCase().includes("manager") || u.role_name.toLowerCase().includes("incharge")))
+            );
+            if (explicitWhMgr) {
+                managerId = String(explicitWhMgr.id || explicitWhMgr._id);
+            }
+        }
+
+        // 2. Resolve Accountant ID (ONLY if legitimately assigned to this specific warehouse)
+        let accountantId = "";
+        const rawAccId = wh.assigned_staff?.accountant_id?._id || wh.assigned_staff?.accountant_id;
+        if (rawAccId && String(rawAccId) !== "null" && String(rawAccId) !== "undefined") {
+            accountantId = String(rawAccId);
+        } else if (Array.isArray(usersList) && usersList.length > 0) {
+            // Check if any user in live directory is assigned to this warehouse specifically as accountant
+            const explicitWhAcc = usersList.find(u => 
+                u.warehouse_id && String(u.warehouse_id) === whId &&
+                (u.role_name && (u.role_name.toLowerCase().includes("account") || u.role_name.toLowerCase().includes("billing") || u.role_name.toLowerCase().includes("finance")))
+            );
+            if (explicitWhAcc) {
+                accountantId = String(explicitWhAcc.id || explicitWhAcc._id);
+            }
+        }
+
+        return { managerId, accountantId };
+    }, []);
+
+    const getServicedClustersForWarehouse = useCallback((wh) => {
+        if (!wh) return [];
+        const whId = String(wh._id || wh.id || '');
+        const whCode = (wh.warehouse_code || '').trim().toLowerCase();
+        const whName = (wh.name || wh.warehouse_name || '').trim().toLowerCase();
+
+        // 1. Direct cluster objects attached to warehouse from available-warehouses API
+        if (Array.isArray(wh.serviced_clusters) && wh.serviced_clusters.length > 0) {
+            return wh.serviced_clusters;
+        }
+
+        // 2. Check live dynamic mappings from Warehouse Cluster Routing (/solarshop/cluster-routing/mappings)
+        const foundMapping = (warehouseMappings || []).find(m => 
+            (m.warehouse_id && String(m.warehouse_id) === whId) ||
+            (m.warehouse_code && m.warehouse_code.trim().toLowerCase() === whCode) ||
+            (m.warehouse_name && m.warehouse_name.trim().toLowerCase() === whName)
+        );
+
+        if (foundMapping) {
+            if (Array.isArray(foundMapping.franchise_clusters) && foundMapping.franchise_clusters.length > 0) {
+                return foundMapping.franchise_clusters;
+            }
+            if (Array.isArray(foundMapping.franchise_cluster_ids) && foundMapping.franchise_cluster_ids.length > 0) {
+                const ids = foundMapping.franchise_cluster_ids.map(String);
+                const matched = (liveClusters || []).filter(c => ids.includes(String(c._id || c.id)));
+                if (matched.length > 0) return matched;
+                return ids.map(id => ({ _id: id, id, cluster_id: id, cluster_name: `Cluster (${id.slice(-4)})`, name: `Cluster (${id.slice(-4)})` }));
+            }
+            if (Array.isArray(foundMapping.states) && foundMapping.states.length > 0) {
+                const mapStates = foundMapping.states.map(s => (s || '').trim().toLowerCase());
+                const stateMatched = (liveClusters || []).filter(c => mapStates.includes((c.state_name || '').trim().toLowerCase()));
+                if (stateMatched.length > 0) return stateMatched;
+                return foundMapping.states.map(s => ({ _id: s, id: s, cluster_id: s, cluster_name: `${s} Cluster Network`, name: `${s} Cluster Network` }));
+            }
+        }
+
+        // 3. Check wh.serviced_cluster_ids from available-warehouses
+        if (Array.isArray(wh.serviced_cluster_ids) && wh.serviced_cluster_ids.length > 0) {
+            const ids = wh.serviced_cluster_ids.map(String);
+            const matched = (liveClusters || []).filter(c => ids.includes(String(c._id || c.id)));
+            if (matched.length > 0) return matched;
+            return ids.map(id => ({ _id: id, id, cluster_id: id, cluster_name: `Cluster (${id.slice(-4)})`, name: `Cluster (${id.slice(-4)})` }));
+        }
+
+        // 4. Check wh.mapped_clusters_count from available-warehouses
+        if (wh.mapped_clusters_count && wh.mapped_clusters_count > 0) {
+            return [{
+                _id: 'mapped_' + whId,
+                id: 'mapped_' + whId,
+                cluster_id: 'mapped_' + whId,
+                cluster_name: `${wh.mapped_clusters_count} Active Franchise Clusters`,
+                name: `${wh.mapped_clusters_count} Active Franchise Clusters`
+            }];
+        }
+
+        // 5. Check fulfillment states / states coverage
+        const states = [
+            ...(Array.isArray(wh.fulfillment_states) ? wh.fulfillment_states : []),
+            ...(Array.isArray(foundMapping?.states) ? foundMapping.states : []),
+            ...(wh.state_name ? [wh.state_name] : []),
+            ...(wh.state ? [wh.state] : [])
+        ].map(s => (s || '').trim().toLowerCase()).filter(Boolean);
+
+        if (states.length > 0) {
+            const stateMatched = (liveClusters || []).filter(c => {
+                const cState = (c.state_name || '').trim().toLowerCase();
+                return states.includes(cState);
+            });
+            if (stateMatched.length > 0) return stateMatched;
+        }
+
+        return [];
+    }, [liveClusters, warehouseMappings]);
+
+    const lastInitializedWhIdRef = useRef(null);
+    const prevUsersCountRef = useRef(0);
+
+    const handleQuickAssignWarehouse = (wh) => {
+        // Validation: Cannot assign staff if warehouse has no clusters created/assigned
+        const clusters = getServicedClustersForWarehouse(wh);
+        if (!clusters || clusters.length === 0) {
+            const whName = wh.name || wh.warehouse_name || "this warehouse";
+            setClusterRequiredPopup({
+                warehouseName: whName,
+                warehouseId: wh._id || wh.id
+            });
+            dispatch(setAlert({
+                type: "error",
+                message: `First assign clusters to ${whName} before designating staff!`
+            }));
+            return;
+        }
+
+        setEditId(null);
+        setProvisioningMode("existing");
+        const whId = String(wh._id || wh.id);
+        const whState = wh.state_name || wh.state || "";
+        lastInitializedWhIdRef.current = whId;
+        setAssignedWarehouseId(whId);
+        setAssignedStateName(whState);
+        const { managerId, accountantId } = resolveAssignedStaffForWarehouse(wh, users);
+        setSelectedWarehouseManagerId(managerId || "");
+        setSelectedWarehouseAccountantId(accountantId || "");
+        setActiveTab("add");
+    };
+
+    const selectedWarehouseObj = useMemo(() => {
+        if (!assignedWarehouseId) return null;
+        return liveWarehouses.find(w => String(w._id || w.id) === String(assignedWarehouseId));
+    }, [assignedWarehouseId, liveWarehouses]);
+
+    useEffect(() => {
+        if (!assignedWarehouseId) {
+            lastInitializedWhIdRef.current = null;
+            setSelectedWarehouseManagerId("");
+            setSelectedWarehouseAccountantId("");
+            setAssignedStateName("");
+            return;
+        }
+
+        const isNewWarehouse = lastInitializedWhIdRef.current !== assignedWarehouseId;
+        const usersJustLoaded = prevUsersCountRef.current === 0 && users.length > 0;
+        prevUsersCountRef.current = users.length;
+
+        if (selectedWarehouseObj && (isNewWarehouse || usersJustLoaded)) {
+            lastInitializedWhIdRef.current = assignedWarehouseId;
+            const { managerId, accountantId } = resolveAssignedStaffForWarehouse(selectedWarehouseObj, users);
+            // Strictly set to assigned ID if present, or blank "" if not assigned
+            setSelectedWarehouseManagerId(managerId || "");
+            setSelectedWarehouseAccountantId(accountantId || "");
+            setAssignedStateName(selectedWarehouseObj.state_name || selectedWarehouseObj.state || "");
+        }
+    }, [assignedWarehouseId, selectedWarehouseObj, users, resolveAssignedStaffForWarehouse]);
+
+    const servicedClustersForSelectedWh = useMemo(() => {
+        if (!selectedWarehouseObj) return [];
+        return getServicedClustersForWarehouse(selectedWarehouseObj);
+    }, [selectedWarehouseObj, getServicedClustersForWarehouse]);
+
+    const filteredWarehouseStaffRows = useMemo(() => {
+        const search = overviewSearch.trim().toLowerCase();
+        return warehouseAssignedStaffRows
+            .map(row => ({
+                ...row,
+                servicedClusters: getServicedClustersForWarehouse(row.warehouse)
+            }))
+            .filter(row => {
+                const matchesWhFilter = !overviewFilters.warehouse ||
+                    row.warehouseId === String(overviewFilters.warehouse) ||
+                    row.warehouseName.toLowerCase().includes(String(overviewFilters.warehouse).toLowerCase());
+
+                const matchesStateFilter = !overviewFilters.state ||
+                    row.stateName.toLowerCase() === overviewFilters.state.toLowerCase() ||
+                    row.fulfillmentStates.some(s => String(s).toLowerCase() === overviewFilters.state.toLowerCase()) ||
+                    row.servicedClusters.some(c => (c.state_name || "").toLowerCase() === overviewFilters.state.toLowerCase());
+
+                const matchesClusterFilter = !overviewFilters.cluster ||
+                    row.servicedClusters.some(c =>
+                        String(c._id || c.id || c.cluster_id) === String(overviewFilters.cluster) ||
+                        (c.cluster_name || c.name || "").toLowerCase().includes(String(overviewFilters.cluster).toLowerCase())
+                    );
+
+                const matchesStatusFilter = overviewFilters.status === "" ||
+                    row.assignedMembers.some(m => String(m.isActive ? 1 : 0) === overviewFilters.status);
+
+                const matchesDeptFilter = !overviewFilters.department ||
+                    row.assignedMembers.some(m =>
+                        m.departmentId === String(overviewFilters.department) ||
+                        (m.departmentName && m.departmentName.toLowerCase().includes(String(overviewFilters.department).toLowerCase()))
+                    );
+
+                const matchesSearch = !search ||
+                    row.warehouseName.toLowerCase().includes(search) ||
+                    row.warehouseCode.toLowerCase().includes(search) ||
+                    row.stateName.toLowerCase().includes(search) ||
+                    row.location.toLowerCase().includes(search) ||
+                    row.assignedMembers.some(m =>
+                        (m.name && m.name.toLowerCase().includes(search)) ||
+                        (m.email && m.email.toLowerCase().includes(search)) ||
+                        (m.systemRole && m.systemRole.toLowerCase().includes(search)) ||
+                        m.warehouseRoles.some(r => r.toLowerCase().includes(search))
+                    );
+
+                return matchesWhFilter && matchesStateFilter && matchesClusterFilter && matchesStatusFilter && matchesDeptFilter && matchesSearch;
+            });
+    }, [warehouseAssignedStaffRows, getServicedClustersForWarehouse, overviewSearch, overviewFilters]);
 
     const unstaffedClusters = useMemo(() => {
         return liveClusters.filter(c => (!c.assigned_staff_users || c.assigned_staff_users.length === 0) || c.staffing_status === 'unassigned');
@@ -1027,26 +1473,16 @@ export default function CreateUsers() {
         const cluState = clu.state_name || "";
         setAssignedClusterId(cluId);
         setAssignedStateName(cluState);
-        const matchingWh = liveWarehouses.find(w => 
-            (w.serviced_cluster_ids && w.serviced_cluster_ids.some(cid => String(cid) === cluId)) ||
-            (w.state || w.level_1?.name || '').toLowerCase() === cluState.toLowerCase()
-        );
+        const matchingWh = findWarehouseForCluster(clu, liveWarehouses);
         if (matchingWh) setAssignedWarehouseId(matchingWh._id || matchingWh.id);
         else setAssignedWarehouseId("");
         setActiveTab("add");
     };
 
+    // State filter removed as per user instruction: All staff members are available for cluster assignment
     const stateFilteredExistingUsers = useMemo(() => {
-        if (!assignedStateName) return users;
-        const target = assignedStateName.trim().toLowerCase();
-        return users.filter(u => {
-            const uState = (u.state_name || u.state || '').trim().toLowerCase();
-            const uLevel = (u.level_name || '').trim().toLowerCase();
-            // Global, Country-level, or Super Admin staff have jurisdiction across all states including this cluster's state
-            const isHigherTier = uLevel === 'global' || uLevel === 'country' || !u.state_name || u.state_name === 'All' || u.state_name === 'India';
-            return uState === target || isHigherTier;
-        });
-    }, [users, assignedStateName]);
+        return users;
+    }, [users]);
 
     const filteredDepartmentsOptions = useMemo(() => {
         // Consolidate Delivery Management and Warehouse Management into single "Warehouse & Delivery Management"
@@ -1143,23 +1579,14 @@ export default function CreateUsers() {
     const isProvisioningDisabled = useMemo(() => {
         if (provisioningAdding) return true;
         if (provisioningMode === "existing") {
-            return !selectedExistingUserId || !assignedClusterId;
+            return !assignedWarehouseId || (!selectedWarehouseManagerId && !selectedWarehouseAccountantId) || servicedClustersForSelectedWh.length === 0;
         }
-        // New user mode
-        const levelName = levels.find(l => (l.id || l._id)?.toString() === provisioningLevel?.toString())?.name?.toLowerCase() || "";
+        // New user mode (Pure Identity Creation)
         if (!provisioningFormData.name?.trim() || !provisioningFormData.email?.trim() || !provisioningFormData.role_id) {
             return true;
         }
-        // If State tier or lower, state is required
-        if (["state", "cluster", "district", "urban city", "rural city"].includes(levelName) && !provisioningFormData.state_name) {
-            return true;
-        }
-        // If Cluster tier or lower, cluster is required
-        if (["cluster", "district", "urban city", "rural city"].includes(levelName) && !provisioningFormData.cluster_id) {
-            return true;
-        }
         return false;
-    }, [provisioningAdding, provisioningMode, selectedExistingUserId, assignedClusterId, provisioningFormData.name, provisioningFormData.email, provisioningFormData.role_id, provisioningFormData.state_name, provisioningFormData.cluster_id, provisioningLevel, levels]);
+    }, [provisioningAdding, provisioningMode, assignedWarehouseId, selectedWarehouseManagerId, selectedWarehouseAccountantId, provisioningFormData.name, provisioningFormData.email, provisioningFormData.role_id]);
 
     const tabs = [
         { id: "overview", name: "User Directory", icon: <HiUsers /> },
@@ -1191,8 +1618,9 @@ export default function CreateUsers() {
                             onClick={() => {
                                 if (tab.id === 'add') {
                                     setEditId(null);
+                                    const defCountry = provisioningCountries.find(c => (c.name || '').toLowerCase() === 'india' || c.phone_code === '+91' || c.phone_code === '91') || provisioningCountries[0];
                                     setProvisioningFormData({
-                                        name: "", email: "", country_id: "", phone_code: "", phone: "",
+                                        name: "", email: "", country_id: defCountry?.id || defCountry?._id || "", phone_code: defCountry?.phone_code || "+91", phone: "",
                                         department_id: "", role_id: "", scope_ids: [], parent_user_id: "",
                                         min_phone_length: null, max_phone_length: null
                                     });
@@ -1222,8 +1650,8 @@ export default function CreateUsers() {
             <div className="flex-1 flex flex-col gap-6">
                 {activeTab === "overview" && (
                     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        {/* Unstaffed Clusters Alert Banner */}
-                        {unstaffedClusters.length > 0 && (
+                        {/* Unstaffed Warehouses Alert Banner */}
+                        {unstaffedWarehouses.length > 0 && (
                             <div className="bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-amber-500/10 border-2 border-amber-500/40 rounded-2xl p-5 shadow-sm">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                                     <div className="flex items-start gap-3">
@@ -1236,26 +1664,30 @@ export default function CreateUsers() {
                                                     Action Required
                                                 </span>
                                                 <h4 className="font-black text-text-primary text-base">
-                                                    {unstaffedClusters.length} New Cluster{unstaffedClusters.length > 1 ? 's' : ''} Pending Staff Assignment
+                                                    {unstaffedWarehouses.length} Regional Warehouse{unstaffedWarehouses.length > 1 ? 's' : ''} Pending Staff Assignment
                                                 </h4>
                                             </div>
                                             <p className="text-xs text-text-muted mt-1">
-                                                Clusters cannot process or fulfill orders until designated personnel (Accounting, Delivery, or Operations) are provisioned.
+                                                Warehouses require designated handling personnel (Warehouse Manager & Accountant) before dispatch & kit routing can operate. Serviced clusters automatically inherit designated staff.
                                             </p>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="mt-4 flex flex-wrap gap-2 pt-3 border-t border-amber-200/40">
-                                    {unstaffedClusters.map(clu => (
-                                        <div key={clu._id || clu.id} className="flex items-center gap-2 bg-surface/90 border border-amber-300 rounded-xl px-3 py-1.5 shadow-2xs">
-                                            <span className="text-xs font-bold text-text-primary">{clu.cluster_name || clu.name}</span>
-                                            <span className="text-[10px] text-text-muted font-medium">({clu.state_name || 'All States'})</span>
+                                    {unstaffedWarehouses.map(wh => (
+                                        <div key={wh._id || wh.id} className="flex items-center gap-2 bg-surface/90 border border-amber-300 rounded-xl px-3 py-1.5 shadow-2xs">
+                                            <FaWarehouse className="text-amber-600 shrink-0" size={13} />
+                                            <span className="text-xs font-bold text-text-primary">{wh.name || wh.warehouse_name}</span>
+                                            <span className="text-[10px] text-text-muted font-medium">({wh.state_name || wh.state || 'All States'})</span>
+                                            <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                                ⚠️ Pending Staff
+                                            </span>
                                             <button
                                                 type="button"
-                                                onClick={() => handleQuickAssignCluster(clu)}
-                                                className="ml-1 text-[11px] font-bold text-primary hover:text-primary-hover bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded-md transition-colors"
+                                                onClick={() => handleQuickAssignWarehouse(wh)}
+                                                className="ml-1 text-[11px] font-bold text-primary hover:text-primary-hover bg-primary/10 hover:bg-primary/20 px-2.5 py-0.5 rounded-md transition-colors"
                                             >
-                                                + Assign User
+                                                + Assign Staff
                                             </button>
                                         </div>
                                     ))}
@@ -1303,8 +1735,8 @@ export default function CreateUsers() {
                             </div>
                             <div className="card p-4 flex items-center justify-between border-l-4 border-l-amber-500 bg-surface shadow-xs">
                                 <div>
-                                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-wider">Unassigned Clusters</p>
-                                    <h3 className="text-2xl font-black text-amber-600 mt-1">{unstaffedClusters.length}</h3>
+                                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-wider">Unstaffed Warehouses</p>
+                                    <h3 className="text-2xl font-black text-amber-600 mt-1">{unstaffedWarehouses.length}</h3>
                                 </div>
                                 <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600">
                                     <FaExclamationTriangle size={18} />
@@ -1416,137 +1848,456 @@ export default function CreateUsers() {
                             </div>
                         </div>
 
-                        {/* Hierarchy Tree View */}
-                        {loadingUsers ? (
-                            <div className="flex flex-col items-center justify-center py-20">
-                                <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-                                <p className="mt-4 text-text-muted font-bold text-xs uppercase tracking-widest">Generating Hierarchy...</p>
+                        {/* Section 1: All Created Users & Roles Directory */}
+                        <div className="card overflow-hidden border border-border bg-surface shadow-xs">
+                            <div className="px-6 py-4 border-b border-border bg-surface-hover/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                        <HiUsers size={18} />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-sm font-black text-text-primary uppercase tracking-wider">
+                                                All Created Users & Roles Directory
+                                            </h3>
+                                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                                {filteredUsers.length} / {users.length} Users
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-text-muted mt-0.5">
+                                            Complete live list of all created accounts, assigned system roles, departments, warehouse deployments, and status.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 self-start sm:self-center">
+                                    <a
+                                        href="#warehouse-assigned-users"
+                                        className="text-[11px] font-bold text-emerald-700 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
+                                    >
+                                        <FaWarehouse size={12} />
+                                        Assigned Warehouses ({filteredWarehouseStaffRows.length})
+                                    </a>
+                                    <div className="flex p-1 bg-bg rounded-lg border border-border">
+                                        <button
+                                            type="button"
+                                            onClick={() => setDirectoryViewMode("list")}
+                                            className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${directoryViewMode === "list" ? "bg-primary text-white shadow-xs" : "text-text-muted hover:text-text-primary"}`}
+                                        >
+                                            All Users List
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDirectoryViewMode("tree")}
+                                            className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${directoryViewMode === "tree" ? "bg-primary text-white shadow-xs" : "text-text-muted hover:text-text-primary"}`}
+                                        >
+                                            Hierarchy Tree
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                        ) : users.length > 0 ? (
-                            <div className="w-full overflow-x-auto pb-4 custom-scrollbar">
-                                <div className="space-y-4 min-w-[600px]">
-                                    {(() => {
-                                        const currentUserId = localStorage.getItem("cms_user_id");
-                                        const search = overviewSearch.toLowerCase();
 
-                                        const hasActiveFilters = search || overviewFilters.status || overviewFilters.country || overviewFilters.saasProduct || overviewFilters.panel || overviewFilters.warehouse || overviewFilters.state || overviewFilters.cluster || overviewFilters.department;
+                            {loadingUsers ? (
+                                <div className="flex flex-col items-center justify-center py-16">
+                                    <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                                    <p className="mt-3 text-text-muted font-bold text-xs uppercase tracking-widest">Loading Users & Roles...</p>
+                                </div>
+                            ) : users.length === 0 ? (
+                                <div className="p-12 flex flex-col items-center text-center space-y-3">
+                                    <div className="w-14 h-14 bg-surface-hover rounded-full flex items-center justify-center text-text-muted/30">
+                                        <HiUsers size={34} />
+                                    </div>
+                                    <h3 className="text-base font-bold text-text-primary uppercase tracking-tight">No Users Found</h3>
+                                    <p className="text-xs text-text-muted">Your organizational directory is currently empty.</p>
+                                </div>
+                            ) : directoryViewMode === "list" ? (
+                                filteredUsers.length === 0 ? (
+                                    <div className="p-10 flex flex-col items-center text-center space-y-3">
+                                        <HiUsers size={32} className="text-text-muted/40" />
+                                        <p className="text-sm font-bold text-text-primary">No Matching Users</p>
+                                        <p className="text-xs text-text-muted">No users match your current search or filter criteria.</p>
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto custom-scrollbar">
+                                        <table className="w-full text-left border-collapse min-w-[900px]">
+                                            <thead>
+                                                <tr className="bg-surface-hover/60 border-b border-border text-[10px] font-black text-text-muted uppercase tracking-wider">
+                                                    <th className="py-3 px-4 w-10">#</th>
+                                                    <th className="py-3 px-4">User & Contact</th>
+                                                    <th className="py-3 px-4">Role & Department</th>
+                                                    <th className="py-3 px-4">Assigned Warehouse(s)</th>
+                                                    <th className="py-3 px-4">Scope & Reports To</th>
+                                                    <th className="py-3 px-4">Status</th>
+                                                    <th className="py-3 px-4 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-border/60 text-xs">
+                                                {filteredUsers.map((u, idx) => {
+                                                    const activeUid = currentUserId || localStorage.getItem("cms_user_id");
+                                                    const uid = String(u.id || u._id);
+                                                    const isSelf = uid === String(activeUid);
+                                                    const assignedWhs = userWarehouseAssignmentsMap.get(uid) || [];
+                                                    const initials = (u.name || "U").split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase();
 
-                                        // Build full map with search marking
-                                        const userMap = {};
-                                        users.forEach(u => {
-                                            userMap[u.id] = { ...u, children: [], matchesSearch: false, shouldShow: !hasActiveFilters };
-                                        });
+                                                    return (
+                                                        <tr key={uid} className={`hover:bg-surface-hover/50 transition-colors ${isSelf ? "bg-primary/5" : ""}`}>
+                                                            <td className="py-3.5 px-4 font-bold text-text-muted">{idx + 1}</td>
+                                                            <td className="py-3.5 px-4">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="relative shrink-0">
+                                                                        <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-black text-xs">
+                                                                            {initials}
+                                                                        </div>
+                                                                        <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface ${u.is_active ? "bg-success" : "bg-text-muted"}`} />
+                                                                    </div>
+                                                                    <div className="min-w-0">
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <span className="font-bold text-text-primary text-sm truncate">{u.name}</span>
+                                                                            {isSelf && (
+                                                                                <span className="px-1.5 py-0.5 bg-primary text-white text-[9px] font-black uppercase rounded">You</span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-[11px] text-text-secondary truncate">{u.email}</div>
+                                                                        {u.phone && (
+                                                                            <div className="text-[10px] text-text-muted">{u.phone_code || "+91"} {u.phone}</div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3.5 px-4">
+                                                                <div className="flex flex-col items-start gap-1">
+                                                                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                                                        {u.role_name || "Unassigned Role"}
+                                                                    </span>
+                                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                                        <span className="text-[10px] font-semibold bg-purple-500/10 text-purple-600 border border-purple-500/20 px-2 py-0.5 rounded">
+                                                                            {u.department_name || "General"}
+                                                                        </span>
+                                                                        {u.level_name && (
+                                                                            <span className="text-[10px] font-bold text-text-muted uppercase">
+                                                                                • {u.level_name}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3.5 px-4">
+                                                                {assignedWhs.length > 0 ? (
+                                                                    <div className="flex flex-col gap-1.5">
+                                                                        {assignedWhs.map(whItem => (
+                                                                            <div key={whItem.warehouseId} className="inline-flex flex-wrap items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-lg">
+                                                                                <FaWarehouse size={10} className="text-blue-600 shrink-0" />
+                                                                                <span className="text-[11px] font-bold text-blue-800">{whItem.warehouseName}</span>
+                                                                                {whItem.warehouseCode && (
+                                                                                    <span className="text-[9px] font-mono text-blue-600">[{whItem.warehouseCode}]</span>
+                                                                                )}
+                                                                                {whItem.warehouseRoles.length > 0 && (
+                                                                                    <span className="text-[9px] font-black bg-white/80 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200">
+                                                                                        {whItem.warehouseRoles.join(" & ")}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-[11px] text-text-muted italic">Not Warehouse-Bound</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-3.5 px-4">
+                                                                <div className="flex flex-col gap-1 max-w-[220px]">
+                                                                    {u.scope_names && u.scope_names.length > 0 ? (
+                                                                        <span className="text-[10px] font-bold text-primary/80 uppercase tracking-wide truncate flex items-center gap-1" title={u.scope_names.join(", ")}>
+                                                                            <HiGlobeAlt size={12} className="shrink-0" />
+                                                                            {u.scope_names.join(", ")}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-[10px] text-text-muted">Global / Unscoped</span>
+                                                                    )}
+                                                                    {u.parent_user_name && (
+                                                                        <span className="text-[10px] text-text-muted flex items-center gap-1 truncate">
+                                                                            <HiArrowUp size={10} className="text-primary/50 shrink-0" />
+                                                                            Reports to: <b className="text-text-secondary">{u.parent_user_name}</b>
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3.5 px-4">
+                                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${u.is_active ? "bg-success/10 text-success border border-success/20" : "bg-text-muted/10 text-text-muted border border-border"}`}>
+                                                                    <span className={`w-1.5 h-1.5 rounded-full ${u.is_active ? "bg-success" : "bg-text-muted"}`} />
+                                                                    {u.is_active ? "Active" : "Inactive"}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-right">
+                                                                <div className="inline-flex items-center gap-1.5">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => !isSelf && handleEdit(u)}
+                                                                        disabled={isSelf}
+                                                                        className={`p-2 rounded-lg border transition-all ${isSelf ? "bg-danger/5 border-danger/10 text-danger/30 cursor-not-allowed" : "bg-surface border-border text-text-muted hover:text-primary hover:border-primary"}`}
+                                                                        title={isSelf ? "Protected Record" : "Edit Identity"}
+                                                                    >
+                                                                        {isSelf ? <HiBan size={14} /> : <HiPencil size={14} />}
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => !isSelf && handleToggleStatus(uid, !!u.is_active)}
+                                                                        disabled={isSelf}
+                                                                        className={`p-2 rounded-lg border transition-all ${isSelf ? "bg-danger/5 border-danger/10 text-danger/30 cursor-not-allowed" : u.is_active ? "bg-surface border-border text-text-muted hover:text-danger hover:border-danger" : "bg-surface border-border text-text-muted hover:text-success hover:border-success"}`}
+                                                                        title={isSelf ? "Protected Record" : (u.is_active ? "Deactivate User" : "Activate User")}
+                                                                    >
+                                                                        {isSelf ? <HiBan size={14} /> : (u.is_active ? <HiLockOpen size={14} /> : <HiLockClosed size={14} />)}
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )
+                            ) : (
+                                <div className="p-4 w-full overflow-x-auto custom-scrollbar">
+                                    <div className="space-y-4 min-w-[600px]">
+                                        {(() => {
+                                            const activeUserId = currentUserId || localStorage.getItem("cms_user_id");
+                                            const search = overviewSearch.toLowerCase();
+                                            const hasActiveFilters = search || overviewFilters.status || overviewFilters.country || overviewFilters.saasProduct || overviewFilters.panel || overviewFilters.warehouse || overviewFilters.state || overviewFilters.cluster || overviewFilters.department;
 
-                                        if (hasActiveFilters) {
+                                            const userMap = {};
                                             users.forEach(u => {
-                                                const matchesSearch = !search ||
-                                                    u.name.toLowerCase().includes(search) ||
-                                                    u.email.toLowerCase().includes(search) ||
-                                                    (u.role_name && u.role_name.toLowerCase().includes(search)) ||
-                                                    (u.level_name && u.level_name.toLowerCase().includes(search));
+                                                const uid = String(u.id || u._id);
+                                                userMap[u.id] = {
+                                                    ...u,
+                                                    assignedWarehouses: userWarehouseAssignmentsMap.get(uid) || [],
+                                                    children: [],
+                                                    matchesSearch: false,
+                                                    shouldShow: !hasActiveFilters
+                                                };
+                                            });
 
-                                                const matchesStatus = !overviewFilters.status || String(u.is_active) === overviewFilters.status;
-
-                                                const matchesCountry = !overviewFilters.country ||
-                                                    u.country_id === overviewFilters.country ||
-                                                    (u.scope_ids && u.scope_ids.includes(overviewFilters.country));
-
-                                                const matchesSaaS = !overviewFilters.saasProduct ||
-                                                    (u.saas_product_ids && u.saas_product_ids.includes(overviewFilters.saasProduct));
-
-                                                let matchesPanel = !overviewFilters.panel;
-                                                if (overviewFilters.panel) {
-                                                    if (u.panel_ids && u.panel_ids.includes(overviewFilters.panel)) {
-                                                        matchesPanel = true;
-                                                    } else if (u.saas_product_ids && u.saas_product_ids.length > 0) {
-                                                        const panelObj = allPanels.find(p => String(p.id || p._id) === String(overviewFilters.panel));
-                                                        if (panelObj && panelObj.products) {
-                                                            matchesPanel = u.saas_product_ids.some(spid =>
-                                                                panelObj.products.some(p => String(p.id || p._id) === String(spid))
-                                                            );
+                                            if (hasActiveFilters) {
+                                                users.forEach(u => {
+                                                    if (doesUserMatchOverviewFilters(u)) {
+                                                        userMap[u.id].matchesSearch = Boolean(search);
+                                                        userMap[u.id].shouldShow = true;
+                                                        let parentId = u.parent_user_id;
+                                                        while (parentId && userMap[parentId]) {
+                                                            userMap[parentId].shouldShow = true;
+                                                            parentId = userMap[parentId].parent_user_id;
                                                         }
                                                     }
-                                                }
+                                                });
+                                            }
 
-                                                const matchesWarehouse = !overviewFilters.warehouse ||
-                                                    u.warehouse_id === overviewFilters.warehouse ||
-                                                    (u.warehouse_name && u.warehouse_name.toLowerCase().includes(overviewFilters.warehouse.toLowerCase()));
-
-                                                const matchesState = !overviewFilters.state ||
-                                                    (u.state_name && u.state_name.toLowerCase() === overviewFilters.state.toLowerCase()) ||
-                                                    (u.scope_ids && u.scope_ids.includes(overviewFilters.state));
-
-                                                const matchesCluster = !overviewFilters.cluster ||
-                                                    u.cluster_id === overviewFilters.cluster ||
-                                                    (u.cluster_name && u.cluster_name.toLowerCase().includes(overviewFilters.cluster.toLowerCase())) ||
-                                                    (u.scope_ids && u.scope_ids.includes(overviewFilters.cluster));
-
-                                                const matchesDept = !overviewFilters.department ||
-                                                    u.department_id === overviewFilters.department ||
-                                                    (u.department_name && u.department_name.toLowerCase().includes(overviewFilters.department.toLowerCase()));
-
-                                                if (matchesSearch && matchesStatus && matchesCountry && matchesSaaS && matchesPanel && matchesWarehouse && matchesState && matchesCluster && matchesDept) {
-                                                    userMap[u.id].matchesSearch = search ? true : false;
-                                                    userMap[u.id].shouldShow = true;
-                                                    // Cascade visibility up
-                                                    let parentId = u.parent_user_id;
-                                                    while (parentId && userMap[parentId]) {
-                                                        userMap[parentId].shouldShow = true;
-                                                        parentId = userMap[parentId].parent_user_id;
-                                                    }
+                                            const roots = [];
+                                            users.forEach(u => {
+                                                if (u.parent_user_id && userMap[u.parent_user_id]) {
+                                                    userMap[u.parent_user_id].children.push(userMap[u.id]);
+                                                } else {
+                                                    roots.push(userMap[u.id]);
                                                 }
                                             });
-                                        }
 
-                                        // Build tree structure
-                                        const roots = [];
-                                        users.forEach(u => {
-                                            if (u.parent_user_id && userMap[u.parent_user_id]) {
-                                                userMap[u.parent_user_id].children.push(userMap[u.id]);
-                                            } else {
-                                                roots.push(userMap[u.id]);
+                                            const visibleRoots = roots.filter(r => r.shouldShow);
+                                            if (visibleRoots.length === 0 && hasActiveFilters) {
+                                                return (
+                                                    <div className="p-10 flex flex-col items-center text-center space-y-3">
+                                                        <HiUsers size={34} className="text-text-muted/30" />
+                                                        <h3 className="text-base font-bold text-text-primary uppercase tracking-tight">No Matching Members</h3>
+                                                        <p className="text-xs text-text-muted">No users match your current search criteria in the hierarchy.</p>
+                                                    </div>
+                                                );
                                             }
-                                        });
 
-                                        const visibleRoots = roots.filter(r => r.shouldShow);
-                                        if (visibleRoots.length === 0 && hasActiveFilters) {
-                                            return (
-                                                <div className="card p-12 flex flex-col items-center text-center space-y-4">
-                                                    <div className="w-16 h-16 bg-surface-hover rounded-full flex items-center justify-center text-text-muted/30">
-                                                        <HiUsers size={40} />
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight">No Matching Members</h3>
-                                                        <p className="text-sm text-text-muted">No users match your current search criteria in the hierarchy.</p>
-                                                    </div>
-                                                </div>
-                                            );
-                                        }
+                                            return visibleRoots.map(root => (
+                                                <UserNode
+                                                    key={root.id}
+                                                    node={root}
+                                                    currentUserId={activeUserId}
+                                                    search={search}
+                                                    onEdit={handleEdit}
+                                                    onToggleStatus={handleToggleStatus}
+                                                />
+                                            ));
+                                        })()}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
-                                        return visibleRoots.map(root => (
-                                            <UserNode
-                                                key={root.id}
-                                                node={root}
-                                                currentUserId={currentUserId}
-                                                search={search}
-                                                onEdit={handleEdit}
-                                                onToggleStatus={handleToggleStatus}
-                                            />
-                                        ));
-                                    })()}
+                        {/* Section 2: Warehouse-Wise Assigned Users & Roles (Dynamic Live Checklist / Rows) */}
+                        <div id="warehouse-assigned-users" className="card overflow-hidden border border-border bg-surface shadow-xs">
+                            <div className="px-6 py-4 border-b border-border bg-emerald-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center shrink-0">
+                                        <FaWarehouse size={17} />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-sm font-black text-text-primary uppercase tracking-wider">
+                                                Warehouse-Wise Assigned Users & Roles
+                                            </h3>
+                                            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 border border-emerald-500/30">
+                                                {filteredWarehouseStaffRows.length} Warehouse{filteredWarehouseStaffRows.length === 1 ? "" : "s"} Assigned
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-text-muted mt-0.5">
+                                            Dynamic directory showing every warehouse that has assigned personnel, their designated roles, system roles, and cluster coverage.
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                        ) : (
-                            <div className="card p-12 flex flex-col items-center text-center space-y-4">
-                                <div className="w-16 h-16 bg-surface-hover rounded-full flex items-center justify-center text-text-muted/30">
-                                    <HiUsers size={40} />
+
+                            {loadingClusters ? (
+                                <div className="flex flex-col items-center justify-center py-12">
+                                    <div className="w-8 h-8 border-4 border-emerald-500/20 border-t-emerald-600 rounded-full animate-spin"></div>
+                                    <p className="mt-3 text-text-muted font-bold text-xs uppercase tracking-widest">Syncing Warehouse Assignments...</p>
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight">No Users Found</h3>
-                                    <p className="text-sm text-text-muted">Your organizational directory is currently empty.</p>
+                            ) : filteredWarehouseStaffRows.length === 0 ? (
+                                <div className="p-10 flex flex-col items-center text-center space-y-2">
+                                    <FaWarehouse size={30} className="text-text-muted/30" />
+                                    <p className="text-sm font-bold text-text-primary">No Warehouse User Assignments Found</p>
+                                    <p className="text-xs text-text-muted max-w-md">
+                                        {warehouseAssignedStaffRows.length === 0
+                                            ? "No warehouses have staff assigned yet. Assign staff to pending warehouses from the alert banner above."
+                                            : "No assigned warehouses match your active search or filter criteria."}
+                                    </p>
                                 </div>
-                            </div>
-                        )}
+                            ) : (
+                                <div className="overflow-x-auto custom-scrollbar">
+                                    <table className="w-full text-left border-collapse min-w-[850px]">
+                                        <thead>
+                                            <tr className="bg-surface-hover/60 border-b border-border text-[10px] font-black text-text-muted uppercase tracking-wider">
+                                                <th className="py-3 px-4 w-10">#</th>
+                                                <th className="py-3 px-4">Regional Warehouse & Coverage</th>
+                                                <th className="py-3 px-4">Assigned Users & Their Roles</th>
+                                                <th className="py-3 px-4">Staffing Status</th>
+                                                <th className="py-3 px-4 text-right">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border/60 text-xs">
+                                            {filteredWarehouseStaffRows.map((row, idx) => (
+                                                <tr key={row.warehouseId} className="hover:bg-surface-hover/40 transition-colors align-top">
+                                                    <td className="py-4 px-4 font-bold text-text-muted">{idx + 1}</td>
+                                                    <td className="py-4 px-4 min-w-[230px]">
+                                                        <div className="flex items-start gap-2.5">
+                                                            <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+                                                                <FaWarehouse size={14} />
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                                    <span className="font-black text-text-primary text-sm">{row.warehouseName}</span>
+                                                                    {row.warehouseCode && (
+                                                                        <span className="text-[10px] font-mono font-bold bg-surface-hover px-1.5 py-0.5 rounded border border-border text-text-secondary">
+                                                                            {row.warehouseCode}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="text-[11px] text-text-muted flex items-center gap-1">
+                                                                    <HiLocationMarker size={12} className="text-primary/60 shrink-0" />
+                                                                    <span>
+                                                                        {row.fulfillmentStates.length > 0
+                                                                            ? row.fulfillmentStates.join(", ")
+                                                                            : (row.stateName || row.location || "All States")}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                                                                    <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20">
+                                                                        {row.servicedClusters.length} Serviced Cluster{row.servicedClusters.length === 1 ? "" : "s"}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-4">
+                                                        <div className="space-y-2">
+                                                            {row.assignedMembers.map((member, mIdx) => (
+                                                                <div
+                                                                    key={member.id || mIdx}
+                                                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-bg border border-border/80"
+                                                                >
+                                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                                        <span className={`w-2 h-2 rounded-full shrink-0 ${member.isActive ? "bg-success" : "bg-text-muted"}`} />
+                                                                        <div className="min-w-0">
+                                                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                                                <span className="font-bold text-text-primary text-xs">{member.name}</span>
+                                                                                {member.warehouseRoles.map(wRole => (
+                                                                                    <span
+                                                                                        key={wRole}
+                                                                                        className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${wRole.toLowerCase().includes("manager")
+                                                                                            ? "bg-blue-500/10 text-blue-700 border-blue-500/20"
+                                                                                            : wRole.toLowerCase().includes("account")
+                                                                                                ? "bg-amber-500/10 text-amber-700 border-amber-500/20"
+                                                                                                : "bg-primary/10 text-primary border-primary/20"
+                                                                                            }`}
+                                                                                    >
+                                                                                        {wRole}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                            <div className="text-[11px] text-text-muted truncate mt-0.5">
+                                                                                {member.email}{member.phone ? ` • ${member.phoneCode} ${member.phone}` : ""}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                                                        <span className="text-[10px] font-bold bg-purple-500/10 text-purple-700 border border-purple-500/20 px-2 py-0.5 rounded-full">
+                                                                            Role: {member.systemRole}
+                                                                        </span>
+                                                                        {member.departmentName && (
+                                                                            <span className="text-[10px] font-semibold bg-surface-hover text-text-secondary border border-border px-2 py-0.5 rounded-full">
+                                                                                {member.departmentName}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+
+                                                            {(!row.hasManager || !row.hasAccountant) && (
+                                                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                                                    {!row.hasManager && (
+                                                                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                                                            ⚠️ Warehouse Manager: Pending
+                                                                        </span>
+                                                                    )}
+                                                                    {!row.hasAccountant && (
+                                                                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                                                            ⚠️ Accountant: Pending
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-4 whitespace-nowrap">
+                                                        {row.isFullyStaffed ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500/15 text-emerald-700 border border-emerald-500/30">
+                                                                <FiCheckCircle size={12} /> Fully Staffed
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-amber-500/15 text-amber-700 border border-amber-500/30">
+                                                                <HiExclamation size={12} /> Partial Staff
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-4 px-4 text-right whitespace-nowrap">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleQuickAssignWarehouse(row.warehouse)}
+                                                            className="text-[11px] font-bold text-primary hover:text-white bg-primary/10 hover:bg-primary border border-primary/20 px-3 py-1.5 rounded-lg transition-all"
+                                                        >
+                                                            Manage Staff
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
                 {activeTab === "add" && (
@@ -1580,7 +2331,7 @@ export default function CreateUsers() {
                                                 : "text-text-muted hover:text-text-primary"
                                         }`}
                                     >
-                                        <HiIdentification size={16} /> 👤 Assign Existing User
+                                        <FaWarehouse size={15} /> 🏢 Assign Staff to Warehouse
                                     </button>
                                 </div>
                             )}
@@ -1592,7 +2343,7 @@ export default function CreateUsers() {
                                             <HiIdentification size={20} />
                                         </div>
                                         <h2 className="font-bold text-text-primary uppercase tracking-wider text-sm">
-                                            {editId ? "Edit Staff Identity" : provisioningMode === "existing" ? "Assign Existing Staff Member to Cluster" : "Create New User & Identity Credentials"}
+                                            {editId ? "Edit Staff Identity" : provisioningMode === "existing" ? "Assign Designated Staff to Regional Warehouse" : "Create New User & Identity Credentials"}
                                         </h2>
                                     </div>
                                     {editId && (
@@ -1602,161 +2353,243 @@ export default function CreateUsers() {
                                     )}
                                 </div>
 
-                                {/* CASE 1: ASSIGN EXISTING USER TO CLUSTER */}
+                                {/* CASE 1: ASSIGN STAFF TO REGIONAL WAREHOUSE */}
                                 {provisioningMode === "existing" && !editId && (
                                     <div className="space-y-5">
-                                        {/* Target Cluster Info Box */}
+                                        {/* Step 1: Target Regional Warehouse Selector */}
                                         <div className="p-4 bg-amber-500/10 border-2 border-amber-500/30 rounded-xl space-y-3">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
                                                     <FaWarehouse className="text-amber-600" size={16} />
                                                     <h3 className="text-xs font-black text-text-primary uppercase tracking-wider">
-                                                        Target Franchisee Cluster Operational Assignment
+                                                        Select Target Regional Warehouse
                                                     </h3>
                                                 </div>
                                                 <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700">
-                                                    {assignedClusterId ? "Target Cluster Selected" : "Select Cluster to Assign"}
+                                                    {assignedWarehouseId ? "Warehouse Selected" : "Select Warehouse"}
                                                 </span>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block">
+                                                            Regional Warehouse *
+                                                        </label>
+                                                        {assignedWarehouseId && (
+                                                            <span className="text-[10px] font-bold text-amber-900 bg-amber-500/20 px-2 py-0.5 rounded flex items-center gap-1">
+                                                                <HiLockClosed size={11} /> Locked to Target Warehouse
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {assignedWarehouseId ? (
+                                                        <div className="relative">
+                                                            <input
+                                                                type="text"
+                                                                readOnly
+                                                                value={
+                                                                    selectedWarehouseObj
+                                                                        ? `${selectedWarehouseObj.name || selectedWarehouseObj.warehouse_name} (${selectedWarehouseObj.state_name || selectedWarehouseObj.state || 'All States'}) [${selectedWarehouseObj.warehouse_code || 'CODE'}]`
+                                                                        : "Selected Warehouse"
+                                                                }
+                                                                className="w-full py-2.5 px-3 pr-8 text-xs bg-surface-hover/80 border border-border/80 rounded-lg text-text-primary font-bold cursor-not-allowed"
+                                                            />
+                                                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted">
+                                                                <HiLockClosed size={15} />
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <select
+                                                            value={assignedWarehouseId}
+                                                            onChange={(e) => {
+                                                                const wid = e.target.value;
+                                                                if (!wid) {
+                                                                    setAssignedWarehouseId("");
+                                                                    setAssignedStateName("");
+                                                                    setSelectedWarehouseManagerId("");
+                                                                    setSelectedWarehouseAccountantId("");
+                                                                    return;
+                                                                }
+                                                                const foundWh = liveWarehouses.find(w => String(w._id || w.id) === String(wid));
+                                                                if (foundWh) {
+                                                                    const clusters = getServicedClustersForWarehouse(foundWh);
+                                                                    if (!clusters || clusters.length === 0) {
+                                                                        const whName = foundWh.name || foundWh.warehouse_name || "this warehouse";
+                                                                        setClusterRequiredPopup({
+                                                                            warehouseName: whName,
+                                                                            warehouseId: foundWh._id || foundWh.id
+                                                                        });
+                                                                        dispatch(setAlert({
+                                                                            type: "error",
+                                                                            message: `First assign clusters to ${whName} before designating staff!`
+                                                                        }));
+                                                                        return;
+                                                                    }
+                                                                    setAssignedWarehouseId(wid);
+                                                                    setAssignedStateName(foundWh.state_name || foundWh.state || "");
+                                                                    const { managerId, accountantId } = resolveAssignedStaffForWarehouse(foundWh, users);
+                                                                    setSelectedWarehouseManagerId(managerId);
+                                                                    setSelectedWarehouseAccountantId(accountantId);
+                                                                } else {
+                                                                    setAssignedStateName("");
+                                                                    setSelectedWarehouseManagerId("");
+                                                                    setSelectedWarehouseAccountantId("");
+                                                                }
+                                                            }}
+                                                            className="w-full py-2.5 px-3 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-bold"
+                                                        >
+                                                            <option value="">-- Choose Regional Warehouse ({unstaffedWarehouses.length} Pending) --</option>
+                                                            {unstaffedWarehouses.map(w => (
+                                                                <option key={w._id || w.id} value={w._id || w.id}>
+                                                                    {w.name || w.warehouse_name} ({w.state_name || w.state || 'All States'}) [{w.warehouse_code}] ⚠️ (Pending Staff)
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    )}
+                                                </div>
+
                                                 <div>
                                                     <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
-                                                        Franchisee Cluster *
+                                                        Serviced State / Territory
                                                     </label>
+                                                    <input
+                                                        type="text"
+                                                        readOnly
+                                                        value={assignedStateName || "Derived from Warehouse"}
+                                                        className="w-full py-2.5 px-3 text-xs bg-surface-hover/60 border border-border/80 rounded-lg text-text-primary font-bold cursor-not-allowed"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Serviced Clusters Auto-Inheritance Box */}
+                                            {selectedWarehouseObj && (
+                                                <div className="mt-3 pt-3 border-t border-amber-300/40">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
+                                                            <FiCheckCircle className="text-emerald-600" size={14} />
+                                                            Serviced Clusters Inheriting Staff ({servicedClustersForSelectedWh.length}):
+                                                        </span>
+                                                        <span className="text-[10px] text-amber-700 bg-amber-500/10 px-2 py-0.5 rounded font-semibold">
+                                                            Automatic Staff Inheritance
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {servicedClustersForSelectedWh.length > 0 ? (
+                                                            servicedClustersForSelectedWh.map(c => (
+                                                                <span key={c._id || c.id || c.cluster_id} className="text-[11px] font-semibold bg-white border border-amber-300 px-2 py-0.5 rounded-md text-slate-800 shadow-2xs">
+                                                                    {c.cluster_name || c.name || c.cluster_code || 'Cluster'}
+                                                                </span>
+                                                            ))
+                                                        ) : (
+                                                            <div className="w-full p-2.5 bg-rose-50 border border-rose-300/80 rounded-lg flex items-start gap-2">
+                                                                <FaExclamationTriangle className="text-rose-600 shrink-0 mt-0.5" size={13} />
+                                                                <div>
+                                                                    <p className="text-xs font-bold text-rose-800">
+                                                                        First Assign Clusters to this Warehouse
+                                                                    </p>
+                                                                    <p className="text-[11px] text-rose-600 mt-0.5">
+                                                                        Staff assignment is blocked because this warehouse does not have any active franchise clusters assigned to it yet. Please assign clusters to the warehouse first.
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Step 2: 2 Designated Warehouse Staff Roles */}
+                                        <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-4">
+                                            <div className="flex items-center justify-between pb-2 border-b border-primary/10">
+                                                <label className="text-xs font-black text-primary uppercase tracking-wider block">
+                                                    Designate Warehouse Handling Personnel (2 Roles)
+                                                </label>
+                                                <span className="text-[10px] font-bold text-text-secondary bg-surface px-2.5 py-0.5 rounded-md border border-border shadow-xs">
+                                                    Total Staff Available: <b className="text-primary">{users.length}</b>
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Role 1: Warehouse Manager */}
+                                                <div className="p-3 bg-surface rounded-xl border border-border space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <label className="text-[11px] font-black text-text-primary uppercase tracking-wider flex items-center gap-1.5">
+                                                            <HiShieldCheck className="text-primary" size={16} />
+                                                            1. Warehouse Manager *
+                                                        </label>
+                                                        {selectedWarehouseManagerId && (
+                                                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                                                                <FiCheckCircle size={10} /> Currently Assigned
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[10px] text-text-muted">
+                                                        Responsible for inventory management, kit inward/outward, and storage oversight.
+                                                    </p>
                                                     <select
-                                                        value={assignedClusterId}
-                                                        onChange={(e) => {
-                                                            const cid = e.target.value;
-                                                            setAssignedClusterId(cid);
-                                                            const clu = liveClusters.find(c => String(c._id || c.id) === String(cid));
-                                                            if (clu) {
-                                                                const cluState = clu.state_name || "";
-                                                                setAssignedStateName(cluState);
-                                                                const matchingWh = liveWarehouses.find(w => 
-                                                                    (w.serviced_cluster_ids && w.serviced_cluster_ids.some(cId => String(cId) === String(cid))) ||
-                                                                    (w.state || w.level_1?.name || '').toLowerCase() === cluState.toLowerCase()
-                                                                );
-                                                                if (matchingWh) setAssignedWarehouseId(matchingWh._id || matchingWh.id);
-                                                                else setAssignedWarehouseId("");
-                                                            }
-                                                        }}
-                                                        className="w-full py-2.5 px-3 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-bold"
+                                                        value={selectedWarehouseManagerId}
+                                                        onChange={(e) => setSelectedWarehouseManagerId(e.target.value)}
+                                                        className="w-full py-2 px-2.5 text-xs bg-bg border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-bold"
                                                     >
-                                                        <option value="">-- Choose Cluster ({liveClusters.length}) --</option>
-                                                        {liveClusters.map(c => {
-                                                            const isStaffed = c.assigned_staff_users && c.assigned_staff_users.length > 0 && c.staffing_status !== 'unassigned';
+                                                        <option value="">-- Choose Warehouse Manager --</option>
+                                                        {selectedWarehouseManagerId && !users.some(u => String(u.id || u._id) === String(selectedWarehouseManagerId)) && (
+                                                            <option value={selectedWarehouseManagerId}>
+                                                                {selectedWarehouseObj?.manager?.name
+                                                                    ? `${selectedWarehouseObj.manager.name} (${selectedWarehouseObj.manager.email || 'Assigned'}) - Current Manager`
+                                                                    : "Currently Assigned Manager"}
+                                                            </option>
+                                                        )}
+                                                        {users.map(u => {
+                                                            const uid = String(u.id || u._id);
+                                                            const isAssigned = String(selectedWarehouseManagerId) === uid;
                                                             return (
-                                                                <option key={c._id || c.id} value={c._id || c.id}>
-                                                                    {c.cluster_name || c.name} ({c.state_name || 'All States'}) {isStaffed ? '✓ (Staffed)' : '⚠️ (Unstaffed)'}
+                                                                <option key={uid} value={uid}>
+                                                                    {u.name} ({u.email}) - {u.role_name || u.department_name || 'Staff'}{isAssigned ? ' ★ (Current Manager)' : ''}
                                                                 </option>
                                                             );
                                                         })}
                                                     </select>
                                                 </div>
 
-                                                <div>
-                                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
-                                                        Serviced State (Locked from Cluster)
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        readOnly
-                                                        value={assignedStateName || "Derived from Cluster"}
-                                                        className="w-full py-2.5 px-3 text-xs bg-surface-hover/60 border border-border/80 rounded-lg text-text-primary font-bold cursor-not-allowed"
-                                                    />
-                                                </div>
-
-                                                <div>
-                                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
-                                                        Servicing Warehouse (Linked to Cluster)
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        readOnly
-                                                        value={
-                                                            assignedWarehouseId
-                                                                ? (liveWarehouses.find(w => String(w._id || w.id) === String(assignedWarehouseId))?.name || "Assigned Warehouse")
-                                                                : "Auto-resolved from Cluster State"
-                                                        }
-                                                        className="w-full py-2.5 px-3 text-xs bg-surface-hover/60 border border-border/80 rounded-lg text-text-primary font-bold cursor-not-allowed"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Step 2: Choose Existing Staff Member filtered by State */}
-                                        <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-3">
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-xs font-black text-primary uppercase tracking-wider block">
-                                                    Select Existing Staff Member To Assign To Cluster *
-                                                </label>
-                                                {assignedStateName && (
-                                                    <span className="text-[10px] font-bold text-text-secondary bg-surface px-2.5 py-0.5 rounded-md border border-border shadow-xs">
-                                                        Filtered by State: <b className="text-primary">{assignedStateName}</b>
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <select
-                                                value={selectedExistingUserId}
-                                                onChange={(e) => {
-                                                    const uid = e.target.value;
-                                                    setSelectedExistingUserId(uid);
-                                                    const found = users.find(u => String(u.id || u._id) === String(uid));
-                                                    if (found) {
-                                                        setProvisioningFormData(prev => ({
-                                                            ...prev,
-                                                            name: found.name,
-                                                            email: found.email,
-                                                            phone: found.phone || "",
-                                                            department_id: found.department_id ? String(found.department_id) : prev.department_id,
-                                                            role_id: found.role_id ? String(found.role_id) : prev.role_id,
-                                                            state_name: found.state_name || assignedStateName || prev.state_name
-                                                        }));
-                                                    }
-                                                }}
-                                                className="w-full py-2.5 px-3 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-bold"
-                                            >
-                                                <option value="">
-                                                    {assignedStateName
-                                                        ? `-- Choose Staff Member for ${assignedStateName} (${stateFilteredExistingUsers.length} available) --`
-                                                        : `-- Choose Existing Staff Member (${users.length} available) --`}
-                                                </option>
-                                                {stateFilteredExistingUsers.map(u => {
-                                                    const uLevel = (u.level_name || 'Staff').toUpperCase();
-                                                    const isHigherTier = (u.level_name?.toLowerCase() === 'global' || u.level_name?.toLowerCase() === 'country' || !u.state_name || u.state_name === 'All' || u.state_name === 'India');
-                                                    return (
-                                                        <option key={u.id} value={u.id}>
-                                                            {u.name} ({u.email}) - {u.role_name || u.department_name || 'Staff'} [{uLevel}] {isHigherTier ? '(Global / All States Authority)' : `(${u.state_name})`} {u.cluster_name ? `[Current: ${u.cluster_name}]` : ''}
-                                                        </option>
-                                                    );
-                                                })}
-                                            </select>
-
-                                            {stateFilteredExistingUsers.length === 0 && assignedStateName && (
-                                                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 flex items-center justify-between">
-                                                    <span>No staff members found for <b>{assignedStateName}</b> or with Country/Global authority.</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setProvisioningMode("new");
-                                                            setProvisioningFormData(prev => ({ ...prev, state_name: assignedStateName }));
-                                                        }}
-                                                        className="text-xs font-bold underline hover:text-amber-900 cursor-pointer"
+                                                {/* Role 2: Accountant */}
+                                                <div className="p-3 bg-surface rounded-xl border border-border space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <label className="text-[11px] font-black text-text-primary uppercase tracking-wider flex items-center gap-1.5">
+                                                            <FiDollarSign className="text-amber-600" size={16} />
+                                                            2. Accountant *
+                                                        </label>
+                                                        {selectedWarehouseAccountantId && (
+                                                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                                                                <FiCheckCircle size={10} /> Currently Assigned
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[10px] text-text-muted">
+                                                        Responsible for invoicing, stock reconciliation, billing audits, and cost centre tracking.
+                                                    </p>
+                                                    <select
+                                                        value={selectedWarehouseAccountantId}
+                                                        onChange={(e) => setSelectedWarehouseAccountantId(e.target.value)}
+                                                        className="w-full py-2 px-2.5 text-xs bg-bg border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-bold"
                                                     >
-                                                        Create New User for {assignedStateName}
-                                                    </button>
+                                                        <option value="">-- Choose Accountant --</option>
+                                                        {selectedWarehouseAccountantId && !users.some(u => String(u.id || u._id) === String(selectedWarehouseAccountantId)) && (
+                                                            <option value={selectedWarehouseAccountantId}>
+                                                                Currently Assigned Accountant
+                                                            </option>
+                                                        )}
+                                                        {users.map(u => {
+                                                            const uid = String(u.id || u._id);
+                                                            const isAssigned = String(selectedWarehouseAccountantId) === uid;
+                                                            return (
+                                                                <option key={uid} value={uid}>
+                                                                    {u.name} ({u.email}) - {u.role_name || u.department_name || 'Staff'}{isAssigned ? ' ★ (Current Accountant)' : ''}
+                                                                </option>
+                                                            );
+                                                        })}
+                                                    </select>
                                                 </div>
-                                            )}
-
-                                            {selectedExistingUserId && (
-                                                <div className="text-[11px] text-text-secondary flex flex-wrap gap-4 font-semibold pt-1">
-                                                    <span>Department: <b className="text-text-primary">{departments.find(d => String(d.id || d._id) === String(provisioningFormData.department_id))?.name || 'Assigned'}</b></span>
-                                                    <span>Role: <b className="text-text-primary">{provisioningRoles.find(r => String(r.id || r._id) === String(provisioningFormData.role_id))?.name || 'Staff'}</b></span>
-                                                    <span>State: <b className="text-text-primary">{assignedStateName || 'State Assigned'}</b></span>
-                                                </div>
-                                            )}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -1764,24 +2597,8 @@ export default function CreateUsers() {
                                 {/* CASE 2: CREATE NEW USER OR EDIT USER */}
                                 {(provisioningMode === "new" || editId) && (
                                     <div className="space-y-6">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div className="md:col-span-1">
-                                                <Dropdown
-                                                    label="Operational Scope"
-                                                    options={levels.map(l => ({ value: l.id, text: <span className="uppercase font-bold text-[10px]">{l.name} LEVEL</span> }))}
-                                                    value={provisioningLevel}
-                                                    onChange={v => {
-                                                        setProvisioningLevel(v);
-                                                        setSelectedCountries([]);
-                                                        setSelectedStates([]);
-                                                        setSelectedClusters([]);
-                                                        setSelectedDistricts([]);
-                                                        setProvisioningScope({ country: "", state: "", cluster: "", district: "", urban_city: "", rural_city: "" });
-                                                        setProvisioningFormData(p => ({ ...p, scope_ids: [] }));
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className="md:col-span-1">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
                                                 <CustomInput
                                                     label="Full Legal Name"
                                                     placeholder="Alexander Pierce"
@@ -1790,7 +2607,7 @@ export default function CreateUsers() {
                                                     leftIcon={<FiUser />}
                                                 />
                                             </div>
-                                            <div className="md:col-span-1">
+                                            <div>
                                                 <CustomInput
                                                     label="Corporate Email"
                                                     type="email"
@@ -1802,60 +2619,7 @@ export default function CreateUsers() {
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            {/* Operating State - If State / Cluster / District tier */}
-                                            {["state", "cluster", "district", "urban city", "rural city"].includes(provisioningLevelName) && (
-                                                <div>
-                                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
-                                                        User Operating State *
-                                                    </label>
-                                                    <select
-                                                        value={provisioningFormData.state_name || ""}
-                                                        onChange={(e) => setProvisioningFormData(p => ({ ...p, state_name: e.target.value, cluster_id: "", cluster_name: "" }))}
-                                                        className="w-full py-2.5 px-3 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-bold"
-                                                    >
-                                                        <option value="">-- Select State for User --</option>
-                                                        {INDIAN_STATES.map(s => (
-                                                            <option key={s} value={s}>{s}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            )}
-
-                                            {/* Franchisee Cluster - Only if Cluster / District tier */}
-                                            {["cluster", "district", "urban city", "rural city"].includes(provisioningLevelName) && (
-                                                <div>
-                                                    <label className="text-[10px] font-black text-text-muted uppercase tracking-wider block mb-1">
-                                                        Franchisee Cluster *
-                                                    </label>
-                                                    <select
-                                                        value={provisioningFormData.cluster_id || ""}
-                                                        onChange={(e) => {
-                                                            const cid = e.target.value;
-                                                            const clu = liveClusters.find(c => String(c._id || c.id) === String(cid));
-                                                            setProvisioningFormData(p => ({
-                                                                ...p,
-                                                                cluster_id: cid,
-                                                                cluster_name: clu ? (clu.cluster_name || clu.name) : ""
-                                                            }));
-                                                        }}
-                                                        disabled={!provisioningFormData.state_name}
-                                                        className="w-full py-2.5 px-3 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-primary font-bold disabled:opacity-50"
-                                                    >
-                                                        <option value="">
-                                                            {provisioningFormData.state_name ? `-- Select Cluster in ${provisioningFormData.state_name} --` : '-- Select State First --'}
-                                                        </option>
-                                                        {liveClusters
-                                                            .filter(c => !provisioningFormData.state_name || (c.state_name && c.state_name.toLowerCase() === provisioningFormData.state_name.toLowerCase()))
-                                                            .map(c => (
-                                                                <option key={c._id || c.id} value={c._id || c.id}>
-                                                                    {c.cluster_name || c.name}
-                                                                </option>
-                                                            ))}
-                                                    </select>
-                                                </div>
-                                            )}
-
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <DropdownWithSearchInput
                                                 label="Country Code"
                                                 options={provisioningCountries.map(c => ({
@@ -2035,29 +2799,65 @@ export default function CreateUsers() {
                                                         </div>
 
                                                         {/* Allowed Modules */}
-                                                        {roleRbacDetails.assigned_modules && roleRbacDetails.assigned_modules.length > 0 && (
-                                                            <div>
-                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary block mb-1.5">
-                                                                    Permitted Modules ({roleRbacDetails.assigned_modules.length})
-                                                                </span>
-                                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                                                    {roleRbacDetails.assigned_modules.map((am, idx) => (
-                                                                        <div key={idx} className="p-2 rounded-lg bg-surface border border-border/70 flex items-center justify-between text-xs">
-                                                                            <span className="font-semibold text-text-primary truncate" title={am.module_id?.name}>
-                                                                                {am.module_id?.name || 'Module'}
-                                                                            </span>
-                                                                            <div className="flex items-center gap-1 shrink-0">
-                                                                                {(am.actions || []).map(act => (
-                                                                                    <span key={act} className="text-[9px] font-mono font-bold uppercase px-1 rounded bg-bg-light border border-border/60 text-text-secondary">
-                                                                                        {act}
-                                                                                    </span>
-                                                                                ))}
+                                                        {roleRbacDetails.assigned_modules && roleRbacDetails.assigned_modules.length > 0 && (() => {
+                                                            const modulesWithPerms = roleRbacDetails.assigned_modules.map((am, idx) => {
+                                                                const modName = am.module_name || am.module_id?.name || am.name || am.module_id?.title || 'Module';
+                                                                const actions = [];
+                                                                if (am.can_view) actions.push({ label: 'View', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' });
+                                                                if (am.can_add) actions.push({ label: 'Add', color: 'bg-blue-500/10 text-blue-600 border-blue-500/30' });
+                                                                if (am.can_edit) actions.push({ label: 'Edit', color: 'bg-amber-500/10 text-amber-600 border-amber-500/30' });
+                                                                if (am.can_delete) actions.push({ label: 'Delete', color: 'bg-rose-500/10 text-rose-600 border-rose-500/30' });
+                                                                if (am.actions && Array.isArray(am.actions)) {
+                                                                    am.actions.forEach(act => {
+                                                                        const actStr = String(act);
+                                                                        if (!actions.some(a => a.label.toLowerCase() === actStr.toLowerCase())) {
+                                                                            actions.push({ label: actStr, color: 'bg-primary/10 text-primary border-primary/30' });
+                                                                        }
+                                                                    });
+                                                                }
+                                                                return {
+                                                                    ...am,
+                                                                    key: am.id || am._id || idx,
+                                                                    displayName: modName,
+                                                                    actionsList: actions,
+                                                                    hasAnyPermission: actions.length > 0
+                                                                };
+                                                            });
+
+                                                            const activeModules = modulesWithPerms.filter(m => m.hasAnyPermission || roleRbacDetails.name === 'Super Admin');
+
+                                                            return (
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary block">
+                                                                            Permitted Functional Modules ({activeModules.length})
+                                                                        </span>
+                                                                        <span className="text-[10px] text-text-muted">
+                                                                            Configured in Role-Based Access Control
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-96 overflow-y-auto pr-1">
+                                                                        {activeModules.map((am) => (
+                                                                            <div key={am.key} className="p-2.5 rounded-xl bg-surface border border-border/80 shadow-xs flex items-center justify-between gap-2 text-xs hover:border-primary/40 transition-colors">
+                                                                                <span className="font-semibold text-text-primary truncate" title={am.displayName}>
+                                                                                    {am.displayName}
+                                                                                </span>
+                                                                                <div className="flex items-center gap-1 shrink-0">
+                                                                                    {am.actionsList.map(act => (
+                                                                                        <span
+                                                                                            key={act.label}
+                                                                                            className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-md border ${act.color}`}
+                                                                                        >
+                                                                                            {act.label}
+                                                                                        </span>
+                                                                                    ))}
+                                                                                </div>
                                                                             </div>
-                                                                        </div>
-                                                                    ))}
+                                                                        ))}
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        )}
+                                                            );
+                                                        })()}
                                                     </div>
                                                 )}
                                             </div>
@@ -2069,11 +2869,11 @@ export default function CreateUsers() {
                                     <div className="pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-primary/5 p-4 rounded-xl border border-primary/20 shadow-xs">
                                         <div>
                                             <p className="font-black text-text-primary uppercase tracking-wider text-xs">
-                                                {editId ? "Ready to Update Identity" : provisioningMode === "existing" ? "Ready to Assign Staff to Cluster" : "Ready to Authorize & Add User"}
+                                                {editId ? "Ready to Update Identity" : provisioningMode === "existing" ? "Ready to Assign Staff to Warehouse" : "Ready to Authorize & Add User"}
                                             </p>
                                             <p className="text-text-muted text-[11px] mt-0.5">
                                                 {provisioningMode === "existing"
-                                                    ? "Click the button to link this staff member to the selected warehouse & cluster."
+                                                    ? "Click the button to link the designated manager and accountant to the warehouse. Serviced clusters will automatically inherit this staff."
                                                     : "Click the button to save and authorize this user with the selected role."}
                                             </p>
                                         </div>
@@ -2085,7 +2885,7 @@ export default function CreateUsers() {
                                             disabled={isProvisioningDisabled}
                                             onClick={handleProvisionIdentity}
                                         >
-                                            {editId ? "✓ Update Identity" : provisioningMode === "existing" ? "✓ Assign User to Cluster" : "✓ Authorize & Add User"}
+                                            {editId ? "✓ Update Identity" : provisioningMode === "existing" ? "✓ Assign Staff to Warehouse" : "✓ Authorize & Add User"}
                                         </Button>
                                     </div>
                                 </div>
@@ -2147,8 +2947,9 @@ export default function CreateUsers() {
                                         <button
                                             onClick={() => {
                                                 setEditId(null);
+                                                const defCountry = provisioningCountries.find(c => (c.name || '').toLowerCase() === 'india' || c.phone_code === '+91' || c.phone_code === '91') || provisioningCountries[0];
                                                 setProvisioningFormData({
-                                                    name: "", email: "", country_id: "", phone_code: "", phone: "",
+                                                    name: "", email: "", country_id: defCountry?.id || defCountry?._id || "", phone_code: defCountry?.phone_code || "+91", phone: "",
                                                     department_id: "", role_id: "", scope_ids: [], parent_user_id: "",
                                                     min_phone_length: null, max_phone_length: null
                                                 });
@@ -2208,18 +3009,18 @@ export default function CreateUsers() {
                                     </div>
 
                                     <div className="flex items-center gap-4">
-                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-500 border ${assignedClusterId
+                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-500 border ${assignedWarehouseId
                                                 ? "bg-emerald-500/10 border-emerald-500 text-emerald-500 shadow-sm shadow-emerald-500/20"
                                                 : "bg-surface-hover border-border text-text-muted"
                                             }`}>
-                                            <FaMapMarkerAlt size={18} />
+                                            <FaWarehouse size={16} />
                                         </div>
                                         <div className="flex flex-col">
-                                            <p className={`text-xs font-bold uppercase tracking-tight ${assignedClusterId ? "text-text-primary" : "text-text-muted"}`}>Cluster Operational Assignment</p>
+                                            <p className={`text-xs font-bold uppercase tracking-tight ${assignedWarehouseId ? "text-text-primary" : "text-text-muted"}`}>Warehouse Deployment</p>
                                             <p className="text-[10px] text-text-muted font-medium">
-                                                {assignedClusterId
-                                                    ? (liveClusters.find(c => String(c._id || c.id) === String(assignedClusterId))?.cluster_name || "Assigned")
-                                                    : "No Cluster Assigned"}
+                                                {assignedWarehouseId
+                                                    ? (liveWarehouses.find(w => String(w._id || w.id) === String(assignedWarehouseId))?.name || "Assigned Warehouse")
+                                                    : "No Warehouse Bound"}
                                             </p>
                                         </div>
                                     </div>
@@ -2244,7 +3045,7 @@ export default function CreateUsers() {
                                         disabled={isProvisioningDisabled}
                                         onClick={handleProvisionIdentity}
                                     >
-                                        {editId ? "Update Identity" : provisioningMode === "existing" ? "Assign User to Cluster" : "✓ Authorize & Add User"}
+                                        {editId ? "Update Identity" : provisioningMode === "existing" ? "✓ Assign Staff to Warehouse" : "✓ Authorize & Add User"}
                                     </Button>
                                 </div>
                             </div>
@@ -2390,6 +3191,21 @@ export default function CreateUsers() {
                     </div>
                 )}
 
+                {/* Cluster Required Alert Modal */}
+                <ConfirmationPopup
+                    isOpen={!!clusterRequiredPopup}
+                    title="First Assign Clusters to Warehouse"
+                    message={`Cannot assign staff yet. Please first assign/map franchise clusters to "${clusterRequiredPopup?.warehouseName || 'this warehouse'}" before designating warehouse personnel.`}
+                    onConfirm={() => {
+                        setClusterRequiredPopup(null);
+                        window.location.href = '/admin-panel/solar-shop/india/order-management-settings/cluster-routing';
+                    }}
+                    onCancel={() => setClusterRequiredPopup(null)}
+                    variant="warning"
+                    confirmText="First Assign Clusters"
+                    cancelText="Close"
+                />
+
                 {/* Status Confirmation Modal */}
                 <ConfirmationPopup
                     isOpen={!!confirmingStatus}
@@ -2407,7 +3223,7 @@ export default function CreateUsers() {
 }
 
 const UserNode = ({ node, level = 0, currentUserId, search, onEdit, onToggleStatus }) => {
-    const [isExpanded, setIsExpanded] = useState(level < 1 || !!search);
+    const [isExpanded, setIsExpanded] = useState(true);
     const hasChildren = node.children && node.children.length > 0;
 
     useEffect(() => {
@@ -2492,11 +3308,17 @@ const UserNode = ({ node, level = 0, currentUserId, search, onEdit, onToggleStat
                                 <span className="text-[10px] text-text-muted font-bold uppercase tracking-tighter flex items-center gap-1">
                                     <span className="w-1 h-1 rounded-full bg-border" /> {node.level_name}
                                 </span>
-                                {node.warehouse_name && (
+                                {node.assignedWarehouses && node.assignedWarehouses.length > 0 ? (
+                                    node.assignedWarehouses.map(whItem => (
+                                        <span key={whItem.warehouseId} className="text-[10px] bg-blue-500/10 text-blue-600 border border-blue-500/20 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
+                                            <FaWarehouse size={9} /> {whItem.warehouseName} ({whItem.warehouseRoles.join(" & ") || "Staff"})
+                                        </span>
+                                    ))
+                                ) : node.warehouse_name ? (
                                     <span className="text-[10px] bg-blue-500/10 text-blue-600 border border-blue-500/20 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
                                         <FaWarehouse size={9} /> {node.warehouse_name}
                                     </span>
-                                )}
+                                ) : null}
                                 {node.cluster_name && (
                                     <span className="text-[10px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
                                         <FaMapMarkerAlt size={9} /> {node.cluster_name} {node.state_name ? `(${node.state_name})` : ''}

@@ -11,7 +11,8 @@ import {
   FiLayers,
   FiExternalLink,
   FiPackage,
-  FiEye
+  FiEye,
+  FiEdit2
 } from "react-icons/fi";
 import Button from "@/components/Button";
 

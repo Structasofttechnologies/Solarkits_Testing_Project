@@ -97,12 +97,7 @@ const MarketingReportsPage = lazy(() => import("../pages/marketing/MarketingRepo
 const menus = [
   [
     { name: "Dashboard", icon: <FaHome />, path: "/admin-panel/home", unique_id: "00000000" },
-    {
-      name: "Invoice & DO Settings",
-      icon: <FaReceipt />,
-      path: "/admin-panel/invoice-do-settings",
-      unique_id: "00000000",
-    },
+   
     {
       name: "Accounts Module",
       icon: <FaFileInvoiceDollar />,
