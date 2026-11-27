@@ -7,6 +7,7 @@ import AuthDialog from "./Components/AuthDialog"
 import { useEffect } from "react"
 import { checkAuth } from "./features/auth.slice"
 import { fetchCart } from "./features/slice"
+import WebsiteTelemetryTracker from "./Components/WebsiteTelemetryTracker"
 
 // Landing page (solar-store's own landing)
 import LandingPage from "./Pages/LandingPage.jsx"
@@ -46,6 +47,7 @@ function AppContent() {
 
   return (
     <>
+      <WebsiteTelemetryTracker />
       <Alert />
       <Toaster position="top-right" />
       <AuthDialog />

@@ -45,7 +45,7 @@ export default function RevenueProfitAnalytics({
             </div>
           </div>
           <div className="mt-2 text-2xl font-black text-text">{totalRev}</div>
-          <span className="text-[11px] text-emerald-600 font-semibold">+18.4% QoQ</span>
+          <span className="text-[11px] text-text-muted">Gross realized sales</span>
         </div>
 
         <div className="bg-surface rounded-2xl border border-border p-4 shadow-xs">
@@ -169,41 +169,49 @@ export default function RevenueProfitAnalytics({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rankedKits.map((row, idx) => (
-                <tr
-                  key={row.id}
-                  className="hover:bg-surface-subtle transition-colors cursor-pointer group"
-                  onClick={() => onSelectKit && onSelectKit(row)}
-                >
-                  <td className="py-3 px-4">
-                    <span
-                      className={`w-6 h-6 rounded-full inline-flex items-center justify-center font-bold text-xs ${idx === 0
-                          ? 'bg-amber-500 text-white shadow-xs'
-                          : idx === 1
-                            ? 'bg-slate-400 text-white'
-                            : idx === 2
-                              ? 'bg-amber-700 text-white'
-                              : 'bg-surface-subtle text-text-muted'
-                        }`}
-                    >
-                      {idx + 1}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-bold text-text group-hover:text-primary transition-colors">
-                    {row.kit}
-                  </td>
-                  <td className="py-3 px-4 text-center font-semibold text-text">{row.kitsSold}</td>
-                  <td className="py-3 px-4 font-bold text-emerald-600">{row.revenueFormatted}</td>
-                  <td className="py-3 px-4 font-bold text-primary">{row.grossProfitFormatted}</td>
-                  <td className="py-3 px-4 font-black text-purple-600">{row.profitMarginPct}%</td>
-                  <td className="py-3 px-4 text-text-muted">{row.avgOrderValue}</td>
-                  <td className="py-3 px-4 text-right text-primary font-semibold">
-                    <span className="inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                      View Orders <FiArrowUpRight size={12} />
-                    </span>
+              {rankedKits.length > 0 ? (
+                rankedKits.map((row, idx) => (
+                  <tr
+                    key={row.id}
+                    className="hover:bg-surface-subtle transition-colors cursor-pointer group"
+                    onClick={() => onSelectKit && onSelectKit(row)}
+                  >
+                    <td className="py-3 px-4">
+                      <span
+                        className={`w-6 h-6 rounded-full inline-flex items-center justify-center font-bold text-xs ${idx === 0
+                            ? 'bg-amber-500 text-white shadow-xs'
+                            : idx === 1
+                              ? 'bg-slate-400 text-white'
+                              : idx === 2
+                                ? 'bg-amber-700 text-white'
+                                : 'bg-surface-subtle text-text-muted'
+                          }`}
+                      >
+                        {idx + 1}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 font-bold text-text group-hover:text-primary transition-colors">
+                      {row.kit}
+                    </td>
+                    <td className="py-3 px-4 text-center font-semibold text-text">{row.kitsSold}</td>
+                    <td className="py-3 px-4 font-bold text-emerald-600">{row.revenueFormatted}</td>
+                    <td className="py-3 px-4 font-bold text-primary">{row.grossProfitFormatted}</td>
+                    <td className="py-3 px-4 font-black text-purple-600">{row.profitMarginPct}%</td>
+                    <td className="py-3 px-4 text-text-muted">{row.avgOrderValue}</td>
+                    <td className="py-3 px-4 text-right text-primary font-semibold">
+                      <span className="inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                        View Orders <FiArrowUpRight size={12} />
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="8" className="py-6 text-center text-text-muted">
+                    No kit sales recorded for the selected filter range.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

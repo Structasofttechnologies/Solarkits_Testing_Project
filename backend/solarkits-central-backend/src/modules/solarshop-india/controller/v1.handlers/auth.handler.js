@@ -107,16 +107,15 @@ const send_signup_otp = async (req, res) => {
             use_same_whatsapp
         } = req.body;
 
-        // Sync with frontend names
-        if (!whatsapp && (mobile || phone)) whatsapp = mobile || phone;
-        if (!registered_whatsapp && (registered_number || mobile || phone)) registered_whatsapp = registered_number || mobile || phone;
+        // Sync with frontend names across all variations
+        if (!whatsapp && (mobile || phone || registered_number || registered_whatsapp)) {
+            whatsapp = mobile || phone || registered_number || registered_whatsapp;
+        }
+        if (!registered_whatsapp && (registered_number || mobile || phone || whatsapp)) {
+            registered_whatsapp = registered_number || mobile || phone || whatsapp;
+        }
         if (use_registered_as_whatsapp === undefined && use_same_whatsapp !== undefined) {
             use_registered_as_whatsapp = use_same_whatsapp;
-        }
-
-        // ⚡ If predefined EPC (company_id exists), we only have one phone field
-        if (req.body.company_id && !registered_whatsapp) {
-            registered_whatsapp = whatsapp;
         }
 
         if (!email) {
@@ -129,26 +128,27 @@ const send_signup_otp = async (req, res) => {
         email = email.trim().toLowerCase();
 
         // 🔥 Decide final phone / mobile number
-        let finalWhatsapp;
-        if (use_registered_as_whatsapp) {
-            if (!registered_whatsapp) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Registered Mobile Number is required",
-                });
-            }
-            finalWhatsapp = String(registered_whatsapp).trim();
-        } else {
-            if (!whatsapp) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Mobile number is required",
-                });
-            }
-            finalWhatsapp = String(whatsapp).trim();
+        const rawPhone = use_registered_as_whatsapp
+            ? (registered_whatsapp || whatsapp || registered_number || mobile || phone)
+            : (whatsapp || registered_whatsapp || registered_number || mobile || phone);
+
+        if (!rawPhone) {
+            return res.status(400).json({
+                success: false,
+                message: "Mobile number is required",
+            });
         }
 
+        const finalWhatsapp = String(rawPhone).trim();
         const cleanMobile = finalWhatsapp.replace(/\D/g, '').slice(-10);
+
+        if (!cleanMobile || cleanMobile.length !== 10) {
+            return res.status(400).json({
+                success: false,
+                message: "Please enter a valid 10-digit Indian mobile number",
+            });
+        }
+
         const ip = req.ip;
 
         // 🔥 Duplicate check
@@ -193,13 +193,15 @@ const send_signup_otp = async (req, res) => {
         // 2. Dispatch SMS OTP via YourBulkSMS Gateway (DLT approved SUNNOV sender)
         let smsSent = false;
         let smsResponse = null;
+        let smsErrorMessage = null;
         try {
             const smsRes = await yourbulksms.sendOTP('91', cleanMobile, mobileOtp);
             smsSent = true;
             smsResponse = smsRes?.response;
             console.log(`[SIGNUP OTP DISPATCH] SMS successfully sent to +91 ${cleanMobile}, response:`, smsResponse);
         } catch (smsErr) {
-            console.warn(`[SIGNUP OTP DISPATCH] YourBulkSMS warning for ${cleanMobile}:`, smsErr.message || smsErr);
+            smsErrorMessage = smsErr.message || String(smsErr);
+            console.warn(`[SIGNUP OTP DISPATCH] YourBulkSMS warning for ${cleanMobile}:`, smsErrorMessage);
         }
 
         // 3. Optional fallback/secondary dispatch via WhatsApp (does not throw if sandbox or network fails)
@@ -397,7 +399,12 @@ const create_account = async (req, res) => {
         } = req.body;
 
         // Sync with frontend names
-        if (!registered_whatsapp && registered_number) registered_whatsapp = registered_number;
+        if (!whatsapp && (registered_number || registered_whatsapp)) {
+            whatsapp = registered_number || registered_whatsapp;
+        }
+        if (!registered_whatsapp && (registered_number || whatsapp)) {
+            registered_whatsapp = registered_number || whatsapp;
+        }
         if (use_registered_as_whatsapp === undefined && use_same_whatsapp !== undefined) {
             use_registered_as_whatsapp = use_same_whatsapp;
         }
@@ -418,34 +425,19 @@ const create_account = async (req, res) => {
 
         email = email.trim().toLowerCase();
 
-        // 🔥 Decide final whatsapp
-        let finalWhatsapp;
-        if (use_registered_as_whatsapp) {
-            if (!registered_whatsapp) {
-                await session.abortTransaction();
-                return res.status(400).json({
-                    success: false,
-                    message: "Registered WhatsApp is required",
-                });
-            }
-            finalWhatsapp = registered_whatsapp.trim();
-        } else {
-            if (!registered_whatsapp) {
-                await session.abortTransaction();
-                return res.status(400).json({
-                    success: false,
-                    message: "Registered Number is required",
-                });
-            }
-            if (!whatsapp) {
-                await session.abortTransaction();
-                return res.status(400).json({
-                    success: false,
-                    message: "WhatsApp number is required",
-                });
-            }
-            finalWhatsapp = whatsapp.trim();
+        // 🔥 Decide final phone
+        const rawPhone = use_registered_as_whatsapp
+            ? (registered_whatsapp || whatsapp || registered_number)
+            : (whatsapp || registered_whatsapp || registered_number);
+
+        if (!rawPhone) {
+            await session.abortTransaction();
+            return res.status(400).json({
+                success: false,
+                message: "Mobile number is required",
+            });
         }
+        finalWhatsapp = String(rawPhone).trim();
 
         // 🔥 OTP Verification Check
         const cleanWhatsapp = finalWhatsapp ? String(finalWhatsapp).replace(/\D/g, '').slice(-10) : null;

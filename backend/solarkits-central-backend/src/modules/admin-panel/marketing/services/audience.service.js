@@ -109,6 +109,11 @@ const resolveAudience = async (filterConfig = {}) => {
   const epcRecipients = [];
   const seenEmails = new Set();
   const seenPhones = new Set();
+  let solarPvCount = 0;
+  let solarAgriCount = 0;
+  let commercialCount = 0;
+  let solarEvCount = 0;
+  let energyStorageCount = 0;
 
   // 2. Resolve EPC Audience (only when at least one EPC group checkbox is enabled)
   if (hasAnyEpcGroup) {
@@ -348,6 +353,14 @@ const resolveAudience = async (filterConfig = {}) => {
     consent_breakdown: {
       email_consented: emailConsentedCount,
       whatsapp_consented: whatsappConsentedCount
+    },
+    industry_breakdown: {
+      all: recipients.length,
+      solar_pv: solarPvCount,
+      solar_agri: solarAgriCount,
+      commercial: commercialCount,
+      solar_ev: solarEvCount,
+      energy_storage: energyStorageCount
     }
   };
 };

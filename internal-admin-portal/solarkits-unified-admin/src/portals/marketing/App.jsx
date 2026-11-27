@@ -36,7 +36,7 @@ function MarketingPortalInner() {
   return (
     <>
       <Routes>
-        <Route path='/*' element={<ProtectedRoutes />}>
+        <Route path='/*' element={<ProtectedRoutes basePath="/marketing-panel" />}>
           <Route path='*' element={<Suspense fallback={<Loader text="Loading Marketing Panel..." />}><MarketingDashboardPortal /></Suspense>} />
         </Route>
       </Routes>

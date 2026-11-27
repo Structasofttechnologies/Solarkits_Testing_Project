@@ -2,6 +2,7 @@ import axios from "axios";
 import { authHeaderObj } from "@/app/authHeader";
 
 const API_URL = import.meta.env.VITE_ACCOUNT_API_URL || import.meta.env.VITE_API_URL;
+const ADMIN_API_URL = import.meta.env.VITE_ADMIN_API_URL || import.meta.env.VITE_API_URL;
 
 export const getPendingInwards = async () => {
   const res = await axios.get(`${API_URL}/accounts/pending-inwards`, {
@@ -763,10 +764,21 @@ export const getWarehouseOpportunities = async (params = {}) => {
 };
 
 export const getFranchiseClustersList = async () => {
-  const res = await axios.get(`${API_URL}/franchise-clusters/list`, {
-    headers: authHeaderObj(),
-  });
-  return res.data;
+  const primaryUrl = ADMIN_API_URL || API_URL;
+  try {
+    const res = await axios.get(`${primaryUrl}/franchise-clusters/list`, {
+      headers: authHeaderObj(),
+    });
+    return res.data;
+  } catch (err) {
+    if (primaryUrl !== API_URL) {
+      const res = await axios.get(`${API_URL}/franchise-clusters/list`, {
+        headers: authHeaderObj(),
+      });
+      return res.data;
+    }
+    throw err;
+  }
 };
 
 export const createWarehouseOpportunity = async (data) => {

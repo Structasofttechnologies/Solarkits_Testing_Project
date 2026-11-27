@@ -31,6 +31,11 @@ const {
   MarketingCampaign,
   UtmVisit,
 } = require('../marketing/models');
+const {
+  TRACKED_WEBSITES,
+  resolveWebsiteInfo,
+  getWebsiteByKey,
+} = require('../marketing/constants/websiteRegistry');
 
 const {
   GeoLevel1,
@@ -124,6 +129,169 @@ const safeRatio = (num, den) => {
   const d = Number(den) || 0;
   if (d === 0) return 0;
   return Number(((n / d) * 100).toFixed(1));
+};
+
+/**
+ * Builds MongoDB filter for UtmVisit supporting optional website filter across new and legacy records.
+ */
+const buildVisitFilter = (baseMatch = {}, website = 'all') => {
+  if (!website || website === 'all') return baseMatch;
+  const site = getWebsiteByKey(website) || resolveWebsiteInfo({ website_key: website });
+  if (!site) return baseMatch;
+  return {
+    ...baseMatch,
+    $or: [
+      { website_key: site.website_key },
+      { website_key: { $in: [null, ''] }, site_domain: site.site_domain },
+      {
+        website_key: { $in: [null, ''] },
+        landing_url: { $regex: escapeRegex(site.site_domain), $options: 'i' },
+      },
+    ],
+  };
+};
+
+/**
+ * Normalizes a UtmVisit document into its canonical website descriptor.
+ */
+const resolveVisitSite = (visit = {}) =>
+  resolveWebsiteInfo({
+    website_key: visit.website_key,
+    site_domain: visit.site_domain,
+    site_url: visit.site_url,
+    landing_url: visit.landing_url,
+  });
+
+const classifyTrafficSource = (v = {}) => {
+  const utmSource = (v.utm_source || '').trim().toLowerCase();
+  const utmMedium = (v.utm_medium || '').trim().toLowerCase();
+  const referrer = (v.referrer || '').trim().toLowerCase();
+  const combined = `${utmSource} ${utmMedium} ${referrer}`.trim();
+
+  if (
+    utmSource.includes('meta') ||
+    utmSource.includes('facebook') ||
+    utmSource.includes('instagram') ||
+    utmSource === 'fb' ||
+    utmSource === 'ig' ||
+    referrer.includes('facebook.') ||
+    referrer.includes('instagram.') ||
+    referrer.includes('l.facebook')
+  ) {
+    return 'Meta Ads';
+  }
+  if (
+    ['cpc', 'ppc', 'paid', 'paid_social', 'sem'].some((k) => utmMedium.includes(k) || utmSource.includes(k)) ||
+    utmSource.includes('adwords')
+  ) {
+    return 'Paid Ads';
+  }
+  if (utmSource.includes('whatsapp') || utmMedium.includes('whatsapp') || referrer.includes('wa.me') || referrer.includes('whatsapp')) {
+    return 'WhatsApp Campaign';
+  }
+  if (utmSource.includes('email') || utmMedium.includes('email') || utmSource.includes('newsletter')) {
+    return 'Email Campaign';
+  }
+  if (utmSource.includes('sms') || utmMedium.includes('sms')) {
+    return 'SMS Campaign';
+  }
+  if (
+    combined.includes('google') ||
+    combined.includes('bing') ||
+    combined.includes('yahoo') ||
+    combined.includes('duckduckgo')
+  ) {
+    return 'Organic Search';
+  }
+  if (utmSource) {
+    return 'Marketing Campaign';
+  }
+  if (referrer.includes('solarkits.in')) {
+    return 'Cross-Site Referral';
+  }
+  if (referrer) {
+    return 'Referral Website';
+  }
+  return 'Direct Website';
+};
+
+const getSessionDurationSeconds = (v = {}) => {
+  if (Number(v.duration_seconds) > 0) {
+    return Math.min(14400, Math.round(Number(v.duration_seconds)));
+  }
+  if (v.first_touch_at && v.last_touch_at) {
+    const diffSec = Math.max(0, Math.round((new Date(v.last_touch_at) - new Date(v.first_touch_at)) / 1000));
+    return Math.min(14400, diffSec);
+  }
+  return 0;
+};
+
+const formatDurationStr = (sec) => {
+  const s = Math.max(0, Math.round(Number(sec) || 0));
+  if (s <= 0) return '0m 0s';
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
+};
+
+const aggregateVisitSummary = (visitList = []) => {
+  const totalVisitors = visitList.length;
+  const visitorMap = new Map();
+  let pageViews = 0;
+  let formSubmissions = 0;
+  let totalDurationSeconds = 0;
+  let durationCount = 0;
+  let bouncedSessions = 0;
+
+  visitList.forEach((v) => {
+    const visitorKey = v.visitor_id || v.visitor_session_id || v.ip_address || String(v._id || 'unknown');
+    const prev = visitorMap.get(visitorKey) || { count: 0, hasReturningFlag: false };
+    prev.count += 1;
+    if (v.is_returning) prev.hasReturningFlag = true;
+    visitorMap.set(visitorKey, prev);
+
+    const pv = Math.max(1, Number(v.page_views || v.visit_count || 1));
+    pageViews += pv;
+
+    if (v.has_form_submitted || v.lead_id) {
+      formSubmissions += 1;
+    }
+
+    const durSec = getSessionDurationSeconds(v);
+    if (durSec > 0) {
+      totalDurationSeconds += durSec;
+      durationCount += 1;
+    }
+
+    const isBounce =
+      typeof v.is_bounce === 'boolean'
+        ? v.is_bounce
+        : pv <= 1 && durSec < 10 && !v.has_form_submitted && !v.lead_id;
+    if (isBounce) {
+      bouncedSessions += 1;
+    }
+  });
+
+  const uniqueVisitors = totalVisitors > 0 ? visitorMap.size : 0;
+  const returningVisitors = Array.from(visitorMap.values()).filter(
+    (entry) => entry.hasReturningFlag || entry.count > 1
+  ).length;
+  const newVisitors = Math.max(0, uniqueVisitors - returningVisitors);
+  const avgDurationSec = durationCount > 0 ? Math.round(totalDurationSeconds / durationCount) : 0;
+  const bounceRatePct = totalVisitors > 0 ? Number(((bouncedSessions / totalVisitors) * 100).toFixed(1)) : 0;
+  const conversionRatePct = totalVisitors > 0 ? Number(((formSubmissions / totalVisitors) * 100).toFixed(1)) : 0;
+
+  return {
+    totalVisitors,
+    uniqueVisitors,
+    newVisitors,
+    returningVisitors,
+    pageViews,
+    formSubmissions,
+    conversionRate: `${conversionRatePct}%`,
+    avgSessionDurationSec: avgDurationSec,
+    avgSessionDuration: formatDurationStr(avgDurationSec),
+    bounceRate: `${bounceRatePct}%`,
+    bounceRateNum: bounceRatePct,
+  };
 };
 
 /* =========================================================================
@@ -283,6 +451,15 @@ exports.get_dashboard_bootstrap = async (req, res) => {
         salesSources: ['Website Form', 'Phone Call', 'WhatsApp Enquiry', 'BDE Direct', 'Franchisee Quote', 'Email Campaign', 'Direct Portal'],
         orderStatuses: ['Enquiry', 'Quotation', 'Trial Order', 'Confirmed', 'Processing', 'Dispatched', 'Delivered', 'Cancelled'],
         campaigns: (campaigns || []).map((c) => ({ id: c._id, name: c.campaign_name, type: c.campaign_type })),
+        websites: TRACKED_WEBSITES.map((w) => ({
+          id: w.website_key,
+          key: w.website_key,
+          domain: w.site_domain,
+          url: w.site_url,
+          label: w.label,
+          shortLabel: w.short_label,
+          color: w.color,
+        })),
       },
     });
   } catch (error) {
@@ -297,7 +474,7 @@ exports.get_dashboard_bootstrap = async (req, res) => {
 
 exports.get_overview_kpis = async (req, res) => {
   try {
-    const { dateRange, startDate, endDate, state, district } = req.query;
+    const { dateRange, startDate, endDate, state, district, website } = req.query;
     const { currentStart, currentEnd, prevStart, prevEnd } = getDateRanges(dateRange, startDate, endDate);
 
     // Filter helper for state and district (case-insensitive)
@@ -338,8 +515,8 @@ exports.get_overview_kpis = async (req, res) => {
       prevOrders,
     ] = await Promise.all([
       // Visits (from UtmVisit)
-      UtmVisit.find(buildDateMatch('created_at', currentStart, currentEnd)).lean().catch(() => []),
-      UtmVisit.find(buildDateMatch('created_at', prevStart, prevEnd)).lean().catch(() => []),
+      UtmVisit.find(buildVisitFilter(buildDateMatch('created_at', currentStart, currentEnd), website)).lean().catch(() => []),
+      UtmVisit.find(buildVisitFilter(buildDateMatch('created_at', prevStart, prevEnd), website)).lean().catch(() => []),
 
       // Enquiries (from EpcLead + WebsiteEpcLead)
       EpcLead.find(applyGeo(buildDateMatch('created_at', currentStart, currentEnd))).lean().catch(() => []),
@@ -365,8 +542,8 @@ exports.get_overview_kpis = async (req, res) => {
     const currTotalVisitors = currVisits.length;
     const prevTotalVisitors = prevVisits.length;
 
-    const currUniqueVisitors = new Set(currVisits.map(v => v.visitor_session_id || v.ip_address).filter(Boolean)).size || currTotalVisitors;
-    const prevUniqueVisitors = new Set(prevVisits.map(v => v.visitor_session_id || v.ip_address).filter(Boolean)).size || prevTotalVisitors;
+    const currUniqueVisitors = new Set(currVisits.map(v => v.visitor_id || v.visitor_session_id || v.ip_address).filter(Boolean)).size || currTotalVisitors;
+    const prevUniqueVisitors = new Set(prevVisits.map(v => v.visitor_id || v.visitor_session_id || v.ip_address).filter(Boolean)).size || prevTotalVisitors;
 
     // 2. Enquiries & Qualified Leads
     const currEnquiries = currLeads.length;
@@ -607,111 +784,137 @@ exports.get_overview_kpis = async (req, res) => {
 
 exports.get_website_performance = async (req, res) => {
   try {
-    const { dateRange, startDate, endDate } = req.query;
+    const { dateRange, startDate, endDate, website = 'all' } = req.query;
     const { currentStart, currentEnd } = getDateRanges(dateRange, startDate, endDate);
 
-    const visits = await UtmVisit.find(buildDateMatch('created_at', currentStart, currentEnd)).lean().catch(() => []);
+    const allVisits = await UtmVisit.find(buildDateMatch('created_at', currentStart, currentEnd))
+      .lean()
+      .catch(() => []);
 
-    const totalVisitors = visits.length;
-    const uniqueSessionMap = new Map();
+    // Tag every visit with its canonical website key so all 3 sites are always tracked separately
+    const visitsByWebsite = new Map(TRACKED_WEBSITES.map((w) => [w.website_key, []]));
+    const taggedVisits = allVisits.map((v) => {
+      const siteInfo = resolveVisitSite(v);
+      const bucket = visitsByWebsite.get(siteInfo.website_key);
+      if (bucket) {
+        bucket.push(v);
+      }
+      return { visit: v, siteInfo };
+    });
+
+    const totalAllSitesVisitors = allVisits.length;
+    const websiteBreakdown = TRACKED_WEBSITES.map((site) => {
+      const siteVisits = visitsByWebsite.get(site.website_key) || [];
+      const siteSummary = aggregateVisitSummary(siteVisits);
+      const sharePct =
+        totalAllSitesVisitors > 0
+          ? Number(((siteSummary.totalVisitors / totalAllSitesVisitors) * 100).toFixed(1))
+          : 0;
+      return {
+        websiteKey: site.website_key,
+        siteDomain: site.site_domain,
+        siteUrl: site.site_url,
+        label: site.label,
+        shortLabel: site.short_label,
+        color: site.color,
+        sharePct,
+        ...siteSummary,
+      };
+    });
+
+    const activeWebsiteFilter = website && website !== 'all' ? website : 'all';
+    const filteredEntries =
+      activeWebsiteFilter === 'all'
+        ? taggedVisits
+        : taggedVisits.filter((entry) => entry.siteInfo.website_key === activeWebsiteFilter);
+
+    const filteredVisits = filteredEntries.map((e) => e.visit);
+    const summary = aggregateVisitSummary(filteredVisits);
+
     const sourceCount = {};
-    const landingCount = {};
-    const landingEnquiries = {};
+    const landingStats = new Map();
     const dailyMap = {};
-    let formSubmissions = 0;
-    let totalDurationSeconds = 0;
-    let durationCount = 0;
-    let singleVisitSessions = 0;
 
-    visits.forEach((v) => {
-      const sid = v.visitor_session_id || v.ip_address || 'unknown';
-      uniqueSessionMap.set(sid, (uniqueSessionMap.get(sid) || 0) + 1);
-
+    filteredEntries.forEach(({ visit: v, siteInfo }) => {
       // Traffic Source
-      const src = (v.utm_source || v.referrer || 'Direct Website').trim().toLowerCase();
-      let normalizedSrc = 'Direct Website';
-      if (src.includes('google') || src.includes('bing') || src.includes('yahoo')) normalizedSrc = 'Organic Search';
-      else if (src.includes('meta') || src.includes('facebook') || src.includes('instagram')) normalizedSrc = 'Meta Ads';
-      else if (src.includes('cpc') || src.includes('adwords') || src.includes('paid')) normalizedSrc = 'Paid Ads';
-      else if (src.includes('email') || src.includes('newsletter')) normalizedSrc = 'Email Campaign';
-      else if (src.includes('whatsapp') || src.includes('wa.me')) normalizedSrc = 'WhatsApp Campaign';
+      const normalizedSrc = classifyTrafficSource(v);
       sourceCount[normalizedSrc] = (sourceCount[normalizedSrc] || 0) + 1;
 
-      // Landing Pages & Enquiries
-      const landing = (v.landing_url || '/').split('?')[0];
-      landingCount[landing] = (landingCount[landing] || 0) + 1;
-
+      // Landing Pages & Enquiries (kept distinct per website so '/' doesn't collide)
+      const rawPath = (v.landing_url || '/').split('?')[0];
+      const landingPath = rawPath.startsWith('http')
+        ? (() => {
+          try {
+            return new URL(rawPath).pathname || '/';
+          } catch (_) {
+            return '/';
+          }
+        })()
+        : rawPath || '/';
+      const landingKey = `${siteInfo.website_key}::${landingPath}`;
+      const existingLanding = landingStats.get(landingKey) || {
+        websiteKey: siteInfo.website_key,
+        siteDomain: siteInfo.site_domain,
+        siteLabel: siteInfo.label,
+        page: landingPath,
+        visits: 0,
+        enquiries: 0,
+      };
+      existingLanding.visits += 1;
       if (v.has_form_submitted || v.lead_id) {
-        formSubmissions += 1;
-        landingEnquiries[landing] = (landingEnquiries[landing] || 0) + 1;
+        existingLanding.enquiries += 1;
       }
+      landingStats.set(landingKey, existingLanding);
 
-      // Session Duration & Bounce Rate
-      if (v.first_touch_at && v.last_touch_at) {
-        const diffSec = Math.max(0, (new Date(v.last_touch_at) - new Date(v.first_touch_at)) / 1000);
-        if (diffSec > 0) {
-          totalDurationSeconds += diffSec;
-          durationCount += 1;
+      // Daily trend mapping (with separate per-website series)
+      const dateSource = v.created_at || v.first_touch_at;
+      if (dateSource) {
+        const dKey = new Date(dateSource).toISOString().slice(0, 10);
+        if (!dailyMap[dKey]) {
+          dailyMap[dKey] = {
+            date: dKey,
+            name: dKey.slice(5),
+            visitors: 0,
+            solarkits_main: 0,
+            solar_store: 0,
+            franchise_portal: 0,
+          };
         }
-      }
-      if ((v.visit_count || 1) <= 1) {
-        singleVisitSessions += 1;
-      }
-
-      // Daily trend mapping
-      if (v.created_at) {
-        const dKey = new Date(v.created_at).toISOString().slice(0, 10);
-        dailyMap[dKey] = (dailyMap[dKey] || 0) + 1;
+        dailyMap[dKey].visitors += 1;
+        if (dailyMap[dKey][siteInfo.website_key] !== undefined) {
+          dailyMap[dKey][siteInfo.website_key] += 1;
+        }
       }
     });
 
-    const uniqueVisitors = uniqueSessionMap.size || totalVisitors;
-    const returningVisitors = Array.from(uniqueSessionMap.values()).filter(count => count > 1).length;
-    const newVisitors = Math.max(0, uniqueVisitors - returningVisitors);
-
     // Format Sources for Chart
-    const trafficSources = Object.entries(sourceCount).map(([name, value]) => ({ name, value }));
-
-    // Top Landing Pages with Authentic Conversion Rate
-    const topLandingPages = Object.entries(landingCount)
+    const trafficSources = Object.entries(sourceCount)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
-      .map(([page, count]) => {
-        const enq = landingEnquiries[page] || 0;
-        return {
-          page,
-          visits: count,
-          enquiries: enq,
-          conversionPct: count > 0 ? ((enq / count) * 100).toFixed(1) : '0.0',
-        };
-      });
+      .map(([name, value]) => ({ name, value }));
 
-    // Authentic Daily Trend Array
-    const dailyTrend = Object.entries(dailyMap)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, count]) => ({
-        date,
-        name: date.slice(5), // 'MM-DD'
-        visitors: count,
+    // Top Landing Pages with Authentic Conversion Rate & Website Identification
+    const topLandingPages = Array.from(landingStats.values())
+      .sort((a, b) => b.visits - a.visits)
+      .slice(0, 10)
+      .map((row) => ({
+        websiteKey: row.websiteKey,
+        siteDomain: row.siteDomain,
+        siteLabel: row.siteLabel,
+        page: row.page,
+        visits: row.visits,
+        enquiries: row.enquiries,
+        conversionPct: row.visits > 0 ? ((row.enquiries / row.visits) * 100).toFixed(1) : '0.0',
       }));
 
-    // Authentic Session Metrics
-    const avgDurationSec = durationCount > 0 ? Math.round(totalDurationSeconds / durationCount) : 0;
-    const avgDurationStr = avgDurationSec > 0 ? `${Math.floor(avgDurationSec / 60)}m ${avgDurationSec % 60}s` : '0m 0s';
-    const bounceRatePct = totalVisitors > 0 ? Number(((singleVisitSessions / totalVisitors) * 100).toFixed(1)) : 0;
+    // Authentic Daily Trend Array
+    const dailyTrend = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
 
     return res.status(200).json({
       success: true,
       data: {
-        summary: {
-          totalVisitors,
-          uniqueVisitors,
-          newVisitors,
-          returningVisitors,
-          formSubmissions,
-          avgSessionDuration: avgDurationStr,
-          bounceRate: `${bounceRatePct}%`,
-        },
+        activeWebsite: activeWebsiteFilter,
+        summary,
+        websiteBreakdown,
         trafficSources,
         topLandingPages,
         dailyTrend,
@@ -1001,18 +1204,18 @@ exports.get_sales_pipeline = async (req, res) => {
 
 exports.get_conversion_analytics = async (req, res) => {
   try {
-    const { dateRange, startDate, endDate } = req.query;
+    const { dateRange, startDate, endDate, website } = req.query;
     const { currentStart, currentEnd } = getDateRanges(dateRange, startDate, endDate);
 
     const [visits, enquiries, quotes, orders, campaigns] = await Promise.all([
-      UtmVisit.find(buildDateMatch('created_at', currentStart, currentEnd)).lean().catch(() => []),
+      UtmVisit.find(buildVisitFilter(buildDateMatch('created_at', currentStart, currentEnd), website)).lean().catch(() => []),
       EpcLead.find(buildDateMatch('created_at', currentStart, currentEnd)).lean().catch(() => []),
       EpcQuote.find(buildDateMatch('created_at', currentStart, currentEnd)).lean().catch(() => []),
       EpcOrder.find({ ...buildDateMatch('created_at', currentStart, currentEnd), order_status: { $ne: 'cancelled' } }).lean().catch(() => []),
       MarketingCampaign.find({}).lean().catch(() => []),
     ]);
 
-    const rawVisitors = new Set(visits.map(v => v.visitor_session_id || v.ip_address).filter(Boolean)).size || visits.length;
+    const rawVisitors = new Set(visits.map(v => v.visitor_id || v.visitor_session_id || v.ip_address).filter(Boolean)).size || visits.length;
     const totalEnquiries = enquiries.length;
     // Eliminate division-by-zero anomaly when web telemetry collection is awaiting live visits:
     const uniqueVisitors = rawVisitors > 0 ? rawVisitors : totalEnquiries;
@@ -1750,6 +1953,7 @@ exports.get_drill_down_records = async (req, res) => {
       limit = 20,
       state,
       district,
+      website,
       dateRange = 'last_30_days',
       startDate,
       endDate,
@@ -1762,13 +1966,25 @@ exports.get_drill_down_records = async (req, res) => {
     let totalCount = 0;
 
     if (section === 'website') {
-      const q = buildDateMatch('created_at', currentStart, currentEnd);
+      const q = buildVisitFilter(buildDateMatch('created_at', currentStart, currentEnd), website);
       totalCount = await UtmVisit.countDocuments(q);
-      records = await UtmVisit.find(q)
+      const rawVisits = await UtmVisit.find(q)
         .sort({ created_at: -1 })
         .skip(skip)
         .limit(Number(limit))
         .lean();
+      records = rawVisits.map((r) => {
+        const siteInfo = resolveVisitSite(r);
+        return {
+          ...r,
+          website_key: r.website_key || siteInfo.website_key,
+          site_domain: r.site_domain || siteInfo.site_domain,
+          site_label: siteInfo.label,
+          traffic_source_label: classifyTrafficSource(r),
+          duration_seconds: getSessionDurationSeconds(r),
+          page_views: r.page_views || r.visit_count || 1,
+        };
+      });
     } else if (section === 'enquiries') {
       const q = buildDateMatch('created_at', currentStart, currentEnd);
       if (state && state !== 'all') q.state_name = new RegExp(`^${state.trim()}$`, 'i');
@@ -2106,7 +2322,7 @@ exports.get_insights_ai = async (req, res) => {
               potential_epcs: misPotential,
               benchmark: benchmarkThreshold,
             },
-          }).catch(() => {});
+          }).catch(() => { });
         } else {
           conditionType = 'BUILDING_PIPELINE';
           actionBadge = 'Pipeline Building';
@@ -2140,7 +2356,7 @@ exports.get_insights_ai = async (req, res) => {
                 franchisee_id: String(c.assigned_franchisee_id._id),
                 gap: epcGap,
               },
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
       }
@@ -2257,7 +2473,7 @@ exports.get_insights_ai = async (req, res) => {
               alert_type: 'epc_goal_deadline_breached',
               cluster_id: String(c._id),
             },
-          }).catch(() => {});
+          }).catch(() => { });
         }
 
         threeMonthGoalsList.push({

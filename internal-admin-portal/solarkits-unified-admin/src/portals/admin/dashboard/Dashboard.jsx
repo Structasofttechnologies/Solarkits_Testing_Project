@@ -90,14 +90,18 @@ const WhatsAppSettingsPage = lazy(() => import("../pages/marketing/WhatsAppSetti
 const WebsiteFormMappingPage = lazy(() => import("../pages/marketing/WebsiteFormMappingPage"));
 const UtmTrackingPage = lazy(() => import("../pages/marketing/UtmTrackingPage"));
 const MarketingReportsPage = lazy(() => import("../pages/marketing/MarketingReportsPage"));
+// Lazy import OrderJourneyDashboard from solar-shop pages
+const OrderJourneyDashboard = lazy(() => import("../pages/solar-shop/order-management-settings/OrderJourneyDashboard"));
 
+/* ===================== Email Management & Monitoring Module ===================== */
+const EmailManagementHub = lazy(() => import("../pages/email-management/EmailManagementHub"));
 
 /* ===================== MENU CONFIG ===================== */
 
 const menus = [
   [
     { name: "Dashboard", icon: <FaHome />, path: "/admin-panel/home", unique_id: "00000000" },
-   
+ 
     {
       name: "Accounts Module",
       icon: <FaFileInvoiceDollar />,
@@ -136,6 +140,24 @@ const menus = [
     { name: "Operations Dashboard", icon: <MdEngineering />, path: "/admin-panel/operations-dashboard", unique_id: "00000000" },
     { name: "Store Dashboard", icon: <FaStore />, path: "/admin-panel/store-dashboard", unique_id: "00000000" },
     { name: "EPC Analytics", icon: <FaChartLine />, path: "/admin-panel/epc-analytics", unique_id: "00000000" },
+    {
+      name: "Email Management",
+      icon: <FaEnvelope />,
+      path: "/admin-panel/email-management",
+      unique_id: "00000000",
+    },
+    {
+      name: "BDE Dashboard",
+      icon: <FaHome />,
+      path: "/admin-panel/bde-management/dashboard",
+      unique_id: "ADM_BDE_MGMT",
+    },
+    {
+      name: "Order Journey Dashboard",
+      icon: <FiBarChart2 />,
+      path: "/admin-panel/order-journey-dashboard",
+      unique_id: "00000000"
+    },
     // {
     //   name: "Marketing Overview",
     //   icon: <FaBullhorn />,
@@ -182,12 +204,7 @@ const menus = [
       path: "/admin-panel/bde-management",
       unique_id: "ADM_BDE_MGMT",
       subMenu: [
-        {
-          name: "BDE Dashboard",
-          icon: <FaHome />,
-          path: "/admin-panel/bde-management/dashboard",
-          unique_id: "ADM_BDE_MGMT",
-        },
+
         {
           name: "All BDEs",
           icon: <FaUsers />,
@@ -1032,6 +1049,17 @@ export default function Dashboard() {
                       </Suspense>
                     }
                   />
+
+                  <Route
+                    path="/order-journey-dashboard"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Order Journey Dashboard..." />}>
+                          <OrderJourneyDashboard />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
                   <Route
                     path="/solar-shop/combokit-configurations/feedback-settings"
                     element={
@@ -1052,6 +1080,24 @@ export default function Dashboard() {
                   <Route path="/marketing/form-mapping" element={<Suspense fallback={<Loader text="Loading Form Mappings..." />}><WebsiteFormMappingPage /></Suspense>} />
                   <Route path="/marketing/utm-tracking" element={<Suspense fallback={<Loader text="Loading UTM Tracking..." />}><UtmTrackingPage /></Suspense>} />
                   <Route path="/marketing/reports" element={<Suspense fallback={<Loader text="Loading Marketing Reports..." />}><MarketingReportsPage /></Suspense>} />
+
+                  {/* Email Management & Monitoring Module Routes */}
+                  <Route
+                    path="/email-management/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Email Management..." />}>
+                        <EmailManagementHub />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/email-management"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Email Management..." />}>
+                        <EmailManagementHub />
+                      </Suspense>
+                    }
+                  />
 
                   <Route
                     path="/profile"

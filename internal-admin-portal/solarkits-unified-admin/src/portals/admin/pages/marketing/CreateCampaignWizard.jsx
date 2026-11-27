@@ -38,7 +38,8 @@ import {
   FaImage,
   FaPlay,
   FaListUl,
-  FaBan
+  FaBan,
+  FaLandmark
 } from 'react-icons/fa';
 import IndiaTargetingMap from './components/IndiaTargetingMap';
 import WhatsAppStudio from './components/WhatsAppStudio';
@@ -49,9 +50,12 @@ import {
   ALL_36_INDIAN_STATES,
   fetchAreaKits,
   fetchLiveComboKits,
+  fetchLiveGovtTenderConfigs,
   fetchLiveClusters,
   fetchLiveWarehouses,
   fetchLiveActiveStates,
+  fetchLiveAudiencePreview,
+  fetchLiveMarketingQuota,
   getQuotaState,
   deductQuotaOnLaunch,
   rechargeQuota,
@@ -102,6 +106,7 @@ export default function CreateCampaignWizard() {
   });
   const [loadingAudiencePreview, setLoadingAudiencePreview] = useState(false);
   const [launchingCampaign, setLaunchingCampaign] = useState(false);
+  const [govtTenderConfigsList, setGovtTenderConfigsList] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // Form State
@@ -210,17 +215,19 @@ export default function CreateCampaignWizard() {
     return () => window.removeEventListener('solarkits-quota-updated', handleQuotaUpdate);
   }, []);
 
-  // Fetch clusters, warehouses, states, live store kits catalog, and isolated Segment Groups
+  // Fetch clusters, warehouses, states, live store kits catalog, govt tender configs, Segment Groups, and live email quotas
   useEffect(() => {
     async function loadResources() {
       setLoadingData(true);
       try {
-        const [cList, wList, kList, sList, mktStatesRes] = await Promise.all([
+        const [cList, wList, kList, sList, mktStatesRes, tList, liveQ] = await Promise.all([
           fetchLiveClusters(),
           fetchLiveWarehouses(),
           fetchLiveComboKits(),
           fetchLiveActiveStates(),
-          fetchMarketingStates().catch(() => [])
+          fetchMarketingStates().catch(() => []),
+          fetchLiveGovtTenderConfigs(),
+          fetchLiveMarketingQuota()
         ]);
         setClustersList(cList);
         setWarehousesList(wList);
@@ -233,8 +240,14 @@ export default function CreateCampaignWizard() {
         if (Array.isArray(mktStatesRes)) {
           setMarketingStates(mktStatesRes);
         }
+        if (Array.isArray(tList)) {
+          setGovtTenderConfigsList(tList);
+        }
+        if (liveQ) {
+          setQuota(liveQ);
+        }
       } catch (err) {
-        console.error('Failed to load clusters/warehouses/kits/states:', err);
+        console.error('Failed to load clusters/warehouses/kits/states/tenders/quotas:', err);
       } finally {
         setLoadingData(false);
       }
@@ -382,6 +395,66 @@ export default function CreateCampaignWizard() {
     return Boolean(formData.audienceGroups.registered || formData.audienceGroups.verified || formData.audienceGroups.buyer);
   }, [formData.audienceGroups]);
 
+  // Dynamically fetched and state-filtered Government Tender Kits
+  const govtTenderFilteredKits = useMemo(() => {
+    if (!govtTenderConfigsList || govtTenderConfigsList.length === 0) return [];
+
+    const activeSelectedStates = formData.selectedStates || [];
+    const matchingConfigs = govtTenderConfigsList.filter(cfg => {
+      if (cfg.is_active === false) return false;
+      if (activeSelectedStates.length === 0) return true;
+      const cfgState = (cfg.target_state_name || cfg.state_name || cfg.state || '').trim().toLowerCase();
+      return activeSelectedStates.some(st => (st || '').trim().toLowerCase() === cfgState);
+    });
+
+    const result = [];
+    const seenMap = new Set();
+
+    matchingConfigs.forEach(cfg => {
+      const cfgKitId = (cfg.combo_kit_id?._id || cfg.combo_kit_id || '').toString();
+      const baseKit = dynamicAreaKits.find(k => (k.id === cfgKitId || k._id === cfgKitId)) ||
+                      liveKitsCatalog.find(k => (k.id === cfgKitId || k._id === cfgKitId)) ||
+                      (cfg.combo_kit_details ? {
+                        id: cfgKitId,
+                        name: cfg.combo_kit_details.kit_title || cfg.store_display_name,
+                        base_price: cfg.combo_kit_details.price_with_tax || 89317,
+                        stockQty: 50,
+                        moq: 25,
+                        warranty: '12 Years',
+                        components_summary: 'Inverter + Panels + BOS Structure'
+                      } : null);
+
+      if (!baseKit) return;
+
+      const uniqueKey = `${cfgKitId}-${cfg.target_state_name || ''}`;
+      if (seenMap.has(uniqueKey)) return;
+      seenMap.add(uniqueKey);
+
+      result.push({
+        ...baseKit,
+        id: baseKit.id || cfgKitId,
+        combo_kit_id: cfgKitId,
+        tender_config_id: cfg._id || cfg.id,
+        target_state: cfg.target_state_name || cfg.state_name || 'All India',
+        tender_name: cfg.store_display_name || baseKit.name,
+        tender_tagline: cfg.tagline || 'Specially Configured for Government Projects',
+        tender_description: cfg.tender_description || 'State-specific tender configuration with bulk procurement support and DCR compliant solar modules.',
+        primary_badge: cfg.primary_badge_text || 'GOVT. TENDER',
+        secondary_badge: cfg.secondary_badge_text || 'Bulk Supply',
+        dcr_module_available: cfg.dcr_module_available !== false,
+        tender_image_url: cfg.product_image_url || baseKit.image || baseKit.display_image,
+        explainer_video_url: cfg.explainer_video_url,
+        is_govt_tender: true
+      });
+    });
+
+    return result;
+  }, [govtTenderConfigsList, formData.selectedStates, dynamicAreaKits, liveKitsCatalog]);
+
+  const displayedStep3Kits = useMemo(() => {
+    return formData.objective === 'govt_tender_promotion' ? govtTenderFilteredKits : dynamicAreaKits;
+  }, [formData.objective, govtTenderFilteredKits, dynamicAreaKits]);
+
   // Detect if ONLY Registered EPC is selected (Registered EPCs haven't logged in yet and have no preferences)
   const isOnlyRegistered = useMemo(() => {
     return Boolean(formData.audienceGroups.registered && !formData.audienceGroups.verified && !formData.audienceGroups.buyer);
@@ -510,12 +583,12 @@ export default function CreateCampaignWizard() {
   // Projected campaign revenue based on selected kits and individual kit targets
   const selectedKitsRevenue = useMemo(() => {
     return formData.selectedKitIds.reduce((sum, kid) => {
-      const kit = dynamicAreaKits.find(k => k.id === kid) || STORE_KITS_CATALOG.find(k => k.id === kid) || { base_price: 135000 };
+      const kit = displayedStep3Kits.find(k => k.id === kid) || STORE_KITS_CATALOG.find(k => k.id === kid) || { base_price: 135000 };
       const price = Number(kit.base_price || kit.defaultPrice || kit.price || 135000);
       const qty = Number(formData.kitTargets?.[kid] ?? 20);
       return sum + (price * qty);
     }, 0);
-  }, [formData.selectedKitIds, formData.kitTargets, dynamicAreaKits]);
+  }, [formData.selectedKitIds, formData.kitTargets, displayedStep3Kits]);
 
   // Helper to toggle state selection
   const handleToggleState = (stateName) => {
@@ -621,6 +694,13 @@ export default function CreateCampaignWizard() {
       nextDiscountType = 'flat';
       nextDiscountValue = 7500;
       nextMinQty = 1;
+    } else if (newObjective === 'govt_tender_promotion') {
+      nextCta = 'Explore Govt Tender Solar Kits';
+      nextUrl = 'https://solarkits.in/govt-tenders?utm_source=marketing&utm_campaign=govt_tender_promotion';
+      nextCoupon = 'GOVTTENDER5000';
+      nextDiscountType = 'per_kit';
+      nextDiscountValue = 5000;
+      nextMinQty = 1;
     }
 
     setFormData(prev => ({
@@ -652,7 +732,7 @@ export default function CreateCampaignWizard() {
       const newTotal = nextKits.reduce((acc, id) => acc + (updatedTargets[id] || 0), 0);
 
       // Automatically recalculate MOQ to match the selected kit's store wholesale loose batch
-      const selKits = STORE_KITS_CATALOG.filter(k => nextKits.includes(k.id));
+      const selKits = displayedStep3Kits.filter(k => nextKits.includes(k.id));
       const autoMoq = selKits.length > 0
         ? Math.min(...selKits.map(k => prev.kitMoqs?.[k.id] ?? k.moq ?? 25))
         : 25;
@@ -667,10 +747,10 @@ export default function CreateCampaignWizard() {
     });
   };
 
-  // Selected kit objects from live catalog
+  // Selected kit objects from live catalog (or tender filtered kits when objective is govt_tender_promotion)
   const selectedKitObjects = useMemo(() => {
-    return dynamicAreaKits.filter(k => formData.selectedKitIds.includes(k.id));
-  }, [dynamicAreaKits, formData.selectedKitIds]);
+    return displayedStep3Kits.filter(k => formData.selectedKitIds.includes(k.id));
+  }, [displayedStep3Kits, formData.selectedKitIds]);
 
   // Minimum required store loose batch MOQ among selected kits
   const minimumRequiredMoq = useMemo(() => {
@@ -1100,7 +1180,7 @@ export default function CreateCampaignWizard() {
               <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
                 <span className="text-[10px] uppercase font-bold text-slate-400">Total Account Quota</span>
                 <p className="text-lg font-black text-slate-900 dark:text-white">
-                  {(quota?.totalQuota ?? quota?.total ?? 15000).toLocaleString('en-IN')} <span className="text-xs font-medium text-slate-400">Credits</span>
+                  {(quota?.totalQuota ?? quota?.total ?? 0).toLocaleString('en-IN')} <span className="text-xs font-medium text-slate-400">Credits</span>
                 </p>
               </div>
 
@@ -1672,6 +1752,7 @@ export default function CreateCampaignWizard() {
                 <option value="Explore TopCon Bifacial Kits & Specs">Explore TopCon Bifacial Kits & Specs</option>
                 <option value="Resume Order & Apply ₹5,000 Discount">Resume Order & Apply ₹5,000 Discount</option>
                 <option value="Reactivate Account & Claim ₹7,500 Credit">Reactivate Account & Claim ₹7,500 Credit</option>
+                <option value="Explore Govt Tender Solar Kits">Explore Govt Tender Solar Kits</option>
               </select>
             </div>
           </div>
@@ -2190,6 +2271,259 @@ export default function CreateCampaignWizard() {
                 </div>
               </div>
             </>
+          )}
+
+          {/* DEDICATED PURPOSE: GOVERNMENT & PSU TENDER KITS PROMOTION */}
+          {formData.objective === 'govt_tender_promotion' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-900/10 via-indigo-900/10 to-slate-900/10 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-slate-950/40 border-2 border-blue-500/30 dark:border-blue-700/40 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 rounded-xl bg-blue-600 text-white shadow-xs">
+                      <FaLandmark className="w-5 h-5 text-amber-300" />
+                    </span>
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                        Government & PSU Tender Solar Kits Promotion
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Promoting state-approved tender combo kits with DCR compliance, wholesale bulk supply tags, and state specifications.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase">Step 2 Target States:</span>
+                    {formData.selectedStates && formData.selectedStates.length > 0 ? (
+                      formData.selectedStates.map(st => (
+                        <span key={st} className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-300">
+                          🏛️ {st}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                        No states selected in Step 2
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Kit Selection Header */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <FaBoxes className="text-blue-600" /> Select Government Tender Kits Mapped for Selected States *
+                    </label>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Showing only combo kits configured under Govt Tender Kits Configuration that actively match your Step 2 state selection.
+                    </p>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {govtTenderFilteredKits.length} Available in Selected States
+                  </span>
+                </div>
+
+                {govtTenderFilteredKits.length === 0 ? (
+                  <div className="p-8 rounded-2xl border-2 border-dashed border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/20 text-center space-y-2">
+                    <FaExclamationTriangle className="w-8 h-8 text-amber-500 mx-auto" />
+                    <h5 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                      No Government Tender Kits Configured for Selected States ({formData.selectedStates.join(', ') || 'None'})
+                    </h5>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      There are currently no active Government Tender Kit configurations matching the states selected in Step 2.
+                      Please map combo kits to these states in <strong>Product Configurations &gt; Govt Tender Kits</strong> or select different states in Step 2.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {govtTenderFilteredKits.map(kit => {
+                      const isSelected = formData.selectedKitIds.includes(kit.id);
+                      const kitPrice = Number(kit.base_price || kit.defaultPrice || kit.price || 89317);
+                      const kitStock = Number(kit.stockQty ?? kit.stock_in_selected_warehouses ?? 0);
+                      const kitMoqVal = formData.kitMoqs?.[kit.id] ?? kit.moq ?? 25;
+
+                      return (
+                        <div
+                          key={kit.id}
+                          onClick={() => handleToggleKit(kit.id)}
+                          className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                            isSelected
+                              ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/30 shadow-xs'
+                              : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                {/* Tender State & Badge Row */}
+                                <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-700 text-white shadow-xs uppercase tracking-wider flex items-center gap-1">
+                                    <FaLandmark className="text-[9px] text-amber-300" />
+                                    {kit.primary_badge || 'GOVT. TENDER'}
+                                  </span>
+                                  {kit.target_state && (
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                      📍 {kit.target_state}
+                                    </span>
+                                  )}
+                                  {kit.secondary_badge && (
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500 text-white shadow-2xs uppercase">
+                                      {kit.secondary_badge}
+                                    </span>
+                                  )}
+                                  {kit.dcr_module_available && (
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200">
+                                      ✓ DCR Modules
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                    {kit.tender_name || kit.name}
+                                  </span>
+                                </div>
+
+                                {/* Tender Tagline */}
+                                {kit.tender_tagline && (
+                                  <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 italic mb-1">
+                                    "{kit.tender_tagline}"
+                                  </p>
+                                )}
+
+                                {/* Tender Specifications & Eligibility Box */}
+                                {kit.tender_description && (
+                                  <div className="my-1.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300">
+                                    <p className="font-bold text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">
+                                      🏛️ Tender Specifications & Eligibility:
+                                    </p>
+                                    <p className="line-clamp-2 leading-relaxed">
+                                      {kit.tender_description}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Base Catalog Kit components */}
+                                <div className="flex items-center gap-1.5 flex-wrap my-1">
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
+                                    ⚡ Base: {kit.name}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
+                                    🛡️ {kit.warranty || '12 Years'}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200">
+                                    GST 5% Included
+                                  </span>
+                                </div>
+
+                                <p className="text-[11px] text-slate-500 font-medium line-clamp-1">
+                                  {kit.components_summary || kit.sub_title}
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                                  isSelected
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
+                                }`}
+                              >
+                                {isSelected ? '✓ Included' : '+ Add Kit'}
+                              </button>
+                            </div>
+
+                            {/* Pricing Display */}
+                            <div className="mt-2 flex items-baseline gap-2 flex-wrap">
+                              <span className="text-base font-black text-slate-900 dark:text-white">
+                                ₹{kitPrice.toLocaleString('en-IN')}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-semibold">/ kit</span>
+                              {kit.batch_total && (
+                                <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
+                                  • Batch: ₹{Number(kit.batch_total).toLocaleString('en-IN')} ({kit.moq} kits)
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
+                              ✓ {kitStock} Units Live in Serving Warehouses
+                              {formData.servingWarehouses.length > 1 && (
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal ml-1">
+                                  ({formData.servingWarehouses.map(w => `${w}: ${kit.warehouse_stock?.[w] || 0}`).join(' • ')})
+                                </span>
+                              )}
+                            </p>
+                          </div>
+
+                          {/* Solar Shop MOQ Requirement with Quick Batch Selector */}
+                          <div
+                            className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                  <FaBoxes className="text-blue-600 w-3.5 h-3.5" /> Solar Shop Wholesale MOQ:
+                                </span>
+                                <span className="text-[10px] text-slate-400 block">
+                                  Loose order batch requirement in store
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={kitMoqVal}
+                                  onChange={(e) => {
+                                    const val = Math.max(1, parseInt(e.target.value) || 1);
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      kitMoqs: { ...prev.kitMoqs, [kit.id]: val },
+                                      minOrderQty: val
+                                    }));
+                                  }}
+                                  className="w-16 px-2 py-0.5 text-center font-bold text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-hidden focus:border-blue-500"
+                                />
+                                <span className="text-[11px] font-bold text-slate-500">Kits</span>
+                              </div>
+                            </div>
+
+                            {/* Quick Store Batch Quantity Pills */}
+                            {kit.loose_order_quantities && kit.loose_order_quantities.length > 0 && (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">Store Batches:</span>
+                                {kit.loose_order_quantities.map(qty => (
+                                  <button
+                                    key={qty}
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        kitMoqs: { ...prev.kitMoqs, [kit.id]: qty },
+                                        minOrderQty: qty
+                                      }));
+                                    }}
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                      kitMoqVal === qty
+                                        ? 'bg-blue-600 text-white shadow-2xs'
+                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    {qty} Kits
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {/* 2. DEDICATED PURPOSE: DIRECT KIT SALES & REPEAT ORDERS */}

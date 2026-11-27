@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 import { ms_conversion } from "@/utils/msConversion";
-import { resolveApiUrl, getAuthPortalUrl } from "@/utils/resolveApiUrl";
+import { getAuthApiBaseUrl, getAuthPortalUrl } from "@/utils/resolveApiUrl";
 
 // Safe JSON parser — never crashes on bad/null data
 const safeParse = (key, fallback = null) => {
@@ -88,7 +88,7 @@ axios.interceptors.response.use(
       }
 
       try {
-        const refreshUrl = `${resolveApiUrl(import.meta.env.VITE_AUTH_API_URL, 'http://localhost:5000/auth-api')}/refresh-access-token`;
+        const refreshUrl = `${getAuthApiBaseUrl()}/refresh-access-token`;
         const headers = {
           'x-refresh-token': storedRefreshToken
         };
@@ -151,7 +151,7 @@ export const refreshAccessToken = createAsyncThunk(
             }
 
             const res = await axios.post(
-                `${resolveApiUrl(import.meta.env.VITE_AUTH_API_URL, 'http://localhost:5000/auth-api')}/refresh-access-token`,
+                `${getAuthApiBaseUrl()}/refresh-access-token`,
                 storedRefreshToken ? { refresh_token: storedRefreshToken } : {},
                 {
                     headers,
@@ -209,7 +209,7 @@ export const logout = createAsyncThunk(
     'auth/logout',
     async (_, { rejectWithValue, dispatch }) => {
         try {
-            const res = await axios.post(`${resolveApiUrl(import.meta.env.VITE_AUTH_API_URL, 'http://localhost:5000/auth-api')}/logout`, {}, {
+            const res = await axios.post(`${getAuthApiBaseUrl()}/logout`, {}, {
                 withCredentials: true,
             });
 

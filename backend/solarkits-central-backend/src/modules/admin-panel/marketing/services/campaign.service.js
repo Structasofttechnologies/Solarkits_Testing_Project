@@ -2,6 +2,8 @@ const { MarketingCampaign, MarketingTemplate, MarketingSender, UtmVisit } = requ
 const emailService = require('./email.service');
 const whatsappService = require('./whatsapp.service');
 const audienceService = require('./audience.service');
+const { resolveWebsiteInfo } = require('../constants/websiteRegistry');
+const { normalizePagePath } = require('./webTelemetry.service');
 
 /**
  * Atomic Campaign Launch Execution
@@ -97,9 +99,14 @@ const dispatchCampaignBatch = async (campaign) => {
     console.warn('⚠️ Could not load unsubscribed list:', err.message);
   }
 
-  const backendBase = process.env.UNSUBSCRIBE_BASE_URL
-    ? process.env.UNSUBSCRIBE_BASE_URL.replace('/api/admin/marketing/unsubscribe', '')
-    : (process.env.BACKEND_PUBLIC_URL || process.env.IPV4 || 'http://10.252.78.244:5000');
+  const rawIpv4 = process.env.IPV4
+    ? (/:\d+$/.test(process.env.IPV4) || process.env.IPV4.startsWith('https://') ? process.env.IPV4 : `${process.env.IPV4}:${process.env.PORT || 5000}`)
+    : '';
+  const backendBase = (
+    process.env.UNSUBSCRIBE_BASE_URL
+      ? process.env.UNSUBSCRIBE_BASE_URL.replace('/api/admin/marketing/unsubscribe', '')
+      : (process.env.BACKEND_PUBLIC_URL || rawIpv4 || `http://localhost:${process.env.PORT || 5000}`)
+  ).replace(/\/+$/, '');
   const rateLimitDelayMs = parseInt(process.env.EMAIL_RATE_LIMIT_DELAY_MS || '350', 10);
   console.log(`🚀 [CAMPAIGN_QUEUE] Starting sequential dispatch for ${campaign.recipients.length} recipients (Pacing: ${rateLimitDelayMs}ms between sends)...`);
 
@@ -215,16 +222,22 @@ const handleShortUrlClick = async (shortCode, req) => {
     return { redirectUrl: 'https://solarkits.in' };
   }
 
-  // Record UtmVisit
+  // Record UtmVisit with canonical website identity
+  const targetUrl = campaign.destination_url || 'https://solarkits.in';
+  const siteInfo = resolveWebsiteInfo({ landing_url: targetUrl });
   await UtmVisit.create({
     campaign_id: campaign._id,
     short_code: shortCode,
+    website_key: siteInfo.website_key,
+    site_domain: siteInfo.site_domain,
+    site_url: siteInfo.site_url,
     utm_source: campaign.utm_source,
     utm_medium: campaign.utm_medium,
     utm_campaign: campaign.utm_campaign,
     utm_content: campaign.utm_content,
     utm_term: campaign.utm_term,
-    landing_url: campaign.destination_url || 'https://solarkits.in',
+    landing_url: normalizePagePath(targetUrl),
+    page_path: normalizePagePath(targetUrl),
     referrer: req.headers['referer'] || null,
     ip_address: req.ip || req.connection?.remoteAddress,
     user_agent: req.headers['user-agent'] || null

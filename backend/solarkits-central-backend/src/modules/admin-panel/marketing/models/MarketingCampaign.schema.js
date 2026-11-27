@@ -66,7 +66,8 @@ const campaignSchema = new mongoose.Schema(
         'store_visits',
         'add_to_cart',
         'orders',
-        'epc_activation'
+        'epc_activation',
+        'govt_tender_promotion'
       ],
       default: 'lead_generation'
     },
@@ -139,6 +140,7 @@ const campaignSchema = new mongoose.Schema(
         'offer_announcement',
         'sample_to_bulk',
         'inactive_reactivation',
+        'govt_tender_promotion',
         'custom'
       ],
       default: 'kit_sales'

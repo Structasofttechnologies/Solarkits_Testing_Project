@@ -5,7 +5,7 @@ import { getUserData } from "@/features/user.slice";
 import Loader from "@/components/Loader";
 import { getAuthPortalUrl } from "@/utils/resolveApiUrl";
 
-export default function ProtectedRoutes() {
+export default function ProtectedRoutes({ basePath } = {}) {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const location = useLocation();
@@ -91,12 +91,16 @@ export default function ProtectedRoutes() {
       return;
     }
 
-    // Always use the panel base prefix - never derive from sub-product url_prefix
-    const roleBasePath = "/admin-panel";
+    // Resolve the active portal base path so marketing routes are not forced back to /admin-panel
+    const resolvedBasePath =
+      basePath ||
+      (location.pathname.startsWith('/marketing-panel') ? '/marketing-panel' : '/admin-panel');
+    const defaultHomePath =
+      resolvedBasePath === '/marketing-panel' ? '/marketing-panel/dashboard' : `${resolvedBasePath}/home`;
 
     // Check for a saved intended redirect (e.g. deep-link opened in new tab)
     const intendedRedirect = sessionStorage.getItem('intended_redirect');
-    if (intendedRedirect && intendedRedirect.startsWith('/admin-panel')) {
+    if (intendedRedirect && intendedRedirect.startsWith(resolvedBasePath)) {
       sessionStorage.removeItem('intended_redirect');
       hasRedirected.current = true;
       navigate(intendedRedirect, { replace: true });
@@ -106,16 +110,16 @@ export default function ProtectedRoutes() {
     // Root → redirect to panel home
     if (location.pathname === "/") {
       hasRedirected.current = true;
-      navigate(`${roleBasePath}/home`, { replace: true });
+      navigate(defaultHomePath, { replace: true });
       return;
     }
 
     // Only redirect if completely outside the panel
-    if (!location.pathname.startsWith(roleBasePath)) {
+    if (!location.pathname.startsWith(resolvedBasePath)) {
       hasRedirected.current = true;
-      navigate(`${roleBasePath}/home`, { replace: true });
+      navigate(defaultHomePath, { replace: true });
     }
-  }, [fetchCompleted, auth, user, serverError, loading]);
+  }, [fetchCompleted, auth, user, serverError, loading, basePath, location.pathname, navigate]);
 
   if (loading && !fetchCompleted && status === 'idle' && status === 'loading') return <Loader />;
 

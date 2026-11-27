@@ -14,6 +14,8 @@ const bcrypt = require('bcrypt');
 const { sendAdminNotification } = require('../services/admin.notification.service');
 const { GeoLevel1 } = require('../models/geolocation_db');
 const { promoteMatchingSegmentLeads } = require('../marketing/services/segmentPromotion.service');
+const { linkLeadToVisit } = require('../marketing/services/webTelemetry.service');
+const { resolveWebsiteInfo } = require('../marketing/constants/websiteRegistry');
 
 // Helper to generate unique Lead ID
 const generateLeadId = async () => {
@@ -50,6 +52,9 @@ exports.submit_website_lead = async (req, res) => {
       project_type,
       gst_number,
       gstin,
+      source,
+      website_key,
+      tracking,
     } = req.body;
 
     // Validation
@@ -82,6 +87,14 @@ exports.submit_website_lead = async (req, res) => {
     const leadId = await generateLeadId();
     const trimmedName = name.trim();
     const finalGst = (gst_number || gstin) ? String(gst_number || gstin).trim().toUpperCase() : null;
+    const siteInfo = resolveWebsiteInfo({
+      website_key: tracking?.website_key || website_key,
+      site_domain: tracking?.site_domain,
+      site_url: tracking?.site_url,
+      origin: req.headers?.origin,
+      referer: req.headers?.referer,
+    });
+    const resolvedSource = source || (siteInfo.website_key === 'solarkits_main' ? 'solarkits-in-website' : 'solar-store-bulk-banner');
 
     const newLead = await WebsiteEpcLead.create({
       lead_id: leadId,
@@ -101,10 +114,27 @@ exports.submit_website_lead = async (req, res) => {
       status: 'new',
       lead_status: 'New',
       lead_source: 'portal',
-      source: 'solar-store-bulk-banner',
+      source: resolvedSource,
+      website_key: siteInfo.website_key,
+      site_domain: siteInfo.site_domain,
+      visitor_session_id: tracking?.visitor_session_id || null,
+      utm_source: tracking?.utm_source || null,
+      utm_campaign: tracking?.utm_campaign || null,
       gst_number: finalGst,
       gst_verification_status: finalGst ? 'pending_admin' : 'unverified',
     });
+
+    // Bridge inquiry conversion to Website Performance session telemetry
+    await linkLeadToVisit(
+      tracking,
+      {
+        lead_id: newLead._id,
+        lead_model: 'website_epc_leads',
+        form_key: tracking?.form_key || resolvedSource,
+        website_key_fallback: siteInfo.website_key,
+      },
+      req
+    );
 
     // Real-time notification to Admin bell icon
     try {

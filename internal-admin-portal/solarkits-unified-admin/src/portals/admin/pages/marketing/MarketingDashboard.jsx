@@ -36,6 +36,7 @@ import { MdTrendingUp, MdVisibility } from 'react-icons/md';
 import IndiaCampaignMap from './IndiaCampaignMap';
 import SegmentGroupAnalyticsPage from './SegmentGroupAnalyticsPage';
 import {
+  API_BASE_URL,
   getQuotaState,
   rechargeQuota,
   fetchLiveActiveStates,
