@@ -29,8 +29,11 @@ import {
   accountRemoveEpc,
   verifyEpcPayment,
   dispatchOrderForDelivery,
-  getVehiclePresets
+  getVehiclePresets,
+  getDeliveryDocumentSettings
 } from '../../api/deliveryOrders';
+import { authHeaderObj } from '@/app/authHeader';
+import DeliveryDocumentsModal from '../../../../components/DeliveryDocumentsModal';
 
 import Button from '../../components/Button';
 import Dialog from '../../components/Dialog';
@@ -75,6 +78,22 @@ export default function OutForDeliveryStation({ onNavigateToTracking }) {
     transporters: []
   });
   const [loadingPresets, setLoadingPresets] = useState(false);
+
+  // Delivery Documents Modal & Dynamic Settings
+  const [docModalOpen, setDocModalOpen] = useState(false);
+  const [docModalFocus, setDocModalFocus] = useState(null);
+  const [docSettings, setDocSettings] = useState(null);
+
+  const fetchDocSettings = async () => {
+    try {
+      const res = await getDeliveryDocumentSettings();
+      if (res?.status === 'success' && res.data) {
+        setDocSettings(res.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load delivery document settings:', err);
+    }
+  };
 
   const fetchPresets = async () => {
     try {
@@ -126,6 +145,9 @@ export default function OutForDeliveryStation({ onNavigateToTracking }) {
             expected_delivery_date: trans.expected_delivery_date ? new Date(trans.expected_delivery_date).toISOString().slice(0, 10) : new Date(Date.now() + 48 * 3600 * 1000).toISOString().slice(0, 10),
             docket_number: trans.docket_number || incTruck.lr_number || '',
             lr_number: trans.lr_number || incTruck.lr_number || '',
+            driver_license: trans.driver_license || incTruck.driver_license || '',
+            seal_number: trans.seal_number || incTruck.seal_number || '',
+            odometer_start: trans.odometer_start || '',
             notes: trans.notes || '',
             vehicle_rear_photo: ord.dispatch_evidence?.vehicle_rear_photo || '',
             docket_doc: ord.dispatch_evidence?.docket_doc || ''
@@ -154,6 +176,7 @@ export default function OutForDeliveryStation({ onNavigateToTracking }) {
   useEffect(() => {
     fetchReadyOrders();
     fetchPresets();
+    fetchDocSettings();
   }, []);
 
   const handleInputChange = (orderId, field, value) => {
@@ -396,7 +419,10 @@ export default function OutForDeliveryStation({ onNavigateToTracking }) {
       setInitiatingDispatch(true);
       const res = await dispatchOrderForDelivery(order._id, {
         vehicle_rear_photo: form.vehicle_rear_photo,
-        docket_doc: form.docket_doc || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+        docket_doc: form.docket_doc || '',
+        driver_license: form.driver_license || '',
+        seal_number: form.seal_number || '',
+        odometer_start: form.odometer_start || '',
         notes: form.notes || 'Consolidated multi-EPC order dispatched'
       });
 
@@ -775,14 +801,28 @@ export default function OutForDeliveryStation({ onNavigateToTracking }) {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setDispatchModalOpen(false)}
-                className="w-9 h-9 rounded-xl bg-surface hover:bg-surface-hover border border-border text-text-secondary hover:text-text-primary flex items-center justify-center transition-all cursor-pointer"
-                title="Close dispatch workflow"
-              >
-                <FaTimes />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDocModalFocus('schedule');
+                    setDocModalOpen(true);
+                  }}
+                  className="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Generate Schedule PDF, Upload Driver LR & Manage 4 Delivery Documents"
+                >
+                  <FaFileInvoice />
+                  <span>Delivery Docs ({docSettings ? 'Active' : '4'})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDispatchModalOpen(false)}
+                  className="w-9 h-9 rounded-xl bg-surface hover:bg-surface-hover border border-border text-text-secondary hover:text-text-primary flex items-center justify-center transition-all cursor-pointer"
+                  title="Close dispatch workflow"
+                >
+                  <FaTimes />
+                </button>
+              </div>
             </div>
 
             {/* Modal Body: Scrollable */}
@@ -1502,12 +1542,13 @@ export default function OutForDeliveryStation({ onNavigateToTracking }) {
                           <button
                             type="button"
                             onClick={() => {
-                              handleInputChange(activeOrder._id, 'docket_doc', 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf');
-                              if (!activeForm.docket_number) handleInputChange(activeOrder._id, 'docket_number', `DC-${activeOrder.order_number}`);
+                              setDocModalFocus('schedule');
+                              setDocModalOpen(true);
                             }}
-                            className="w-full py-1 px-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25 text-[10px] font-bold cursor-pointer transition-all flex items-center justify-center gap-1"
+                            className="w-full py-1.5 px-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 text-[10px] font-bold cursor-pointer transition-all flex items-center justify-center gap-1"
                           >
-                            <span>⚡ Quick Attach Sample Challan</span>
+                            <FaFilePdf />
+                            <span>Open Schedule PDF / Driver LR Docs</span>
                           </button>
                         </div>
                       )}
@@ -1660,6 +1701,16 @@ export default function OutForDeliveryStation({ onNavigateToTracking }) {
           </div>
         </div>
       )}
+
+      <DeliveryDocumentsModal
+        isOpen={docModalOpen}
+        onClose={() => setDocModalOpen(false)}
+        orderId={activeOrder?._id}
+        portalMode="warehouse"
+        getHeaders={authHeaderObj}
+        initialFocusDoc={docModalFocus}
+        onUpdated={fetchReadyOrders}
+      />
     </div>
   );
 }

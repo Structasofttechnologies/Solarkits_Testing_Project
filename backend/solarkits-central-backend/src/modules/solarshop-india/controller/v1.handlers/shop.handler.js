@@ -4459,6 +4459,234 @@ const get_epc_order_invoice_data = async (req, res) => {
   }
 };
 
+/**
+ * GET /india/v1/shop/orders/:id/delivery-documents
+ * Fetches dynamic Delivery Documents & Verification state for a buyer's order (merging epc_orders + delivery_orders).
+ */
+const get_epc_order_delivery_documents = async (req, res) => {
+  try {
+    const epc_id = req.user?.account_id || req.user?.id;
+    const { id } = req.params;
+
+    const { EpcOrder, FpoOrder } = require("../../../admin-panel/models/india_solarshop_db");
+    const {
+      resolveActiveDeliveryDocSettings,
+      buildOrderDeliveryDocuments,
+    } = require("../../../admin-panel/services/delivery.documents.helper");
+
+    let order = await EpcOrder.findOne({ _id: id, epc_id })
+      .populate("epc_id", "name email whatsapp gstin company_name address")
+      .populate("warehouse_id", "warehouse_name warehouse_code address pincode manager")
+      .lean();
+
+    if (!order && FpoOrder) {
+      order = await FpoOrder.findOne({
+        _id: id,
+        $or: [{ epc_id }, { "po_origin.epc_id": epc_id }, { buyer_id: epc_id }],
+      }).lean();
+    }
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order record not found." });
+    }
+
+    const db = require("mongoose").connection.db;
+    const linkedDeliveryOrder = await db.collection("delivery_orders").findOne({
+      $or: [
+        { order_number: order.order_number },
+        { order_id: String(order._id) },
+        { "stops.order_number": order.order_number },
+        { "stops.order_id": order._id },
+      ],
+    });
+
+    const settings = await resolveActiveDeliveryDocSettings(order.warehouse_id?._id || order.warehouse_id || null);
+    const matchedStop = linkedDeliveryOrder?.stops?.find(
+      (s) => s.order_number === order.order_number || String(s.order_id) === String(order._id)
+    ) || linkedDeliveryOrder?.stops?.[0] || null;
+
+    // Prefer linkedDeliveryOrder docs if present, else epcOrder docs
+    const mergedOrder = {
+      ...order,
+      ...(linkedDeliveryOrder ? {
+        delivery_number: linkedDeliveryOrder.delivery_number || linkedDeliveryOrder.delivery_order_id,
+        dispatch_evidence: linkedDeliveryOrder.dispatch_evidence,
+        delivery_completion: linkedDeliveryOrder.delivery_completion,
+        transport_details: linkedDeliveryOrder.transport_details,
+        vehicles_allocated: linkedDeliveryOrder.vehicles_allocated,
+        delivery_status: linkedDeliveryOrder.delivery_status || linkedDeliveryOrder.status,
+        delivery_documents:
+          order.delivery_documents && order.delivery_documents.length > 0
+            ? order.delivery_documents
+            : linkedDeliveryOrder.delivery_documents,
+      } : {}),
+    };
+
+    const documents = buildOrderDeliveryDocuments({
+      order: mergedOrder,
+      stop: matchedStop,
+      settings,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        order: {
+          _id: order._id,
+          order_number: order.order_number,
+          delivery_number: mergedOrder.delivery_number || null,
+          order_status: mergedOrder.delivery_status || order.order_status || order.status,
+          warehouse: order.warehouse_id || null,
+          buyer: order.epc_id || null,
+          delivery_address: order.delivery_address || null,
+        assigned_vehicle: order.assigned_vehicle || mergedOrder.vehicles_allocated?.[0] || null,
+          dispatch_tracking: order.dispatch_tracking || null,
+          items: order.items || [],
+        },
+        delivery_verification: {
+          ...(order.delivery_verification || {}),
+          otp_code:
+            matchedStop?.pod?.otp_code ||
+            mergedOrder.otp_verification?.otp_code ||
+            order.delivery_verification?.otp_code ||
+            null,
+          otp_verified: Boolean(
+            matchedStop?.pod?.otp_verified ||
+              mergedOrder.otp_verification?.verified_at ||
+              order.delivery_verification?.otp_verified
+          ),
+          verification_mode:
+            mergedOrder.delivery_completion?.verification_mode ||
+            matchedStop?.pod?.verification_mode ||
+            order.delivery_verification?.verification_mode ||
+            null,
+          otp_bypass_reason:
+            mergedOrder.delivery_completion?.otp_bypass_reason ||
+            matchedStop?.pod?.otp_bypass_reason ||
+            order.delivery_verification?.otp_bypass_reason ||
+            null,
+        },
+        settings,
+        documents,
+      },
+    });
+  } catch (error) {
+    console.error("get_epc_order_delivery_documents error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * POST /india/v1/shop/orders/:id/delivery-documents
+ * Allows Buyer (EPC) to upload signed POD photo or submit Material Inspection & Handover Checklist.
+ */
+const upload_epc_order_delivery_document = async (req, res) => {
+  try {
+    const epc_id = req.user?.account_id || req.user?.id;
+    const { id } = req.params;
+
+    const { EpcOrder } = require("../../../admin-panel/models/india_solarshop_db");
+    const {
+      upsertOrderDocumentRecord,
+      syncDeliveryDocsToLinkedOrders,
+      resolveActiveDeliveryDocSettings,
+      buildOrderDeliveryDocuments,
+    } = require("../../../admin-panel/services/delivery.documents.helper");
+
+    const order = await EpcOrder.findOne({ _id: id, epc_id });
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found." });
+    }
+
+    const {
+      document_code = "DEL_DOC_POD",
+      document_title,
+      party_type,
+      receiver_name,
+      receiver_phone,
+      notes,
+      metadata_json,
+    } = req.body;
+
+    let parsedMeta = {};
+    if (metadata_json) {
+      try {
+        parsedMeta = typeof metadata_json === "string" ? JSON.parse(metadata_json) : metadata_json;
+      } catch {
+        parsedMeta = {};
+      }
+    }
+
+    const uploadedFileUrl = (req.files && req.files[0]?.path) || req.body.file_url || "";
+    if (document_code === "DEL_DOC_POD" && !uploadedFileUrl) {
+      return res.status(400).json({ success: false, message: "Please upload a signed POD slip or site delivery photo." });
+    }
+
+    const now = new Date();
+    const buyerName = req.user?.name || order.delivery_address?.contact_name || "EPC Buyer";
+
+    const docEntry = {
+      document_code,
+      document_title:
+        document_title ||
+        (document_code === "DEL_DOC_INSPECTION_HANDOVER"
+          ? "Material Inspection & Handover Checklist"
+          : "Proof of Delivery (POD) & Receiving Acknowledgment"),
+      party_type: party_type || (document_code === "DEL_DOC_INSPECTION_HANDOVER" ? "joint" : "buyer"),
+      status: document_code === "DEL_DOC_POD" ? "uploaded" : "verified",
+      file_url: uploadedFileUrl,
+      notes: notes || "",
+      metadata: {
+        ...parsedMeta,
+        ...(receiver_name ? { receiver_name } : {}),
+        ...(receiver_phone ? { receiver_phone } : {}),
+      },
+      uploaded_by_name: buyerName,
+      uploaded_by_role: "buyer",
+      uploaded_at: now,
+      verified_at: document_code === "DEL_DOC_INSPECTION_HANDOVER" ? now : null,
+    };
+
+    order.delivery_documents = upsertOrderDocumentRecord(order.delivery_documents, docEntry);
+
+    let verificationPatch = null;
+    if (document_code === "DEL_DOC_POD" && uploadedFileUrl) {
+      verificationPatch = {
+        verification_mode: order.delivery_verification?.otp_verified ? "otp" : "manual_photo",
+        signed_pod_photo_url: uploadedFileUrl,
+        receiver_name: receiver_name || order.delivery_address?.contact_name || buyerName,
+        receiver_phone: receiver_phone || order.delivery_address?.contact_phone || "",
+        confirmed_at: order.delivery_verification?.confirmed_at || now,
+      };
+      order.delivery_verification = {
+        ...(order.delivery_verification || {}),
+        ...verificationPatch,
+      };
+    }
+
+    await order.save();
+
+    await syncDeliveryDocsToLinkedOrders({
+      orderId: order._id,
+      orderNumber: order.order_number,
+      docEntry,
+      verificationPatch,
+    });
+
+    const settings = await resolveActiveDeliveryDocSettings(order.warehouse_id);
+    const documents = buildOrderDeliveryDocuments({ order: order.toObject(), stop: null, settings });
+
+    return res.status(200).json({
+      success: true,
+      message: `${docEntry.document_title} uploaded successfully!`,
+      data: { document: docEntry, documents },
+    });
+  } catch (error) {
+    console.error("upload_epc_order_delivery_document error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 const update_order_address = async (req, res) => {
   try {
     const customer_id = req.user.account_id;
@@ -6195,6 +6423,8 @@ module.exports = {
   create_epc_offline_checkout,
   resubmit_epc_offline_payment,
   get_epc_order_invoice_data,
+  get_epc_order_delivery_documents,
+  upload_epc_order_delivery_document,
   get_epc_po_allocations,
   submit_epc_po_receipt,
   verify_epc_po_payment,

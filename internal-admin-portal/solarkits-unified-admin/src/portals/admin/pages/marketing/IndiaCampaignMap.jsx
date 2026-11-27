@@ -22,8 +22,9 @@ import {
   fetchLiveClusters,
   fetchLiveWarehouses,
   fetchLiveActiveStates,
-  getQuotaState
+  fetchLiveQueueStatus
 } from './services/marketingDataService';
+import { marketingHttp } from './services/marketingApi';
 
 // Center coordinates & metadata for Indian States
 const STATE_INFO = {
@@ -55,33 +56,30 @@ export default function IndiaCampaignMap() {
   const [loadingGeo, setLoadingGeo] = useState(true);
   const [errorGeo, setErrorGeo] = useState(null);
 
-  // Dynamic Clusters, Warehouses & Active States fetched from Admin Panel APIs
+  // Dynamic Clusters, Warehouses, Active States & Live Territory Analytics from MongoDB
   const [clustersList, setClustersList] = useState([]);
   const [warehousesList, setWarehousesList] = useState([]);
   const [activeStatesList, setActiveStatesList] = useState([]);
+  const [apiTerritoryStates, setApiTerritoryStates] = useState({});
+  const [apiTerritorySummary, setApiTerritorySummary] = useState(null);
+  const [queueStatus, setQueueStatus] = useState(null);
 
-  // Live Persistent Quota Balance State
-  const [quota, setQuota] = useState(() => getQuotaState());
-
-  useEffect(() => {
-    const handleQuotaUpdate = () => setQuota(getQuotaState());
-    window.addEventListener('solarkits-quota-updated', handleQuotaUpdate);
-    return () => window.removeEventListener('solarkits-quota-updated', handleQuotaUpdate);
-  }, []);
-
-  // Fetch live clusters, warehouses & active states on mount
   useEffect(() => {
     let isMounted = true;
     Promise.all([
       fetchLiveClusters(),
       fetchLiveWarehouses(),
-      fetchLiveActiveStates()
-    ]).then(([cList, wList, sList]) => {
-      if (isMounted) {
-        setClustersList(cList);
-        setWarehousesList(wList);
-        if (Array.isArray(sList)) setActiveStatesList(sList);
-      }
+      fetchLiveActiveStates(),
+      fetchLiveQueueStatus(),
+      marketingHttp.get('/territory-map').then((r) => r.data?.data).catch(() => null)
+    ]).then(([cList, wList, sList, qStat, mapData]) => {
+      if (!isMounted) return;
+      setClustersList(cList || []);
+      setWarehousesList(wList || []);
+      if (Array.isArray(sList)) setActiveStatesList(sList);
+      if (qStat) setQueueStatus(qStat);
+      if (mapData?.states) setApiTerritoryStates(mapData.states);
+      if (mapData?.summary) setApiTerritorySummary(mapData.summary);
     });
     return () => { isMounted = false; };
   }, []);
@@ -109,145 +107,42 @@ export default function IndiaCampaignMap() {
   const width = 800;
   const height = 750;
 
-  // Master State Campaign Data (Integrated with SolarKits MIS)
-  const territoryData = useMemo(() => ({
-    'maharashtra': {
-      state: 'Maharashtra',
-      isActive: true,
-      channels: ['whatsapp', 'email'],
-      primaryChannel: 'both',
-      campaignCount: 4,
-      delivered: 9840,
-      leads: 185,
-      conversions: 28,
-      successRatio: '15.1%',
-      revenue: '₹22.40L',
-      warehouses: ['Bhiwandi Central Master Warehouse (WH-IND-MH-001)'],
-      clusters: [
-        'Konkan Cluster (CLU-MH-001)',
-        'Pune Division Cluster (CLU-MH-002)',
-        'Nashik Division Cluster (CLU-MH-003)',
-        'Nagpur Division Cluster (CLU-MH-004)'
-      ],
-      campaigns: [
-        { name: 'Diwali 3kW EPC Wholesale Flash Sale', type: 'both', objective: 'sales', leads: 95, orders: 18, rev: '₹14.50L' },
-        { name: 'Maharashtra Inactive EPC Reactivation', type: 'email', objective: 'epc_activation', leads: 45, orders: 6, rev: '₹4.90L' },
-        { name: 'Pune High-Power Commercial BOS Push', type: 'whatsapp', objective: 'product_promotion', leads: 45, orders: 4, rev: '₹3.00L' }
-      ]
-    },
-    'gujarat': {
-      state: 'Gujarat',
-      isActive: true,
-      channels: ['whatsapp'],
-      primaryChannel: 'whatsapp',
-      campaignCount: 2,
-      delivered: 4120,
-      leads: 78,
-      conversions: 11,
-      successRatio: '14.1%',
-      revenue: '₹8.90L',
-      warehouses: ['Ahmedabad Sanand Central Warehouse (WH-IND-GJ-001)'],
-      clusters: [
-        'Central Gujarat Cluster (CLU-GJ-001)',
-        'South Gujarat Cluster (CLU-GJ-002)',
-        'North Gujarat Cluster (CLU-GJ-003)',
-        'Saurashtra Cluster (CLU-GJ-004)'
-      ],
-      campaigns: [
-        { name: 'Gujarat 5kW Commercial Solar Subsidy Drive', type: 'whatsapp', objective: 'sales', leads: 62, orders: 9, rev: '₹7.20L' },
-        { name: 'Surat Diamond Cluster EPC Onboarding', type: 'whatsapp', objective: 'epc_onboarding', leads: 16, orders: 2, rev: '₹1.70L' }
-      ]
-    },
-    'rajasthan': {
-      state: 'Rajasthan',
-      isActive: true,
-      channels: ['email'],
-      primaryChannel: 'email',
-      campaignCount: 1,
-      delivered: 1840,
-      leads: 28,
-      conversions: 3,
-      successRatio: '10.7%',
-      revenue: '₹2.40L',
-      warehouses: ['Jaipur Sitapura Central Depo (WH-IND-RJ-001)'],
-      clusters: [
-        'Central Rajasthan Cluster (CLU-RJ-001)',
-        'West Rajasthan Cluster (CLU-RJ-002)',
-        'East Rajasthan Cluster (CLU-RJ-003)'
-      ],
-      campaigns: [
-        { name: 'Marwar Agricultural Pump Solar Kit Push', type: 'email', objective: 'product_promotion', leads: 28, orders: 3, rev: '₹2.40L' }
-      ]
-    },
-    'karnataka': {
-      state: 'Karnataka',
-      isActive: true,
-      channels: ['whatsapp', 'email'],
-      primaryChannel: 'both',
-      campaignCount: 1,
-      delivered: 1400,
-      leads: 19,
-      conversions: 2,
-      successRatio: '10.5%',
-      revenue: '₹0.80L',
-      warehouses: ['Bengaluru Peenya Central Hub (WH-IND-KA-001)'],
-      clusters: [
-        'South Karnataka Cluster (CLU-KA-001)',
-        'North Karnataka Cluster (CLU-KA-002)'
-      ],
-      campaigns: [
-        { name: 'Bengaluru Rooftop EPC Expansion Drive', type: 'both', objective: 'epc_onboarding', leads: 19, orders: 2, rev: '₹0.80L' }
-      ]
-    },
-    'delhi': {
-      state: 'Delhi',
-      isActive: false,
-      channels: [],
-      primaryChannel: 'none',
-      campaignCount: 0,
-      delivered: 0,
-      leads: 0,
-      conversions: 0,
-      successRatio: '0.0%',
-      revenue: '₹0.00',
-      warehouses: ['Delhi Okhla Regional Depo (WH-IND-DL-001)'],
-      clusters: [
-        'South Delhi Cluster (CLU-DL-001)',
-        'Central Delhi Cluster (CLU-DL-002)'
-      ],
-      campaigns: []
-    },
-    'madhyapradesh': {
-      state: 'Madhya Pradesh',
-      isActive: false,
-      channels: [],
-      primaryChannel: 'none',
-      campaignCount: 0,
-      delivered: 0,
-      leads: 0,
-      conversions: 0,
-      successRatio: '0.0%',
-      revenue: '₹0.00',
-      warehouses: ['Indore Regional Hub'],
-      clusters: ['Indore Commercial', 'Bhopal Central'],
-      campaigns: []
-    },
-    'uttarpradesh': {
-      state: 'Uttar Pradesh',
-      isActive: false,
-      channels: [],
-      primaryChannel: 'none',
-      campaignCount: 0,
-      delivered: 0,
-      leads: 0,
-      conversions: 0,
-      successRatio: '0.0%',
-      revenue: '₹0.00',
-      warehouses: ['Lucknow Central Hub'],
-      clusters: ['Noida Tech Zone', 'Lucknow Central'],
-      campaigns: []
-    }
-  }), []);
+  // Live MongoDB State Campaign Data
+  const territoryData = useMemo(() => {
+    const mapObj = {};
+    Object.values(apiTerritoryStates || {}).forEach((st) => {
+      const key = clean(st.state_name);
+      const revLakhs = st.revenue ? `₹${(st.revenue / 100000).toFixed(2)}L` : '₹0.00';
+      const successRatio = st.leads > 0 ? `${((st.conversions / st.leads) * 100).toFixed(1)}%` : '0.0%';
+      const matchingWhs = (warehousesList || [])
+        .filter((w) => clean(w.state_name) === key)
+        .map((w) => w.warehouse_name || w.warehouse_code);
+
+      mapObj[key] = {
+        state: st.state_name,
+        isActive: Boolean(st.has_active),
+        channels: st.channels || [],
+        primaryChannel: st.campaign_type || 'none',
+        campaignCount: st.campaign_count || 0,
+        delivered: st.delivered || 0,
+        leads: st.leads || 0,
+        conversions: st.conversions || 0,
+        successRatio,
+        revenue: revLakhs,
+        warehouses: matchingWhs,
+        clusters: st.clusters || [],
+        campaigns: (st.running_campaigns || []).map((c) => ({
+          name: c.name,
+          type: c.type,
+          objective: c.objective,
+          leads: c.leads || 0,
+          orders: c.conversions || 0,
+          rev: c.revenue ? `₹${(c.revenue / 100000).toFixed(2)}L` : '₹0'
+        }))
+      };
+    });
+    return mapObj;
+  }, [apiTerritoryStates, warehousesList]);
 
   // Fetch GeoJSON
   useEffect(() => {
@@ -451,12 +346,11 @@ export default function IndiaCampaignMap() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Live Quota Pill */}
           <div className="px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs flex items-center gap-2 border border-slate-700 shadow-xs">
             <FaCoins className="text-amber-400" />
-            <span>Quota Balance:</span>
-            <strong className="text-emerald-400">{quota.available.toLocaleString()}</strong>
-            <span className="text-slate-400">/ {quota.total.toLocaleString()}</span>
+            <span>Dispatch Queue:</span>
+            <strong className="text-emerald-400">{queueStatus?.stats?.totalSent || 0} Sent</strong>
+            <span className="text-slate-400">/ {queueStatus?.pendingInQueue || 0} Pending</span>
           </div>
 
           <button
@@ -472,33 +366,39 @@ export default function IndiaCampaignMap() {
       {/* KPI Territory Banner */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Live Active States</div>
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Active States in DB</div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-            <span>{activeStatesList.length || 36} States</span>
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+            <span>{activeStatesList.length} States</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
           </div>
-          <span className="text-[11px] text-slate-500">Across India (Location Setup)</span>
+          <span className="text-[11px] text-slate-500">{apiTerritorySummary?.total_live_states || 0} States with live campaigns</span>
         </div>
 
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
           <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Active Clusters Covered</div>
-          <div className="text-2xl font-black text-blue-600 dark:text-blue-400">{clustersList.length || 7} Clusters</div>
-          <span className="text-[11px] text-slate-500">Live mapped from Cluster Mgmt</span>
+          <div className="text-2xl font-black text-blue-600 dark:text-blue-400">{clustersList.length} Clusters</div>
+          <span className="text-[11px] text-slate-500">Live mapped from Franchisee Clusters</span>
         </div>
 
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Conversion Success Ratio</div>
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Lead-to-Order Ratio</div>
           <div className="text-2xl font-black text-emerald-600 flex items-center gap-1.5">
             <FaPercentage className="w-4 h-4 text-emerald-500" />
-            <span>14.2%</span>
+            <span>
+              {apiTerritorySummary?.total_territory_leads > 0
+                ? `${((apiTerritorySummary.total_territory_conversions / apiTerritorySummary.total_territory_leads) * 100).toFixed(1)}%`
+                : '0.0%'}
+            </span>
           </div>
           <span className="text-[11px] text-slate-500">Avg Lead-to-Order Conversion</span>
         </div>
 
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
           <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Territory Attributed Revenue</div>
-          <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">₹34.50L</div>
-          <span className="text-[11px] text-emerald-600 font-semibold">42 Confirmed Kit Orders</span>
+          <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+            ₹{((apiTerritorySummary?.total_territory_revenue || 0) / 100000).toFixed(2)}L
+          </div>
+          <span className="text-[11px] text-emerald-600 font-semibold">{apiTerritorySummary?.total_territory_conversions || 0} Confirmed Kit Orders</span>
         </div>
       </div>
 
@@ -596,14 +496,10 @@ export default function IndiaCampaignMap() {
               onChange={(e) => setSelectedState(e.target.value)}
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-hidden"
             >
-              <option value="">All India (Whole Country)</option>
-              <option value="Maharashtra">Maharashtra (Live)</option>
-              <option value="Gujarat">Gujarat (Live)</option>
-              <option value="Rajasthan">Rajasthan (Live)</option>
-              <option value="Karnataka">Karnataka (Live)</option>
-              <option value="Delhi">Delhi (Unserved)</option>
-              <option value="Madhya Pradesh">Madhya Pradesh (Unserved)</option>
-              <option value="Uttar Pradesh">Uttar Pradesh (Unserved)</option>
+              <option value="">All India ({activeStatesList.length} States)</option>
+              {activeStatesList.map((st) => (
+                <option key={st._id || st.name} value={st.name}>{st.name}</option>
+              ))}
             </select>
           </div>
         </div>

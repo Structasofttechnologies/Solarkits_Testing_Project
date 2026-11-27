@@ -101,23 +101,59 @@ export const sendDeliveryOtp = async (id) => {
   return res.data;
 };
 
-export const verifyDeliveryOtp = async (id, { otp_code, receiver_name }) => {
+export const verifyDeliveryOtp = async (id, { otp_code, otp, receiver_name, receiver_phone }) => {
   const res = await axios.post(`${API_URL}/warehouse/delivery-orders/${id}/verify-otp`, {
-    otp_code,
-    receiver_name
+    otp_code: otp_code || otp,
+    receiver_name,
+    receiver_phone
   }, {
     headers: authHeaderObj()
   });
   return res.data;
 };
 
-export const completeManualDelivery = async (id, { destination_photo, remarks, receiver_name, delivery_datetime }) => {
+export const completeManualDelivery = async (id, {
+  destination_photo,
+  signed_slip_photo,
+  otp_bypass_reason,
+  remarks,
+  receiver_name,
+  receiver_phone,
+  delivery_datetime,
+  is_otp_fallback
+}) => {
   const res = await axios.post(`${API_URL}/warehouse/delivery-orders/${id}/complete-manual`, {
     destination_photo,
+    signed_slip_photo,
+    otp_bypass_reason,
     remarks,
     receiver_name,
-    delivery_datetime
+    receiver_phone,
+    delivery_datetime,
+    is_otp_fallback
   }, {
+    headers: authHeaderObj()
+  });
+  return res.data;
+};
+
+export const getDeliveryDocumentSettings = async (warehouseId = null) => {
+  const qs = warehouseId ? `?scope_type=warehouse&scope_id=${warehouseId}` : '?scope_type=global';
+  const res = await axios.get(`${API_URL}/delivery-document-settings${qs}`, {
+    headers: authHeaderObj()
+  });
+  return res.data;
+};
+
+export const getOrderDeliveryDocuments = async (id) => {
+  const res = await axios.get(`${API_URL}/warehouse/delivery-orders/${id}/documents`, {
+    headers: authHeaderObj()
+  });
+  return res.data;
+};
+
+export const saveOrderDeliveryDocument = async (id, payload) => {
+  const res = await axios.post(`${API_URL}/warehouse/delivery-orders/${id}/documents`, payload, {
     headers: authHeaderObj()
   });
   return res.data;

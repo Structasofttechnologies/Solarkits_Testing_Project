@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 const { DeliveryOrder, PoRequest, CompanyWarehouse } = require('../models/company_warehouse_db');
 const PurchaseIndent = require('../../account-panel/models/company_warehouse_db/PurchaseIndent.schema');
 const { sendAdminNotification } = require('../../admin-panel/services/admin.notification.service');
+const {
+  resolveActiveDeliveryDocSettings,
+  upsertOrderDocumentRecord,
+  buildOrderDeliveryDocuments,
+  syncDeliveryDocsToLinkedOrders,
+} = require('../../admin-panel/services/delivery.documents.helper');
 
 /**
  * GET /warehouse-api/delivery-orders
@@ -1186,15 +1192,54 @@ exports.initiate_dispatch = async (req, res) => {
       vehicle_rear_photo: photo,
       docket_doc: docket,
       dispatched_at: new Date(),
-      dispatched_by_name: req.user?.name || 'Delivery Manager (Abhishek Sharma)'
+      dispatched_by_name: req.user?.name || 'Delivery Manager'
     };
 
     order.delivery_status = 'in_transit';
 
+    // Sync Delivery Schedule & Driver Acceptance into delivery_documents & linked EpcOrder
+    const settings = await resolveActiveDeliveryDocSettings(order.warehouse_id);
+    const now = new Date();
+    const performerName = req.user?.name || 'Delivery Manager';
+
+    const scheduleDoc = {
+      document_code: 'DEL_DOC_SCHEDULE',
+      document_title: settings.doc_schedule?.title || 'Delivery Schedule & Dispatch Order',
+      party_type: 'system',
+      status: 'generated',
+      notes: 'System-generated upon dispatch.',
+      uploaded_by_name: performerName,
+      uploaded_by_role: 'system',
+      uploaded_at: now
+    };
+
+    const driverAcceptanceDoc = {
+      document_code: 'DEL_DOC_DRIVER_ACCEPTANCE',
+      document_title: settings.doc_driver_acceptance?.title || 'Driver Delivery Acceptance & LR Bilty Form',
+      party_type: 'driver',
+      status: 'uploaded',
+      file_url: req.body.driver_acceptance_doc || docket || '',
+      secondary_file_url: photo || '',
+      metadata: {
+        driver_license: req.body.driver_license || '',
+        odometer_start: req.body.odometer_start || '',
+        seal_number: req.body.seal_number || '',
+        vehicle_fitment_ok: req.body.vehicle_fitment_ok !== undefined ? Boolean(req.body.vehicle_fitment_ok) : true,
+        docket_number: order.transport_details?.docket_number || '',
+        vehicle_number: order.transport_details?.vehicle_number || ''
+      },
+      uploaded_by_name: performerName,
+      uploaded_by_role: 'driver',
+      uploaded_at: now
+    };
+
+    order.delivery_documents = upsertOrderDocumentRecord(order.delivery_documents, scheduleDoc);
+    order.delivery_documents = upsertOrderDocumentRecord(order.delivery_documents, driverAcceptanceDoc);
+
     order.audit_trail.push({
       action: 'Delivery Dispatched & Out on Route',
-      performed_by_name: req.user?.name || 'Delivery Manager',
-      timestamp: new Date(),
+      performed_by_name: performerName,
+      timestamp: now,
       notes: `Vehicle loaded, rear photo verified, docket attached, E-Way Bill #${order.eway_bill.eway_bill_number} checked. Moved to Track Delivery.`
     });
 
@@ -1208,6 +1253,20 @@ exports.initiate_dispatch = async (req, res) => {
     }).catch(err => console.warn('[Dispatch Notification Error]:', err.message));
 
     await order.save();
+
+    await syncDeliveryDocsToLinkedOrders({
+      orderId: order.order_id,
+      orderNumber: order.order_number,
+      epcOrderIds: (order.epcs || []).map((e) => e.epc_id),
+      docEntry: scheduleDoc
+    });
+    await syncDeliveryDocsToLinkedOrders({
+      orderId: order.order_id,
+      orderNumber: order.order_number,
+      epcOrderIds: (order.epcs || []).map((e) => e.epc_id),
+      docEntry: driverAcceptanceDoc
+    });
+
     return res.status(200).json({
       status: 'success',
       message: 'Delivery successfully initiated! Order has been moved to Track Delivery.',
@@ -1259,7 +1318,8 @@ exports.send_customer_otp = async (req, res) => {
  */
 exports.verify_customer_otp = async (req, res) => {
   try {
-    const { otp_code, receiver_name } = req.body;
+    const submittedOtp = req.body.otp_code || req.body.otp;
+    const { receiver_name, receiver_phone } = req.body;
     const order = await DeliveryOrder.findById(req.params.id);
     if (!order) {
       return res.status(404).json({ status: 'error', message: 'Delivery order not found.' });
@@ -1278,7 +1338,7 @@ exports.verify_customer_otp = async (req, res) => {
       });
     }
 
-    if (String(order.delivery_completion.otp_code).trim() !== String(otp_code).trim()) {
+    if (String(order.delivery_completion.otp_code).trim() !== String(submittedOtp || '').trim()) {
       order.delivery_completion.failed_otp_attempts = (order.delivery_completion.failed_otp_attempts || 0) + 1;
       order.audit_trail.push({
         action: 'Failed OTP Attempt',
@@ -1294,22 +1354,65 @@ exports.verify_customer_otp = async (req, res) => {
       });
     }
 
+    const now = new Date();
+    const performerName = req.user?.name || 'Delivery Manager';
+    const finalReceiver = receiver_name || order.customer_name;
+    const finalPhone = receiver_phone || order.customer_phone || '';
+
     // OTP Verified Successfully
     order.delivery_status = 'delivered';
-    order.delivery_completion.completed_at = new Date();
-    order.delivery_completion.completed_by_name = req.user?.name || 'Delivery Manager (Abhishek Sharma)';
+    order.delivery_completion.completed_at = now;
+    order.delivery_completion.completed_by_name = performerName;
     order.delivery_completion.method = 'auto_otp';
+    order.delivery_completion.verification_mode = 'otp';
     order.delivery_completion.otp_verified = true;
-    order.delivery_completion.receiver_name = receiver_name || order.customer_name;
+    order.delivery_completion.receiver_name = finalReceiver;
+    order.delivery_completion.receiver_phone = finalPhone;
+
+    const podDocEntry = {
+      document_code: 'DEL_DOC_POD',
+      document_title: 'Proof of Delivery (POD) & Receiving Acknowledgment',
+      party_type: 'buyer',
+      status: 'verified',
+      notes: 'Verified via 6-digit Customer Delivery OTP',
+      metadata: {
+        verification_mode: 'otp',
+        otp_verified: true,
+        receiver_name: finalReceiver,
+        receiver_phone: finalPhone
+      },
+      uploaded_by_name: performerName,
+      uploaded_by_role: 'buyer',
+      uploaded_at: now,
+      verified_at: now
+    };
+    order.delivery_documents = upsertOrderDocumentRecord(order.delivery_documents, podDocEntry);
 
     order.audit_trail.push({
       action: 'Delivery Completed via Customer OTP Verification',
-      performed_by_name: req.user?.name || 'Delivery Manager',
-      timestamp: new Date(),
-      notes: `OTP successfully verified with customer contact. Handover confirmed to ${order.delivery_completion.receiver_name}.`
+      performed_by_name: performerName,
+      timestamp: now,
+      notes: `OTP successfully verified with customer contact. Handover confirmed to ${finalReceiver}.`
     });
 
     await order.save();
+
+    await syncDeliveryDocsToLinkedOrders({
+      orderId: order.order_id,
+      orderNumber: order.order_number,
+      epcOrderIds: (order.epcs || []).map((e) => e.epc_id),
+      docEntry: podDocEntry,
+      verificationPatch: {
+        verification_mode: 'otp',
+        otp_verified: true,
+        otp_verified_at: now,
+        receiver_name: finalReceiver,
+        receiver_phone: finalPhone,
+        confirmed_at: now
+      },
+      markDelivered: true
+    });
+
     return res.status(200).json({
       status: 'success',
       message: 'OTP verified! Delivery marked as DELIVERED successfully.',
@@ -1322,45 +1425,111 @@ exports.verify_customer_otp = async (req, res) => {
 
 /**
  * POST /warehouse-api/delivery-orders/:id/complete-manual
- * Destination photo proof + date/time + remarks -> Delivered
+ * Destination photo proof + signed slip photo + bypass reason (works for both Manual and OTP-Fallback) -> Delivered
  */
 exports.complete_manual_delivery = async (req, res) => {
   try {
-    const { destination_photo, remarks, receiver_name, delivery_datetime } = req.body;
+    const {
+      destination_photo,
+      signed_slip_photo,
+      otp_bypass_reason,
+      remarks,
+      receiver_name,
+      receiver_phone,
+      delivery_datetime,
+      is_otp_fallback
+    } = req.body;
     const order = await DeliveryOrder.findById(req.params.id);
     if (!order) {
       return res.status(404).json({ status: 'error', message: 'Delivery order not found.' });
     }
 
-    if (!destination_photo) {
+    if (!destination_photo && !signed_slip_photo) {
       return res.status(400).json({
         status: 'error',
-        message: 'Destination delivery proof photo is mandatory to complete manual delivery.'
+        message: 'Destination cargo photo proof (or signed POD slip photo) is mandatory to complete delivery.'
       });
     }
 
+    const completedAt = delivery_datetime ? new Date(delivery_datetime) : new Date();
+    const performerName = req.user?.name || 'Delivery Manager';
+    const finalReceiver = receiver_name || order.customer_name;
+    const finalPhone = receiver_phone || order.customer_phone || '';
+    const isFallback = Boolean(is_otp_fallback || order.delivery_method === 'auto');
+
     order.delivery_status = 'delivered';
     order.delivery_completion = {
-      completed_at: delivery_datetime ? new Date(delivery_datetime) : new Date(),
-      completed_by_name: req.user?.name || 'Delivery Manager (Abhishek Sharma)',
-      method: 'manual_photo',
-      destination_photo,
-      remarks: remarks || 'Delivered and verified at destination site.',
-      receiver_name: receiver_name || order.customer_name,
+      completed_at: completedAt,
+      completed_by_name: performerName,
+      method: isFallback ? 'manual_photo_fallback' : 'manual_photo',
+      verification_mode: 'manual_photo',
+      destination_photo: destination_photo || signed_slip_photo || '',
+      signed_slip_photo: signed_slip_photo || '',
+      otp_bypass_reason: otp_bypass_reason || '',
+      remarks: remarks || otp_bypass_reason || 'Delivered and verified via uploaded photo proof.',
+      receiver_name: finalReceiver,
+      receiver_phone: finalPhone,
       otp_verified: false
     };
 
+    const podDocEntry = {
+      document_code: 'DEL_DOC_POD',
+      document_title: 'Proof of Delivery (POD) & Receiving Acknowledgment',
+      party_type: 'buyer',
+      status: 'verified',
+      file_url: destination_photo || signed_slip_photo || '',
+      secondary_file_url: signed_slip_photo || '',
+      notes: otp_bypass_reason
+        ? `OTP Bypass (${otp_bypass_reason})${remarks ? ` — ${remarks}` : ''}`
+        : remarks || 'Manual delivery verified with uploaded photo evidence.',
+      metadata: {
+        verification_mode: 'manual_photo',
+        manual_photo_verified: true,
+        is_otp_fallback: isFallback,
+        otp_bypass_reason: otp_bypass_reason || null,
+        receiver_name: finalReceiver,
+        receiver_phone: finalPhone
+      },
+      uploaded_by_name: performerName,
+      uploaded_by_role: 'driver',
+      uploaded_at: completedAt,
+      verified_at: completedAt
+    };
+    order.delivery_documents = upsertOrderDocumentRecord(order.delivery_documents, podDocEntry);
+
     order.audit_trail.push({
-      action: 'Manual Delivery Confirmed with Photo Proof',
-      performed_by_name: req.user?.name || 'Delivery Manager',
-      timestamp: new Date(),
-      notes: `Delivery proof photo verified. Remarks: ${remarks || 'None'}. Handover confirmed to ${receiver_name || order.customer_name}.`
+      action: isFallback ? 'Delivery Verified via Manual Photo Fallback (OTP Bypassed)' : 'Manual Delivery Confirmed with Photo Proof',
+      performed_by_name: performerName,
+      timestamp: completedAt,
+      notes: `${otp_bypass_reason ? `Bypass Reason: ${otp_bypass_reason}. ` : ''}Photo evidence verified. Handover confirmed to ${finalReceiver}. Remarks: ${remarks || 'None'}`
     });
 
     await order.save();
+
+    await syncDeliveryDocsToLinkedOrders({
+      orderId: order.order_id,
+      orderNumber: order.order_number,
+      epcOrderIds: (order.epcs || []).map((e) => e.epc_id),
+      docEntry: podDocEntry,
+      verificationPatch: {
+        verification_mode: 'manual_photo',
+        otp_verified: false,
+        manual_photo_verified: true,
+        site_cargo_photo_url: destination_photo || '',
+        signed_pod_photo_url: signed_slip_photo || '',
+        otp_bypass_reason: otp_bypass_reason || '',
+        receiver_name: finalReceiver,
+        receiver_phone: finalPhone,
+        confirmed_at: completedAt
+      },
+      markDelivered: true
+    });
+
     return res.status(200).json({
       status: 'success',
-      message: 'Photo evidence verified! Delivery marked as DELIVERED successfully.',
+      message: isFallback
+        ? 'Manual Photo Fallback verified! Delivery marked as DELIVERED successfully.'
+        : 'Photo evidence verified! Delivery marked as DELIVERED successfully.',
       data: order
     });
   } catch (error) {
@@ -3305,6 +3474,116 @@ exports.update_dashboard_task_status = async (req, res) => {
   } catch (err) {
     console.error('update_dashboard_task_status error:', err);
     return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
+ * GET /delivery-orders/:id/documents
+ * Returns active DeliveryDocumentSettings and the 4 dynamic delivery documents for this warehouse delivery order.
+ */
+exports.get_order_delivery_documents = async (req, res) => {
+  try {
+    const order = await DeliveryOrder.findById(req.params.id).lean();
+    if (!order) {
+      return res.status(404).json({ status: 'error', message: 'Delivery order not found.' });
+    }
+
+    const wh = order.warehouse_id ? await CompanyWarehouse.findById(order.warehouse_id).lean() : null;
+    const settings = await resolveActiveDeliveryDocSettings(order.warehouse_id);
+    const documents = buildOrderDeliveryDocuments({ order, stop: null, settings });
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        order: { ...order, warehouse: wh },
+        settings,
+        documents
+      }
+    });
+  } catch (error) {
+    console.error('get_order_delivery_documents error:', error);
+    return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+/**
+ * POST /delivery-orders/:id/documents
+ * Saves / uploads any of the 4 delivery documents (or Material Inspection Checklist) from Warehouse / Driver.
+ */
+exports.save_order_delivery_document = async (req, res) => {
+  try {
+    const {
+      document_code,
+      document_title,
+      party_type = 'driver',
+      status = 'uploaded',
+      file_url = '',
+      secondary_file_url = '',
+      notes = '',
+      metadata = {},
+      uploaded_by_role = 'warehouse'
+    } = req.body;
+
+    if (!document_code) {
+      return res.status(400).json({ status: 'error', message: 'document_code is required.' });
+    }
+
+    const order = await DeliveryOrder.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ status: 'error', message: 'Delivery order not found.' });
+    }
+
+    const now = new Date();
+    const performerName = req.user?.name || 'Warehouse Officer';
+
+    const docEntry = {
+      document_code,
+      document_title: document_title || document_code,
+      party_type,
+      status,
+      file_url,
+      secondary_file_url,
+      notes,
+      metadata,
+      uploaded_by_name: performerName,
+      uploaded_by_role,
+      uploaded_at: now,
+      verified_at: status === 'verified' ? now : null
+    };
+
+    order.delivery_documents = upsertOrderDocumentRecord(order.delivery_documents, docEntry);
+
+    if (document_code === 'DEL_DOC_DRIVER_ACCEPTANCE' && file_url) {
+      order.dispatch_evidence.docket_doc = order.dispatch_evidence.docket_doc || file_url;
+    }
+
+    order.audit_trail.push({
+      action: `Delivery Document Saved: ${docEntry.document_title}`,
+      performed_by_name: performerName,
+      timestamp: now,
+      notes: `${document_code} marked as ${status}.${notes ? ` Notes: ${notes}` : ''}`
+    });
+
+    await order.save();
+
+    await syncDeliveryDocsToLinkedOrders({
+      orderId: order.order_id,
+      orderNumber: order.order_number,
+      epcOrderIds: (order.epcs || []).map((e) => e.epc_id),
+      docEntry
+    });
+
+    const settings = await resolveActiveDeliveryDocSettings(order.warehouse_id);
+    const documents = buildOrderDeliveryDocuments({ order: order.toObject(), stop: null, settings });
+
+    return res.status(200).json({
+      status: 'success',
+      message: `${docEntry.document_title} uploaded and saved successfully!`,
+      data: { document: docEntry, documents }
+    });
+  } catch (error) {
+    console.error('save_order_delivery_document error:', error);
+    return res.status(500).json({ status: 'error', message: error.message });
   }
 };
 

@@ -90,7 +90,7 @@ let htmlContent = '<p>Test verification email from SolarKits India.</p>';
 for (const tp of possibleTemplatePaths) {
   if (fs.existsSync(tp)) {
     htmlContent = fs.readFileSync(tp, 'utf8');
-    const unsubsUrl = `http://localhost:5000/api/admin/marketing/unsubscribe?email=${encodeURIComponent(to)}`;
+    const unsubsUrl = `http://localhost:5000/api/marketing/unsubscribe?email=${encodeURIComponent(to)}`;
     htmlContent = htmlContent.replace(/\{\{\s*unsubscribe_url\s*\}\}/gi, unsubsUrl);
     console.log(`📄 Template Loaded   : ${path.basename(tp)} (${htmlContent.length} bytes)`);
     break;

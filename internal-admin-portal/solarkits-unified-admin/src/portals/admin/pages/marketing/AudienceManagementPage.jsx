@@ -26,16 +26,12 @@ import {
   FaInfoCircle
 } from 'react-icons/fa';
 import { FiZoomIn, FiZoomOut, FiRefreshCw, FiMapPin, FiCheck, FiSliders } from 'react-icons/fi';
-import axios from 'axios';
-import { getAuthToken } from '../../app/authHeader';
+import { marketingHttp, extractApiError } from './services/marketingApi';
 import {
-  ALL_36_INDIAN_STATES,
   fetchLiveActiveStates,
   fetchLiveClusters,
   fetchLiveWarehouses
 } from './services/marketingDataService';
-
-const API_BASE = import.meta.env.VITE_ADMIN_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/admin-api';
 
 // Center coordinates for key Indian states
 const STATE_CENTERS = {
@@ -77,172 +73,11 @@ const classifyEpc = (item) => {
   return 'Registered EPC';
 };
 
-// Default high-density benchmark EPC partner dataset covering major Indian solar hubs
-const DEFAULT_EPC_PARTNERS = [
-  {
-    _id: 'epc-101',
-    name: 'SunVolt Solar Solutions',
-    contactPerson: 'Ramesh Patel',
-    phone: '+91 98234 56789',
-    email: 'ramesh@sunvoltsolar.com',
-    state: 'Maharashtra',
-    cluster: 'Pune Cluster',
-    warehouse: 'Pune South Facility',
-    type: 'Buyer EPC',
-    lifetimeOrders: 28,
-    lastActive: '2 days ago',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '27AABCS1429B1Z8'
-  },
-  {
-    _id: 'epc-102',
-    name: 'Apex Green Energy LLP',
-    contactPerson: 'Vikram Shinde',
-    phone: '+91 98765 43210',
-    email: 'contact@apexgreen.in',
-    state: 'Maharashtra',
-    cluster: 'Bhiwandi Central',
-    warehouse: 'Bhiwandi Super Depot (WH-MH-01)',
-    type: 'Verified EPC',
-    lifetimeOrders: 0,
-    lastActive: '5 days ago',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '27AAECP4421C1Z4'
-  },
-  {
-    _id: 'epc-103',
-    name: 'Gujarat Solar Power Corp',
-    contactPerson: 'Dhaval Shah',
-    phone: '+91 94280 11223',
-    email: 'dhaval@gspc-solar.co.in',
-    state: 'Gujarat',
-    cluster: 'Surat Cluster',
-    warehouse: 'Surat Central Hub',
-    type: 'Buyer EPC',
-    lifetimeOrders: 42,
-    lastActive: 'Yesterday',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '24AAFCG8920D1Z1'
-  },
-  {
-    _id: 'epc-104',
-    name: 'Marwar Renewable Systems',
-    contactPerson: 'Surendra Singh',
-    phone: '+91 98290 88776',
-    email: 'surendra@marwarsolar.com',
-    state: 'Rajasthan',
-    cluster: 'Jaipur Central',
-    warehouse: 'Jaipur Regional Depot',
-    type: 'Registered EPC',
-    lifetimeOrders: 0,
-    lastActive: '12 days ago',
-    whatsappOptIn: true,
-    emailVerified: false,
-    gstin: null
-  },
-  {
-    _id: 'epc-105',
-    name: 'Kaveri Tech Solar Solutions',
-    contactPerson: 'Anand Kumar',
-    phone: '+91 97400 44556',
-    email: 'anand@kaverisolar.com',
-    state: 'Karnataka',
-    cluster: 'Bengaluru South',
-    warehouse: 'Bengaluru Logistics Park',
-    type: 'Buyer EPC',
-    lifetimeOrders: 19,
-    lastActive: 'Today',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '29AABCK7788F1Z6'
-  },
-  {
-    _id: 'epc-106',
-    name: 'Vidarbha Energy EPC Network',
-    contactPerson: 'Nitin Deshmukh',
-    phone: '+91 98220 99881',
-    email: 'nitin@vidarbhaenergy.in',
-    state: 'Maharashtra',
-    cluster: 'Nagpur East',
-    warehouse: 'Nagpur Distribution Center',
-    type: 'Registered EPC',
-    lifetimeOrders: 0,
-    lastActive: '3 days ago',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: null
-  },
-  {
-    _id: 'epc-107',
-    name: 'Sabarmati CleanTech Power',
-    contactPerson: 'Ketan Parikh',
-    phone: '+91 98251 77665',
-    email: 'ketan@sabarmaticlean.com',
-    state: 'Gujarat',
-    cluster: 'Ahmedabad Industrial',
-    warehouse: 'Ahmedabad Industrial Hub',
-    type: 'Verified EPC',
-    lifetimeOrders: 0,
-    lastActive: 'Just now',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '24AABCS9988H1Z5'
-  },
-  {
-    _id: 'epc-108',
-    name: 'Thane Rooftop Solar Direct',
-    contactPerson: 'Sachin Patil',
-    phone: '+91 99200 11442',
-    email: 'sachin@thanerootop.in',
-    state: 'Maharashtra',
-    cluster: 'Bhiwandi Central',
-    warehouse: 'Bhiwandi Super Depot (WH-MH-01)',
-    type: 'Buyer EPC',
-    lifetimeOrders: 15,
-    lastActive: '1 day ago',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '27AABCT9981K1Z2'
-  },
-  {
-    _id: 'epc-109',
-    name: 'Mewar Solar Energy Works',
-    contactPerson: 'Bhanwar Singh',
-    phone: '+91 94140 66554',
-    email: 'bhanwar@mewarsolar.co.in',
-    state: 'Rajasthan',
-    cluster: 'Jaipur Central',
-    warehouse: 'Jaipur Regional Depot',
-    type: 'Verified EPC',
-    lifetimeOrders: 0,
-    lastActive: '4 days ago',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '08AAECM5544J1Z8'
-  },
-  {
-    _id: 'epc-110',
-    name: 'Deccan Photon Power Ltd',
-    contactPerson: 'Suresh Reddy',
-    phone: '+91 98480 33221',
-    email: 'suresh@deccanphoton.in',
-    state: 'Karnataka',
-    cluster: 'Bengaluru South',
-    warehouse: 'Bengaluru Logistics Park',
-    type: 'Registered EPC',
-    lifetimeOrders: 0,
-    lastActive: '8 days ago',
-    whatsappOptIn: true,
-    emailVerified: false,
-    gstin: null
-  }
-];
-
 export default function AudienceManagementPage() {
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [actionBanner, setActionBanner] = useState(null);
+  const [activeTab, setActiveTab] = useState('contacts'); // 'contacts' | 'segments' | 'unsubscribed'
   const [search, setSearch] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('ALL'); // ALL | Buyer EPC | Verified EPC | Registered EPC
   const [selectedState, setSelectedState] = useState('ALL');
@@ -253,21 +88,45 @@ export default function AudienceManagementPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showSegmentModal, setShowSegmentModal] = useState(false);
 
-  // Audience Data
-  const [audiences, setAudiences] = useState(DEFAULT_EPC_PARTNERS);
+  // Audience Data (Strictly live from MongoDB)
+  const [audiences, setAudiences] = useState([]);
+  const [segments, setSegments] = useState([]);
+  const [unsubscribedList, setUnsubscribedList] = useState([]);
   const [liveStates, setLiveStates] = useState([]);
   const [liveClusters, setLiveClusters] = useState([]);
   const [liveWarehouses, setLiveWarehouses] = useState([]);
   const [stats, setStats] = useState({
-    total_epc_database: 14250,
-    unique_eligible_epcs: 9840,
-    buyer_epcs: 2150,
-    verified_epcs: 3420,
-    registered_epcs: 8680,
-    lifetime_kits_ordered: 1845,
-    active_clusters_count: 8,
-    active_states_count: 36
+    total_epc_database: 0,
+    unique_eligible_epcs: 0,
+    buyer_epcs: 0,
+    verified_epcs: 0,
+    registered_epcs: 0,
+    lifetime_kits_ordered: 0,
+    active_clusters_count: 0,
+    active_states_count: 0
   });
+
+  // Segment Builder Form State
+  const [segmentForm, setSegmentForm] = useState({
+    name: '',
+    description: '',
+    epcGroup: 'ALL',
+    stateName: '',
+    clusterName: '',
+    minOrders: 0,
+    requireConsent: false
+  });
+  const [savingSegment, setSavingSegment] = useState(false);
+
+  // Manual Suppression Form State
+  const [suppressForm, setSuppressForm] = useState({
+    email: '',
+    phone: '',
+    channel: 'all',
+    reason: 'Admin manual suppression'
+  });
+  const [suppressSubmitting, setSuppressSubmitting] = useState(false);
+  const [importErrorMessage, setImportErrorMessage] = useState(null);
 
   // Fetch live active states, clusters, and warehouses from central services
   useEffect(() => {
@@ -321,11 +180,11 @@ export default function AudienceManagementPage() {
   const [importSuccessMessage, setImportSuccessMessage] = useState(null);
   const [importing, setImporting] = useState(false);
 
-  // Fetch Audience list from Backend
+  // Fetch Audience list, Segments & Unsubscribed list from Backend
   const fetchAudience = useCallback(async () => {
     setLoading(true);
+    setErrorMessage(null);
     try {
-      const token = getAuthToken();
       const params = new URLSearchParams();
       if (search.trim()) params.append('search', search.trim());
       if (selectedGroup !== 'ALL') params.append('epc_type', selectedGroup);
@@ -333,27 +192,126 @@ export default function AudienceManagementPage() {
       if (selectedCluster !== 'ALL') params.append('cluster', selectedCluster);
       if (selectedWarehouse !== 'ALL') params.append('warehouse', selectedWarehouse);
 
-      const res = await axios.get(`${API_BASE}/marketing/audience/list?${params.toString()}`, {
-        headers: token ? { Authorization: token } : {}
-      });
+      const res = await marketingHttp.get(`/audience/list?${params.toString()}`);
 
-      if (res.data?.success && Array.isArray(res.data.audiences) && res.data.audiences.length > 0) {
+      if (res.data?.success && Array.isArray(res.data.audiences)) {
         setAudiences(res.data.audiences);
         if (res.data.stats) setStats(res.data.stats);
         if (res.data.clusters) setClustersData(res.data.clusters);
+      } else {
+        setAudiences([]);
       }
     } catch (err) {
-      console.warn('Backend audience fetch notice:', err.message);
-      // Fallback baseline for seamless UI
-      setAudiences(prev => (prev && prev.length > 0) ? prev : DEFAULT_EPC_PARTNERS);
+      setErrorMessage(extractApiError(err, 'Failed to load EPC audience database'));
     } finally {
       setLoading(false);
     }
   }, [search, selectedGroup, selectedState, selectedCluster, selectedWarehouse]);
 
+  const fetchSegmentsAndSuppression = useCallback(async () => {
+    try {
+      const [segRes, unsubRes] = await Promise.all([
+        marketingHttp.get('/segments').catch(() => null),
+        marketingHttp.get('/audience/unsubscribed').catch(() => null)
+      ]);
+      if (segRes?.data?.success && Array.isArray(segRes.data.data)) {
+        setSegments(segRes.data.data);
+      }
+      if (unsubRes?.data?.success && Array.isArray(unsubRes.data.unsubscribes)) {
+        setUnsubscribedList(unsubRes.data.unsubscribes);
+      }
+    } catch (err) {
+      console.warn('Segments/suppression fetch error:', err.message);
+    }
+  }, []);
+
   useEffect(() => {
     fetchAudience();
   }, [fetchAudience]);
+
+  useEffect(() => {
+    fetchSegmentsAndSuppression();
+  }, [fetchSegmentsAndSuppression]);
+
+  const handleSaveSegment = async (e) => {
+    e?.preventDefault();
+    if (!segmentForm.name.trim()) {
+      setErrorMessage('Segment name is required.');
+      return;
+    }
+    setSavingSegment(true);
+    setErrorMessage(null);
+    try {
+      const filters = {
+        epc_groups: segmentForm.epcGroup === 'ALL' ? ['all'] : [segmentForm.epcGroup],
+        state_names: segmentForm.stateName ? [segmentForm.stateName] : [],
+        cluster_names: segmentForm.clusterName ? [segmentForm.clusterName] : [],
+        min_orders: Number(segmentForm.minOrders || 0),
+        require_consent: Boolean(segmentForm.requireConsent),
+        include_imported_leads: true
+      };
+      const res = await marketingHttp.post('/segments', {
+        name: segmentForm.name.trim(),
+        description: segmentForm.description.trim(),
+        filters
+      });
+      if (res.data?.success) {
+        setShowSegmentModal(false);
+        setSegmentForm({ name: '', description: '', epcGroup: 'ALL', stateName: '', clusterName: '', minOrders: 0, requireConsent: false });
+        setActionBanner(`Dynamic segment "${res.data.data?.name}" saved to MongoDB (${res.data.data?.cached_count ?? 0} matching contacts).`);
+        fetchSegmentsAndSuppression();
+      }
+    } catch (err) {
+      setErrorMessage(extractApiError(err, 'Failed to create segment'));
+    } finally {
+      setSavingSegment(false);
+    }
+  };
+
+  const handleDeleteSegment = async (segId) => {
+    try {
+      await marketingHttp.delete(`/segments/${segId}`);
+      setActionBanner('Segment removed.');
+      fetchSegmentsAndSuppression();
+    } catch (err) {
+      setErrorMessage(extractApiError(err, 'Failed to delete segment'));
+    }
+  };
+
+  const handleSuppressContact = async ({ email, phone, channel = 'all', reason = 'Admin suppression' }) => {
+    if (!email && !phone) {
+      setErrorMessage('Provide an email address or phone number to suppress.');
+      return;
+    }
+    setSuppressSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await marketingHttp.post('/audience/unsubscribed/suppress', { email, phone, channel, reason });
+      setActionBanner(`Suppressed ${email || phone} from future ${channel} broadcasts.`);
+      setSuppressForm({ email: '', phone: '', channel: 'all', reason: 'Admin manual suppression' });
+      fetchSegmentsAndSuppression();
+      fetchAudience();
+    } catch (err) {
+      setErrorMessage(extractApiError(err, 'Failed to suppress contact'));
+    } finally {
+      setSuppressSubmitting(false);
+    }
+  };
+
+  const handleResubscribeContact = async (record) => {
+    try {
+      await marketingHttp.post('/audience/unsubscribed/resubscribe', {
+        id: record._id,
+        email: record.email,
+        phone: record.phone
+      });
+      setActionBanner(`Restored ${record.email || record.phone} to active audience eligibility.`);
+      fetchSegmentsAndSuppression();
+      fetchAudience();
+    } catch (err) {
+      setErrorMessage(extractApiError(err, 'Failed to resubscribe contact'));
+    }
+  };
 
   // Load India GeoJSON for Map
   useEffect(() => {
@@ -405,9 +363,6 @@ export default function AudienceManagementPage() {
     const set = new Set();
     liveStates.forEach(s => { if (s.name) set.add(s.name); });
     audiences.forEach(a => { if (a.state) set.add(a.state); });
-    if (set.size === 0) {
-      ALL_36_INDIAN_STATES.forEach(s => set.add(s.name));
-    }
     return Array.from(set).sort();
   }, [liveStates, audiences]);
 
@@ -736,8 +691,8 @@ export default function AudienceManagementPage() {
   // Submit and Upload Mapped Leads
   const handleUploadAndProcess = async () => {
     setImporting(true);
+    setImportErrorMessage(null);
     try {
-      const token = getAuthToken();
       // Prepare full transformed payload
       const transformedPayload = rawCsvRows.map(row => {
         const item = {
@@ -747,8 +702,8 @@ export default function AudienceManagementPage() {
           phone: row[fieldMappings.phone] || '',
           email: row[fieldMappings.email] || '',
           gstin: row[fieldMappings.gstin] || null,
-          state_name: row[fieldMappings.state] || 'Maharashtra',
-          district_name: row[fieldMappings.cluster] || 'Bhiwandi Central',
+          state_name: row[fieldMappings.state] || '',
+          district_name: row[fieldMappings.cluster] || '',
           pincode: row[fieldMappings.pincode] || '',
           lifetime_orders: Number(row[fieldMappings.lifetimeOrders] || 0),
           customFields: {}
@@ -763,16 +718,13 @@ export default function AudienceManagementPage() {
         return item;
       });
 
-      const res = await axios.post(`${API_BASE}/marketing/audience/import-leads`, {
+      const res = await marketingHttp.post('/audience/import-leads', {
         leads: transformedPayload,
         customFieldMappings: fieldMappings
-      }, {
-        headers: token ? { Authorization: token } : {}
       });
 
       if (res.data?.success) {
         setImportSuccessMessage(res.data.message || `Successfully imported ${transformedPayload.length} EPC leads!`);
-        // Refresh live list
         fetchAudience();
         setTimeout(() => {
           setShowImportModal(false);
@@ -780,35 +732,11 @@ export default function AudienceManagementPage() {
           setRawCsvRows([]);
           setImportSuccessMessage(null);
         }, 1500);
+      } else {
+        setImportErrorMessage(res.data?.message || 'Import rejected by server.');
       }
     } catch (err) {
-      console.warn('Import API notice:', err.message);
-      // Fallback local append so user is never blocked
-      const fallbackList = rawCsvRows.map((row, idx) => ({
-        _id: `imp-${Date.now()}-${idx}`,
-        name: row[fieldMappings.name] || 'Solar EPC Partner',
-        contactPerson: row[fieldMappings.contactPerson] || 'Contact',
-        phone: row[fieldMappings.phone] || '+91 99999 88888',
-        email: row[fieldMappings.email] || 'partner@solarkits.in',
-        state: row[fieldMappings.state] || 'Maharashtra',
-        cluster: row[fieldMappings.cluster] || 'Pune Cluster',
-        warehouse: 'Regional Facility',
-        gstin: row[fieldMappings.gstin] || null,
-        lifetimeOrders: Number(row[fieldMappings.lifetimeOrders] || 0),
-        lastActive: 'Just imported via CSV',
-        whatsappOptIn: true,
-        emailVerified: Boolean(row[fieldMappings.email]),
-        type: classifyEpc({ gstin: row[fieldMappings.gstin], lifetimeOrders: row[fieldMappings.lifetimeOrders] })
-      }));
-
-      setAudiences(prev => [...fallbackList, ...prev]);
-      setImportSuccessMessage(`Imported ${fallbackList.length} EPC leads successfully!`);
-      setTimeout(() => {
-        setShowImportModal(false);
-        setImportStep(1);
-        setRawCsvRows([]);
-        setImportSuccessMessage(null);
-      }, 1500);
+      setImportErrorMessage(extractApiError(err, 'Failed to import leads to database'));
     } finally {
       setImporting(false);
     }
@@ -1358,7 +1286,62 @@ Ahmedabad SunPower Engineering,Mehul Vora,9879033445,mehul@sunpowereng.com,,Guja
             </div>
           )}
 
+          {/* Banners */}
+          {errorMessage && (
+            <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 font-semibold flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><FaExclamationTriangle /> {errorMessage}</span>
+              <button onClick={() => setErrorMessage(null)} className="cursor-pointer"><FaTimes /></button>
+            </div>
+          )}
+          {actionBanner && (
+            <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-300 font-semibold flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><FaCheckCircle /> {actionBanner}</span>
+              <button onClick={() => setActionBanner(null)} className="cursor-pointer"><FaTimes /></button>
+            </div>
+          )}
+
+          {/* CRM View Tabs: Contacts | Saved Segments | Suppression List */}
+          <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setActiveTab('contacts')}
+              className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'contacts'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              <FaUsers />
+              <span>Active Contacts ({filteredAudiences.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('segments')}
+              className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'segments'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              <FaLayerGroup />
+              <span>Saved Segments ({segments.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('unsubscribed')}
+              className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'unsubscribed'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              <FaShieldAlt />
+              <span>Unsubscribed / Suppressed ({unsubscribedList.length})</span>
+            </button>
+          </div>
+
           {/* Audience Table */}
+          {activeTab === 'contacts' && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs overflow-hidden">
             <div className="p-3.5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
               <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -1483,10 +1466,12 @@ Ahmedabad SunPower Engineering,Mehul Vora,9879033445,mehul@sunpowereng.com,,Guja
                           </td>
                           <td className="p-3 pr-4 text-right">
                             <button
-                              onClick={() => alert(`Enqueued ${item.name} for Campaign Target Dispatch`)}
-                              className="px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 text-[11px] font-bold cursor-pointer transition-colors"
+                              type="button"
+                              onClick={() => handleSuppressContact({ email: item.email, phone: item.phone, channel: 'all', reason: `Manual suppression for ${item.name}` })}
+                              className="px-3 py-1 rounded-lg bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 text-[11px] font-bold cursor-pointer transition-colors"
+                              title="Add contact to Do-Not-Contact suppression list"
                             >
-                              Target
+                              Suppress
                             </button>
                           </td>
                         </tr>
@@ -1497,6 +1482,165 @@ Ahmedabad SunPower Engineering,Mehul Vora,9879033445,mehul@sunpowereng.com,,Guja
               </table>
             </div>
           </div>
+          )}
+
+          {activeTab === 'segments' && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs overflow-hidden p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-extrabold">Saved Dynamic Segments</h3>
+                  <p className="text-[11px] text-slate-500">Reusable MongoDB audience segments selectable directly inside the Campaign Wizard.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSegmentModal(true)}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <FaPlus /> New Segment
+                </button>
+              </div>
+              {segments.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                  No custom segments saved yet. Click "Create Custom Segment" to build one.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {segments.map((seg) => (
+                    <div key={seg._id} className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 flex flex-col justify-between gap-2">
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="font-bold text-sm text-slate-800 dark:text-white">{seg.name}</h4>
+                          <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold">
+                            {seg.cached_count ?? 0} EPCs
+                          </span>
+                        </div>
+                        {seg.description && <p className="text-[11px] text-slate-500 mt-1">{seg.description}</p>}
+                        <div className="flex flex-wrap gap-1.5 mt-2 text-[10px] text-slate-600 dark:text-slate-300">
+                          {seg.filters?.epc_groups?.length > 0 && (
+                            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                              Groups: {seg.filters.epc_groups.join(', ')}
+                            </span>
+                          )}
+                          {seg.filters?.state_names?.length > 0 && (
+                            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                              States: {seg.filters.state_names.join(', ')}
+                            </span>
+                          )}
+                          {seg.filters?.cluster_names?.length > 0 && (
+                            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                              Clusters: {seg.filters.cluster_names.join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/70 dark:border-slate-700/70">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSegment(seg._id)}
+                          className="text-rose-600 hover:underline text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <FaTrashAlt /> Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'unsubscribed' && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs overflow-hidden p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 text-xs">
+                <input
+                  type="email"
+                  value={suppressForm.email}
+                  onChange={(e) => setSuppressForm((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="Email to suppress"
+                  className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                />
+                <input
+                  type="text"
+                  value={suppressForm.phone}
+                  onChange={(e) => setSuppressForm((p) => ({ ...p, phone: e.target.value }))}
+                  placeholder="Phone / WhatsApp (+91...)"
+                  className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                />
+                <select
+                  value={suppressForm.channel}
+                  onChange={(e) => setSuppressForm((p) => ({ ...p, channel: e.target.value }))}
+                  className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                >
+                  <option value="all">All Channels</option>
+                  <option value="email">Email Only</option>
+                  <option value="whatsapp">WhatsApp Only</option>
+                </select>
+                <input
+                  type="text"
+                  value={suppressForm.reason}
+                  onChange={(e) => setSuppressForm((p) => ({ ...p, reason: e.target.value }))}
+                  placeholder="Reason"
+                  className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                />
+                <button
+                  type="button"
+                  disabled={suppressSubmitting}
+                  onClick={() => handleSuppressContact(suppressForm)}
+                  className="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer disabled:opacity-50"
+                >
+                  {suppressSubmitting ? 'Saving...' : 'Add Suppression'}
+                </button>
+              </div>
+
+              <div className="overflow-x-auto max-h-[420px]">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-slate-500 uppercase font-bold">
+                    <tr>
+                      <th className="p-3">Contact</th>
+                      <th className="p-3">Channel</th>
+                      <th className="p-3">Source</th>
+                      <th className="p-3">Reason</th>
+                      <th className="p-3">Opted Out At</th>
+                      <th className="p-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                    {unsubscribedList.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-500">
+                          No contacts are currently suppressed or unsubscribed.
+                        </td>
+                      </tr>
+                    ) : (
+                      unsubscribedList.map((u) => (
+                        <tr key={u._id} className="hover:bg-slate-50/70 dark:hover:bg-slate-700/20">
+                          <td className="p-3">
+                            <div className="font-bold">{u.email || '—'}</div>
+                            <div className="text-[11px] text-slate-500">{u.phone || '—'}</div>
+                          </td>
+                          <td className="p-3 uppercase font-bold text-[10px]">{u.channel || 'all'}</td>
+                          <td className="p-3 text-[11px] text-slate-500">{u.source || 'link'}</td>
+                          <td className="p-3 text-[11px]">{u.reason || 'User opt-out'}</td>
+                          <td className="p-3 text-[11px] text-slate-500">
+                            {u.unsubscribed_at ? new Date(u.unsubscribed_at).toLocaleString('en-IN') : '—'}
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleResubscribeContact(u)}
+                              className="px-3 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 text-[11px] font-bold cursor-pointer"
+                            >
+                              Restore / Resubscribe
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
         </div>
 
@@ -1822,10 +1966,15 @@ Ahmedabad SunPower Engineering,Mehul Vora,9879033445,mehul@sunpowereng.com,,Guja
                     </div>
                   </div>
 
-                  {/* Success Alert */}
+                  {/* Success / Error Alerts */}
                   {importSuccessMessage && (
                     <div className="p-3 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold flex items-center gap-2">
                       <FaCheck /> {importSuccessMessage}
+                    </div>
+                  )}
+                  {importErrorMessage && (
+                    <div className="p-3 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 font-bold flex items-center gap-2">
+                      <FaExclamationTriangle /> {importErrorMessage}
                     </div>
                   )}
 
@@ -1870,60 +2019,110 @@ Ahmedabad SunPower Engineering,Mehul Vora,9879033445,mehul@sunpowereng.com,,Guja
       {/* ===================== CREATE DYNAMIC SEGMENT MODAL ===================== */}
       {showSegmentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
+          <form onSubmit={handleSaveSegment} className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
               <h3 className="text-base font-bold">Create Dynamic Segment</h3>
-              <button onClick={() => setShowSegmentModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+              <button type="button" onClick={() => setShowSegmentModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                 <FaTimes />
               </button>
             </div>
             <div className="py-4 space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Segment Name</label>
+                <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Segment Name *</label>
                 <input
                   type="text"
+                  required
+                  value={segmentForm.name}
+                  onChange={(e) => setSegmentForm((p) => ({ ...p, name: e.target.value }))}
                   placeholder="e.g., High-Value Maharashtra EPCs (5+ Orders)"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={segmentForm.description}
+                  onChange={(e) => setSegmentForm((p) => ({ ...p, description: e.target.value }))}
+                  placeholder="Optional segment notes..."
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Target EPC Type</label>
-                  <select className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl">
-                    <option>All Types</option>
-                    <option>Buyer EPCs Only</option>
-                    <option>Verified EPCs Only</option>
-                    <option>Registered EPCs Only</option>
+                  <select
+                    value={segmentForm.epcGroup}
+                    onChange={(e) => setSegmentForm((p) => ({ ...p, epcGroup: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                  >
+                    <option value="ALL">All Types</option>
+                    <option value="buyer">Buyer EPCs Only</option>
+                    <option value="verified">Verified EPCs Only</option>
+                    <option value="registered">Registered EPCs Only</option>
                   </select>
                 </div>
                 <div>
                   <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Minimum Order Count</label>
                   <input
                     type="number"
-                    defaultValue={3}
+                    min={0}
+                    value={segmentForm.minOrders}
+                    onChange={(e) => setSegmentForm((p) => ({ ...p, minOrders: e.target.value }))}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
                   />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">State Filter (Optional)</label>
+                  <select
+                    value={segmentForm.stateName}
+                    onChange={(e) => setSegmentForm((p) => ({ ...p, stateName: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                  >
+                    <option value="">All States</option>
+                    {availableStates.map((st) => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Cluster Filter (Optional)</label>
+                  <select
+                    value={segmentForm.clusterName}
+                    onChange={(e) => setSegmentForm((p) => ({ ...p, clusterName: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                  >
+                    <option value="">All Clusters</option>
+                    {availableClusters.map((cl) => <option key={cl} value={cl}>{cl}</option>)}
+                  </select>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 font-semibold text-slate-600 dark:text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={segmentForm.requireConsent}
+                  onChange={(e) => setSegmentForm((p) => ({ ...p, requireConsent: e.target.checked }))}
+                />
+                <span>Only include marketing opt-in consented EPCs</span>
+              </label>
             </div>
             <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
               <button
+                type="button"
                 onClick={() => setShowSegmentModal(false)}
                 className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  alert('Segment created successfully!');
-                  setShowSegmentModal(false);
-                }}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
+                type="submit"
+                disabled={savingSegment}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer disabled:opacity-50"
               >
-                Save Segment
+                {savingSegment ? 'Saving...' : 'Save Segment'}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 

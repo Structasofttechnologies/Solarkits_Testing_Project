@@ -8,7 +8,7 @@ const schema = new mongoose.Schema(
     is_default: { type: Boolean, default: false },
     status: {
       type: String,
-      enum: ['active', 'connected', 'inactive', 'disconnected', 'verification_pending'],
+      enum: ['active', 'connected', 'inactive', 'disconnected', 'verification_pending', 'error'],
       default: 'active'
     },
 

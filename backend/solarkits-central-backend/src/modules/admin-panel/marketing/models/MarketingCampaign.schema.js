@@ -11,9 +11,12 @@ const recipientSchema = new mongoose.Schema(
     channel: { type: String, enum: ['email', 'whatsapp', 'both'], default: 'both' },
     status: {
       type: String,
-      enum: ['queued', 'sent', 'delivered', 'read', 'opened', 'clicked', 'visited', 'submitted_form', 'converted', 'failed', 'unsubscribed'],
+      enum: ['queued', 'sent', 'delivered', 'read', 'opened', 'clicked', 'visited', 'submitted_form', 'converted', 'failed', 'unsubscribed', 'skipped_unsubscribed'],
       default: 'queued'
     },
+    source_type: { type: String, enum: ['epc_account', 'website_lead', 'csv_import'], default: 'epc_account' },
+    email_provider: { type: String, default: null },
+    wa_provider: { type: String, default: null },
     wa_message_id: { type: String, default: null },
     email_message_id: { type: String, default: null },
     sent_at: { type: Date, default: null },
@@ -22,6 +25,7 @@ const recipientSchema = new mongoose.Schema(
     clicked_at: { type: Date, default: null },
     visited_at: { type: Date, default: null },
     converted_at: { type: Date, default: null },
+    error_code: { type: String, default: null },
     error_message: { type: String, default: null }
   },
   { _id: true }
@@ -60,7 +64,12 @@ const campaignSchema = new mongoose.Schema(
         'store_visits',
         'add_to_cart',
         'orders',
-        'epc_activation'
+        'epc_activation',
+        'seasonal_coupon',
+        'festive_offer',
+        'new_kit_launch',
+        'reactivation',
+        'brand_awareness'
       ],
       default: 'lead_generation'
     },
@@ -167,6 +176,33 @@ const campaignSchema = new mongoose.Schema(
     email_template_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_templates', default: null },
     whatsapp_sender_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_senders', default: null },
     whatsapp_template_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_templates', default: null },
+    email_subject_override: { type: String, default: null },
+    email_html_override: { type: String, default: null },
+    whatsapp_body_override: { type: String, default: null },
+
+    // Dynamic audience & offer linkage
+    state_names: [{ type: String, trim: true }],
+    cluster_names: [{ type: String, trim: true }],
+    district_names: [{ type: String, trim: true }],
+    warehouse_names: [{ type: String, trim: true }],
+    industry_ids: [{ type: mongoose.Schema.Types.ObjectId }],
+    subcategory_ids: [{ type: mongoose.Schema.Types.ObjectId }],
+    kit_ids: [{ type: mongoose.Schema.Types.ObjectId }],
+    segment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_segments', default: null },
+    coupon_offer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'offer_masters', default: null },
+    coupon_code: { type: String, default: null, trim: true },
+    require_consent: { type: Boolean, default: true },
+    include_imported_leads: { type: Boolean, default: true },
+    paused_at: { type: Date, default: null },
+    cancelled_at: { type: Date, default: null },
+    last_error: { type: String, default: null },
+    delivery_summary: {
+      email_sent: { type: Number, default: 0 },
+      email_failed: { type: Number, default: 0 },
+      wa_sent: { type: Number, default: 0 },
+      wa_failed: { type: Number, default: 0 },
+      skipped_unsubscribed: { type: Number, default: 0 }
+    },
 
     // Step 7: Automation & Follow-up Rules
     followup_rules: [followupRuleSchema],

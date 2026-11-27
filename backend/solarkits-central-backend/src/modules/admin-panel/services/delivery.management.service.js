@@ -18,6 +18,11 @@ const {
 const { CompanyWarehouse, PurchaseOrder: WarehousePurchaseOrder } = require('../models/company_warehouse_db');
 const { GeoLevel2 } = require('../models/geolocation_db');
 const {
+  resolveActiveDeliveryDocSettings,
+  upsertOrderDocumentRecord,
+  syncDeliveryDocsToLinkedOrders,
+} = require('./delivery.documents.helper');
+const {
   IndustryType,
   ProjectCategory,
   ProjectSubcategory,
@@ -1325,14 +1330,32 @@ const updateTripStatus = async (deliveryId, newStatus, payload = {}, adminUser =
 
   if (newStatus === 'dispatched') {
     delivery.dispatched_at = new Date();
+    const settings = await resolveActiveDeliveryDocSettings(delivery.warehouse_id);
+    const scheduleDoc = {
+      document_code: 'DEL_DOC_SCHEDULE',
+      document_title: settings.doc_schedule?.title || 'Delivery Schedule & Dispatch Order',
+      party_type: 'system',
+      status: 'generated',
+      notes: 'System-generated dispatch manifest on dispatch.',
+      uploaded_by_role: 'system',
+      uploaded_at: new Date(),
+    };
     // Update vehicles to In Transit
     for (const v of delivery.vehicles_allocated) {
       await DeliveryVehicleFleet.findByIdAndUpdate(v.vehicle_id, { current_status: 'In Transit' });
     }
-    // Update all stops to in_transit
+    // Update all stops to in_transit and generate schedule doc
     delivery.stops.forEach(st => {
       if (st.stop_status === 'pending') st.stop_status = 'in_transit';
+      st.delivery_documents = upsertOrderDocumentRecord(st.delivery_documents, scheduleDoc);
     });
+    for (const st of delivery.stops) {
+      await syncDeliveryDocsToLinkedOrders({
+        orderId: st.order_id,
+        orderNumber: st.order_number,
+        docEntry: scheduleDoc,
+      });
+    }
   } else if (newStatus === 'loading') {
     for (const v of delivery.vehicles_allocated) {
       await DeliveryVehicleFleet.findByIdAndUpdate(v.vehicle_id, { current_status: 'Loading' });
@@ -1359,35 +1382,95 @@ const updateStopPod = async (deliveryId, stopNumber, podData, adminUser = null) 
   const stop = delivery.stops.find(s => s.stop_number === Number(stopNumber));
   if (!stop) throw new Error(`Stop number ${stopNumber} not found.`);
 
+  const now = new Date();
+  const mode = podData.verification_mode || (podData.otp_verified ? 'otp' : 'manual_photo');
+  const performerName =
+    [adminUser?.first_name, adminUser?.last_name].filter(Boolean).join(' ') ||
+    adminUser?.name ||
+    'Delivery Verification';
+
   stop.stop_status = 'pod_confirmed';
-  stop.delivered_at = new Date();
+  stop.delivered_at = now;
   stop.pod = {
-    pod_url: podData.pod_url,
-    pod_notes: podData.pod_notes || 'Delivered with POD confirmation',
-    receiver_name: podData.receiver_name,
-    receiver_phone: podData.receiver_phone,
+    ...(stop.pod?.toObject ? stop.pod.toObject() : stop.pod || {}),
+    pod_url: podData.pod_url || podData.signed_pod_photo_url || podData.site_cargo_photo_url || null,
+    pod_notes: podData.pod_notes || (mode === 'otp' ? 'Verified via Customer Delivery OTP' : 'Delivered with POD photo proof'),
+    receiver_name: podData.receiver_name || stop.recipient_name,
+    receiver_phone: podData.receiver_phone || stop.destination?.contact_phone,
     confirmed_by: adminUser?._id || null,
-    confirmed_at: new Date(),
+    confirmed_at: now,
+    verification_mode: mode,
+    otp_verified: mode === 'otp',
+    otp_code: podData.otp_code || stop.pod?.otp_code || null,
+    otp_verified_at: mode === 'otp' ? now : stop.pod?.otp_verified_at || null,
+    manual_photo_verified: mode === 'manual_photo',
+    site_cargo_photo_url: podData.site_cargo_photo_url || podData.pod_url || null,
+    signed_pod_photo_url: podData.signed_pod_photo_url || null,
+    otp_bypass_reason: podData.otp_bypass_reason || null,
   };
 
-  // Update underlying source order
+  const podDocEntry = {
+    document_code: 'DEL_DOC_POD',
+    document_title: 'Proof of Delivery (POD) & Receiving Acknowledgment',
+    party_type: 'buyer',
+    status: 'verified',
+    file_url: stop.pod.site_cargo_photo_url || stop.pod.pod_url || '',
+    secondary_file_url: stop.pod.signed_pod_photo_url || '',
+    notes: stop.pod.otp_bypass_reason || stop.pod.pod_notes || '',
+    metadata: {
+      verification_mode: mode,
+      otp_verified: mode === 'otp',
+      manual_photo_verified: mode === 'manual_photo',
+      otp_bypass_reason: stop.pod.otp_bypass_reason,
+      receiver_name: stop.pod.receiver_name,
+      receiver_phone: stop.pod.receiver_phone,
+    },
+    uploaded_by_name: performerName,
+    uploaded_by_role: mode === 'manual_photo' ? 'driver' : 'buyer',
+    uploaded_at: now,
+    verified_at: now,
+  };
+  stop.delivery_documents = upsertOrderDocumentRecord(stop.delivery_documents, podDocEntry);
+
+  const verificationPatch = {
+    verification_mode: mode,
+    otp_verified: mode === 'otp',
+    otp_verified_at: mode === 'otp' ? now : null,
+    manual_photo_verified: mode === 'manual_photo',
+    site_cargo_photo_url: stop.pod.site_cargo_photo_url || '',
+    signed_pod_photo_url: stop.pod.signed_pod_photo_url || '',
+    otp_bypass_reason: stop.pod.otp_bypass_reason || '',
+    receiver_name: stop.pod.receiver_name || '',
+    receiver_phone: stop.pod.receiver_phone || '',
+    confirmed_at: now,
+  };
+
+  // Update underlying source order & mirror docs
   if (stop.order_model === 'epc_orders') {
     await EpcOrder.findByIdAndUpdate(stop.order_id, {
       order_status: 'delivered',
-      delivered_at: new Date(),
+      delivered_at: now,
     });
   } else if (stop.order_model === 'fpo_orders') {
     await FpoOrder.findByIdAndUpdate(stop.order_id, {
       status: 'DELIVERED',
-      delivered_at: new Date(),
+      delivered_at: now,
     });
   }
+
+  await syncDeliveryDocsToLinkedOrders({
+    orderId: stop.order_id,
+    orderNumber: stop.order_number,
+    docEntry: podDocEntry,
+    verificationPatch,
+    markDelivered: stop.order_model === 'epc_orders',
+  });
 
   // Check if ALL stops have been confirmed
   const allStopsConfirmed = delivery.stops.every(s => s.stop_status === 'pod_confirmed');
   if (allStopsConfirmed) {
     delivery.status = 'pod_confirmed';
-    delivery.completed_at = new Date();
+    delivery.completed_at = now;
     // Release vehicles back to Available
     for (const v of delivery.vehicles_allocated) {
       await DeliveryVehicleFleet.findByIdAndUpdate(v.vehicle_id, {

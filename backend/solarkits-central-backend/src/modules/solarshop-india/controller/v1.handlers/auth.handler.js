@@ -523,8 +523,8 @@ const create_account = async (req, res) => {
                 company_name: name,
                 registered_email: email,
                 registered_mobile: finalWhatsapp,
-                email_marketing_consent: emailConsent,
-                whatsapp_marketing_consent: whatsappConsent,
+                email_consent: emailConsent,
+                whatsapp_consent: whatsappConsent,
                 consent_source: 'signup',
                 ip_address: req.ip || req.headers['x-forwarded-for'] || '127.0.0.1',
                 user_agent: req.headers['user-agent'] || 'Browser'

@@ -5,14 +5,16 @@ import {
   Plus, Trash2, X, Check, ExternalLink, Play, Smile, Phone, Layers, ShieldCheck,
   ArrowUp, ArrowDown, Bookmark, Save, MoveVertical, RefreshCw, CheckCircle2,
   GripVertical, ChevronsUp, ChevronsDown, Lock, ListOrdered, LayoutList, Info,
-  CornerDownRight, SlidersHorizontal, ArrowUpDown
+  CornerDownRight, SlidersHorizontal, ArrowUpDown, Upload
 } from 'lucide-react';
 import {
   DEFAULT_EXECUTIVE_CREATIVE,
   PURPOSE_BASED_PRESETS,
   DEFAULT_EMAIL_SECTIONS,
-  DEFAULT_SECTIONS_ORDER
+  DEFAULT_SECTIONS_ORDER,
+  generateResponsiveEmailHtml
 } from '../services/emailTemplateGenerator';
+import { marketingHttp, extractApiError } from '../services/marketingApi';
 
 // Rich Section Metadata with intuitive icons, color coding, and editor anchors
 const SECTION_METADATA_MAP = {
@@ -129,19 +131,67 @@ export default function EmailStudio({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
 
-  // Custom template persistence state
-  const [savedCustomTemplates, setSavedCustomTemplates] = useState(() => {
-    try {
-      const raw = localStorage.getItem('solarkits_custom_email_templates');
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Saved templates fetched directly from MongoDB (`marketing_templates`)
+  const [savedCustomTemplates, setSavedCustomTemplates] = useState([]);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveTemplateName, setSaveTemplateName] = useState('');
   const [saveTemplateCategory, setSaveTemplateCategory] = useState('Promotional');
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [uploadingAssetField, setUploadingAssetField] = useState(null);
+  const [assetUploadError, setAssetUploadError] = useState('');
+
+  const handleUploadEmailAsset = async (file, fieldKey) => {
+    if (!file) return;
+    setUploadingAssetField(fieldKey);
+    setAssetUploadError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await marketingHttp.post('/media/upload', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data?.success && res.data?.url) {
+        updateCreative({ [fieldKey]: res.data.url });
+      } else {
+        setAssetUploadError(res.data?.message || 'Upload failed.');
+      }
+    } catch (err) {
+      setAssetUploadError(extractApiError(err, 'Failed to upload image to Cloudinary'));
+    } finally {
+      setUploadingAssetField(null);
+    }
+  };
+
+  const loadDbEmailTemplates = async () => {
+    try {
+      const res = await marketingHttp.get('/templates?channel=email');
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        const mapped = res.data.data.map((t) => ({
+          id: t._id,
+          _id: t._id,
+          name: t.name,
+          category: t.type || 'marketing',
+          createdAt: t.created_at ? new Date(t.created_at).toLocaleDateString('en-IN') : '',
+          emailSubject: t.subject || '',
+          emailPreviewText: t.preview_text || '',
+          ctaText: t.blocks_json?.ctaText || 'Get SolarKits Pricing Today →',
+          destinationUrl: t.blocks_json?.destinationUrl || 'https://solarkits.in/solar-kits',
+          hasCoupon: Boolean(t.blocks_json?.hasCoupon),
+          couponCode: t.blocks_json?.couponCode || '',
+          selectedProductIds: t.blocks_json?.selectedProductIds || [],
+          ctaButtons: t.blocks_json?.ctaButtons || [],
+          customCreative: t.blocks_json?.customCreative || DEFAULT_EXECUTIVE_CREATIVE
+        }));
+        setSavedCustomTemplates(mapped);
+      }
+    } catch (err) {
+      console.warn('EmailStudio templates fetch notice:', err.message);
+    }
+  };
+
+  useEffect(() => {
+    loadDbEmailTemplates();
+  }, []);
 
   // Derive active warehouse name dynamically from Step 2
   const activeWarehouseName = useMemo(() => {
@@ -394,17 +444,15 @@ export default function EmailStudio({
     updateCreative({ ctaButtons: updated });
   };
 
-  // Custom Template Save & Delete Handlers
-  const handleSaveCreativeAsTemplate = (e) => {
+  // Custom Template Save & Delete Handlers (Persisted in MongoDB)
+  const handleSaveCreativeAsTemplate = async (e) => {
     e?.preventDefault();
     const name = saveTemplateName.trim() || creative.headline || 'Custom Executive Creative';
-    const newTemplate = {
-      id: `custom_tmpl_${Date.now()}`,
-      name,
-      category: saveTemplateCategory,
-      createdAt: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-      emailSubject: formData.emailSubject || `Special Wholesale Offer: ${dynamicKitNames}`,
-      emailPreviewText: formData.emailPreviewText || `Exclusive wholesale allocation from ${activeWarehouseName}.`,
+    const subject = formData.emailSubject || `Special Wholesale Offer: ${dynamicKitNames}`;
+    const previewText = formData.emailPreviewText || `Exclusive wholesale allocation from ${activeWarehouseName}.`;
+    const blocksPayload = {
+      emailSubject: subject,
+      emailPreviewText: previewText,
       ctaText: formData.ctaText || 'Get SolarKits Pricing Today →',
       destinationUrl: formData.destinationUrl || 'https://solarkits.in/solar-kits',
       hasCoupon: formData.hasCoupon,
@@ -417,29 +465,39 @@ export default function EmailStudio({
       }
     };
 
-    const updated = [newTemplate, ...savedCustomTemplates];
-    setSavedCustomTemplates(updated);
     try {
-      localStorage.setItem('solarkits_custom_email_templates', JSON.stringify(updated));
+      await marketingHttp.post('/templates', {
+        name,
+        channel: 'email',
+        type: 'marketing',
+        tags: [saveTemplateCategory],
+        subject,
+        preview_text: previewText,
+        html_content: generateResponsiveEmailHtml({
+          ...formData,
+          ...blocksPayload
+        }),
+        blocks_json: blocksPayload
+      });
+      await loadDbEmailTemplates();
+      setSaveSuccessMsg(`Creative "${name}" saved to MongoDB Template Library!`);
+      setTimeout(() => {
+        setSaveSuccessMsg('');
+        setShowSaveModal(false);
+        setSaveTemplateName('');
+      }, 1200);
     } catch (err) {
-      console.error('Failed to save template to localStorage', err);
+      setSaveSuccessMsg(`Failed to save template: ${err.response?.data?.message || err.message}`);
     }
-    setSaveSuccessMsg(`Creative "${name}" successfully saved to your Template Library!`);
-    setTimeout(() => {
-      setSaveSuccessMsg('');
-      setShowSaveModal(false);
-      setSaveTemplateName('');
-    }, 1200);
   };
 
-  const handleDeleteSavedTemplate = (id, e) => {
+  const handleDeleteSavedTemplate = async (id, e) => {
     e?.stopPropagation();
-    const updated = savedCustomTemplates.filter(t => t.id !== id);
-    setSavedCustomTemplates(updated);
     try {
-      localStorage.setItem('solarkits_custom_email_templates', JSON.stringify(updated));
+      await marketingHttp.delete(`/templates/${id}`);
+      setSavedCustomTemplates((prev) => prev.filter((t) => t.id !== id));
     } catch (err) {
-      console.error('Failed to update localStorage', err);
+      console.error('Failed to delete saved template', err);
     }
   };
 
@@ -999,61 +1057,18 @@ export default function EmailStudio({
                 </div>
               )}
 
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                  <AlignLeft className="w-4 h-4 text-blue-600" /> Pre-Approved Responsive Email Templates
-                </h4>
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded-full">
-                  Verified HTML
-                </span>
-              </div>
-
-              <div className="space-y-3 pt-1">
-                {[
-                  {
-                    id: 'em_hero_card',
-                    name: 'Commercial Kit Slashed Price Offer',
-                    category: 'Promotional',
-                    subject: `Special Diwali Wholesale Offer: ${dynamicKitNames} with Discount`,
-                    snippet: `Claim pre-booked subsidy approved kits from ${activeWarehouseName}.`
-                  },
-                  {
-                    id: 'em_dubai_trip',
-                    name: 'Dubai Champions EPC Reward Progress',
-                    category: 'Reward Program',
-                    subject: 'You are only 5 Kits away from Qualifying for Dubai Trip!',
-                    snippet: 'Top performing EPC partners international reward tour qualification.'
-                  },
-                  {
-                    id: 'em_reactivation',
-                    name: 'Inactive EPC Welcome Back Voucher',
-                    category: 'Reactivation',
-                    subject: `We Miss You! Exclusive ${dynamicDiscountStr} voucher for your next order`,
-                    snippet: 'Restock your commercial inventory with zero security deposit.'
-                  }
-                ].map((tmpl) => (
-                  <div
-                    key={tmpl.id}
-                    onClick={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        emailSubject: tmpl.subject,
-                        emailPreviewText: tmpl.snippet
-                      }));
-                      updateCreative({ headline: tmpl.name, subheading: tmpl.snippet });
-                      setActiveTab('custom');
-                    }}
-                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50/20 dark:hover:bg-blue-950/20 transition-all cursor-pointer space-y-1.5"
+              {savedCustomTemplates.length === 0 ? (
+                <div className="p-6 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-center space-y-2">
+                  <p className="text-xs font-semibold text-slate-500">No saved email templates in MongoDB yet.</p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('custom')}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold cursor-pointer"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900 dark:text-white">{tmpl.name}</span>
-                      <span className="text-[10px] font-semibold text-slate-400">{tmpl.category}</span>
-                    </div>
-                    <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">{tmpl.subject}</p>
-                    <p className="text-[11px] text-slate-500 line-clamp-2">{tmpl.snippet}</p>
-                  </div>
-                ))}
-              </div>
+                    Design & Save New Template
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : (
             /* Custom Email Designer */
@@ -1110,15 +1125,32 @@ export default function EmailStudio({
                       )}
                     </div>
                     <div className="flex-1 space-y-1">
-                      <input
-                        type="text"
-                        value={creative.logoUrl || ''}
-                        onChange={(e) => updateCreative({ logoUrl: e.target.value })}
-                        placeholder="https://res.cloudinary.com/.../solarkits_official_logo.png"
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-mono bg-white dark:bg-slate-900 font-medium"
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={creative.logoUrl || ''}
+                          onChange={(e) => updateCreative({ logoUrl: e.target.value })}
+                          placeholder="https://res.cloudinary.com/.../solarkits_official_logo.png"
+                          className="flex-1 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-mono bg-white dark:bg-slate-900 font-medium"
+                        />
+                        <label className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shrink-0">
+                          <Upload className="w-3 h-3" />
+                          <span>{uploadingAssetField === 'logoUrl' ? 'Uploading...' : 'Upload'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={uploadingAssetField === 'logoUrl'}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadEmailAsset(file, 'logoUrl');
+                            }}
+                          />
+                        </label>
+                      </div>
+                      {assetUploadError && <p className="text-[10px] text-rose-500 font-semibold">{assetUploadError}</p>}
                       <p className="text-[10px] text-slate-400">
-                        Official SolarKits Cloudinary CDN logo is auto-loaded. Paste your custom logo URL anytime.
+                        Upload to Cloudinary or paste your custom logo URL anytime.
                       </p>
                     </div>
                   </div>
@@ -1730,13 +1762,29 @@ export default function EmailStudio({
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">
                       Hero Banner Image URL:
                     </label>
-                    <input
-                      type="text"
-                      value={creative.heroImageUrl || ''}
-                      onChange={(e) => updateCreative({ heroImageUrl: e.target.value })}
-                      placeholder="https://..."
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={creative.heroImageUrl || ''}
+                        onChange={(e) => updateCreative({ heroImageUrl: e.target.value })}
+                        placeholder="https://..."
+                        className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono"
+                      />
+                      <label className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 shrink-0">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{uploadingAssetField === 'heroImageUrl' ? 'Uploading...' : 'Upload Banner'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingAssetField === 'heroImageUrl'}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadEmailAsset(file, 'heroImageUrl');
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 )}
                 {creative.mediaType === 'video' && (

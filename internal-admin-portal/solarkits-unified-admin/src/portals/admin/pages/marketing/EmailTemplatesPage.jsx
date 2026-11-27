@@ -1,154 +1,168 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  FaFileAlt, FaPlus, FaSearch, FaEye, FaEdit, FaTrash, FaCode, FaCheckCircle,
-  FaTag, FaMobileAlt, FaDesktop, FaTimes
+  FaFileAlt, FaPlus, FaSearch, FaEye, FaEdit, FaTrash,
+  FaTag, FaMobileAlt, FaDesktop, FaTimes, FaPaperPlane, FaExclamationTriangle, FaCheckCircle
 } from 'react-icons/fa';
 import EmailStudio from './components/EmailStudio';
-import { generateResponsiveEmailHtml, DEFAULT_EXECUTIVE_CREATIVE } from './services/emailTemplateGenerator';
+import { generateResponsiveEmailHtml } from './services/emailTemplateGenerator';
+import { marketingHttp, extractApiError } from './services/marketingApi';
+
+const DEFAULT_MODAL_DATA = {
+  templateName: '',
+  emailSubject: '',
+  emailPreviewText: '',
+  ctaText: 'View Solar Kits & Pricing',
+  destinationUrl: 'https://solarkits.in/solar-kits',
+  hasCoupon: false,
+  couponCode: '',
+  discountType: 'per_kit',
+  discountValue: 0,
+  minOrderQty: 1,
+  includeKitDetailsInCreative: true,
+  customCreative: {
+    headline: '',
+    subheading: '',
+    themeColor: '#2563eb',
+    mediaType: 'image',
+    heroImageUrl: '',
+    customBodyText: '',
+    bulletPoints: [],
+    footerDisclaimer: 'Unsubscribe anytime using the footer link.'
+  }
+};
 
 export default function EmailTemplatesPage() {
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showBuilderModal, setShowBuilderModal] = useState(false);
-  const [previewDevice, setPreviewDevice] = useState('desktop'); // 'desktop' | 'mobile'
+  const [editingId, setEditingId] = useState(null);
+  const [previewDevice, setPreviewDevice] = useState('desktop');
+  const [modalFormData, setModalFormData] = useState(DEFAULT_MODAL_DATA);
 
-  const [modalFormData, setModalFormData] = useState({
-    emailSubject: 'Special Diwali Wholesale Offer: 3kW Commercial Solar Kit at ₹1,35,000',
-    emailPreviewText: 'Exclusive wholesale allocation for verified EPC contractors.',
-    ctaText: 'Claim Kit Offer & Apply Coupon',
-    destinationUrl: 'https://solarkits.in/solar-kits/3kw-dcr',
-    hasCoupon: true,
-    couponCode: 'SOLARDIWALI5000',
-    discountType: 'per_kit',
-    discountValue: 5000,
-    minOrderQty: 25,
-    includeKitDetailsInCreative: true,
-    customCreative: {
-      headline: 'Diwali Mega B2B Solar Dhamaka',
-      subheading: 'Flat ₹5,000 Off per Kit with Zero Delay Dispatches',
-      themeColor: '#2563eb',
-      mediaType: 'image',
-      heroImageUrl: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=800&auto=format&fit=crop&q=80',
-      customBodyText: 'Exclusive wholesale allocation for verified EPC contractors. Claim pre-booked subsidy approved kits directly from certified regional depots with guaranteed zero dispatch delay.',
-      bulletPoints: [
-        'MNRE & ALMM Approved Tier-1 High Efficiency Modules',
-        'Instant Depot Dispatch within 24 Hours with Transit Insurance',
-        'Special Festive Cashback Credited Directly to B2B Wallet',
-        'End-to-End Subsidy Portal Documentation Assistance'
-      ],
-      footerDisclaimer: 'Valid for verified GST-registered EPC contractors only. Minimum order quantity applies as per Solar Shop rules.'
+  const [testTargetEmail, setTestTargetEmail] = useState('');
+  const [testingId, setTestingId] = useState(null);
+  const [banner, setBanner] = useState(null);
+
+  const loadTemplates = async () => {
+    setLoading(true);
+    try {
+      const res = await marketingHttp.get('/templates?channel=email');
+      if (res.data?.success) {
+        setTemplates(res.data.data || []);
+      }
+    } catch (err) {
+      setBanner({ type: 'error', text: extractApiError(err, 'Failed to fetch email templates') });
+    } finally {
+      setLoading(false);
     }
-  });
+  };
 
-  const [templates, setTemplates] = useState([
-    {
-      _id: 'et_qbits_solarkits_exec',
-      name: 'Solar EPCs, This One is For You (Executive Qbits & SolarKits Layout)',
-      subject: 'Solar EPCs, this one is for you - SolarKits B2B Wholesale Pricing',
-      category: 'Executive Format',
-      tags: ['Executive', 'Hybrid Backup', 'Qbits Layout', 'High Value'],
-      updated_at: new Date().toISOString().slice(0, 10),
-      sent_count: 14250,
-      open_rate: '52.4%',
-      click_rate: '24.8%',
-      html: generateResponsiveEmailHtml({
-        emailSubject: 'Solar EPCs, this one is for you - SolarKits B2B Wholesale Pricing',
-        emailPreviewText: "Quote solar plus battery backup in one system. Don't just sell solar, sell complete backup with direct depot dispatch.",
-        ctaText: 'Get SolarKits Pricing Today →',
-        destinationUrl: 'https://solarkits.in/solar-kits',
-        customCreative: DEFAULT_EXECUTIVE_CREATIVE
-      })
-    },
-    {
-      _id: 'et1',
-      name: 'Commercial Kit 3kW Diwali Slashed Price Announcement',
-      subject: 'Special Diwali Wholesale Offer: 3kW Commercial Solar Kit at ₹1,35,000',
-      category: 'Promotional',
-      tags: ['Commercial', '3kW', 'Diwali Offer'],
-      updated_at: '2026-11-14',
-      sent_count: 8420,
-      open_rate: '44.2%',
-      click_rate: '18.5%',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-          <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #263880;">
-            <h2 style="color: #263880; margin: 0;">SOLARKITS INDIA</h2>
-            <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">India's Leading Solar Kit Distribution Network</p>
-          </div>
-          <div style="padding: 24px 0;">
-            <h3 style="color: #1e293b;">Dear {{name}},</h3>
-            <p style="color: #475569; line-height: 1.6;">We are pleased to introduce our exclusive wholesale pricing on the <strong>{{kit_name}}</strong> for registered EPC partners in your cluster.</p>
-            <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
-              <span style="font-size: 14px; color: #64748b; text-decoration: line-through;">₹1,55,000</span>
-              <div style="font-size: 28px; font-weight: bold; color: #16a34a;">{{campaign_price}}</div>
-              <p style="margin: 4px 0 0 0; font-size: 12px; color: #475569;">Inclusive of GST • Bhiwandi Central Warehouse Dispatch</p>
-            </div>
-            <div style="text-align: center; margin: 25px 0;">
-              <a href="{{tracking_url}}" style="background: #263880; color: #fff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">View Kit & Order Now</a>
-            </div>
-          </div>
-        </div>
-      `
-    },
-    {
-      _id: 'et2',
-      name: 'Dubai Champions EPC Reward Program Progress Update',
-      subject: 'You are only 5 Kits away from Qualifying for the Dubai EPC Trip!',
-      category: 'Reward Program',
-      tags: ['Rewards', 'Dubai Trip', 'High Value'],
-      updated_at: '2026-11-10',
-      sent_count: 3200,
-      open_rate: '58.6%',
-      click_rate: '26.4%',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-          <h2 style="color: #d97706;">🌟 Dubai EPC Champions 2026</h2>
-          <p>Hello {{name}}, you have achieved 20 out of 25 qualifying kits. Book 5 more kits before Dec 31 to confirm your international ticket!</p>
-          <a href="{{tracking_url}}" style="background: #d97706; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px;">Check Your Reward Status</a>
-        </div>
-      `
-    },
-    {
-      _id: 'et3',
-      name: 'Inactive EPC Reactivation & Welcome Back Coupon',
-      subject: 'We Miss You! Here is an exclusive ₹10,000 voucher for your next order',
-      category: 'Reactivation',
-      tags: ['Reactivation', 'Coupon'],
-      updated_at: '2026-11-02',
-      sent_count: 5100,
-      open_rate: '38.1%',
-      click_rate: '14.2%',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px;">
-          <h3>Welcome Back to SolarKits, {{name}}!</h3>
-          <p>Use code <strong>WELCOMEBACK10K</strong> on any kit order above ₹2,00,000.</p>
-        </div>
-      `
-    }
-  ]);
+  useEffect(() => {
+    loadTemplates();
+  }, []);
 
-  const filtered = templates.filter(t =>
-    t.name.toLowerCase().includes(search.toLowerCase()) ||
-    t.subject.toLowerCase().includes(search.toLowerCase())
+  const filtered = templates.filter(
+    (t) =>
+      (t.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (t.subject || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleSaveNewTemplate = () => {
+  const openCreateModal = () => {
+    setEditingId(null);
+    setModalFormData(DEFAULT_MODAL_DATA);
+    setShowBuilderModal(true);
+  };
+
+  const openEditModal = (tmpl) => {
+    setEditingId(tmpl._id);
+    const savedBlocks = tmpl.blocks_json || {};
+    setModalFormData({
+      ...DEFAULT_MODAL_DATA,
+      ...savedBlocks,
+      templateName: tmpl.name || '',
+      emailSubject: tmpl.subject || '',
+      emailPreviewText: tmpl.preview_text || ''
+    });
+    setShowBuilderModal(true);
+  };
+
+  const handleSaveTemplate = async () => {
     const cr = modalFormData.customCreative || {};
-    const newTmpl = {
-      _id: `et_${Date.now()}`,
-      name: cr.headline || 'Custom Designed Executive Promotional Email',
-      subject: modalFormData.emailSubject || 'Solar EPCs, this one is for you - SolarKits B2B Wholesale Pricing',
-      category: 'Executive Format',
-      tags: ['Custom', 'Wholesale', 'Executive Layout'],
-      updated_at: new Date().toISOString().slice(0, 10),
-      sent_count: 0,
-      open_rate: '0%',
-      click_rate: '0%',
-      html: generateResponsiveEmailHtml(modalFormData)
-    };
-    setTemplates([newTmpl, ...templates]);
-    setShowBuilderModal(false);
+    const name = modalFormData.templateName?.trim() || cr.headline?.trim() || modalFormData.emailSubject?.trim() || 'Untitled Email Template';
+    const subject = modalFormData.emailSubject?.trim() || name;
+    const html_content = generateResponsiveEmailHtml({
+      ...modalFormData,
+      emailSubject: subject
+    });
+
+    setSaving(true);
+    setBanner(null);
+    try {
+      const payload = {
+        name,
+        channel: 'email',
+        type: 'marketing',
+        tags: modalFormData.hasCoupon ? ['Coupon', 'Promotional'] : ['Promotional'],
+        subject,
+        preview_text: modalFormData.emailPreviewText || '',
+        html_content,
+        banner_url: cr.heroImageUrl || '',
+        blocks_json: modalFormData,
+        dynamic_variables: ['{{name}}', '{{company_name}}', '{{kit_name}}', '{{campaign_price}}', '{{coupon_code}}', '{{tracking_url}}', '{{unsubscribe_url}}']
+      };
+
+      if (editingId) {
+        await marketingHttp.put(`/templates/${editingId}`, payload);
+        setBanner({ type: 'success', text: `Template "${name}" updated in MongoDB.` });
+      } else {
+        await marketingHttp.post('/templates', payload);
+        setBanner({ type: 'success', text: `Template "${name}" saved to MongoDB.` });
+      }
+      setShowBuilderModal(false);
+      setEditingId(null);
+      await loadTemplates();
+    } catch (err) {
+      setBanner({ type: 'error', text: extractApiError(err, 'Failed to save template') });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (tmpl) => {
+    if (!window.confirm(`Delete email template "${tmpl.name}"?`)) return;
+    try {
+      await marketingHttp.delete(`/templates/${tmpl._id}`);
+      setBanner({ type: 'success', text: `Deleted template "${tmpl.name}".` });
+      await loadTemplates();
+    } catch (err) {
+      setBanner({ type: 'error', text: extractApiError(err, 'Failed to delete template') });
+    }
+  };
+
+  const handleTestTemplate = async (tmpl) => {
+    const target = testTargetEmail.trim() || window.prompt('Enter recipient email to test this template:');
+    if (!target) return;
+    setTestTargetEmail(target);
+    setTestingId(tmpl._id);
+    setBanner({ type: 'info', text: `Dispatching live test of "${tmpl.name}" to ${target}...` });
+    try {
+      const res = await marketingHttp.post(`/templates/${tmpl._id}/test`, { test_target: target });
+      const data = res.data || {};
+      if (data.success) {
+        setBanner({ type: 'success', text: `Test email sent to ${target} via ${data.provider?.toUpperCase()} (MessageId: ${data.messageId})` });
+      } else {
+        setBanner({ type: 'error', text: `Template test failed (${data.errorCode || 'ERROR'}): ${data.error}` });
+      }
+      await loadTemplates();
+    } catch (err) {
+      setBanner({ type: 'error', text: extractApiError(err, 'Template test failed') });
+    } finally {
+      setTestingId(null);
+    }
   };
 
   return (
@@ -160,191 +174,216 @@ export default function EmailTemplatesPage() {
             <span>Email Creative Studio</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">Email Templates</h1>
-          <p className="text-sm text-slate-500">Design, save and manage responsive HTML promotional email templates with dynamic tokens and live previews.</p>
+          <p className="text-sm text-slate-500">Design, persist, preview, and test live responsive HTML templates in MongoDB.</p>
         </div>
 
         <button
-          onClick={() => setShowBuilderModal(true)}
+          onClick={openCreateModal}
           className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md shadow-blue-500/20"
         >
           <FaPlus /> Design New Email Template
         </button>
       </div>
 
+      {banner && (
+        <div
+          className={`p-4 rounded-2xl border text-sm font-semibold flex items-center gap-2 ${
+            banner.type === 'error'
+              ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+              : banner.type === 'info'
+              ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200'
+              : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+          }`}
+        >
+          {banner.type === 'error' ? <FaExclamationTriangle className="shrink-0" /> : <FaCheckCircle className="shrink-0" />}
+          <span>{banner.text}</span>
+        </div>
+      )}
+
       {/* Dynamic Token Quick Reference */}
       <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex flex-wrap items-center gap-2 text-xs">
         <span className="font-bold text-slate-500 uppercase mr-2 flex items-center gap-1">
           <FaTag className="w-3 h-3 text-indigo-500" /> Supported Dynamic Tags:
         </span>
-        {['{{name}}', '{{company_name}}', '{{kit_name}}', '{{coupon_code}}', '{{discount_value}}', '{{warehouse_name}}', '{{tracking_url}}'].map(tag => (
+        {['{{name}}', '{{company_name}}', '{{kit_name}}', '{{campaign_price}}', '{{coupon_code}}', '{{warehouse_name}}', '{{tracking_url}}', '{{unsubscribe_url}}'].map((tag) => (
           <code key={tag} className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-700 font-mono text-indigo-600 dark:text-indigo-400 font-bold border border-slate-200 dark:border-slate-600">
             {tag}
           </code>
         ))}
       </div>
 
-      {/* Search Bar */}
-      <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center gap-3">
-        <FaSearch className="text-slate-400 ml-2" />
-        <input
-          type="text"
-          placeholder="Search template title or subject line..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full bg-transparent border-none outline-hidden text-sm"
-        />
+      {/* Search & Test Target Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="md:col-span-2 p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center gap-3">
+          <FaSearch className="text-slate-400 ml-2" />
+          <input
+            type="text"
+            placeholder="Search template title or subject line..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-transparent border-none outline-hidden text-sm"
+          />
+        </div>
+        <div className="p-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center">
+          <input
+            type="email"
+            placeholder="Default test email (for quick Test Send)"
+            value={testTargetEmail}
+            onChange={(e) => setTestTargetEmail(e.target.value)}
+            className="w-full px-2 bg-transparent border-none outline-hidden text-xs"
+          />
+        </div>
       </div>
 
-      {/* Templates Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map(t => (
-          <div key={t._id} className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200 dark:border-slate-700 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                  {t.category}
-                </span>
-                <span className="text-[11px] text-slate-400">{t.updated_at}</span>
-              </div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 line-clamp-2">{t.name}</h3>
-              <p className="text-xs text-slate-500 line-clamp-2 mb-4">Subject: <em>"{t.subject}"</em></p>
-
-              <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 text-center mb-4">
-                <div>
-                  <div className="text-[10px] text-slate-400">Open Rate</div>
-                  <div className="text-sm font-bold text-emerald-600">{t.open_rate}</div>
+      {loading ? (
+        <div className="text-xs text-slate-400 py-10 text-center">Loading templates from MongoDB...</div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-10 border border-dashed border-slate-300 dark:border-slate-700 text-center space-y-3">
+          <div className="text-sm font-bold text-slate-600 dark:text-slate-300">No email templates found in MongoDB</div>
+          <p className="text-xs text-slate-500">Create your first reusable promotional or transactional template using Email Studio.</p>
+          <button onClick={openCreateModal} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold cursor-pointer">
+            + Create First Email Template
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filtered.map((t) => (
+            <div key={t._id} className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200 dark:border-slate-700 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                    {t.type || 'marketing'}
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {t.updated_at ? new Date(t.updated_at).toLocaleDateString('en-IN') : ''}
+                  </span>
                 </div>
-                <div>
-                  <div className="text-[10px] text-slate-400">Click Rate</div>
-                  <div className="text-sm font-bold text-indigo-600">{t.click_rate}</div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 line-clamp-2">{t.name}</h3>
+                <p className="text-xs text-slate-500 line-clamp-2 mb-4">Subject: <em>"{t.subject}"</em></p>
+
+                <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 text-center mb-4">
+                  <div>
+                    <div className="text-[10px] text-slate-400">Dispatched</div>
+                    <div className="text-sm font-bold text-emerald-600">{t.sent_count || 0}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400">Clicks</div>
+                    <div className="text-sm font-bold text-indigo-600">{t.click_count || 0}</div>
+                  </div>
+                </div>
+                {t.last_error && (
+                  <p className="text-[11px] text-rose-600 mb-2">Last Test Error: {t.last_error}</p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700 gap-2">
+                <button
+                  onClick={() => { setSelectedTemplate(t); setShowModal(true); }}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <FaEye className="text-blue-600" /> Preview
+                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleTestTemplate(t)}
+                    disabled={testingId === t._id}
+                    title="Send Test Email"
+                    className="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <FaPaperPlane className="w-3 h-3" /> {testingId === t._id ? '...' : 'Test'}
+                  </button>
+                  <button onClick={() => openEditModal(t)} title="Edit" className="p-1.5 text-slate-400 hover:text-indigo-600 cursor-pointer"><FaEdit /></button>
+                  <button onClick={() => handleDeleteTemplate(t)} title="Delete" className="p-1.5 text-slate-400 hover:text-rose-600 cursor-pointer"><FaTrash /></button>
                 </div>
               </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700">
-              <button
-                onClick={() => {
-                  setSelectedTemplate(t);
-                  setShowModal(true);
-                }}
-                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-              >
-                <FaEye className="text-blue-600" /> Preview HTML
-              </button>
-              <div className="flex items-center gap-2 text-slate-400">
-                <button title="Edit" className="p-1.5 hover:text-indigo-600 cursor-pointer"><FaEdit /></button>
-                <button title="Delete" className="p-1.5 hover:text-rose-600 cursor-pointer"><FaTrash /></button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* HTML Preview Modal with Desktop/Mobile Switcher */}
+      {/* HTML Preview Modal */}
       {showModal && selectedTemplate && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
               <div>
                 <h3 className="font-bold text-slate-900 dark:text-white text-base">{selectedTemplate.name}</h3>
-                <p className="text-xs text-slate-500">Live preview with sample dynamic variables resolved</p>
+                <p className="text-xs text-slate-500">Live preview with sample dynamic tokens interpolated</p>
               </div>
-
               <div className="flex items-center gap-2">
                 <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewDevice('desktop')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer ${
-                      previewDevice === 'desktop' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-2xs' : 'text-slate-500'
-                    }`}
-                  >
+                  <button type="button" onClick={() => setPreviewDevice('desktop')} className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer ${previewDevice === 'desktop' ? 'bg-white dark:bg-slate-800 text-blue-600' : 'text-slate-500'}`}>
                     <FaDesktop /> Desktop
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewDevice('mobile')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer ${
-                      previewDevice === 'mobile' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-2xs' : 'text-slate-500'
-                    }`}
-                  >
+                  <button type="button" onClick={() => setPreviewDevice('mobile')} className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer ${previewDevice === 'mobile' ? 'bg-white dark:bg-slate-800 text-blue-600' : 'text-slate-500'}`}>
                     <FaMobileAlt /> Mobile
                   </button>
                 </div>
-
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 font-bold cursor-pointer"
-                >
-                  ✕
-                </button>
+                <button onClick={() => setShowModal(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 font-bold cursor-pointer">✕</button>
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 flex justify-center">
               <div className={`transition-all ${previewDevice === 'mobile' ? 'w-[320px] border-4 border-slate-700 rounded-2xl p-2 bg-white' : 'w-full'}`}>
                 <div dangerouslySetInnerHTML={{
-                  __html: selectedTemplate.html
-                    .replace(/{{name}}/g, 'Aarav Patel (SunVolt Solar)')
-                    .replace(/{{kit_name}}/g, '3 kW TopCon Commercial Solar Kit')
-                    .replace(/{{campaign_price}}/g, '₹1,35,000')
-                    .replace(/{{tracking_url}}/g, 'https://solarkits.in/solar-kits/3kw-dcr')
+                  __html: (selectedTemplate.html_content || '<p>No HTML content</p>')
+                    .replace(/\{\{\s*name\s*\}\}/gi, 'Aarav Patel (Sample EPC)')
+                    .replace(/\{\{\s*company_name\s*\}\}/gi, 'SunVolt Solar Solutions')
+                    .replace(/\{\{\s*kit_name\s*\}\}/gi, '3 kW Commercial Solar Kit')
+                    .replace(/\{\{\s*(campaign_price|price)\s*\}\}/gi, '₹1,35,000')
+                    .replace(/\{\{\s*tracking_url\s*\}\}/gi, 'https://solarkits.in/solar-kits')
+                    .replace(/\{\{\s*unsubscribe_url\s*\}\}/gi, '#unsubscribe')
                 }} />
               </div>
             </div>
 
             <div className="mt-4 flex justify-end gap-3">
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-xs font-bold cursor-pointer"
-              >
-                Close Preview
-              </button>
+              <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-xs font-bold cursor-pointer">Close</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Full-Screen Design New Email Template Modal with EmailStudio */}
+      {/* EmailStudio Builder Modal */}
       {showBuilderModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-5xl w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                  <FaFileAlt className="text-blue-600" /> Email Template Studio & Visual Builder
+                  <FaFileAlt className="text-blue-600" /> {editingId ? 'Edit Email Template' : 'Email Template Studio & Visual Builder'}
                 </h3>
-                <p className="text-xs text-slate-500">Design email creatives, configure hero image/video, format body typography, embed kit specs, and preview live on desktop & mobile.</p>
+                <p className="text-xs text-slate-500">Design and save template straight into `marketing_templates`.</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowBuilderModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer"
-              >
+              <button type="button" onClick={() => setShowBuilderModal(false)} className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center cursor-pointer">
                 <FaTimes />
               </button>
             </div>
 
-            <EmailStudio
-              formData={modalFormData}
-              setFormData={setModalFormData}
-              selectedKitObjects={[]}
-            />
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Internal Template Name *</label>
+              <input
+                type="text"
+                placeholder="e.g. Q4 5kW Commercial Kit Announcement"
+                value={modalFormData.templateName}
+                onChange={(e) => setModalFormData({ ...modalFormData, templateName: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold"
+              />
+            </div>
+
+            <EmailStudio formData={modalFormData} setFormData={setModalFormData} selectedKitObjects={[]} />
 
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setShowBuilderModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-              >
+              <button type="button" onClick={() => setShowBuilderModal(false)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleSaveNewTemplate}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md cursor-pointer"
+                disabled={saving}
+                onClick={handleSaveTemplate}
+                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
               >
-                Save & Add to Email Templates
+                {saving ? 'Saving...' : editingId ? 'Update Email Template' : 'Save Email Template'}
               </button>
             </div>
           </div>

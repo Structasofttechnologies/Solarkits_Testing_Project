@@ -8,7 +8,8 @@ import {
   FaWarehouse, FaTruckLoading, FaFileInvoice, FaRedo, FaUpload,
   FaBuilding, FaExclamationTriangle, FaCopy, FaCheck, FaExternalLinkAlt,
   FaSearch, FaBoxOpen, FaRoute, FaBolt, FaUniversity,
-  FaLayerGroup, FaBoxes, FaPhone, FaInfoCircle, FaLock, FaStar
+  FaLayerGroup, FaBoxes, FaPhone, FaInfoCircle, FaLock, FaStar,
+  FaClipboardCheck, FaCamera, FaPrint, FaFileAlt, FaKey
 } from "react-icons/fa";
 import { BsArrowRepeat } from "react-icons/bs";
 import Button from "@/Components/Button";
@@ -154,6 +155,184 @@ export default function ProjectOrderStatus() {
 
   // Invoice view modal state
   const [viewingInvoice, setViewingInvoice] = useState(null);
+
+  // Delivery Documents Modal (Buyer POD & Joint Material Inspection)
+  const [docModalOrder, setDocModalOrder] = useState(null);
+  const [docData, setDocData] = useState(null);
+  const [docLoading, setDocLoading] = useState(false);
+  const [docError, setDocError] = useState("");
+  const [uploadingBuyerDoc, setUploadingBuyerDoc] = useState(false);
+  const [buyerPodFile, setBuyerPodFile] = useState(null);
+  const [buyerPodReceiverName, setBuyerPodReceiverName] = useState("");
+  const [buyerPodReceiverPhone, setBuyerPodReceiverPhone] = useState("");
+  const [buyerPodNotes, setBuyerPodNotes] = useState("");
+  const [buyerDamageFile, setBuyerDamageFile] = useState(null);
+  const [inspectionForm, setInspectionForm] = useState({
+    panel_cracks_ok: true,
+    panel_count_ok: true,
+    inverter_serial_ok: true,
+    inverter_seal_ok: true,
+    bos_cables_ok: true,
+    structure_hdg_ok: true,
+    has_damage_or_shortage: false,
+    damage_notes: "",
+    remarks: "",
+  });
+
+  const handleOpenDeliveryDocs = async (order) => {
+    setDocModalOrder(order);
+    setDocLoading(true);
+    setDocError("");
+    setBuyerPodFile(null);
+    setBuyerDamageFile(null);
+    setBuyerPodNotes("");
+    setBuyerPodReceiverName(order.delivery_address?.contact_name || "");
+    setBuyerPodReceiverPhone(order.delivery_address?.contact_phone || "");
+    try {
+      const res = await axiosInstance.get(`/india/v1/shop/orders/${order._id || order.id}/delivery-documents`);
+      if (res.data?.success && res.data.data) {
+        const payload = res.data.data;
+        setDocData(payload);
+        const inspDoc = (payload.documents || []).find((d) => d.document_code === "DEL_DOC_INSPECTION_HANDOVER");
+        if (inspDoc?.metadata && Object.keys(inspDoc.metadata).length > 0) {
+          setInspectionForm((prev) => ({
+            ...prev,
+            panel_cracks_ok: inspDoc.metadata.panel_cracks_ok ?? prev.panel_cracks_ok,
+            panel_count_ok: inspDoc.metadata.panel_count_ok ?? prev.panel_count_ok,
+            inverter_serial_ok: inspDoc.metadata.inverter_serial_ok ?? prev.inverter_serial_ok,
+            inverter_seal_ok: inspDoc.metadata.inverter_seal_ok ?? prev.inverter_seal_ok,
+            bos_cables_ok: inspDoc.metadata.bos_cables_ok ?? prev.bos_cables_ok,
+            structure_hdg_ok: inspDoc.metadata.structure_hdg_ok ?? prev.structure_hdg_ok,
+            has_damage_or_shortage: Boolean(inspDoc.metadata.has_damage_or_shortage),
+            damage_notes: inspDoc.metadata.damage_notes || "",
+            remarks: inspDoc.notes || "",
+          }));
+        } else {
+          setInspectionForm({
+            panel_cracks_ok: true,
+            panel_count_ok: true,
+            inverter_serial_ok: true,
+            inverter_seal_ok: true,
+            bos_cables_ok: true,
+            structure_hdg_ok: true,
+            has_damage_or_shortage: false,
+            damage_notes: "",
+            remarks: "",
+          });
+        }
+      } else {
+        setDocError(res.data?.message || "Unable to fetch delivery documents.");
+      }
+    } catch (err) {
+      setDocError(err.response?.data?.message || "Failed to load delivery documents.");
+    } finally {
+      setDocLoading(false);
+    }
+  };
+
+  const handleUploadBuyerPod = async (e) => {
+    e.preventDefault();
+    if (!docModalOrder || !buyerPodFile) {
+      setDocError("Please select a signed POD slip or delivery photo first.");
+      return;
+    }
+    setUploadingBuyerDoc(true);
+    setDocError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", buyerPodFile);
+      fd.append("document_code", "DEL_DOC_POD");
+      fd.append("party_type", "buyer");
+      fd.append("receiver_name", buyerPodReceiverName);
+      fd.append("receiver_phone", buyerPodReceiverPhone);
+      fd.append("notes", buyerPodNotes);
+      const res = await axiosInstance.post(
+        `/india/v1/shop/orders/${docModalOrder._id || docModalOrder.id}/delivery-documents`,
+        fd,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      if (res.data?.success) {
+        setBuyerPodFile(null);
+        setBuyerPodNotes("");
+        await handleOpenDeliveryDocs(docModalOrder);
+        fetchOrders();
+      } else {
+        setDocError(res.data?.message || "Failed to upload POD proof.");
+      }
+    } catch (err) {
+      setDocError(err.response?.data?.message || "Failed to upload buyer POD.");
+    } finally {
+      setUploadingBuyerDoc(false);
+    }
+  };
+
+  const handleSubmitInspectionChecklist = async (e) => {
+    e.preventDefault();
+    if (!docModalOrder) return;
+    setUploadingBuyerDoc(true);
+    setDocError("");
+    try {
+      const fd = new FormData();
+      if (buyerDamageFile) fd.append("file", buyerDamageFile);
+      fd.append("document_code", "DEL_DOC_INSPECTION_HANDOVER");
+      fd.append("party_type", "joint");
+      fd.append("receiver_name", buyerPodReceiverName);
+      fd.append("receiver_phone", buyerPodReceiverPhone);
+      fd.append("notes", inspectionForm.remarks || inspectionForm.damage_notes || "Material Inspection submitted by Buyer");
+      fd.append("metadata_json", JSON.stringify(inspectionForm));
+      const res = await axiosInstance.post(
+        `/india/v1/shop/orders/${docModalOrder._id || docModalOrder.id}/delivery-documents`,
+        fd,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      if (res.data?.success) {
+        setBuyerDamageFile(null);
+        await handleOpenDeliveryDocs(docModalOrder);
+        fetchOrders();
+      } else {
+        setDocError(res.data?.message || "Failed to save inspection checklist.");
+      }
+    } catch (err) {
+      setDocError(err.response?.data?.message || "Failed to submit inspection checklist.");
+    } finally {
+      setUploadingBuyerDoc(false);
+    }
+  };
+
+  const handlePrintBuyerSchedule = () => {
+    if (!docData?.order) return;
+    const ord = docData.order;
+    const st = docData.settings || {};
+    const terms = st.doc_schedule?.terms_and_conditions || [];
+    const itemsHtml = (ord.items || [])
+      .map(
+        (it, idx) =>
+          `<tr><td style="padding:6px;border:1px solid #cbd5e1;">${idx + 1}</td><td style="padding:6px;border:1px solid #cbd5e1;">${it.product_name || it.name || it.kit_name || "Solar Kit Item"}</td><td style="padding:6px;border:1px solid #cbd5e1;text-align:center;">${it.quantity || 1}</td></tr>`
+      )
+      .join("");
+    const win = window.open("", "_blank", "width=850,height=700");
+    if (!win) return;
+    win.document.write(`
+      <html><head><title>Delivery Schedule - ${ord.order_number}</title></head>
+      <body style="font-family:Arial,sans-serif;padding:24px;color:#0f172a;">
+        <div style="display:flex;justify-content:space-between;border-bottom:2px solid #0f172a;padding-bottom:12px;margin-bottom:16px;">
+          <div><h2 style="margin:0;">${st.company_name || "SolarKits"}</h2><div style="font-size:12px;color:#475569;">${st.trade_name || ""} • ${st.support_phone || ""} • ${st.support_email || ""}</div></div>
+          <div style="text-align:right;"><strong style="color:#d97706;">${st.doc_schedule?.header_title || "DELIVERY SCHEDULE & MANIFEST"}</strong><div style="font-size:12px;margin-top:4px;">Order: ${ord.order_number}</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#f8fafc;padding:12px;border:1px solid #cbd5e1;margin-bottom:16px;font-size:12px;">
+          <div><strong>Warehouse:</strong><br/>${ord.warehouse?.warehouse_name || "Central Fulfillment Hub"}<br/>${ord.warehouse?.address || ""}</div>
+          <div><strong>Consignee / Delivery Site:</strong><br/>${ord.buyer?.company_name || ord.buyer?.name || ord.delivery_address?.contact_name || ""}<br/>${ord.delivery_address?.address_line1 || ord.delivery_address?.full_address || ""} ${ord.delivery_address?.district_name || ""} ${ord.delivery_address?.state_name || ""}</div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">
+          <thead><tr style="background:#f1f5f9;"><th style="padding:6px;border:1px solid #cbd5e1;text-align:left;">#</th><th style="padding:6px;border:1px solid #cbd5e1;text-align:left;">Item / Kit</th><th style="padding:6px;border:1px solid #cbd5e1;">Qty</th></tr></thead>
+          <tbody>${itemsHtml}</tbody>
+        </table>
+        ${terms.length ? `<div style="font-size:11px;margin-bottom:16px;"><strong>Terms & Instructions:</strong><ol>${terms.map((t) => `<li>${t}</li>`).join("")}</ol></div>` : ""}
+        <script>window.onload = function() { window.print(); };</script>
+      </body></html>
+    `);
+    win.document.close();
+  };
   const [invoiceLoading, setInvoiceLoading] = useState(false);
 
   // Address edit modal state
@@ -1707,6 +1886,13 @@ export default function ProjectOrderStatus() {
                       {/* Actions & Documents Row */}
                       <div className="flex items-center justify-between pt-3 border-t border-border flex-wrap gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDeliveryDocs(order)}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl text-xs font-bold text-amber-600 dark:text-amber-400 transition-colors cursor-pointer"
+                          >
+                            <FaFileAlt /> Delivery Documents (4)
+                          </button>
                           {order.invoice?.invoice_number && (
                             <button
                               onClick={() => handleViewInvoice(order)}
@@ -2822,6 +3008,286 @@ export default function ProjectOrderStatus() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Buyer 4 Delivery Documents & Inspection Handover Modal ───────────────── */}
+      {docModalOrder && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface rounded-3xl border border-border shadow-2xl max-w-4xl w-full p-6 space-y-5 animate-in fade-in zoom-in-95 max-h-[92vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-border pb-3">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded">
+                  Live Delivery Documents & Handover Verification
+                </span>
+                <h3 className="text-lg font-black text-text-primary dark:text-white mt-1">
+                  Order #{docData?.order?.order_number || docModalOrder.order_number}
+                  {docData?.order?.delivery_number ? ` • Dispatch #${docData.order.delivery_number}` : ""}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDocModalOrder(null);
+                  setDocData(null);
+                }}
+                className="text-text-secondary hover:text-text-primary p-1.5 cursor-pointer"
+              >
+                <FaTimes size={18} />
+              </button>
+            </div>
+
+            {docError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-500 rounded-xl text-xs font-semibold">
+                {docError}
+              </div>
+            )}
+
+            {docLoading ? (
+              <div className="py-12 text-center text-xs text-text-secondary font-medium">
+                Loading live delivery documents and dispatch records...
+              </div>
+            ) : docData ? (
+              <div className="space-y-4">
+                {/* Live Handover Verification Status Banner (OTP / Manual Photo Proof) */}
+                {(docData.delivery_verification?.otp_code ||
+                  docData.delivery_verification?.otp_verified ||
+                  docData.delivery_verification?.verification_mode) && (
+                  <div className="p-3.5 rounded-2xl border border-blue-500/30 bg-blue-500/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <FaKey className="text-blue-500 text-base shrink-0" />
+                      <div>
+                        <p className="font-bold text-text-primary dark:text-white">
+                          {docData.delivery_verification?.otp_verified
+                            ? "Delivery Confirmed via Customer OTP"
+                            : docData.delivery_verification?.verification_mode === "manual_photo_fallback" ||
+                                docData.delivery_verification?.verification_mode === "manual_photo"
+                              ? "Delivery Confirmed via Photo Proof"
+                              : "Customer Delivery Handover OTP Generated"}
+                        </p>
+                        {docData.delivery_verification?.otp_bypass_reason && (
+                          <p className="text-[11px] text-amber-500 font-semibold">
+                            Bypass Reason: {docData.delivery_verification.otp_bypass_reason}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {docData.delivery_verification?.otp_code && !docData.delivery_verification?.otp_verified && (
+                      <div className="px-3 py-1.5 rounded-xl bg-surface border border-blue-500/40 font-mono font-black text-base tracking-widest text-blue-500">
+                        OTP: {docData.delivery_verification.otp_code}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(docData.documents || []).map((doc) => (
+                    <div key={doc.document_code} className="p-4 rounded-2xl border border-border bg-surface-hover/40 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] font-mono font-bold uppercase text-text-muted">
+                            {doc.document_code} • {doc.party_type}
+                          </span>
+                          <h4 className="text-sm font-black text-text-primary dark:text-white">
+                            {doc.document_title}
+                          </h4>
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            doc.status === "verified" || doc.status === "uploaded" || doc.status === "generated"
+                              ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
+                              : "bg-slate-500/15 text-text-muted border border-border"
+                          }`}
+                        >
+                          {doc.status}
+                        </span>
+                      </div>
+
+                      {doc.file_url && (
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <a
+                            href={doc.file_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary font-bold hover:underline"
+                          >
+                            <FaExternalLinkAlt size={10} /> View Uploaded Document
+                          </a>
+                          {doc.secondary_file_url && (
+                            <a
+                              href={doc.secondary_file_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-500 font-bold hover:underline"
+                            >
+                              <FaExternalLinkAlt size={10} /> View Secondary Attachment
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      {doc.document_code === "DEL_DOC_SCHEDULE" && (
+                        <div className="space-y-2 text-xs text-text-secondary">
+                          <p>
+                            Dispatch Warehouse:{" "}
+                            <strong className="text-text-primary dark:text-white">
+                              {docData.order?.warehouse?.warehouse_name || "Pending Allocation"}
+                            </strong>
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handlePrintBuyerSchedule}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold cursor-pointer"
+                          >
+                            <FaPrint size={11} /> Print / Save Delivery Schedule PDF
+                          </button>
+                        </div>
+                      )}
+
+                      {doc.document_code === "DEL_DOC_DRIVER_ACCEPTANCE" && (
+                        <div className="text-xs text-text-secondary space-y-1">
+                          {docData.order?.assigned_vehicle?.vehicle_number ? (
+                            <>
+                              <p>Vehicle: <strong>{docData.order.assigned_vehicle.vehicle_number}</strong></p>
+                              {docData.order.assigned_vehicle.driver_name && (
+                                <p>Driver: <strong>{docData.order.assigned_vehicle.driver_name}</strong></p>
+                              )}
+                            </>
+                          ) : (
+                            <p className="italic">Driver / LR details will appear automatically once dispatched by Warehouse.</p>
+                          )}
+                        </div>
+                      )}
+
+                      {doc.document_code === "DEL_DOC_POD" && (
+                        <form onSubmit={handleUploadBuyerPod} className="space-y-2.5 pt-2 border-t border-border/70">
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              placeholder="Receiver Name"
+                              value={buyerPodReceiverName}
+                              onChange={(e) => setBuyerPodReceiverName(e.target.value)}
+                              className="px-2.5 py-1.5 text-xs bg-surface border border-border rounded-lg text-text-primary"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Receiver Phone"
+                              value={buyerPodReceiverPhone}
+                              onChange={(e) => setBuyerPodReceiverPhone(e.target.value)}
+                              className="px-2.5 py-1.5 text-xs bg-surface border border-border rounded-lg text-text-primary"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="POD Notes / Remarks (Optional)"
+                            value={buyerPodNotes}
+                            onChange={(e) => setBuyerPodNotes(e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-xs bg-surface border border-border rounded-lg text-text-primary"
+                          />
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label className="flex-1 px-3 py-1.5 border border-dashed border-border hover:border-primary rounded-lg text-xs text-center cursor-pointer bg-surface font-semibold text-primary flex items-center justify-center gap-1.5">
+                              <FaCamera size={11} />
+                              <span>{buyerPodFile ? buyerPodFile.name : "Choose Signed POD Photo / Slip"}</span>
+                              <input
+                                type="file"
+                                accept="image/*,.pdf"
+                                className="hidden"
+                                onChange={(e) => setBuyerPodFile(e.target.files?.[0] || null)}
+                              />
+                            </label>
+                            <button
+                              type="submit"
+                              disabled={uploadingBuyerDoc || !buyerPodFile}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold disabled:opacity-50 cursor-pointer flex items-center gap-1"
+                            >
+                              <FaUpload size={10} /> Upload POD
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
+                      {doc.document_code === "DEL_DOC_INSPECTION_HANDOVER" && (
+                        <form onSubmit={handleSubmitInspectionChecklist} className="space-y-2.5 pt-2 border-t border-border/70 text-xs">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            {[
+                              { key: "panel_cracks_ok", label: "Panels Intact (No Cracks)", enabled: docData.settings?.doc_inspection_handover?.check_panel_cracks !== false },
+                              { key: "panel_count_ok", label: "Panel Quantity Matched", enabled: docData.settings?.doc_inspection_handover?.check_panel_count !== false },
+                              { key: "inverter_serial_ok", label: "Inverter Serial Verified", enabled: docData.settings?.doc_inspection_handover?.check_inverter_serial !== false },
+                              { key: "inverter_seal_ok", label: "Inverter Seal Intact", enabled: docData.settings?.doc_inspection_handover?.check_inverter_seal !== false },
+                              { key: "bos_cables_ok", label: "BOS & Cables Complete", enabled: docData.settings?.doc_inspection_handover?.check_bos_cables_earthing !== false },
+                              { key: "structure_hdg_ok", label: "Mounting Structure OK", enabled: docData.settings?.doc_inspection_handover?.check_structure_hdg !== false },
+                            ]
+                              .filter((item) => item.enabled)
+                              .map((item) => (
+                                <label key={item.key} className="flex items-center gap-1.5 cursor-pointer text-[11px] text-text-primary dark:text-white">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(inspectionForm[item.key])}
+                                    onChange={(e) =>
+                                      setInspectionForm((prev) => ({ ...prev, [item.key]: e.target.checked }))
+                                    }
+                                    className="rounded text-emerald-600"
+                                  />
+                                  <span>{item.label}</span>
+                                </label>
+                              ))}
+                          </div>
+
+                          {docData.settings?.doc_inspection_handover?.allow_damage_shortage_logging !== false && (
+                            <div className="space-y-1.5">
+                              <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-bold text-amber-500">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(inspectionForm.has_damage_or_shortage)}
+                                  onChange={(e) =>
+                                    setInspectionForm((prev) => ({
+                                      ...prev,
+                                      has_damage_or_shortage: e.target.checked,
+                                    }))
+                                  }
+                                />
+                                <span>Report Transit Damage or Shortage</span>
+                              </label>
+                              {inspectionForm.has_damage_or_shortage && (
+                                <textarea
+                                  rows={2}
+                                  placeholder="Describe damaged/short items & serial numbers..."
+                                  value={inspectionForm.damage_notes}
+                                  onChange={(e) =>
+                                    setInspectionForm((prev) => ({ ...prev, damage_notes: e.target.value }))
+                                  }
+                                  className="w-full p-2 text-xs bg-surface border border-border rounded-lg text-text-primary"
+                                />
+                              )}
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label className="flex-1 px-2.5 py-1.5 border border-dashed border-border hover:border-primary rounded-lg text-[11px] text-center cursor-pointer bg-surface font-semibold text-primary">
+                              {buyerDamageFile ? buyerDamageFile.name : "Attach Inspection / Damage Photo (Optional)"}
+                              <input
+                                type="file"
+                                accept="image/*,.pdf"
+                                className="hidden"
+                                onChange={(e) => setBuyerDamageFile(e.target.files?.[0] || null)}
+                              />
+                            </label>
+                            <button
+                              type="submit"
+                              disabled={uploadingBuyerDoc}
+                              className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-bold disabled:opacity-50 cursor-pointer flex items-center gap-1"
+                            >
+                              <FaClipboardCheck size={11} /> Save Checklist
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}

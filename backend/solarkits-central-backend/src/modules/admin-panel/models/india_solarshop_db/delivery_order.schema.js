@@ -102,7 +102,46 @@ const deliveryStopSchema = new mongoose.Schema({
     receiver_phone: { type: String, default: null },
     confirmed_by: { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
     confirmed_at: { type: Date, default: null },
+    // Dual Verification Mode (OTP vs Manual Photo Verification)
+    verification_mode: {
+      type: String,
+      enum: ['otp', 'manual_photo', 'both', 'none'],
+      default: 'none',
+    },
+    otp_verified: { type: Boolean, default: false },
+    otp_code: { type: String, default: null },
+    otp_verified_at: { type: Date, default: null },
+    manual_photo_verified: { type: Boolean, default: false },
+    site_cargo_photo_url: { type: String, default: null },
+    signed_pod_photo_url: { type: String, default: null },
+    odometer_photo_url: { type: String, default: null },
+    otp_bypass_reason: { type: String, default: null },
   },
+  // Dynamic Delivery Documents Attached to this Stop
+  delivery_documents: [{
+    document_code: { type: String, required: true },
+    document_title: { type: String, required: true },
+    party_type: {
+      type: String,
+      enum: ['system', 'driver', 'buyer', 'joint'],
+      default: 'system',
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'generated', 'uploaded', 'verified', 'rejected'],
+      default: 'pending',
+    },
+    generated_pdf_url: { type: String, default: null },
+    uploaded_file_url: { type: String, default: null },
+    uploaded_photos: [{ type: String }],
+    signatory_name: { type: String, default: null },
+    signatory_phone: { type: String, default: null },
+    signature_data_url: { type: String, default: null },
+    checklist_data: { type: mongoose.Schema.Types.Mixed, default: {} },
+    verified_by: { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
+    verified_at: { type: Date, default: null },
+    created_at: { type: Date, default: Date.now },
+  }],
   // Stop-Wise Internal Cost & Margin Allocation
   customer_delivery_charge: {
     type: Number,

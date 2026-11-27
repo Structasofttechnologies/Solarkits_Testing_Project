@@ -1034,6 +1034,96 @@ exports.confirm_stop_pod = async (req, res) => {
   }
 };
 
+exports.send_stop_otp = async (req, res) => {
+  try {
+    const { id, stopNumber } = req.params;
+    const delivery = await DeliveryOrder.findById(id);
+    if (!delivery) {
+      return res.status(404).json({ status: 'error', message: 'Delivery Trip not found.' });
+    }
+    const stop = delivery.stops.find((s) => s.stop_number === Number(stopNumber));
+    if (!stop) {
+      return res.status(404).json({ status: 'error', message: `Stop ${stopNumber} not found.` });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    if (!stop.pod) stop.pod = {};
+    stop.pod.otp_code = otp;
+    await delivery.save();
+
+    return res.status(200).json({
+      status: 'success',
+      message: `6-digit delivery OTP generated for ${stop.recipient_name || 'Buyer'} (${stop.destination?.contact_phone || 'Registered Contact'}).`,
+      otp_preview: otp,
+    });
+  } catch (err) {
+    console.error('send_stop_otp error:', err);
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+exports.verify_stop_dual = async (req, res) => {
+  try {
+    const { id, stopNumber } = req.params;
+    const {
+      mode, // 'otp' | 'manual_photo'
+      otp_code,
+      site_cargo_photo_url,
+      signed_pod_photo_url,
+      otp_bypass_reason,
+      receiver_name,
+      receiver_phone,
+      pod_notes,
+    } = req.body;
+
+    if (mode === 'otp') {
+      if (!otp_code || String(otp_code).trim().length < 4) {
+        return res.status(400).json({ status: 'error', message: 'Valid OTP code is required.' });
+      }
+      const delivery = await DeliveryOrder.findById(id).lean();
+      if (!delivery) return res.status(404).json({ status: 'error', message: 'Delivery Trip not found.' });
+      const stop = delivery.stops.find((s) => s.stop_number === Number(stopNumber));
+      if (!stop) return res.status(404).json({ status: 'error', message: `Stop ${stopNumber} not found.` });
+      if (stop.pod?.otp_code && String(stop.pod.otp_code).trim() !== String(otp_code).trim()) {
+        return res.status(400).json({ status: 'error', message: 'Invalid OTP code. Please verify with buyer or switch to Manual Photo Proof.' });
+      }
+    } else if (mode === 'manual_photo') {
+      if (!site_cargo_photo_url && !signed_pod_photo_url) {
+        return res.status(400).json({ status: 'error', message: 'At least one photo (Cargo or Signed POD Slip) is required.' });
+      }
+    } else {
+      return res.status(400).json({ status: 'error', message: "mode must be 'otp' or 'manual_photo'" });
+    }
+
+    const updated = await deliveryService.updateStopPod(
+      id,
+      stopNumber,
+      {
+        verification_mode: mode,
+        otp_verified: mode === 'otp',
+        otp_code: otp_code || null,
+        pod_url: signed_pod_photo_url || site_cargo_photo_url || null,
+        site_cargo_photo_url: site_cargo_photo_url || null,
+        signed_pod_photo_url: signed_pod_photo_url || null,
+        otp_bypass_reason: otp_bypass_reason || null,
+        receiver_name,
+        receiver_phone,
+        pod_notes: pod_notes || (mode === 'otp' ? 'Verified via OTP' : otp_bypass_reason || 'Verified via Photo Proof'),
+      },
+      req.user
+    );
+
+    return res.status(200).json({
+      status: 'success',
+      data: updated,
+      message: `Stop ${stopNumber} verified via ${mode === 'otp' ? 'OTP' : 'Manual Photo Proof'}.`,
+    });
+  } catch (err) {
+    console.error('verify_stop_dual error:', err);
+    return res.status(400).json({ status: 'error', message: err.message });
+  }
+};
+
 // ─── 12. SANITIZED PUBLIC/CUSTOMER TRACKING ───────────────────────────────────
 exports.get_public_tracking = async (req, res) => {
   try {

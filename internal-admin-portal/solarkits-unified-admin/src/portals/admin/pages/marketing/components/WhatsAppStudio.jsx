@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Type, Image as ImageIcon, Video, Mic, FileText, ShoppingBag, LayoutGrid, Smile,
   Variable, Tag, Link2, CreditCard, MapPin, Phone, MessageCircle, Globe,
-  Wifi, CheckCheck, Smartphone, Monitor, Plus, Trash2, X, ChevronDown, Sparkles
+  Wifi, CheckCheck, Smartphone, Monitor, Plus, Trash2, X, ChevronDown, Sparkles, Upload
 } from 'lucide-react';
+import { marketingHttp, extractApiError } from '../services/marketingApi';
 
 const DYNAMIC_VARS = [
   { key: 'first_name', label: 'First Name', preview: 'Aarav' },
@@ -28,6 +29,49 @@ export default function WhatsAppStudio({
   const [showVarDropdown, setShowVarDropdown] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
+  const [savedWaTemplates, setSavedWaTemplates] = useState([]);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    marketingHttp
+      .get('/templates?channel=whatsapp')
+      .then((res) => {
+        if (!active) return;
+        const rows = res.data?.data || res.data?.templates || [];
+        setSavedWaTemplates(rows);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  const handleUploadWaMedia = async (file, mediaKind = 'image') => {
+    if (!file) return;
+    setUploadingMedia(true);
+    setUploadError(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await marketingHttp.post('/media/upload', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data?.success && res.data?.url) {
+        updateWa({
+          mediaType: mediaKind,
+          mediaDetails: {
+            url: res.data.url,
+            name: res.data.original_name || file.name,
+            size: res.data.size ? `${(res.data.size / (1024 * 1024)).toFixed(2)} MB` : 'Uploaded'
+          }
+        });
+      }
+    } catch (err) {
+      setUploadError(extractApiError(err, 'Failed to upload WhatsApp media'));
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
 
   // Derive dynamic warehouse name from Step 2
   const activeWarehouseName = useMemo(() => {
@@ -368,35 +412,35 @@ export default function WhatsAppStudio({
               </div>
 
               <div className="space-y-3 pt-2">
-                {[
-                  {
-                    id: 'wa_wholesale_flash',
-                    name: 'Wholesale Kit Slashed Price Offer',
-                    body: `⚡ *Exclusive EPC Wholesale Alert!*\n\nHello {{first_name}},\n\nWe have slashed bulk wholesale pricing for ${dynamicKitNames} at your nearest ${activeWarehouseName}.\n\nUse promo code *{{coupon_code}}* on order booking to claim {{discount_value}}.\n\nClick below to reserve your warehouse allocation:`
-                  },
-                  {
-                    id: 'wa_epc_welcome',
-                    name: 'New EPC Onboarding Voucher',
-                    body: `👋 *Welcome to SolarKits India Partner Network!*\n\nDear {{first_name}},\n\nRegister your EPC firm {{company_name}} today and claim a flat {{discount_value}} Welcome Voucher.\n\nCoupon Code: *{{coupon_code}}* from ${activeWarehouseName}.`
-                  }
-                ].map((tmpl) => (
-                  <div
-                    key={tmpl.id}
-                    onClick={() => {
-                      updateWa({ body: tmpl.body });
-                      setActiveTab('write');
-                    }}
-                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:bg-emerald-50/20 dark:hover:bg-emerald-950/20 transition-all cursor-pointer space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900 dark:text-white">{tmpl.name}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                        Approved
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{tmpl.body}</p>
+                {savedWaTemplates.length === 0 ? (
+                  <div className="p-6 text-center rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-500">
+                    No saved WhatsApp templates in MongoDB yet. Create or approve one in WhatsApp Templates first, or use the Message Builder tab.
                   </div>
-                ))}
+                ) : (
+                  savedWaTemplates.map((tmpl) => (
+                    <div
+                      key={tmpl._id}
+                      onClick={() => {
+                        updateWa({ body: tmpl.body_text || tmpl.body || '' });
+                        setFormData((prev) => ({
+                          ...prev,
+                          selectedWhatsAppTemplateId: String(tmpl._id),
+                          templateMode: 'preset'
+                        }));
+                        setActiveTab('write');
+                      }}
+                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:bg-emerald-50/20 dark:hover:bg-emerald-950/20 transition-all cursor-pointer space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white">{tmpl.name}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                          {tmpl.status || 'draft'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{tmpl.body_text || 'Template body'}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           ) : (
@@ -475,6 +519,12 @@ export default function WhatsAppStudio({
                   </span>
                 </div>
 
+                {uploadError && (
+                  <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-[11px] text-rose-700 dark:text-rose-300 font-semibold">
+                    {uploadError}
+                  </div>
+                )}
+
                 {/* Attached Media Chip */}
                 {wa.mediaType && wa.mediaType !== 'none' && (
                   <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700/60 border border-slate-200 dark:border-slate-600 flex items-center justify-between">
@@ -492,6 +542,22 @@ export default function WhatsAppStudio({
                     </div>
 
                     <div className="flex items-center gap-1">
+                      {(wa.mediaType === 'image' || wa.mediaType === 'document') && (
+                        <label className="text-[11px] text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 cursor-pointer flex items-center gap-1 mr-1">
+                          <Upload className="w-3 h-3" />
+                          <span>{uploadingMedia ? 'Uploading...' : 'Upload'}</span>
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept={wa.mediaType === 'image' ? 'image/*' : '.pdf,application/pdf'}
+                            disabled={uploadingMedia}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadWaMedia(file, wa.mediaType);
+                            }}
+                          />
+                        </label>
+                      )}
                       {wa.mediaType === 'product' && (
                         <button
                           type="button"

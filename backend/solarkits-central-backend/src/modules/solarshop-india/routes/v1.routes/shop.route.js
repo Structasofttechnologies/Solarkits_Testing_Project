@@ -34,6 +34,8 @@ const {
   create_epc_offline_checkout,
   resubmit_epc_offline_payment,
   get_epc_order_invoice_data,
+  get_epc_order_delivery_documents,
+  upload_epc_order_delivery_document,
   get_epc_po_allocations,
   submit_epc_po_receipt,
   verify_epc_po_payment,
@@ -126,6 +128,8 @@ router.get("/checkout/warehouse-capacity-check", optional_auth, checkout_warehou
 router.post("/offline-checkout/create", verify_auth, epcReceiptUpload, create_epc_offline_checkout);
 router.post("/offline-checkout/:id/resubmit", verify_auth, epcReceiptUpload, resubmit_epc_offline_payment);
 router.get("/orders/:id/invoice-data", verify_auth, get_epc_order_invoice_data);
+router.get("/orders/:id/delivery-documents", verify_auth, get_epc_order_delivery_documents);
+router.post("/orders/:id/delivery-documents", verify_auth, epcReceiptUpload, upload_epc_order_delivery_document);
 // Product-wise payment milestone routes
 router.get("/payment-milestones/resolve", resolve_payment_milestones);
 router.post("/orders/:id/milestone-payment", verify_auth, epcReceiptUpload, submit_epc_milestone_payment);
