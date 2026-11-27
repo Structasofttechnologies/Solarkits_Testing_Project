@@ -259,6 +259,24 @@ exports.create_cluster = async (req, res) => {
     const stateDoc = await StateLevel.findById(state_id).lean();
     const state_name = stateDoc ? stateDoc.name : 'Unknown State';
 
+    // Warehouse-First Prerequisite: A regional warehouse must exist for this state before creating clusters
+    const { CompanyWarehouse } = require('../models/company_warehouse_db');
+    const existingWarehouse = await CompanyWarehouse.findOne({
+      level_1: state_id,
+      deleted_at: null,
+    }).lean();
+
+    if (!existingWarehouse) {
+      return res.status(400).json({
+        status: 'error',
+        message: `A regional warehouse must be established for ${state_name} before creating clusters. Please create a warehouse for this state first.`
+      });
+    }
+
+    // Auto-inherit warehouse staff if warehouse already has staff assigned
+    const warehouseStaff = existingWarehouse.assigned_staff_users || [];
+    const isStaffed = warehouseStaff.length > 0;
+
     const districtDocs = await DistrictLevel.find({ _id: { $in: district_ids } }).lean();
     const district_names = districtDocs.map(d => d.name);
 
@@ -295,6 +313,8 @@ exports.create_cluster = async (req, res) => {
       assigned_franchisee_id: assigned_franchisee_id || null,
       primary_bde_id: primary_bde_id || null,
       support_bde_ids: Array.isArray(support_bde_ids) ? support_bde_ids : [],
+      assigned_staff_users: warehouseStaff,
+      staffing_status: isStaffed ? 'staffed' : 'unassigned',
       setup_fee_config: setup_fee_config || {
         setup_fee: 100000,
         agreement_duration_years: agreement_period_years || 2,
@@ -310,6 +330,34 @@ exports.create_cluster = async (req, res) => {
     });
 
     await cluster.save();
+
+    // Automatically link new cluster to the regional warehouse mapping
+    try {
+      const { WarehouseClusterMapping } = require('../models/core_db');
+      await WarehouseClusterMapping.updateMany(
+        {
+          $or: [
+            { warehouse_id: existingWarehouse._id },
+            { warehouse_code: existingWarehouse.warehouse_code }
+          ],
+          deleted_at: null
+        },
+        {
+          $addToSet: {
+            franchise_cluster_ids: cluster._id,
+            franchise_clusters: {
+              cluster_id: cluster._id,
+              cluster_code: cluster.cluster_code,
+              cluster_name: cluster.cluster_name,
+              state_name: cluster.state_name,
+              district_names: cluster.district_names
+            }
+          }
+        }
+      );
+    } catch (mapErr) {
+      console.warn('Note: Mapping sync on cluster creation:', mapErr.message);
+    }
 
     if (goal_config) {
       try {

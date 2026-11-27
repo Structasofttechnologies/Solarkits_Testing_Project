@@ -45,6 +45,7 @@ import {
 import * as XLSX from 'xlsx';
 import api from '../services/api';
 import { useBdeAuth } from '../context/BdeAuthContext';
+import DynamicBulkUploadModal from '../components/bulk-upload/DynamicBulkUploadModal';
 
 const STAGES = [
   'New',
@@ -256,6 +257,8 @@ export default function BdeEpcLeads() {
   const [companyAssignedCount, setCompanyAssignedCount] = useState(0);
   const [territory, setTerritory] = useState(null);
   const [territories, setTerritories] = useState([]);
+  const [clusterSummary, setClusterSummary] = useState([]);
+  const [clusterFilter, setClusterFilter] = useState('all');
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -362,6 +365,7 @@ export default function BdeEpcLeads() {
           search,
           status: stageFilter,
           district: districtFilter,
+          cluster_name: clusterFilter !== 'all' ? clusterFilter : undefined,
           epc_type: epcTypeFilter !== 'all' ? epcTypeFilter : undefined,
           limit: 100,
         },
@@ -370,6 +374,7 @@ export default function BdeEpcLeads() {
         setLeads(res.data.data || []);
         setStageCounts(res.data.stage_counts || {});
         setEpcTypeCounts(res.data.epc_type_counts || {});
+        setClusterSummary(res.data.cluster_summary || []);
         setTotalAllCount(res.data.total_all_leads || res.data.pagination?.total || 0);
         setCompanyAssignedCount(res.data.company_assigned_count || 0);
 
@@ -393,7 +398,7 @@ export default function BdeEpcLeads() {
     } finally {
       setLoading(false);
     }
-  }, [search, stageFilter, districtFilter, epcTypeFilter, fetchActiveEpcTypes]);
+  }, [search, stageFilter, districtFilter, clusterFilter, epcTypeFilter, fetchActiveEpcTypes]);
 
   useEffect(() => {
     fetchLeads();
@@ -1488,6 +1493,40 @@ export default function BdeEpcLeads() {
           </div>
         </div>
 
+        {/* Cluster Groups Filter Chips */}
+        {clusterSummary.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+              Clusters:
+            </span>
+            <button
+              type="button"
+              onClick={() => setClusterFilter('all')}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition ${
+                clusterFilter === 'all'
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              All Clusters
+            </button>
+            {clusterSummary.map((c) => (
+              <button
+                key={c.cluster_name}
+                type="button"
+                onClick={() => setClusterFilter(clusterFilter === c.cluster_name ? 'all' : c.cluster_name)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition ${
+                  clusterFilter === c.cluster_name
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-indigo-50/70 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+                }`}
+              >
+                {c.cluster_name} ({c.count})
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* 10-Stage Quick Filter Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
           <button
@@ -1633,6 +1672,11 @@ export default function BdeEpcLeads() {
                     <td className="px-4 py-3.5">
                       <div className="font-bold text-slate-800">{lead.district_name}</div>
                       <div className="text-slate-500 text-[11px]">{lead.state_name}</div>
+                      {lead.cluster_name && (
+                        <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold">
+                          {lead.cluster_name}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3.5">
                       {lead.gst_number ? (
@@ -1823,834 +1867,13 @@ export default function BdeEpcLeads() {
       )}
 
       {/* MODAL: Bulk Upload EPC Leads */}
-      {bulkModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shadow-xs">
-                  <FileSpreadsheet className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-black text-slate-900">Bulk Upload EPC Leads</h3>
-                    <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
-                      100 – 200+ Leads Support
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Import contractor leads in bulk via Excel or CSV with dynamic batch defaults and live data correction
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setBulkModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* If Bulk Upload Completed (Result View) */}
-            {bulkResult ? (
-              <div className="flex-1 overflow-y-auto p-6 sm:p-8 flex flex-col items-center justify-center text-center">
-                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
-                  <CheckCircle2 className="w-8 h-8" />
-                </div>
-                <h4 className="text-xl font-black text-slate-900 mb-1">Bulk Lead Import Complete!</h4>
-                <p className="text-sm text-slate-500 mb-6 max-w-md">
-                  Your EPC contractor prospects have been imported into the pipeline with territory assignment and follow-up tracking.
-                </p>
-
-                <div className="grid grid-cols-3 gap-4 w-full max-w-lg mb-6">
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
-                    <div className="text-xs font-bold text-slate-500">Total Uploaded</div>
-                    <div className="text-2xl font-black text-slate-900 mt-1">{bulkResult.total_received || 0}</div>
-                  </div>
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
-                    <div className="text-xs font-bold text-emerald-700">Successfully Created</div>
-                    <div className="text-2xl font-black text-emerald-600 mt-1">{bulkResult.created_count || 0}</div>
-                  </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
-                    <div className="text-xs font-bold text-amber-700">Skipped (Duplicate)</div>
-                    <div className="text-2xl font-black text-amber-600 mt-1">{bulkResult.skipped_count || 0}</div>
-                  </div>
-                </div>
-
-                {bulkResult.skipped_details && bulkResult.skipped_details.length > 0 && (
-                  <div className="w-full max-w-lg bg-amber-50/70 border border-amber-200 rounded-2xl p-4 text-left mb-6 max-h-48 overflow-y-auto">
-                    <div className="text-xs font-bold text-amber-900 mb-2 flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      Skipped Rows ({bulkResult.skipped_details.length}):
-                    </div>
-                    <ul className="text-[11px] text-amber-800 space-y-1 list-disc list-inside">
-                      {bulkResult.skipped_details.map((s, idx) => (
-                        <li key={idx}>
-                          <span className="font-semibold">{s.company_name || 'Row ' + s.row}</span> ({s.mobile_number}): {s.reason}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => {
-                      setBulkResult(null);
-                      setParsedRows([]);
-                    }}
-                    className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition text-xs"
-                  >
-                    Upload Another Batch
-                  </button>
-                  <button
-                    onClick={() => setBulkModalOpen(false)}
-                    className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition text-xs shadow-xs"
-                  >
-                    Done & View EPC Pipeline
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* Main Bulk Upload Work Area */
-              <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 text-xs">
-                {/* 1. Dynamic CSV Field Selector (Checkboxes) */}
-                <div className="border border-indigo-200 bg-indigo-50/40 rounded-2xl p-4 transition-all">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-indigo-100">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black shadow-xs text-xs">
-                        <Check className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-slate-900 text-xs">
-                            Step 1: Choose Fields to Extract from CSV / Excel
-                          </span>
-                          <span className="text-[10px] font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
-                            {Object.values(selectedBulkFields).filter(Boolean).length} of {BULK_FIELD_OPTIONS.length} Fields Active
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 font-normal">
-                          Tick the checkboxes for columns present in your file. Unchecked fields are skipped or take default values below.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Quick Presets */}
-                    <div className="flex items-center flex-wrap gap-1">
-                      <span className="text-[10px] font-bold text-slate-400 mr-1 uppercase tracking-wider">Presets:</span>
-                      <button
-                        type="button"
-                        onClick={() => applyBulkPreset('with_gst')}
-                        className="px-2 py-1 bg-white hover:bg-indigo-100 hover:text-indigo-800 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold transition shadow-xs"
-                      >
-                        With GST (Commercial)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyBulkPreset('no_gst')}
-                        className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold transition shadow-xs"
-                      >
-                        Basic (No GST)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyBulkPreset('minimal')}
-                        className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold transition shadow-xs"
-                      >
-                        Name + Mobile
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyBulkPreset('all')}
-                        className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold transition shadow-xs"
-                      >
-                        All Fields
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Checkbox Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pt-3">
-                    {BULK_FIELD_OPTIONS.map((field) => {
-                      const isChecked = selectedBulkFields[field.key];
-                      const isRequired = field.required;
-
-                      return (
-                        <label
-                          key={field.key}
-                          onClick={() => !isRequired && handleToggleBulkField(field.key)}
-                          className={`relative flex items-start gap-2.5 p-2.5 rounded-xl border transition select-none ${isRequired
-                            ? 'bg-white border-slate-200 cursor-not-allowed opacity-90'
-                            : isChecked
-                              ? field.key === 'gst_number'
-                                ? 'bg-amber-50/80 border-amber-300 shadow-xs cursor-pointer'
-                                : 'bg-white border-indigo-300 shadow-xs cursor-pointer hover:border-indigo-400'
-                              : 'bg-slate-50/60 border-slate-200 text-slate-400 cursor-pointer hover:bg-white hover:border-slate-300'
-                            }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            disabled={isRequired}
-                            onChange={() => {}}
-                            className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 shrink-0"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span
-                                className={`font-bold text-[11px] truncate ${isChecked ? 'text-slate-900' : 'text-slate-500'}`}
-                              >
-                                {field.label}
-                              </span>
-                              {field.tag && (
-                                <span
-                                  className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${field.tagColor}`}
-                                >
-                                  {field.tag}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[10px] text-slate-400 truncate mt-0.5">{field.desc}</p>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 2. Dynamic Batch Defaults (Fallback for Missing / Unticked Fields) */}
-                <div className="border border-blue-200/80 bg-blue-50/40 rounded-2xl p-4 transition-all">
-                  <button
-                    type="button"
-                    onClick={() => setShowBulkDefaults(!showBulkDefaults)}
-                    className="w-full flex items-center justify-between text-left group"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-blue-600" />
-                      <div>
-                        <span className="font-black text-slate-900 text-xs group-hover:text-blue-700 transition">
-                          Step 2: Dynamic Batch Defaults (Fallback for Missing / Unticked Fields)
-                        </span>
-                        <p className="text-[11px] text-slate-500 font-normal">
-                          Territory, classification, and source automatically applied when file rows omit these fields or when fields are unchecked above
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-blue-600 font-bold text-xs bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-xs">
-                      <span>{showBulkDefaults ? 'Collapse' : 'Configure Defaults'}</span>
-                      {showBulkDefaults ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    </div>
-                  </button>
-
-                  {showBulkDefaults && (
-                    <div className="mt-4 pt-4 border-t border-blue-100 grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
-                      {/* State */}
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Default State *</label>
-                        {territories.length > 1 ? (
-                          <select
-                            value={bulkSettings.state_name}
-                            onChange={(e) => handleBulkStateSelect(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500"
-                          >
-                            {territories.map((t) => (
-                              <option key={t.id || t.state_id || t.state_name} value={t.state_name}>
-                                {t.state_name} ({t.district_names?.length || 0} Districts)
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type="text"
-                            readOnly
-                            disabled
-                            value={bulkSettings.state_name}
-                            className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-slate-700 font-bold cursor-not-allowed"
-                          />
-                        )}
-                      </div>
-
-                      {/* District */}
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Default District *</label>
-                        {bulkAvailableDistricts && bulkAvailableDistricts.length > 0 ? (
-                          <select
-                            value={bulkSettings.district_name}
-                            onChange={(e) => setBulkSettings({ ...bulkSettings, district_name: e.target.value })}
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500"
-                          >
-                            <option value="">Select District</option>
-                            {bulkAvailableDistricts.map((d) => (
-                              <option key={d} value={d}>
-                                {d}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type="text"
-                            placeholder="e.g. Ahmedabad"
-                            value={bulkSettings.district_name}
-                            onChange={(e) => setBulkSettings({ ...bulkSettings, district_name: e.target.value })}
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500"
-                          />
-                        )}
-                      </div>
-
-                      {/* Lead Source */}
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Default Lead Source</label>
-                        <select
-                          value={bulkSettings.lead_source}
-                          onChange={(e) => setBulkSettings({ ...bulkSettings, lead_source: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500"
-                        >
-                          {LEAD_SOURCES.map((s) => (
-                            <option key={s.value} value={s.value}>
-                              {s.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* EPC Classification Type */}
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Default Classification Type</label>
-                        <select
-                          value={bulkSettings.epc_type}
-                          onChange={(e) => {
-                            const matched = epcTypes.find(t => t.name === e.target.value);
-                            setBulkSettings({
-                              ...bulkSettings,
-                              epc_type: e.target.value,
-                              epc_type_id: matched?.id || matched?._id || null,
-                            });
-                          }}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-bold focus:outline-none focus:border-blue-500"
-                        >
-                          {!bulkSettings.epc_type && <option value="">Select Default EPC Type</option>}
-                          {epcTypes.map((t) => (
-                            <option key={t.id || t._id || t.code || t.name} value={t.name}>
-                              {t.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Follow-up Date */}
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Default Follow-up Date</label>
-                        <input
-                          type="date"
-                          value={bulkSettings.follow_up_date}
-                          onChange={(e) => setBulkSettings({ ...bulkSettings, follow_up_date: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500"
-                        />
-                      </div>
-
-                      {/* Campaign Note */}
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Batch / Campaign Note</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Gujarat Solar Expo 2026 contractor leads"
-                          value={bulkSettings.remarks}
-                          onChange={(e) => setBulkSettings({ ...bulkSettings, remarks: e.target.value })}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500"
-                        />
-                      </div>
-
-                      {/* Interested Products Pills */}
-                      <div className="sm:col-span-3 pt-1">
-                        <label className="block font-bold text-slate-700 mb-1">Default Products of Interest</label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {PRODUCT_TYPES.map((p) => {
-                            const isSelected = bulkSettings.interested_products.includes(p);
-                            return (
-                              <button
-                                type="button"
-                                key={p}
-                                onClick={() => handleBulkToggleProduct(p)}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${isSelected
-                                  ? 'bg-blue-600 text-white shadow-xs'
-                                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                                  }`}
-                              >
-                                {p}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. Upload Box & Template Downloads */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  {/* Left Column: Template Download Card */}
-                  <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/60 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                        <h4 className="font-bold text-slate-800 text-xs">Standard Bulk Templates</h4>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mb-3">
-                        Download pre-formatted templates matching EPC database columns with sample contractor data:
-                      </p>
-                      <ul className="text-[10px] text-slate-500 space-y-1 mb-4 list-disc list-inside">
-                        <li>Handles 100 to 200+ contractor rows</li>
-                        <li>Includes column validation instructions</li>
-                        <li>Supports optional GSTIN and Pincode</li>
-                      </ul>
-                    </div>
-                    <div className="space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadSampleTemplate('xlsx')}
-                        className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 shadow-xs transition text-xs"
-                      >
-                        <Download className="w-3.5 h-3.5" /> Download Excel Template (.xlsx)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadSampleTemplate('csv')}
-                        className="w-full py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-bold flex items-center justify-center gap-1.5 transition text-xs"
-                      >
-                        <Download className="w-3.5 h-3.5" /> Download CSV Template (.csv)
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Right Column (2 spans): Dropzone */}
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setBulkDragOver(true);
-                    }}
-                    onDragLeave={() => setBulkDragOver(false)}
-                    onDrop={handleFileDrop}
-                    className={`lg:col-span-2 border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center text-center transition cursor-pointer ${bulkDragOver
-                      ? 'border-blue-500 bg-blue-50/50 scale-[0.99]'
-                      : 'border-slate-300 hover:border-blue-400 bg-slate-50/30'
-                      }`}
-                    onClick={() => document.getElementById('epc-bulk-file-input')?.click()}
-                  >
-                    <input
-                      id="epc-bulk-file-input"
-                      type="file"
-                      accept=".xlsx, .xls, .csv"
-                      className="hidden"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          handleFileSelected(e.target.files[0]);
-                          e.target.value = '';
-                        }
-                      }}
-                    />
-                    <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
-                      <UploadCloud className="w-6 h-6" />
-                    </div>
-                    <p className="font-bold text-slate-800 text-sm mb-1">
-                      Click to choose file or drag & drop here
-                    </p>
-                    <p className="text-[11px] text-slate-500 max-w-sm mb-3">
-                      Supports Excel (<span className="font-mono font-semibold">.xlsx, .xls</span>) and Comma-Separated Values (<span className="font-mono font-semibold">.csv</span>). Designed for 100 to 200+ contractor rows.
-                    </p>
-                    <span className="inline-block px-3 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 shadow-xs">
-                      Browse Computer
-                    </span>
-                  </div>
-                </div>
-
-                {/* Detected File Columns & Extraction Status Banner */}
-                {detectedFileHeaders.length > 0 && (
-                  <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black shadow-xs">
-                        <CheckCircle2 className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-emerald-950">
-                            File Loaded: {parsedRows.length} Leads Parsed
-                          </span>
-                          <span className="text-[10px] font-bold bg-white text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
-                            {parsedRows.filter(r => r._isValid).length} Ready • {parsedRows.filter(r => !r._isValid).length} Needs Review
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-emerald-800 mt-0.5">
-                          Detected Columns in File: <span className="font-mono font-semibold">{detectedFileHeaders.join(', ')}</span>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {selectedBulkFields.gst_number ? (
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-xs flex items-center gap-1">
-                          <Check className="w-3 h-3 text-amber-700" /> GST Extraction Active
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
-                          GST Extraction Skipped
-                        </span>
-                      )}
-                      {selectedBulkFields.email ? (
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300 shadow-xs flex items-center gap-1">
-                          <Check className="w-3 h-3 text-blue-700" /> Email Active
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
-                          Email Skipped
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* 3. Interactive Review & Inline Edit Grid */}
-                {parsedRows.length > 0 && (
-                  <div className="space-y-3 pt-2">
-                    {/* Filter & Toolbar */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
-                        <button
-                          type="button"
-                          onClick={() => setBulkFilter('all')}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition ${bulkFilter === 'all'
-                            ? 'bg-white text-slate-900 shadow-xs'
-                            : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                          All Leads ({parsedRows.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setBulkFilter('ready')}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${bulkFilter === 'ready'
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'text-emerald-700 hover:bg-emerald-50'
-                            }`}
-                        >
-                          <span>Ready to Import</span>
-                          <span className="px-1.5 py-0.2 bg-white/20 rounded-full text-[10px]">
-                            {parsedRows.filter(r => r._isValid).length}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setBulkFilter('errors')}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${bulkFilter === 'errors'
-                            ? 'bg-rose-600 text-white shadow-xs'
-                            : 'text-rose-700 hover:bg-rose-50'
-                            }`}
-                        >
-                          <span>Needs Correction</span>
-                          <span className="px-1.5 py-0.2 bg-white/20 rounded-full text-[10px]">
-                            {parsedRows.filter(r => !r._isValid).length}
-                          </span>
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setParsedRows([]);
-                            setRawWorkbookBinary(null);
-                            setDetectedFileHeaders([]);
-                          }}
-                          className="px-3 py-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition flex items-center gap-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Clear All Rows
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Table Container */}
-                    <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
-                      <div className="max-h-[360px] overflow-x-auto overflow-y-auto">
-                        <table className="w-full text-left border-collapse text-[11px]">
-                          <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-200">
-                            <tr>
-                              <th className="py-2.5 px-3 w-10 text-center">#</th>
-                              <th className="py-2.5 px-3 w-28">Status</th>
-                              <th className="py-2.5 px-3 min-w-[180px]">Company Name *</th>
-                              {selectedBulkFields.contact_person && (
-                                <th className="py-2.5 px-3 min-w-[150px]">Contact Person</th>
-                              )}
-                              <th className="py-2.5 px-3 min-w-[130px]">Mobile Number *</th>
-                              {selectedBulkFields.email && (
-                                <th className="py-2.5 px-3 min-w-[170px]">Email Address</th>
-                              )}
-                              {selectedBulkFields.gst_number && (
-                                <th className="py-2.5 px-3 min-w-[150px]">
-                                  <div className="flex items-center gap-1">
-                                    <span>GSTIN</span>
-                                    <span className="text-[9px] bg-amber-100 text-amber-800 px-1 rounded font-bold">15 Chars</span>
-                                  </div>
-                                </th>
-                              )}
-                              {selectedBulkFields.state_name && (
-                                <th className="py-2.5 px-3 min-w-[120px]">State</th>
-                              )}
-                              <th className="py-2.5 px-3 min-w-[130px]">
-                                District {selectedBulkFields.district_name ? '*' : '(Default)'}
-                              </th>
-                              {selectedBulkFields.pincode && (
-                                <th className="py-2.5 px-3 min-w-[100px]">Pincode</th>
-                              )}
-                              {selectedBulkFields.address_line && (
-                                <th className="py-2.5 px-3 min-w-[170px]">Address</th>
-                              )}
-                              {selectedBulkFields.epc_type && (
-                                <th className="py-2.5 px-3 min-w-[140px]">Classification</th>
-                              )}
-                              <th className="py-2.5 px-3 w-12 text-center">Del</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 font-normal">
-                            {parsedRows
-                              .filter((r) => {
-                                if (bulkFilter === 'ready') return r._isValid;
-                                if (bulkFilter === 'errors') return !r._isValid;
-                                return true;
-                              })
-                              .map((row, idx) => {
-                                const rowErrors = row._errors || [];
-                                const isValid = row._isValid;
-                                return (
-                                  <tr
-                                    key={row._id_temp}
-                                    className={`hover:bg-slate-50/80 transition ${!isValid ? 'bg-rose-50/30' : ''}`}
-                                  >
-                                    <td className="py-2 px-3 text-center text-slate-400 font-mono">
-                                      {idx + 1}
-                                    </td>
-                                    <td className="py-2 px-3">
-                                      {isValid ? (
-                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                          <Check className="w-2.5 h-2.5" /> Valid
-                                        </span>
-                                      ) : (
-                                        <div
-                                          className="inline-flex items-center gap-1 text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full cursor-help"
-                                          title={rowErrors.join(' • ')}
-                                        >
-                                          <AlertCircle className="w-2.5 h-2.5" />
-                                          <span>{rowErrors.length} Issue{rowErrors.length > 1 ? 's' : ''}</span>
-                                        </div>
-                                      )}
-                                    </td>
-                                    {/* Company Name */}
-                                    <td className="py-2 px-3">
-                                      <input
-                                        type="text"
-                                        value={row.company_name}
-                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'company_name', e.target.value)}
-                                        placeholder="Company Name"
-                                        className={`w-full bg-transparent border rounded-lg px-2 py-1 text-slate-900 font-semibold focus:bg-white focus:outline-none ${!row.company_name ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
-                                      />
-                                    </td>
-                                    {/* Contact Person */}
-                                    {selectedBulkFields.contact_person && (
-                                      <td className="py-2 px-3">
-                                        <input
-                                          type="text"
-                                          value={row.contact_person}
-                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'contact_person', e.target.value)}
-                                          placeholder="Contact Person"
-                                          className="w-full bg-transparent border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500"
-                                        />
-                                      </td>
-                                    )}
-                                    {/* Mobile */}
-                                    <td className="py-2 px-3">
-                                      <input
-                                        type="text"
-                                        maxLength={10}
-                                        value={row.mobile_number}
-                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'mobile_number', e.target.value)}
-                                        placeholder="10 digits"
-                                        className={`w-full bg-transparent border rounded-lg px-2 py-1 font-mono text-slate-800 focus:bg-white focus:outline-none ${!row.mobile_number || !/^[6-9]\d{9}$/.test(row.mobile_number) ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
-                                      />
-                                    </td>
-                                    {/* Email */}
-                                    {selectedBulkFields.email && (
-                                      <td className="py-2 px-3">
-                                        <input
-                                          type="email"
-                                          value={row.email || ''}
-                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'email', e.target.value)}
-                                          placeholder="Optional Email"
-                                          className={`w-full bg-transparent border rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none ${row.email && !/^\S+@\S+\.\S+$/.test(row.email) ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
-                                        />
-                                      </td>
-                                    )}
-                                    {/* GSTIN */}
-                                    {selectedBulkFields.gst_number && (
-                                      <td className="py-2 px-3">
-                                        <input
-                                          type="text"
-                                          maxLength={15}
-                                          value={row.gst_number || ''}
-                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'gst_number', e.target.value)}
-                                          placeholder="15-char GSTIN"
-                                          className={`w-full bg-transparent border rounded-lg px-2 py-1 font-mono uppercase text-slate-800 focus:bg-white focus:outline-none ${row.gst_number && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(row.gst_number) ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
-                                        />
-                                      </td>
-                                    )}
-                                    {/* State */}
-                                    {selectedBulkFields.state_name && (
-                                      <td className="py-2 px-3">
-                                        <input
-                                          type="text"
-                                          value={row.state_name || ''}
-                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'state_name', e.target.value)}
-                                          placeholder="State"
-                                          className="w-full bg-transparent border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500"
-                                        />
-                                      </td>
-                                    )}
-                                    {/* District */}
-                                    <td className="py-2 px-3">
-                                      <input
-                                        type="text"
-                                        value={row.district_name || ''}
-                                        onChange={(e) => handleUpdateParsedRow(row._id_temp, 'district_name', e.target.value)}
-                                        placeholder="District"
-                                        className={`w-full bg-transparent border rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none ${!row.district_name ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
-                                      />
-                                    </td>
-                                    {/* Pincode */}
-                                    {selectedBulkFields.pincode && (
-                                      <td className="py-2 px-3">
-                                        <input
-                                          type="text"
-                                          maxLength={6}
-                                          value={row.pincode || ''}
-                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'pincode', e.target.value)}
-                                          placeholder="Pincode"
-                                          className={`w-full bg-transparent border rounded-lg px-2 py-1 font-mono text-slate-800 focus:bg-white focus:outline-none ${row.pincode && !/^\d{6}$/.test(row.pincode) ? 'border-rose-400 bg-rose-50/50' : 'border-slate-200 focus:border-blue-500'}`}
-                                        />
-                                      </td>
-                                    )}
-                                    {/* Address */}
-                                    {selectedBulkFields.address_line && (
-                                      <td className="py-2 px-3">
-                                        <input
-                                          type="text"
-                                          value={row.address_line || ''}
-                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'address_line', e.target.value)}
-                                          placeholder="Address"
-                                          className="w-full bg-transparent border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:outline-none focus:border-blue-500"
-                                        />
-                                      </td>
-                                    )}
-                                    {/* Classification */}
-                                    {selectedBulkFields.epc_type && (
-                                      <td className="py-2 px-3">
-                                        <select
-                                          value={row.epc_type || bulkSettings.epc_type}
-                                          onChange={(e) => handleUpdateParsedRow(row._id_temp, 'epc_type', e.target.value)}
-                                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:outline-none focus:border-blue-500"
-                                        >
-                                          {row.epc_type && !epcTypes.some(t => t.name === row.epc_type) && (
-                                            <option value={row.epc_type}>{row.epc_type}</option>
-                                          )}
-                                          {epcTypes.map((t) => (
-                                            <option key={t.id || t._id || t.code || t.name} value={t.name}>
-                                              {t.name}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </td>
-                                    )}
-                                    {/* Action */}
-                                    <td className="py-2 px-3 text-center">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteParsedRow(row._id_temp)}
-                                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
-                                        title="Delete Row"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Modal Footer (Only shown when not showing result screen) */}
-            {!bulkResult && (
-              <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50">
-                <div className="flex items-center gap-3 text-xs text-slate-500">
-                  {parsedRows.length > 0 ? (
-                    <>
-                      <span>
-                        Total Rows: <strong className="text-slate-900">{parsedRows.length}</strong>
-                      </span>
-                      <span>•</span>
-                      <span className="text-emerald-700 font-bold">
-                        Ready: {parsedRows.filter(r => r._isValid).length}
-                      </span>
-                      {parsedRows.some(r => !r._isValid) && (
-                        <>
-                          <span>•</span>
-                          <span className="text-rose-600 font-bold">
-                            Errors: {parsedRows.filter(r => !r._isValid).length}
-                          </span>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <span>No file chosen yet. Download sample template above or drop your leads file.</span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setBulkModalOpen(false)}
-                    className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-100 text-xs transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={parsedRows.filter(r => r._isValid).length === 0 || bulkSubmitting}
-                    onClick={handleSubmitBulkUpload}
-                    className="px-5 py-2 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs flex items-center gap-2 text-xs transition"
-                  >
-                    {bulkSubmitting ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Importing Leads...</span>
-                      </>
-                    ) : (
-                      <>
-                        <UploadCloud className="w-3.5 h-3.5" />
-                        <span>
-                          Import {parsedRows.filter(r => r._isValid).length > 0 ? parsedRows.filter(r => r._isValid).length : ''} Leads
-                        </span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <DynamicBulkUploadModal
+        isOpen={bulkModalOpen}
+        onClose={() => setBulkModalOpen(false)}
+        territories={territories}
+        epcTypes={epcTypes}
+        onSuccess={fetchLeads}
+      />
 
       {/* MODAL: Add / Edit EPC Lead */}
       {createModalOpen && (

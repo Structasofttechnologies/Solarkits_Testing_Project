@@ -24,6 +24,8 @@ const { sendWhatsAppOTP } = require("../../utils/whatsapp");
 const yourbulksms = require("../../../admin-panel/utils/yourbulksms");
 const { sign_token, decode_token } = require("../../utils/jsonwebtoken");
 const { performGstVerification } = require("../../../admin-panel/services/gst.verification.service");
+const GstVerificationLog = require("../../../admin-panel/models/india_solarshop_db/gst_verification_logs.schema");
+const { promoteMatchingSegmentLeads } = require("../../../admin-panel/marketing/services/segmentPromotion.service");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
 
@@ -587,6 +589,31 @@ const create_account = async (req, res) => {
         ], { session });
 
         await session.commitTransaction();
+
+        try {
+            const candidateGst = finalGstin || cleanGstin;
+            let verifiedLog = null;
+            let shouldPromote = Boolean(is_gstin_active && candidateGst);
+            if (!shouldPromote && candidateGst) {
+                verifiedLog = await GstVerificationLog.findOne({ gstin: candidateGst, is_valid: true }).lean();
+                if (verifiedLog) shouldPromote = true;
+            }
+            if (shouldPromote) {
+                await promoteMatchingSegmentLeads({
+                    email,
+                    phone: finalWhatsapp,
+                    gstin: candidateGst,
+                    epcAccount: account,
+                    legalName: verifiedLog?.legal_name || company_name || name,
+                    tradeName: verifiedLog?.trade_name || company_name || name,
+                    stateId: state,
+                    districtId: district,
+                    verificationStatus: 'verified_automatic'
+                });
+            }
+        } catch (promoErr) {
+            console.warn('[create_account] Segment promotion notice:', promoErr.message);
+        }
 
         return res.json({
             success: true,

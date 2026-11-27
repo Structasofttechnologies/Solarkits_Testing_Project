@@ -920,15 +920,45 @@ const get_cms_users = async (req, res) => {
 
 const add_cms_user = async (req, res) => {
     try {
-        const { name, email, phone_code, phone, department_id, role_id, scope_ids, parent_user_id, country_id, panels, warehouse_id, warehouse_name, cluster_id, cluster_name, state_name, department_name } = req.body;
+        let { name, email, phone_code, phone, department_id, role_id, scope_ids, parent_user_id, country_id, panels, warehouse_id, warehouse_name, cluster_id, cluster_name, state_name, department_name } = req.body;
         
-        if (!name || !email || !phone_code || !phone) {
+        if (!name || !email || !phone) {
             return res.status(400).json({ status: "error", message: 'Name, email, and contact number are required' });
         }
 
+        // Auto-heal phone_code if missing or format without +
+        if (!phone_code) {
+            phone_code = "+91";
+        }
+        if (typeof phone_code === 'string' && !phone_code.startsWith('+')) {
+            phone_code = `+${phone_code.trim()}`;
+        }
+
         let finalScopeIds = Array.isArray(scope_ids) ? [...scope_ids] : [];
-        if (finalScopeIds.length === 0 && (cluster_id || warehouse_id || country_id)) {
-            finalScopeIds = [cluster_id || warehouse_id || country_id].filter(Boolean);
+        if (finalScopeIds.length === 0) {
+            if (cluster_id) {
+                finalScopeIds.push(cluster_id);
+            } else if (state_name) {
+                try {
+                    const stateDoc = await GeoLevel1.findOne({
+                        $or: [
+                            { name: { $regex: new RegExp(`^${state_name.trim()}$`, 'i') } },
+                            { state_name: { $regex: new RegExp(`^${state_name.trim()}$`, 'i') } }
+                        ],
+                        deleted_at: null
+                    }).lean();
+                    if (stateDoc) finalScopeIds.push(stateDoc._id);
+                } catch (sErr) {}
+            }
+            if (finalScopeIds.length === 0 && (warehouse_id || country_id)) {
+                finalScopeIds = [warehouse_id || country_id].filter(Boolean);
+            }
+            if (finalScopeIds.length === 0) {
+                try {
+                    const defaultCountry = await GeoLevel0.findOne({ deleted_at: null }).lean();
+                    if (defaultCountry) finalScopeIds.push(defaultCountry._id);
+                } catch (cErr) {}
+            }
         }
 
         const currentUserRole = await CmsRole.findById(req.user.role_id).populate('level_id');

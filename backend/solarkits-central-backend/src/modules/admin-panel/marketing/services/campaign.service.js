@@ -34,11 +34,18 @@ const launchCampaign = async (campaignId) => {
       district_ids: campaign.district_ids,
       warehouse_ids: campaign.warehouse_ids,
       purchase_activity: campaign.purchase_activity,
-      last_order_days: campaign.last_order_days
+      last_order_days: campaign.last_order_days,
+      segment_ids: campaign.segment_ids || [],
+      segment_state_filter: campaign.segment_state_filter || '',
+      segment_district_filter: campaign.segment_district_filter || ''
     });
 
     campaign.recipients = audience.recipients.map(r => ({
-      epc_id: r.epc_id,
+      epc_id: r.epc_id || null,
+      source_type: r.source_type || 'epc',
+      segment_id: r.segment_id || null,
+      segment_contact_id: r.segment_contact_id || null,
+      custom_fields: r.custom_fields || {},
       name: r.name,
       phone: r.phone,
       email: r.email,
@@ -65,7 +72,14 @@ const launchCampaign = async (campaignId) => {
  * Internal worker that processes recipient queue
  */
 const dispatchCampaignBatch = async (campaign) => {
-  const emailTemplate = campaign.email_template_id;
+  const emailTemplate = campaign.email_template_id || (
+    (campaign.email_html_content || campaign.email_subject)
+      ? {
+          subject: campaign.email_subject || campaign.campaign_name,
+          html_content: campaign.email_html_content || ''
+        }
+      : null
+  );
   const waTemplate = campaign.whatsapp_template_id;
   const channel = campaign.campaign_type; // 'email' | 'whatsapp' | 'both'
 
@@ -116,11 +130,16 @@ const dispatchCampaignBatch = async (campaign) => {
     let emailSent = false;
     let waSent = false;
 
-    const unsubsUrl = `${backendBase}/api/admin/marketing/unsubscribe?email=${encodeURIComponent(recipient.email || '')}&c=${campaign._id}`;
+    const unsubsUrl = `${backendBase}/api/marketing/unsubscribe?email=${encodeURIComponent(recipient.email || '')}&c=${campaign._id}`;
+
+    const customFields = (recipient.custom_fields && typeof recipient.custom_fields === 'object')
+      ? recipient.custom_fields
+      : {};
 
     const vars = {
-      name: recipient.name || 'Solar Partner',
-      company: 'Solar Partner EPC',
+      ...customFields,
+      name: recipient.name || customFields.name || 'Solar Partner',
+      company: customFields.company || customFields.company_name || 'Solar Partner EPC',
       kit_name: campaign.kit_category || 'Solar Commercial Kit',
       campaign_price: campaign.campaign_price ? `₹${campaign.campaign_price.toLocaleString('en-IN')}` : '',
       tracking_url: trackingBase,
@@ -172,6 +191,7 @@ const dispatchCampaignBatch = async (campaign) => {
 
     if (emailSent || waSent) {
       recipient.status = 'delivered';
+      recipient.sent_at = recipient.sent_at || new Date();
       recipient.delivered_at = new Date();
       sentCount++;
       deliveredCount++;

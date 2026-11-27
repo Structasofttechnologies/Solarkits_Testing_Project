@@ -4,5 +4,7 @@ module.exports = {
   MarketingTemplate: require('./MarketingTemplate.schema'),
   WebsiteFormMapping: require('./WebsiteFormMapping.schema'),
   UtmVisit: require('./UtmVisit.schema'),
-  MarketingUnsubscribe: require('./MarketingUnsubscribe.schema')
+  MarketingUnsubscribe: require('./MarketingUnsubscribe.schema'),
+  MarketingSegment: require('./MarketingSegment.schema'),
+  MarketingSegmentContact: require('./MarketingSegmentContact.schema')
 };
