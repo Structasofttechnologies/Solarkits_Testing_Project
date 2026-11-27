@@ -13,6 +13,7 @@ const { WebsiteEpcLead, BDEProfile, BDENotification, BDETerritoryAssignment, Epc
 const bcrypt = require('bcrypt');
 const { sendAdminNotification } = require('../services/admin.notification.service');
 const { GeoLevel1 } = require('../models/geolocation_db');
+const { promoteMatchingSegmentLeads } = require('../marketing/services/segmentPromotion.service');
 
 // Helper to generate unique Lead ID
 const generateLeadId = async () => {
@@ -216,6 +217,7 @@ exports.list_website_leads = async (req, res) => {
     const {
       search,
       state_name,
+      cluster_name,
       status,
       bde_id,
       page = 1,
@@ -236,6 +238,9 @@ exports.list_website_leads = async (req, res) => {
         { mobile_number: { $regex: s, $options: 'i' } },
         { email: { $regex: s, $options: 'i' } },
         { state_name: { $regex: s, $options: 'i' } },
+        { district_name: { $regex: s, $options: 'i' } },
+        { cluster_name: { $regex: s, $options: 'i' } },
+        { cluster_code: { $regex: s, $options: 'i' } },
         { pincode: { $regex: s, $options: 'i' } },
       ];
     }
@@ -243,6 +248,17 @@ exports.list_website_leads = async (req, res) => {
     // State filter
     if (state_name && state_name !== 'all' && state_name.trim()) {
       query.state_name = state_name.trim();
+    }
+
+    // Cluster filter
+    if (cluster_name && cluster_name !== 'all' && cluster_name.trim()) {
+      if (cluster_name === 'unassigned') {
+        query.$and = (query.$and || []).concat([
+          { $or: [{ cluster_name: null }, { cluster_name: '' }] }
+        ]);
+      } else {
+        query.cluster_name = cluster_name.trim();
+      }
     }
 
     // Status filter
@@ -272,7 +288,7 @@ exports.list_website_leads = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     // 🚀 Parallel optimized query execution with indexed scans
-    const [rawLeads, totalCount, totalAll, unassignedCount, assignedCount, onboardedCount, availableStates, rawBdes] = await Promise.all([
+    const [rawLeads, totalCount, totalAll, unassignedCount, assignedCount, onboardedCount, availableStates, availableClusters, clusterBreakdown, rawBdes] = await Promise.all([
       WebsiteEpcLead.find(query)
         .populate('assigned_bde_id', 'full_name bde_id mobile_number email')
         .sort({ created_at: -1 })
@@ -299,7 +315,22 @@ exports.list_website_leads = async (req, res) => {
           { lead_status: { $in: ['Onboarded', 'Assigned to Franchisee', 'Converted'] } },
         ],
       }),
-      WebsiteEpcLead.distinct('state_name', { deleted_at: null }),
+      WebsiteEpcLead.distinct('state_name', { deleted_at: null, state_name: { $nin: [null, ''] } }),
+      WebsiteEpcLead.distinct('cluster_name', { deleted_at: null, cluster_name: { $nin: [null, ''] } }),
+      WebsiteEpcLead.aggregate([
+        { $match: { deleted_at: null } },
+        {
+          $group: {
+            _id: {
+              state_name: { $ifNull: ['$state_name', ''] },
+              cluster_name: { $ifNull: ['$cluster_name', ''] },
+              cluster_code: { $ifNull: ['$cluster_code', ''] },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { count: -1 } },
+      ]),
       BDEProfile.find({
         status: { $ne: 'inactive' },
         deleted_at: null,
@@ -375,7 +406,14 @@ exports.list_website_leads = async (req, res) => {
         onboarded_count: onboardedCount,
         converted_count: onboardedCount,
       },
-      available_states: availableStates.sort(),
+      available_states: availableStates.filter(Boolean).sort(),
+      available_clusters: availableClusters.filter(Boolean).sort(),
+      cluster_summary: clusterBreakdown.map((c) => ({
+        state_name: c._id?.state_name || 'Unspecified',
+        cluster_name: c._id?.cluster_name || '',
+        cluster_code: c._id?.cluster_code || '',
+        count: c.count,
+      })),
       available_bdes: availableBdes,
     });
   } catch (error) {
@@ -541,6 +579,7 @@ exports.update_lead = async (req, res) => {
               deleted_at: null
             });
 
+            let targetAccount = existingAccount;
             if (!existingAccount) {
               const defaultPassword = cleanPhone.slice(-4) || '1234';
               const passwordHash = await bcrypt.hash(defaultPassword, 10);
@@ -563,6 +602,7 @@ exports.update_lead = async (req, res) => {
                 is_whatsapp_verified: true,
                 is_email_verified: Boolean(lead.email && !lead.email.includes('@lead.solarkits.in'))
               });
+              targetAccount = createdAcc;
               console.log(`Auto-created approved EpcAccount for lead: ${lead.name} (${epcEmail})`);
             } else {
               existingAccount.status = 'approved';
@@ -575,6 +615,25 @@ exports.update_lead = async (req, res) => {
               }
               await existingAccount.save();
               console.log(`Updated existing EpcAccount status to approved for lead: ${lead.name}`);
+            }
+
+            const verifiedLeadGst = lead.gst_number ? String(lead.gst_number).trim().toUpperCase() : '';
+            if (verifiedLeadGst) {
+              try {
+                await promoteMatchingSegmentLeads({
+                  email: epcEmail,
+                  phone: cleanPhone,
+                  gstin: verifiedLeadGst,
+                  epcAccount: targetAccount,
+                  legalName: lead.company_name || lead.name,
+                  tradeName: lead.company_name || lead.name,
+                  stateName: lead.state_name,
+                  districtName: lead.district_name,
+                  verificationStatus: 'verified_admin'
+                });
+              } catch (promoErr) {
+                console.warn('[update_epc_lead] Segment promotion notice:', promoErr.message);
+              }
             }
           }
         } catch (accErr) {
@@ -661,90 +720,256 @@ exports.update_lead = async (req, res) => {
 };
 
 /**
- * 6. ADMIN: Import Leads with Dynamic CSV Mapping & Classification (Buyer / Verified / Registered)
+ * 6. ADMIN: Import Leads with Dynamic BDE-Style Mapping, Batch Defaults & Option B Duplicate Prevention
  * POST /admin-api/website-leads/import
  */
 exports.import_leads = async (req, res) => {
   try {
-    const { leads = [] } = req.body;
+    const { leads = [], default_settings = {} } = req.body;
     if (!Array.isArray(leads) || leads.length === 0) {
       return res.status(400).json({ success: false, message: 'No leads provided in payload.' });
     }
 
-    let createdCount = 0;
+    const { cleanStateToken, buildGeoAndClusterResolver } = require('../marketing/services/segmentGeo.service');
     const year = new Date().getFullYear();
 
+    // Load live Indian states & Franchisee Clusters for deterministic State + Cluster mapping
+    const [allStates, geoResolver] = await Promise.all([
+      GeoLevel1 ? GeoLevel1.find({ is_active: true, deleted_at: null }).select('_id name').lean() : [],
+      buildGeoAndClusterResolver().catch(() => null),
+    ]);
+    const stateLookup = new Map();
+    for (const s of allStates) {
+      stateLookup.set(String(s.name).toLowerCase(), s);
+      const tok = cleanStateToken(s.name);
+      if (tok) stateLookup.set(tok, s);
+    }
+
+    const reqFieldsArr = Array.isArray(default_settings.required_fields) && default_settings.required_fields.length > 0
+      ? default_settings.required_fields
+      : ['company_name', 'mobile_number', 'state_name'];
+    const reqSet = new Set(reqFieldsArr);
+
+    // Extract phones/emails across batch for Option B cross-DB duplicate checking
+    const batchPhones = [];
+    const batchEmails = [];
     for (const item of leads) {
-      const trimmedName = (item.name || item.company_name || 'Solar Partner').trim();
-      const rawPhone = String(item.phone || item.mobile || item.mobile_number || item.whatsapp || '').replace(/\D/g, '');
-      const finalPhone = rawPhone.length >= 10 ? rawPhone.slice(-10) : '9999999999';
-      const cleanGst = item.gst_number || item.gstin ? String(item.gst_number || item.gstin).trim().toUpperCase() : null;
+      const p10 = String(item.mobile_number || item.phone || item.mobile || item.whatsapp || item.whatsapp_number || '').replace(/\D/g, '').slice(-10);
+      const em = item.email ? String(item.email).trim().toLowerCase() : '';
+      if (p10.length === 10) batchPhones.push(p10);
+      if (em && em.includes('@')) batchEmails.push(em);
+    }
+
+    const existingLeadPhoneSet = new Set();
+    const existingLeadEmailMap = new Map();
+    const existingAccountPhoneSet = new Set();
+    const existingAccountEmailMap = new Map();
+
+    if (batchPhones.length > 0 || batchEmails.length > 0) {
+      const leadOr = [];
+      if (batchPhones.length > 0) leadOr.push({ phone: { $in: batchPhones } }, { mobile_number: { $in: batchPhones } });
+      if (batchEmails.length > 0) leadOr.push({ email: { $in: batchEmails } });
+
+      const [existingLeads, existingAccounts] = await Promise.all([
+        leadOr.length > 0 ? WebsiteEpcLead.find({ deleted_at: null, $or: leadOr }).select('name company_name phone mobile_number email').lean() : [],
+        EpcAccount && (batchPhones.length > 0 || batchEmails.length > 0)
+          ? EpcAccount.find({
+              deleted_at: null,
+              $or: [
+                ...(batchPhones.length > 0 ? [{ whatsapp: { $in: batchPhones } }, { phone: { $in: batchPhones } }] : []),
+                ...(batchEmails.length > 0 ? [{ email: { $in: batchEmails } }] : []),
+              ]
+            }).select('name company_name whatsapp phone email status').lean()
+          : [],
+      ]);
+
+      for (const l of existingLeads) {
+        const p10 = String(l.mobile_number || l.phone || '').replace(/\D/g, '').slice(-10);
+        if (p10.length === 10) existingLeadPhoneSet.add(p10);
+        if (l.email) existingLeadEmailMap.set(String(l.email).toLowerCase(), l.company_name || l.name || 'Website Lead');
+      }
+      for (const acc of existingAccounts) {
+        const p10 = String(acc.whatsapp || acc.phone || '').replace(/\D/g, '').slice(-10);
+        if (p10.length === 10) existingAccountPhoneSet.add(p10);
+        if (acc.email) existingAccountEmailMap.set(String(acc.email).toLowerCase(), acc.company_name || acc.name || 'Platform EPC');
+      }
+    }
+
+    let createdCount = 0;
+    let duplicatesSkipped = 0;
+    let skippedInvalid = 0;
+    const skippedDetails = [];
+    const seenInFilePhones = new Set();
+    const seenInFileEmails = new Set();
+    const clusterSummary = {};
+    const stateSummary = {};
+
+    for (let idx = 0; idx < leads.length; idx++) {
+      const item = leads[idx] || {};
+      const trimmedName = String(item.company_name || item.name || item.firm_name || '').trim();
+      const rawPhoneDigits = String(item.mobile_number || item.phone || item.mobile || item.whatsapp || item.whatsapp_number || '').replace(/\D/g, '');
+      const finalPhone = rawPhoneDigits.length >= 10 ? rawPhoneDigits.slice(-10) : '';
+      const rawEmail = item.email ? String(item.email).trim().toLowerCase() : '';
+      const cleanEmail = rawEmail && rawEmail.includes('@') ? rawEmail : '';
+
+      const rawStateInput = String(item.state_name || item.state || default_settings.default_state || '').trim();
+      const rawDistrictInput = String(item.district_name || item.district || default_settings.default_district || '').trim();
+      const rawClusterInput = String(item.cluster_name || item.cluster || default_settings.default_cluster || '').trim();
+
+      const resolvedGeo = geoResolver
+        ? geoResolver.resolve({ stateName: rawStateInput, districtName: rawDistrictInput, clusterName: rawClusterInput })
+        : null;
+      const resolvedStateDoc = rawStateInput
+        ? stateLookup.get(rawStateInput.toLowerCase()) || stateLookup.get(cleanStateToken(rawStateInput)) || null
+        : null;
+      const finalStateId = resolvedGeo?.state_id || resolvedStateDoc?._id || null;
+      const finalStateName = resolvedGeo?.state || resolvedStateDoc?.name || rawStateInput;
+      const resolvedDistrictName = resolvedGeo?.district || rawDistrictInput || null;
+      const finalClusterId = resolvedGeo?.cluster_id || null;
+      const finalClusterName = resolvedGeo?.cluster_name || rawClusterInput || null;
+      const finalClusterCode = resolvedGeo?.cluster_code || null;
+
+      let invalidReason = '';
+      if (!trimmedName && !finalPhone && !cleanEmail) {
+        invalidReason = 'Empty row (missing Name, Phone & Email)';
+      } else if (reqSet.has('company_name') && !trimmedName) {
+        invalidReason = 'Missing required Company / Firm Name';
+      } else if (reqSet.has('mobile_number') && !finalPhone) {
+        invalidReason = 'Missing required 10-digit Mobile Number';
+      } else if (reqSet.has('email') && !cleanEmail) {
+        invalidReason = 'Missing required Email Address';
+      } else if (reqSet.has('state_name') && !finalStateName) {
+        invalidReason = 'Missing required State (no state/district match or Default State selected)';
+      } else if (reqSet.has('district_name') && !resolvedDistrictName) {
+        invalidReason = 'Missing required District / City';
+      }
+
+      if (invalidReason) {
+        skippedInvalid++;
+        if (skippedDetails.length < 300) {
+          skippedDetails.push({
+            row_number: idx + 1,
+            name: trimmedName || `Row ${idx + 1}`,
+            phone: finalPhone,
+            email: cleanEmail,
+            reason: invalidReason,
+          });
+        }
+        continue;
+      }
+
+      // Option B Cross-DB + Intra-File Duplicate Check (never block whole file)
+      if ((finalPhone && existingAccountPhoneSet.has(finalPhone)) || (cleanEmail && existingAccountEmailMap.has(cleanEmail))) {
+        duplicatesSkipped++;
+        if (skippedDetails.length < 300) {
+          skippedDetails.push({
+            row_number: idx + 1,
+            name: trimmedName,
+            phone: finalPhone,
+            email: cleanEmail,
+            reason: 'Already registered on SolarKits Platform (EpcAccount)',
+          });
+        }
+        continue;
+      }
+
+      if ((finalPhone && existingLeadPhoneSet.has(finalPhone)) || (cleanEmail && existingLeadEmailMap.has(cleanEmail))) {
+        duplicatesSkipped++;
+        if (skippedDetails.length < 300) {
+          skippedDetails.push({
+            row_number: idx + 1,
+            name: trimmedName,
+            phone: finalPhone,
+            email: cleanEmail,
+            reason: 'Already exists in Website EPC Leads',
+          });
+        }
+        continue;
+      }
+
+      if ((finalPhone && seenInFilePhones.has(finalPhone)) || (cleanEmail && seenInFileEmails.has(cleanEmail))) {
+        duplicatesSkipped++;
+        if (skippedDetails.length < 300) {
+          skippedDetails.push({
+            row_number: idx + 1,
+            name: trimmedName,
+            phone: finalPhone,
+            email: cleanEmail,
+            reason: 'Duplicate entry in same uploaded file',
+          });
+        }
+        continue;
+      }
+
+      if (finalPhone) seenInFilePhones.add(finalPhone);
+      if (cleanEmail) seenInFileEmails.add(cleanEmail);
+
+      const cleanGst = (item.gst_number || item.gstin) ? String(item.gst_number || item.gstin).trim().toUpperCase() : null;
       const lifetimeOrders = Number(item.lifetime_orders || item.lifetimeOrders || item.orders || 0);
 
-      // Boss Rule: Classify EPC
-      let epcType = 'Registered EPC';
-      if (lifetimeOrders > 0) {
-        epcType = 'Buyer EPC';
-      } else if (cleanGst && cleanGst.length >= 10) {
-        epcType = 'Verified EPC';
+      let epcType = String(item.epc_type || default_settings.default_epc_type || '').trim();
+      if (!epcType) {
+        if (lifetimeOrders > 0) epcType = 'Buyer EPC';
+        else if (cleanGst && cleanGst.length >= 10) epcType = 'Verified EPC';
+        else epcType = 'Registered EPC';
       }
+
+      const finalDistrict = resolvedDistrictName;
+      const finalSource = String(item.lead_source || item.source || default_settings.default_lead_source || 'csv_dynamic_import').trim();
+      const finalRemarks = String(item.remarks || default_settings.default_remarks || '').trim() || null;
+      const finalProducts = String(item.interested_products || item.project_type || '').trim() || 'Bulk Solar Combo Kits';
 
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
       const leadId = `WEB-${year}-${Date.now().toString().slice(-4)}${randomSuffix}`;
 
       await WebsiteEpcLead.create({
         lead_id: leadId,
-        name: trimmedName,
-        company_name: trimmedName,
-        contact_person: item.contact_person || trimmedName,
-        phone: finalPhone,
-        mobile_number: finalPhone,
-        email: item.email ? String(item.email).trim().toLowerCase() : `${finalPhone}@lead.solarkits.in`,
-        state_name: item.state_name || item.state || 'Maharashtra',
-        district_name: item.district_name || item.district || item.cluster || 'Central',
-        pincode: item.pincode || null,
-        project_type: item.project_type || 'Bulk Solar Combo Kits',
-        estimated_quantity: item.estimated_quantity || (lifetimeOrders > 0 ? `${lifetimeOrders} Kits` : '5+ Kits'),
+        name: trimmedName || cleanEmail || finalPhone,
+        company_name: trimmedName || cleanEmail || finalPhone,
+        contact_person: String(item.contact_person || trimmedName || cleanEmail || finalPhone).trim(),
+        phone: finalPhone || null,
+        mobile_number: finalPhone || null,
+        email: cleanEmail || null,
+        state_id: finalStateId,
+        state_name: finalStateName || '',
+        district_id: resolvedGeo?.district_id || null,
+        district_name: finalDistrict,
+        cluster_id: finalClusterId,
+        cluster_name: finalClusterName,
+        cluster_code: finalClusterCode,
+        pincode: item.pincode ? String(item.pincode).replace(/\D/g, '').slice(0, 6) || null : null,
+        address_line: item.address_line ? String(item.address_line).trim() : null,
+        project_type: finalProducts,
+        interested_products: finalProducts,
+        estimated_quantity: item.estimated_quantity || (lifetimeOrders > 0 ? `${lifetimeOrders} Kits` : ''),
+        follow_up_date: item.follow_up_date || null,
+        remarks: finalRemarks,
         status: 'new',
         lead_status: 'New',
-        lead_source: 'csv_dynamic_import',
+        lead_source: finalSource,
+        source: finalSource,
         gst_number: cleanGst,
         gst_verification_status: cleanGst ? 'verified_admin' : 'unverified',
         epc_type: epcType,
+        lifetime_orders: lifetimeOrders,
+        custom_attributes: item.custom_attributes || item.custom_fields || {},
       });
 
-      // Also ensure corresponding EpcAccount exists for marketing and store login
-      if (EpcAccount) {
-        try {
-          const existingAcc = await EpcAccount.findOne({
-            $or: [{ whatsapp: finalPhone }, { email: item.email ? item.email.toLowerCase() : null }]
-          });
-          if (!existingAcc) {
-            await EpcAccount.create({
-              name: trimmedName,
-              email: item.email ? item.email.toLowerCase() : `${finalPhone}@lead.solarkits.in`,
-              whatsapp: finalPhone,
-              password_hash: '$2b$10$w09u7t08eQ.yW...', // placeholder hash
-              status: cleanGst ? 'approved' : 'pending',
-              gstin: cleanGst,
-              state_name: item.state_name || item.state || 'Maharashtra',
-              district_name: item.district_name || item.district || item.cluster || 'Central',
-              epc_type: epcType,
-              onboarding_source: 'lead'
-            });
-          }
-        } catch (accErr) {
-          // ignore duplicate
-        }
-      }
-
+      if (finalStateName) stateSummary[finalStateName] = (stateSummary[finalStateName] || 0) + 1;
+      if (finalClusterName) clusterSummary[finalClusterName] = (clusterSummary[finalClusterName] || 0) + 1;
       createdCount++;
     }
 
     return res.status(201).json({
       success: true,
-      message: `Successfully imported ${createdCount} EPC leads.`,
+      message: `Imported ${createdCount} lead(s) across States & Clusters. Skipped ${duplicatesSkipped} duplicate(s) and ${skippedInvalid} invalid row(s).`,
       count: createdCount,
+      imported_count: createdCount,
+      duplicates_skipped: duplicatesSkipped,
+      skipped_invalid: skippedInvalid,
+      cluster_summary: clusterSummary,
+      state_summary: stateSummary,
+      skipped_details: skippedDetails,
     });
   } catch (error) {
     console.error('Error importing leads in WebsiteEpcLead handler:', error);

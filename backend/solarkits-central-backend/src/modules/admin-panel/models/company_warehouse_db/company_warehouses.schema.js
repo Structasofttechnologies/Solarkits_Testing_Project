@@ -132,6 +132,19 @@ const schema = new mongoose.Schema({
     trial_order: { is_active: { type: Boolean, default: true }, max_daily_capacity: { type: Number, default: 20 }, notes: { type: String, default: null } }
   },
 
+  manager: {
+    name: { type: String, default: null },
+    email: { type: String, default: null },
+    phone: { type: String, default: null },
+    phone_code: { type: String, default: '+91' },
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null }
+  },
+  assigned_staff: {
+    manager_id: { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null },
+    accountant_id: { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null }
+  },
+  assigned_staff_users: [{ type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: [] }],
+
   is_active: { type: Boolean, default: false },
   effective_date: { type: Date, default: null },
   due_date: { type: Date, default: null },

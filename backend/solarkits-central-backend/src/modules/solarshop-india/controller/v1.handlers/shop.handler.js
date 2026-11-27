@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { processEpcCheckout, confirmEpcOrderPayment } = require("../../../admin-panel/services/epc.order.service");
+const { promoteMatchingSegmentLeads } = require("../../../admin-panel/marketing/services/segmentPromotion.service");
 
 const CompanyWarehouse = require("../../models/india_core_db/company_warehouses.schema");
 const WarehouseKitActivation = require("../../models/india_core_db/warehouse_kit_activations.schema");
@@ -3557,6 +3558,20 @@ const gst_verify_otp = async (req, res) => {
       account.gst_verification_status = 'verified_admin';
     }
     await account.save();
+
+    try {
+      await promoteMatchingSegmentLeads({
+        email: account.email,
+        phone: account.whatsapp,
+        gstin: formattedGst,
+        epcAccount: account,
+        legalName,
+        tradeName,
+        stateId: state_id
+      });
+    } catch (promoErr) {
+      console.warn('[gst_verify_otp] Segment promotion notice:', promoErr.message);
+    }
 
     return res.status(200).json({
       success: true,

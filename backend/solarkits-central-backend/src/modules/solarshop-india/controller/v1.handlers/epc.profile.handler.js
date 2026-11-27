@@ -8,6 +8,7 @@ const GeoLevel1 = require('../../models/geolocation_db/geo_level_1.schema');
 const GeoLevel2 = require('../../models/geolocation_db/geo_level_2.schema');
 const EpcType = require('../../../admin-panel/models/india_solarshop_db/epc_types.schema');
 const { validateGstStateMatch } = require('../../../../utils/gstStateCodes');
+const { promoteMatchingSegmentLeads } = require('../../../admin-panel/marketing/services/segmentPromotion.service');
 
 /**
  * Helper to resolve account & company from request
@@ -335,9 +336,14 @@ const onboard_state_gst = async (req, res) => {
       }
     }
 
-    // Ensure state is added to account states
+    // Ensure state & active GST flags are synced on account
     if (!account.states.some(s => s.toString() === state_id.toString())) {
       account.states.push(state_id);
+    }
+    if (!account.gstin) account.gstin = formattedGst;
+    account.is_gstin_active = true;
+    if (!['verified_automatic', 'verified_admin'].includes(account.gst_verification_status)) {
+      account.gst_verification_status = account.onboarding_source === 'database' ? 'verified_automatic' : 'verified_admin';
     }
     await account.save();
 
@@ -347,6 +353,21 @@ const onboard_state_gst = async (req, res) => {
       { gst_number: formattedGst, deleted_at: null },
       { upsert: true, new: true }
     );
+
+    try {
+      await promoteMatchingSegmentLeads({
+        email: account.email,
+        phone: account.whatsapp,
+        gstin: formattedGst,
+        epcAccount: account,
+        legalName: legal_name || account.name,
+        tradeName: trade_name || legal_name || account.name,
+        stateId: state_id,
+        stateName: stateDoc.name
+      });
+    } catch (promoErr) {
+      console.warn('[onboard_state_gst] Segment promotion notice:', promoErr.message);
+    }
 
     return res.status(200).json({
       success: true,

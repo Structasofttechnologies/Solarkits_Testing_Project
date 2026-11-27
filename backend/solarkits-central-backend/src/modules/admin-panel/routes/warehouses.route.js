@@ -18,6 +18,7 @@ router.post("/validation/validaion-status", check_auth, check_permissions([{ uni
 router.post("/validation/change-status", check_auth, check_permissions([{ unique_code: 'ADM_WAREHOUSES', permissions: ['edit'] }]), warehouse_handler.change_warehouse_validation_status);
 
 // ── Company Warehouse 10-Gate Activation & Checklist ──────────────────────
+router.post("/:id/assign-staff", check_auth, warehouse_handler.assign_warehouse_staff);
 router.get("/:id/checklist", check_auth, check_permissions([{ unique_code: 'ADM_WAREHOUSES', permissions: ['view'] }]), warehouse_handler.get_company_warehouse_checklist);
 router.post("/:id/submit-activation", check_auth, check_permissions([{ unique_code: 'ADM_WAREHOUSES', permissions: ['edit'] }]), warehouse_handler.submit_company_warehouse_activation);
 router.post("/:id/approve-activation", check_auth, check_permissions([{ unique_code: 'ADM_WAREHOUSES', permissions: ['edit'] }]), warehouse_handler.approve_company_warehouse_activation);

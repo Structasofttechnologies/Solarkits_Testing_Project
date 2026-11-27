@@ -1374,7 +1374,7 @@ exports.get_cluster_geography_analytics = async (req, res) => {
         .lean()
         .catch(() => []),
       EpcAccount.find({ deleted_at: null }, 'state_name district_name gstin gst_verification_status is_gstin_active created_at').lean().catch(() => []),
-      EpcLead.find({}, 'state_name district_name lead_status required_capacity created_at').lean().catch(() => []),
+      EpcLead.find({}, 'state_name district_name cluster_id lead_status required_capacity created_at').lean().catch(() => []),
       EpcOrder.find({ order_status: { $ne: 'cancelled' } }, 'delivery_address grand_total_paise order_load_metrics items created_at').lean().catch(() => []),
     ]);
 
@@ -1443,12 +1443,13 @@ exports.get_cluster_geography_analytics = async (req, res) => {
         }
       });
 
-      // Match Leads / Enquiries (matching district AND state)
+      // Match Leads / Enquiries (direct stored cluster_id OR matching district + state)
       leads.forEach((l) => {
+        const directClusterMatch = l.cluster_id && String(l.cluster_id) === String(c._id);
         const lDist = clean(l.district_name);
         const lState = clean(l.state_name);
         const stateMatches = !lState || !clusterStateClean || lState === clusterStateClean;
-        if (stateMatches && distCleanSet.has(lDist)) {
+        if (directClusterMatch || (stateMatches && distCleanSet.has(lDist))) {
           clusterEnquiries += 1;
           const matchedDistrict = assignedDistricts.find((d) => clean(d) === lDist);
           if (matchedDistrict && districtMetrics[matchedDistrict]) {

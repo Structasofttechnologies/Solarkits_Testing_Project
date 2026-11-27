@@ -1809,7 +1809,128 @@ const toggle_warehouse_status = async (req, res) => {
   }
 };
 
+/**
+ * Assigns Warehouse Manager & Accountant to a Company Warehouse and auto-cascades to all serviced clusters.
+ * POST /:id/assign-staff
+ * Body: { manager_id, accountant_id }
+ */
+const assign_warehouse_staff = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { manager_id, accountant_id } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ status: "error", message: "Invalid Warehouse ID format." });
+    }
+
+    const warehouse = await CompanyWarehouse.findOne({ _id: id, deleted_at: null });
+    if (!warehouse) {
+      return res.status(404).json({ status: "error", message: "Warehouse not found." });
+    }
+
+    const { CmsUser } = require('../models/user_db');
+    const { FranchiseeCluster } = require('../models/india_solarshop_db');
+
+    let managerUser = null;
+    if (manager_id && mongoose.Types.ObjectId.isValid(manager_id)) {
+      managerUser = await CmsUser.findById(manager_id).lean();
+    }
+
+    let accountantUser = null;
+    if (accountant_id && mongoose.Types.ObjectId.isValid(accountant_id)) {
+      accountantUser = await CmsUser.findById(accountant_id).lean();
+    }
+
+    warehouse.assigned_staff = {
+      manager_id: manager_id && mongoose.Types.ObjectId.isValid(manager_id) ? manager_id : null,
+      accountant_id: accountant_id && mongoose.Types.ObjectId.isValid(accountant_id) ? accountant_id : null
+    };
+
+    const staffIds = [
+      warehouse.assigned_staff.manager_id,
+      warehouse.assigned_staff.accountant_id
+    ].filter(Boolean);
+
+    warehouse.assigned_staff_users = staffIds;
+
+    if (managerUser) {
+      warehouse.manager = {
+        name: managerUser.name,
+        email: managerUser.email,
+        phone: managerUser.phone,
+        phone_code: managerUser.phone_code || '+91',
+        user_id: managerUser._id
+      };
+    }
+
+    // Update Gate 5: Manager/Staff Assigned in checklist
+    if (!warehouse.company_setup_checklist) {
+      warehouse.company_setup_checklist = {};
+    }
+    const isFullyStaffed = Boolean(warehouse.assigned_staff.manager_id && warehouse.assigned_staff.accountant_id);
+    warehouse.company_setup_checklist.manager_assigned = {
+      status: isFullyStaffed,
+      completed_at: isFullyStaffed ? new Date() : null
+    };
+
+    await warehouse.save();
+
+    // Auto-cascade to all serviced Franchisee Clusters
+    const mappings = await WarehouseClusterMapping.find({
+      $or: [
+        { warehouse_id: warehouse._id },
+        { warehouse_code: warehouse.warehouse_code }
+      ],
+      deleted_at: null
+    }).lean();
+
+    const mappedClusterIds = [];
+    mappings.forEach(m => {
+      (m.franchise_cluster_ids || []).forEach(cid => mappedClusterIds.push(cid));
+      (m.franchise_clusters || []).forEach(fc => {
+        if (fc.cluster_id) mappedClusterIds.push(fc.cluster_id);
+      });
+    });
+
+    // Also include clusters belonging to this warehouse's state level_1
+    if (warehouse.level_1) {
+      const stateClusters = await FranchiseeCluster.find({ state_id: warehouse.level_1, deleted_at: null }, '_id').lean();
+      stateClusters.forEach(sc => mappedClusterIds.push(sc._id));
+    }
+
+    const uniqueClusterIds = [...new Set(mappedClusterIds.map(cid => cid.toString()))];
+
+    if (uniqueClusterIds.length > 0) {
+      await FranchiseeCluster.updateMany(
+        { _id: { $in: uniqueClusterIds }, deleted_at: null },
+        {
+          $set: {
+            assigned_staff_users: staffIds,
+            staffing_status: isFullyStaffed ? 'staffed' : 'unassigned'
+          }
+        }
+      );
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: `Staff assigned successfully to warehouse '${warehouse.warehouse_name || warehouse.warehouse_code}'. Inherited by ${uniqueClusterIds.length} serviced cluster(s).`,
+      data: {
+        warehouse_id: warehouse._id,
+        assigned_staff: warehouse.assigned_staff,
+        assigned_staff_users: warehouse.assigned_staff_users,
+        is_fully_staffed: isFullyStaffed,
+        cascaded_clusters_count: uniqueClusterIds.length
+      }
+    });
+  } catch (error) {
+    console.error("Error in assign_warehouse_staff:", error);
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
 module.exports = {
+  assign_warehouse_staff,
   add_warehouse,
   get_warehouses,
   get_warehouse,

@@ -82,9 +82,14 @@ async function evaluateCompanyWarehouseChecklist(warehouseId) {
     checklistState.storage_capacity?.status
   );
 
-  // Gate 5: Warehouse Manager Assigned
+  // Gate 5: Warehouse Manager & Accountant Assigned
   const managerInfo = warehouse.manager || managerUser;
+  const hasTwoRoleStaff = Boolean(
+    (warehouse.assigned_staff?.manager_id || (managerInfo && managerInfo.name)) &&
+    warehouse.assigned_staff?.accountant_id
+  );
   const gate5Passed = Boolean(
+    hasTwoRoleStaff ||
     (managerInfo && managerInfo.name && (managerInfo.phone || managerInfo.email)) ||
     (managerUser && managerUser.name) ||
     checklistState.manager_assigned?.status

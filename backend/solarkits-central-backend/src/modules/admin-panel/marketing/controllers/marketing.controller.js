@@ -6,12 +6,14 @@ const {
   UtmVisit
 } = require('../models');
 
-let EpcAccount, WebsiteEpcLead, EpcOrder;
+let EpcAccount, WebsiteEpcLead, EpcOrder, OfferMaster, FranchiseeCluster;
 try {
   const indiaDb = require('../../models/india_solarshop_db');
   EpcAccount = indiaDb.EpcAccount;
   WebsiteEpcLead = indiaDb.WebsiteEpcLead;
   EpcOrder = indiaDb.EpcOrder;
+  OfferMaster = indiaDb.OfferMaster;
+  FranchiseeCluster = indiaDb.FranchiseeCluster;
 } catch (e) {
   console.warn('Notice loading india_solarshop_db models in marketing.controller:', e.message);
 }
@@ -20,6 +22,9 @@ const audienceService = require('../services/audience.service');
 const campaignService = require('../services/campaign.service');
 const emailService = require('../services/email.service');
 const whatsappService = require('../services/whatsapp.service');
+const { buildGeoAndClusterResolver, cleanStateToken, cleanGeoToken } = require('../services/segmentGeo.service');
+const { computeDynamicSegmentAnalytics } = require('../services/segmentAnalytics.service');
+const segmentGroupsController = require('./segmentGroups.controller');
 
 // ── Unified EPC Classification Engine (Boss PRD Rule) ─────────────────
 // 1. Buyer EPC: Placed at least 1 order from us
@@ -37,13 +42,43 @@ const classifyEpcPartner = ({ gstin, lifetimeOrders, ordersCount, is_buyer, is_v
   return 'Registered EPC';
 };
 
-// ── 1. Dashboard Analytics ─────────────────────────────────────────────
+// ── 1. Dashboard Analytics (100% Dynamic from MongoDB) ─────────────────
 const getDashboardAnalytics = async (req, res) => {
   try {
-    const campaigns = await MarketingCampaign.find({}).lean();
+    const [
+      campaigns,
+      epcAccounts,
+      epcOrders,
+      offerCoupons,
+      geoResolver,
+      segmentAnalytics
+    ] = await Promise.all([
+      MarketingCampaign.find({}).sort({ created_at: -1 }).lean(),
+      EpcAccount
+        ? EpcAccount.find({ deleted_at: null })
+            .select('_id gstin is_gstin_active gst_verification_status states districts state_name district_name')
+            .lean()
+        : Promise.resolve([]),
+      EpcOrder
+        ? EpcOrder.find({ order_status: { $nin: ['cancelled', 'rejected'] } })
+            .select('_id epc_id grand_total_paise created_at')
+            .lean()
+        : Promise.resolve([]),
+      OfferMaster
+        ? OfferMaster.find({
+            deleted_at: null,
+            $or: [{ offer_type: 'coupon' }, { coupon_code: { $nin: [null, ''] } }]
+          })
+            .sort({ created_at: -1 })
+            .lean()
+        : Promise.resolve([]),
+      buildGeoAndClusterResolver(),
+      computeDynamicSegmentAnalytics()
+    ]);
 
     const totalCampaigns = campaigns.length;
-    const activeCampaigns = campaigns.filter(c => ['running', 'scheduled'].includes(c.status)).length;
+    const activeCampaigns = campaigns.filter((c) => ['running', 'scheduled'].includes(c.status)).length;
+    const successfulCampaignsCount = campaigns.filter((c) => ['completed', 'running'].includes(c.status) && ((c.stats?.conversions || 0) > 0 || (c.stats?.delivered || 0) > 0)).length;
 
     let totalSent = 0;
     let totalDelivered = 0;
@@ -56,44 +91,68 @@ const getDashboardAnalytics = async (req, res) => {
     let totalRevenue = 0;
     let totalCost = 0;
 
-    // Channel-wise breakdowns
     const emailMetrics = { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0 };
     const waMetrics = { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0 };
 
+    const addChannelTelemetry = (target, s) => {
+      target.sent += Number(s.messages_sent || 0);
+      target.delivered += Number(s.delivered || 0);
+      target.read += Number(s.opened_or_read || 0);
+      target.clicks += Number(s.link_clicks || 0);
+      target.visits += Number(s.website_visits || 0);
+      target.leads += Number(s.form_submissions || 0);
+      target.conversions += Number(s.conversions || 0);
+    };
+
     for (const c of campaigns) {
       const s = c.stats || {};
-      totalSent += s.messages_sent || 0;
-      totalDelivered += s.delivered || 0;
-      totalRead += s.opened_or_read || 0;
-      totalClicks += s.link_clicks || 0;
-      totalVisits += s.website_visits || 0;
-      totalLeads += s.form_submissions || 0;
-      totalQualified += s.qualified_leads || 0;
-      totalConversions += s.conversions || 0;
-      totalRevenue += s.revenue_generated || 0;
-      totalCost += c.budget || 0;
+      totalSent += Number(s.messages_sent || 0);
+      totalDelivered += Number(s.delivered || 0);
+      totalRead += Number(s.opened_or_read || 0);
+      totalClicks += Number(s.link_clicks || 0);
+      totalVisits += Number(s.website_visits || 0);
+      totalLeads += Number(s.form_submissions || 0);
+      totalQualified += Number(s.qualified_leads || 0);
+      totalConversions += Number(s.conversions || 0);
+      totalRevenue += Number(s.revenue_generated || 0);
+      totalCost += Number(c.actual_spent || c.budget || 0);
 
-      if (c.campaign_type === 'email' || c.campaign_type === 'both') {
-        emailMetrics.sent += s.messages_sent || 0;
-        emailMetrics.delivered += s.delivered || 0;
-        emailMetrics.read += s.opened_or_read || 0;
-        emailMetrics.clicks += Math.floor((s.link_clicks || 0) * 0.45);
-        emailMetrics.visits += Math.floor((s.website_visits || 0) * 0.45);
-        emailMetrics.leads += Math.floor((s.form_submissions || 0) * 0.4);
-        emailMetrics.conversions += Math.floor((s.conversions || 0) * 0.4);
-      }
-      if (c.campaign_type === 'whatsapp' || c.campaign_type === 'both') {
-        waMetrics.sent += s.messages_sent || 0;
-        waMetrics.delivered += s.delivered || 0;
-        waMetrics.read += s.opened_or_read || 0;
-        waMetrics.clicks += Math.ceil((s.link_clicks || 0) * 0.55);
-        waMetrics.visits += Math.ceil((s.website_visits || 0) * 0.55);
-        waMetrics.leads += Math.ceil((s.form_submissions || 0) * 0.6);
-        waMetrics.conversions += Math.ceil((s.conversions || 0) * 0.6);
+      if (c.campaign_type === 'email') {
+        addChannelTelemetry(emailMetrics, s);
+      } else if (c.campaign_type === 'whatsapp') {
+        addChannelTelemetry(waMetrics, s);
+      } else if (c.campaign_type === 'both') {
+        const recips = Array.isArray(c.recipients) ? c.recipients : [];
+        if (recips.length > 0) {
+          for (const r of recips) {
+            const hasEmail = Boolean(r.email_message_id || r.channel === 'email' || r.channel === 'both');
+            const hasWa = Boolean(r.wa_message_id || r.channel === 'whatsapp' || r.channel === 'both');
+            const isSent = r.status !== 'queued' && r.status !== 'failed' && r.status !== 'skipped_unsubscribed';
+            const isDeliv = ['sent', 'delivered', 'read', 'opened', 'clicked', 'visited', 'submitted_form', 'converted'].includes(r.status) || Boolean(r.delivered_at);
+            const isRead = ['read', 'opened', 'clicked', 'visited', 'submitted_form', 'converted'].includes(r.status) || Boolean(r.read_at);
+            const isClick = ['clicked', 'visited', 'submitted_form', 'converted'].includes(r.status) || Boolean(r.clicked_at);
+            const isVisit = ['visited', 'submitted_form', 'converted'].includes(r.status) || Boolean(r.visited_at);
+            const isLead = ['submitted_form', 'converted'].includes(r.status);
+            const isConv = r.status === 'converted' || Boolean(r.converted_at);
+            const applyRecip = (m) => {
+              if (isSent) m.sent += 1;
+              if (isDeliv) m.delivered += 1;
+              if (isRead) m.read += 1;
+              if (isClick) m.clicks += 1;
+              if (isVisit) m.visits += 1;
+              if (isLead) m.leads += 1;
+              if (isConv) m.conversions += 1;
+            };
+            if (hasEmail) applyRecip(emailMetrics);
+            if (hasWa) applyRecip(waMetrics);
+          }
+        } else {
+          addChannelTelemetry(emailMetrics, s);
+          addChannelTelemetry(waMetrics, s);
+        }
       }
     }
 
-    // Formulas:
     const deliveryRate = totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) : '0.0';
     const clickRate = totalDelivered > 0 ? ((totalClicks / totalDelivered) * 100).toFixed(1) : '0.0';
     const leadConversionRate = totalVisits > 0 ? ((totalLeads / totalVisits) * 100).toFixed(1) : '0.0';
@@ -101,458 +160,456 @@ const getDashboardAnalytics = async (req, res) => {
     const salesConversionRate = totalQualified > 0 ? ((totalConversions / totalQualified) * 100).toFixed(1) : '0.0';
     const roi = totalCost > 0 ? (((totalRevenue - totalCost) / totalCost) * 100).toFixed(1) : '0.0';
 
-    // ── Pre-seeded Top Ranked Campaigns ──
-    const campaignsRanking = campaigns.map((c, idx) => {
-      const s = c.stats || {};
-      const delRate = s.messages_sent > 0 ? ((s.delivered / s.messages_sent) * 100).toFixed(1) : '92.4';
-      const convRate = s.website_visits > 0 ? ((s.conversions / s.website_visits) * 100).toFixed(1) : '24.5';
-      const rev = s.revenue_generated || (c.budget ? c.budget * 8.5 : 450000);
-      const roiVal = c.budget > 0 ? (((rev - c.budget) / c.budget) * 100).toFixed(1) : '680.0';
+    // Real Campaigns Ranking (Zero static benchmark fallback)
+    const campaignsRanking = campaigns
+      .map((c, idx) => {
+        const s = c.stats || {};
+        const sent = Number(s.messages_sent || 0);
+        const deliv = Number(s.delivered || 0);
+        const visits = Number(s.website_visits || 0);
+        const conv = Number(s.conversions || 0);
+        const rev = Number(s.revenue_generated || 0);
+        const spend = Number(c.actual_spent || c.budget || 0);
 
-      return {
-        _id: c._id || `camp-rank-${idx + 1}`,
-        name: c.campaign_name || `Territory Campaign ${idx + 1}`,
-        code: c.campaign_code || `CMP-${2026}-${100 + idx}`,
-        channel: c.campaign_type || 'both',
-        objective: c.campaign_objective || 'sales',
-        status: c.status || 'running',
-        delivered: s.delivered || Math.floor(1800 + Math.random() * 3000),
-        clicks: s.link_clicks || Math.floor(250 + Math.random() * 500),
-        leads: s.form_submissions || Math.floor(30 + Math.random() * 80),
-        conversions: s.conversions || Math.floor(6 + Math.random() * 15),
-        revenue: rev,
-        conversionRate: `${convRate}%`,
-        deliveryRate: `${delRate}%`,
-        roi: `${roiVal}%`
-      };
-    });
+        const delRate = sent > 0 ? ((deliv / sent) * 100).toFixed(1) : '0.0';
+        const convRate = visits > 0 ? ((conv / visits) * 100).toFixed(1) : (deliv > 0 ? ((conv / deliv) * 100).toFixed(1) : '0.0');
+        const roiVal = spend > 0 ? (((rev - spend) / spend) * 100).toFixed(1) : '0.0';
 
-    // Fallback benchmark campaigns for ranking overview if DB has few
-    const benchmarkCampaigns = [
-      {
-        _id: 'cmp-b1',
-        name: 'Diwali 3kW EPC Wholesale Flash Sale',
-        code: 'CMP-2026-DIWALI',
-        channel: 'both',
-        objective: 'Kit Sales & Repeat Orders',
-        status: 'running',
-        delivered: 4850,
-        clicks: 820,
-        leads: 135,
-        conversions: 24,
-        revenue: 2143600,
-        conversionRate: '32.4%',
-        deliveryRate: '95.6%',
-        roi: '1240%'
-      },
-      {
-        _id: 'cmp-b2',
-        name: 'Gujarat 5kW Commercial Subsidy Push',
-        code: 'CMP-2026-GUJ5KW',
-        channel: 'whatsapp',
-        objective: 'Discount Coupon & Promotional Offer',
-        status: 'running',
-        delivered: 3420,
-        clicks: 640,
-        leads: 92,
-        conversions: 16,
-        revenue: 1428000,
-        conversionRate: '28.8%',
-        deliveryRate: '94.2%',
-        roi: '950%'
-      },
-      {
-        _id: 'cmp-b3',
-        name: 'Maharashtra Inactive EPC Reactivation',
-        code: 'CMP-2026-MHREACT',
-        channel: 'email',
-        objective: 'Inactive EPC Reactivation',
-        status: 'running',
-        delivered: 2890,
-        clicks: 390,
-        leads: 58,
-        conversions: 9,
-        revenue: 803850,
-        conversionRate: '21.5%',
-        deliveryRate: '91.8%',
-        roi: '720%'
-      },
-      {
-        _id: 'cmp-b4',
-        name: 'Surat Diamond Cluster Onboarding Drive',
-        code: 'CMP-2026-SURAT',
-        channel: 'whatsapp',
-        objective: 'New EPC Registration & Sign-Up Drive',
-        status: 'scheduled',
-        delivered: 1950,
-        clicks: 280,
-        leads: 41,
-        conversions: 5,
-        revenue: 446585,
-        conversionRate: '18.2%',
-        deliveryRate: '93.5%',
-        roi: '540%'
-      },
-      {
-        _id: 'cmp-b5',
-        name: 'Marwar Agricultural Solar Pump Launch',
-        code: 'CMP-2026-MARWAR',
-        channel: 'both',
-        objective: 'Product Promotion & Awareness',
-        status: 'completed',
-        delivered: 1640,
-        clicks: 210,
-        leads: 29,
-        conversions: 3,
-        revenue: 267950,
-        conversionRate: '15.6%',
-        deliveryRate: '89.4%',
-        roi: '380%'
+        return {
+          _id: c._id,
+          name: c.campaign_name || `Campaign ${idx + 1}`,
+          code: c.campaign_code || '',
+          channel: c.campaign_type || 'both',
+          objective: c.campaign_objective || c.purpose || 'sales',
+          status: c.status || 'draft',
+          delivered: deliv,
+          clicks: Number(s.link_clicks || 0),
+          leads: Number(s.form_submissions || 0),
+          conversions: conv,
+          revenue: rev,
+          conversionRate: `${convRate}%`,
+          deliveryRate: `${delRate}%`,
+          roi: `${roiVal}%`
+        };
+      })
+      .sort((a, b) => (b.revenue || 0) - (a.revenue || 0) || (b.conversions || 0) - (a.conversions || 0))
+      .map((item, i) => ({ ...item, rank: i + 1 }));
+
+    // Real Active Coupons from OfferMaster & MarketingCampaign purpose_data
+    const couponMap = new Map();
+    for (const o of offerCoupons) {
+      const code = String(o.coupon_code || '').trim().toUpperCase();
+      if (!code) continue;
+      couponMap.set(code, {
+        _id: o._id,
+        code,
+        title: o.offer_name || code,
+        discount: o.discount_type === 'percent' ? `${o.discount_value}% Off` : `₹${Number(o.discount_value || 0).toLocaleString('en-IN')} Flat`,
+        type: o.discount_type === 'percent' ? 'percentage' : 'flat',
+        value: Number(o.discount_value || 0),
+        applicableKits: o.customer_category || 'Configured Kits',
+        redemptionsCount: 0,
+        uniqueEpcsRedeemed: 0,
+        revenueGenerated: 0,
+        status: o.is_active ? 'Active' : 'Inactive'
+      });
+    }
+    for (const c of campaigns) {
+      const cCode = String(c.purpose_data?.coupon_code || '').trim().toUpperCase();
+      if (!cCode) continue;
+      const existing = couponMap.get(cCode);
+      const conv = Number(c.stats?.conversions || 0);
+      const rev = Number(c.stats?.revenue_generated || 0);
+      if (existing) {
+        existing.redemptionsCount += conv;
+        existing.uniqueEpcsRedeemed += conv;
+        existing.revenueGenerated += rev;
+      } else {
+        couponMap.set(cCode, {
+          _id: c._id,
+          code: cCode,
+          title: c.campaign_name || cCode,
+          discount: c.purpose_data?.discount_label || (c.purpose_data?.discount_value ? `${c.purpose_data.discount_value}` : 'Campaign Offer'),
+          type: c.purpose_data?.discount_type || 'flat',
+          value: Number(c.purpose_data?.discount_value || 0),
+          applicableKits: c.kit_category || 'Campaign Kits',
+          redemptionsCount: conv,
+          uniqueEpcsRedeemed: conv,
+          revenueGenerated: rev,
+          status: c.status === 'running' ? 'Active' : String(c.status || 'Active')
+        });
       }
-    ];
+    }
+    const couponsList = Array.from(couponMap.values());
 
-    const finalRanking = campaignsRanking.length >= 3 ? campaignsRanking : benchmarkCampaigns;
-    finalRanking.sort((a, b) => (b.revenue || 0) - (a.revenue || 0));
-    finalRanking.forEach((item, i) => { item.rank = i + 1; });
+    // Real EPC classification & Territory distribution
+    const ordersCountByEpc = new Map();
+    const orderRevenueByEpc = new Map();
+    for (const ord of epcOrders) {
+      if (!ord.epc_id) continue;
+      const eid = String(ord.epc_id);
+      ordersCountByEpc.set(eid, (ordersCountByEpc.get(eid) || 0) + 1);
+      orderRevenueByEpc.set(eid, (orderRevenueByEpc.get(eid) || 0) + Number(ord.grand_total_paise || 0) / 100);
+    }
 
-    // Active Coupons Performance List
-    const couponsList = [
-      {
-        code: 'DIWALI3KW',
-        title: 'Diwali Special ₹5,000 Flat Off',
-        discount: '₹5,000 Flat',
-        type: 'flat',
-        value: 5000,
-        applicableKits: '3kW Solarkits DCR Combokit',
-        redemptionsCount: 420,
-        uniqueEpcsRedeemed: 310,
-        revenueGenerated: 1875600,
-        status: 'Active'
-      },
-      {
-        code: 'SURATSUMMER',
-        title: 'Surat Diamond Cluster Exclusive',
-        discount: '8% Off',
-        type: 'percentage',
-        value: 8,
-        applicableKits: 'All Commercial 5kW+ Kits',
-        redemptionsCount: 285,
-        uniqueEpcsRedeemed: 215,
-        revenueGenerated: 1420000,
-        status: 'Active'
-      },
-      {
-        code: 'TOPCON5KW',
-        title: 'TopCon Premium Bifacial Introductory',
-        discount: '₹7,500 Flat',
-        type: 'flat',
-        value: 7500,
-        applicableKits: '5kW Premium Bifacial Kit',
-        redemptionsCount: 195,
-        uniqueEpcsRedeemed: 148,
-        revenueGenerated: 980000,
-        status: 'Active'
-      },
-      {
-        code: 'REACTIVATE2026',
-        title: 'Welcome Back 60-Day Re-engagement',
-        discount: '5% Extra Margin',
-        type: 'percentage',
-        value: 5,
-        applicableKits: 'Any Rooftop Solar Combo Kit',
-        redemptionsCount: 160,
-        uniqueEpcsRedeemed: 130,
-        revenueGenerated: 780000,
-        status: 'Active'
-      },
-      {
-        code: 'FESTIVE10',
-        title: 'Festive Season Bulk Order Vouchers',
-        discount: '10% Off',
-        type: 'percentage',
-        value: 10,
-        applicableKits: 'Bulk Orders (5+ Kits)',
-        redemptionsCount: 95,
-        uniqueEpcsRedeemed: 82,
-        revenueGenerated: 620000,
-        status: 'Active'
-      },
-      {
-        code: 'MAHAPUSH',
-        title: 'Maharashtra State Depot Incentive',
-        discount: '₹3,000 Flat',
-        type: 'flat',
-        value: 3000,
-        applicableKits: '1kW & 2kW Residential DCR Kits',
-        redemptionsCount: 85,
-        uniqueEpcsRedeemed: 70,
-        revenueGenerated: 340000,
-        status: 'Active'
+    let buyerEpcs = 0;
+    let verifiedEpcs = 0;
+    let registeredEpcs = 0;
+    const territoryClusterBuckets = new Map();
+
+    // Seed active FranchiseeClusters so territory table mirrors real configured clusters
+    for (const clu of geoResolver.franchiseeClusters || []) {
+      const cluKey = clu.cluster_code || String(clu._id);
+      territoryClusterBuckets.set(cluKey, {
+        cluster: clu.cluster_name,
+        cluster_code: clu.cluster_code,
+        state: clu.state_name,
+        warehouse: `${clu.cluster_name} (${(clu.district_names || []).slice(0, 3).join(', ')})`,
+        totalEpcs: 0,
+        buyerEpcs: 0,
+        verifiedEpcs: 0,
+        registeredEpcs: 0,
+        ordersPlaced: 0,
+        revenueInr: 0
+      });
+    }
+
+    for (const epc of epcAccounts) {
+      const eid = String(epc._id);
+      const ordCount = ordersCountByEpc.get(eid) || 0;
+      const isVer = ['verified_automatic', 'verified_admin'].includes(epc.gst_verification_status) || epc.is_gstin_active === true;
+      const cls = classifyEpcPartner({
+        gstin: epc.gstin,
+        ordersCount: ordCount,
+        is_buyer: ordCount > 0,
+        is_verified: isVer
+      });
+      if (cls === 'Buyer EPC') buyerEpcs += 1;
+      else if (cls === 'Verified EPC') verifiedEpcs += 1;
+      else registeredEpcs += 1;
+
+      // Resolve EPC cluster from district/state
+      let dName = epc.district_name || '';
+      let sName = epc.state_name || '';
+      if (!dName && epc.districts?.[0]) {
+        dName = geoResolver.districtById.get(String(epc.districts[0]))?.name || '';
       }
-    ];
-
-    // Territory / Area-wise EPC distribution and order conversion statistics
-    const epcTerritoryPerformance = [
-      {
-        cluster: 'Bhiwandi Central',
-        state: 'Maharashtra',
-        warehouse: 'Bhiwandi Super Depot (WH-MH-01)',
-        totalEpcs: 3840,
-        buyerEpcs: 920,
-        verifiedEpcs: 1450,
-        registeredEpcs: 1470,
-        ordersPlaced: 480,
-        conversionRatio: '24.0%',
-        dominantType: 'Verified EPC',
-        lat: 19.297,
-        lng: 73.063
-      },
-      {
-        cluster: 'Pune Cluster',
-        state: 'Maharashtra',
-        warehouse: 'Pune South Facility',
-        totalEpcs: 2650,
-        buyerEpcs: 610,
-        verifiedEpcs: 980,
-        registeredEpcs: 1060,
-        ordersPlaced: 320,
-        conversionRatio: '23.0%',
-        dominantType: 'Verified EPC',
-        lat: 18.520,
-        lng: 73.856
-      },
-      {
-        cluster: 'Surat Cluster',
-        state: 'Gujarat',
-        warehouse: 'Surat Central Hub',
-        totalEpcs: 2180,
-        buyerEpcs: 450,
-        verifiedEpcs: 820,
-        registeredEpcs: 910,
-        ordersPlaced: 215,
-        conversionRatio: '20.6%',
-        dominantType: 'Buyer EPC',
-        lat: 21.170,
-        lng: 72.831
-      },
-      {
-        cluster: 'Ahmedabad Industrial',
-        state: 'Gujarat',
-        warehouse: 'Ahmedabad Industrial Hub',
-        totalEpcs: 1940,
-        buyerEpcs: 380,
-        verifiedEpcs: 710,
-        registeredEpcs: 850,
-        ordersPlaced: 185,
-        conversionRatio: '19.6%',
-        dominantType: 'Verified EPC',
-        lat: 23.022,
-        lng: 72.571
-      },
-      {
-        cluster: 'Jaipur Central',
-        state: 'Rajasthan',
-        warehouse: 'Jaipur Regional Depot',
-        totalEpcs: 1620,
-        buyerEpcs: 260,
-        verifiedEpcs: 490,
-        registeredEpcs: 870,
-        ordersPlaced: 110,
-        conversionRatio: '16.0%',
-        dominantType: 'Registered EPC',
-        lat: 26.912,
-        lng: 75.787
-      },
-      {
-        cluster: 'Bengaluru South',
-        state: 'Karnataka',
-        warehouse: 'Bengaluru Logistics Park',
-        totalEpcs: 1240,
-        buyerEpcs: 190,
-        verifiedEpcs: 380,
-        registeredEpcs: 670,
-        ordersPlaced: 85,
-        conversionRatio: '15.3%',
-        dominantType: 'Verified EPC',
-        lat: 12.971,
-        lng: 77.594
-      },
-      {
-        cluster: 'Nagpur East',
-        state: 'Maharashtra',
-        warehouse: 'Nagpur Distribution Center',
-        totalEpcs: 780,
-        buyerEpcs: 110,
-        verifiedEpcs: 240,
-        registeredEpcs: 430,
-        ordersPlaced: 48,
-        conversionRatio: '14.1%',
-        dominantType: 'Registered EPC',
-        lat: 21.145,
-        lng: 79.088
+      if (!sName && epc.states?.[0]) {
+        sName = geoResolver.stateById.get(String(epc.states[0]))?.name || '';
       }
-    ];
+      const resolved = geoResolver.resolve({ stateName: sName, districtName: dName });
+      const bKey = resolved.cluster_code || (resolved.state ? `UNCLU::${resolved.state}` : 'UNSPECIFIED');
+      if (!territoryClusterBuckets.has(bKey)) {
+        territoryClusterBuckets.set(bKey, {
+          cluster: resolved.cluster_name || (resolved.state ? `${resolved.state} (Other Districts)` : 'Unspecified'),
+          cluster_code: resolved.cluster_code || '',
+          state: resolved.state || 'Unspecified',
+          warehouse: resolved.state || 'Direct Region',
+          totalEpcs: 0,
+          buyerEpcs: 0,
+          verifiedEpcs: 0,
+          registeredEpcs: 0,
+          ordersPlaced: 0,
+          revenueInr: 0
+        });
+      }
+      const b = territoryClusterBuckets.get(bKey);
+      b.totalEpcs += 1;
+      if (cls === 'Buyer EPC') b.buyerEpcs += 1;
+      else if (cls === 'Verified EPC') b.verifiedEpcs += 1;
+      else b.registeredEpcs += 1;
+      b.ordersPlaced += ordCount;
+      b.revenueInr += orderRevenueByEpc.get(eid) || 0;
+    }
+
+    const epcTerritoryPerformance = Array.from(territoryClusterBuckets.values())
+      .filter((b) => b.totalEpcs > 0 || b.ordersPlaced > 0)
+      .map((b) => {
+        const convPct = b.totalEpcs > 0 ? ((b.buyerEpcs / b.totalEpcs) * 100).toFixed(1) : '0.0';
+        let dominantType = 'Registered EPC';
+        if (b.buyerEpcs >= b.verifiedEpcs && b.buyerEpcs >= b.registeredEpcs && b.buyerEpcs > 0) {
+          dominantType = 'Buyer EPC';
+        } else if (b.verifiedEpcs >= b.registeredEpcs && b.verifiedEpcs > 0) {
+          dominantType = 'Verified EPC';
+        }
+        return {
+          ...b,
+          revenueInr: Math.round(b.revenueInr),
+          conversionRatio: `${convPct}%`,
+          dominantType
+        };
+      })
+      .sort((a, b) => b.totalEpcs - a.totalEpcs || b.ordersPlaced - a.ordersPlaced);
+
+    const activeStatesSet = new Set(epcTerritoryPerformance.map((t) => t.state).filter((s) => s && s !== 'Unspecified'));
+    const deliveredPct = totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) : '0.0';
 
     res.json({
       success: true,
       data: {
         summary: {
-          totalCampaigns: Math.max(totalCampaigns, finalRanking.length),
-          activeCampaigns: Math.max(activeCampaigns, 3),
-          successfulCampaignsCount: 5,
-          totalSent: totalSent || 18450,
-          totalDelivered: totalDelivered || 17200,
-          totalRead: totalRead || 9840,
-          totalClicks: totalClicks || 2680,
-          totalVisits: totalVisits || 2420,
-          totalLeads: totalLeads || 310,
-          totalQualified: totalQualified || 145,
-          totalConversions: totalConversions || 42,
-          totalRevenue: totalRevenue || 3450000,
-          totalCost: totalCost || 125000,
+          totalCampaigns,
+          activeCampaigns,
+          successfulCampaignsCount,
+          totalSent,
+          totalDelivered,
+          totalRead,
+          totalClicks,
+          totalVisits,
+          totalLeads,
+          totalQualified,
+          totalConversions,
+          totalRevenue: Math.round(totalRevenue),
+          totalCost: Math.round(totalCost),
           deliveryRate,
           clickRate,
           leadConversionRate,
           qualifiedLeadRate,
           salesConversionRate,
           roi,
-          // Boss EPC Classifications
-          totalEpcs: 14250,
-          buyerEpcs: 2150,
-          verifiedEpcs: 3420,
-          registeredEpcs: 8680,
-          activeCouponsCount: couponsList.filter(c => c.status === 'Active').length,
+          totalEpcs: epcAccounts.length,
+          buyerEpcs,
+          verifiedEpcs,
+          registeredEpcs,
+          activeCouponsCount: couponsList.filter((c) => c.status === 'Active').length,
           totalCouponsCount: couponsList.length,
-          activeClustersCount: epcTerritoryPerformance.length,
-          activeStatesCount: 4
+          activeClustersCount: (geoResolver.franchiseeClusters || []).length,
+          activeStatesCount: activeStatesSet.size,
+          // Live Segment Group Analytics totals
+          segmentGroupsCount: segmentAnalytics.summary.total_segments,
+          segmentLeadsUploaded: segmentAnalytics.summary.total_leads_uploaded,
+          segmentRegistered: segmentAnalytics.summary.total_registered,
+          segmentVerified: segmentAnalytics.summary.total_verified,
+          segmentBuyers: segmentAnalytics.summary.total_buyers,
+          segmentRevenueInr: segmentAnalytics.summary.total_revenue_inr
         },
         channels: {
           email: emailMetrics,
           whatsapp: waMetrics
         },
         funnel: [
-          { stage: '1. Campaign Audience', count: totalSent || 18450, desc: 'Targeted EPCs across selected clusters' },
-          { stage: '2. Messages Delivered', count: totalDelivered || 17200, desc: '93.2% successful delivery' },
-          { stage: '3. Website & Kit Visits', count: totalVisits || 2420, desc: 'Unique campaign URL visits' },
-          { stage: '4. Form Submissions', count: totalLeads || 310, desc: 'Enquiries, registrations & quote requests' },
-          { stage: '5. Qualified Leads', count: totalQualified || 145, desc: 'Accepted by BDE/Sales team' },
-          { stage: '6. Confirmed Conversions', count: totalConversions || 42, desc: 'Paid Kit orders & Franchisee ongoings' }
+          { stage: '1. Campaign Audience', count: totalSent, desc: 'Targeted contacts & EPCs dispatched' },
+          { stage: '2. Messages Delivered', count: totalDelivered, desc: `${deliveredPct}% successful delivery` },
+          { stage: '3. Website & Kit Visits', count: totalVisits, desc: 'Tracked campaign URL visits' },
+          { stage: '4. Form Submissions', count: totalLeads, desc: 'Enquiries, registrations & quote requests' },
+          { stage: '5. Qualified Leads', count: totalQualified, desc: 'Accepted by BDE/Sales team' },
+          { stage: '6. Confirmed Conversions', count: totalConversions, desc: 'Paid orders & verified conversions' }
         ],
-        campaignsRanking: finalRanking,
+        campaignsRanking,
         couponsList,
-        epcTerritoryPerformance
+        epcTerritoryPerformance,
+        segmentAnalytics
       }
     });
   } catch (error) {
+    console.error('❌ [Marketing] getDashboardAnalytics error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ── 1B. Live India Territory Map Analytics ─────────────────────────
+// ── 1B. Live India Territory Map Analytics (100% Dynamic from MongoDB) ───
 const getTerritoryMapAnalytics = async (req, res) => {
   try {
-    const { type, objective, resultMetric, state } = req.query;
+    const { type, objective, state: filterState, segment_id } = req.query;
 
-    // Comprehensive mock & DB combined dataset for all active/inactive regions
-    const stateCampaignData = {
-      'Maharashtra': {
-        state_name: 'Maharashtra',
-        state_code: 'MH',
-        has_active: true,
-        campaign_count: 4,
-        campaign_type: 'both',
-        channels: ['whatsapp', 'email'],
-        delivered: 9840,
-        leads: 185,
-        conversions: 28,
-        revenue: 2240000,
-        clusters: ['Bhiwandi Central', 'Pune Cluster', 'Nagpur East', 'Nashik North'],
-        running_campaigns: [
-          { name: 'Diwali 3kW EPC Wholesale Flash Sale', type: 'both', objective: 'sales', leads: 95, conversions: 18, revenue: 1450000 },
-          { name: 'Maharashtra Inactive EPC Reactivation', type: 'email', objective: 'epc_activation', leads: 45, conversions: 6, revenue: 490000 },
-          { name: 'Pune High-Power Commercial BOS Push', type: 'whatsapp', objective: 'product_promotion', leads: 45, conversions: 4, revenue: 300000 }
-        ]
-      },
-      'Gujarat': {
-        state_name: 'Gujarat',
-        state_code: 'GJ',
-        has_active: true,
-        campaign_count: 2,
-        campaign_type: 'whatsapp',
-        channels: ['whatsapp'],
-        delivered: 4120,
-        leads: 78,
-        conversions: 11,
-        revenue: 890000,
-        clusters: ['Surat South', 'Ahmedabad Industrial', 'Rajkot West'],
-        running_campaigns: [
-          { name: 'Gujarat 5kW Commercial Solar Subsidy Drive', type: 'whatsapp', objective: 'lead_generation', leads: 62, conversions: 9, revenue: 720000 },
-          { name: 'Surat Diamond Cluster EPC Onboarding', type: 'whatsapp', objective: 'epc_onboarding', leads: 16, conversions: 2, revenue: 170000 }
-        ]
-      },
-      'Rajasthan': {
-        state_name: 'Rajasthan',
-        state_code: 'RJ',
-        has_active: true,
-        campaign_count: 1,
-        campaign_type: 'email',
-        channels: ['email'],
-        delivered: 1840,
-        leads: 28,
-        conversions: 3,
-        revenue: 240000,
-        clusters: ['Jaipur Central', 'Jodhpur Desert Tech'],
-        running_campaigns: [
-          { name: 'Marwar Agricultural Pump Solar Kit Push', type: 'email', objective: 'product_promotion', leads: 28, conversions: 3, revenue: 240000 }
-        ]
-      },
-      'Karnataka': {
-        state_name: 'Karnataka',
-        state_code: 'KA',
-        has_active: true,
-        campaign_count: 1,
-        campaign_type: 'both',
-        channels: ['whatsapp', 'email'],
-        delivered: 1400,
-        leads: 19,
-        conversions: 0,
-        revenue: 80000,
-        clusters: ['Bengaluru South Hub', 'Hubballi Industrial'],
-        running_campaigns: [
-          { name: 'Bengaluru Rooftop EPC Expansion & Dealer Drive', type: 'both', objective: 'franchisee_onboarding', leads: 19, conversions: 0, revenue: 80000 }
-        ]
-      },
-      'Madhya Pradesh': {
-        state_name: 'Madhya Pradesh',
-        state_code: 'MP',
-        has_active: false,
-        campaign_count: 0,
-        campaign_type: 'none',
-        channels: [],
-        delivered: 0,
-        leads: 0,
-        conversions: 0,
-        revenue: 0,
-        clusters: ['Indore Commercial', 'Bhopal Central'],
-        running_campaigns: []
-      },
-      'Uttar Pradesh': {
-        state_name: 'Uttar Pradesh',
-        state_code: 'UP',
-        has_active: false,
-        campaign_count: 0,
-        campaign_type: 'none',
-        channels: [],
-        delivered: 0,
-        leads: 0,
-        conversions: 0,
-        revenue: 0,
-        clusters: ['Noida Tech Zone', 'Lucknow Central'],
-        running_campaigns: []
+    const campQuery = {};
+    if (type && type !== 'all') campQuery.campaign_type = type;
+    if (objective && objective !== 'all') {
+      campQuery.$or = [{ campaign_objective: objective }, { purpose: objective }];
+    }
+
+    const [geoResolver, campaigns, segmentAnalytics] = await Promise.all([
+      buildGeoAndClusterResolver(),
+      MarketingCampaign.find(campQuery)
+        .select('_id campaign_name campaign_code campaign_type campaign_objective purpose status area_type state_ids cluster_ids district_ids segment_ids segment_state_filter stats created_at')
+        .sort({ created_at: -1 })
+        .lean(),
+      computeDynamicSegmentAnalytics({ state: filterState || '', segment_id: segment_id || '' })
+    ]);
+
+    const stateCampaignData = {};
+    const ensureState = (stateName, stateId = null) => {
+      const clean = String(stateName || '').trim();
+      if (!clean || clean === 'Unspecified') return null;
+      const keyTok = cleanStateToken(clean);
+      let existingKey = Object.keys(stateCampaignData).find((k) => cleanStateToken(k) === keyTok);
+      if (!existingKey) {
+        existingKey = clean;
+        stateCampaignData[existingKey] = {
+          state_name: existingKey,
+          state_id: stateId || null,
+          has_active: false,
+          campaign_count: 0,
+          campaign_type: 'none',
+          channels: [],
+          delivered: 0,
+          leads: 0,
+          conversions: 0,
+          revenue: 0,
+          clusters: [],
+          cluster_details: [],
+          running_campaigns: [],
+          // Live Segment Group Analytics metrics per state
+          segment_leads_uploaded: 0,
+          segment_registered: 0,
+          segment_verified: 0,
+          segment_buyers: 0,
+          segment_orders: 0,
+          segment_revenue_inr: 0,
+          segment_conversion_rate_pct: 0,
+          post_campaign_conversions: 0,
+          post_campaign_revenue_inr: 0,
+          segments: []
+        };
+      } else if (stateId && !stateCampaignData[existingKey].state_id) {
+        stateCampaignData[existingKey].state_id = stateId;
       }
+      return stateCampaignData[existingKey];
     };
 
-    // Calculate aggregated territory summary
+    // 1. Seed states and FranchiseeClusters (each carrying cluster name, code, color, and full district list)
+    for (const s of geoResolver.states || []) {
+      if (filterState && cleanStateToken(s.name) !== cleanStateToken(filterState)) continue;
+      ensureState(s.name, s._id);
+    }
+
+    for (const clu of geoResolver.franchiseeClusters || []) {
+      const stObj = ensureState(clu.state_name, clu.state_id);
+      if (!stObj) continue;
+      if (!stObj.clusters.includes(clu.cluster_name)) {
+        stObj.clusters.push(clu.cluster_name);
+      }
+      stObj.cluster_details.push({
+        cluster_id: clu._id,
+        cluster_name: clu.cluster_name,
+        cluster_code: clu.cluster_code,
+        color_code: clu.color_code || '#2563eb',
+        status: clu.status || 'available',
+        districts: clu.district_names || [],
+        leads_uploaded: 0,
+        registered_count: 0,
+        verified_count: 0,
+        buyers_count: 0,
+        post_campaign_conversions: 0
+      });
+    }
+
+    // 2. Merge Live Segment Analytics State -> Cluster -> District numbers & Campaign Impact
+    const segByStateToken = new Map(
+      (segmentAnalytics.map_territory?.states || []).map((st) => [cleanStateToken(st.state_name), st])
+    );
+
+    Object.values(stateCampaignData).forEach((stObj) => {
+      const segSt = segByStateToken.get(cleanStateToken(stObj.state_name));
+      if (!segSt) return;
+      stObj.segment_leads_uploaded = segSt.leads_uploaded;
+      stObj.segment_registered = segSt.registered_count;
+      stObj.segment_verified = segSt.verified_count;
+      stObj.segment_buyers = segSt.buyers_count;
+      stObj.segment_orders = segSt.orders_count;
+      stObj.segment_revenue_inr = segSt.revenue_inr;
+      stObj.segment_conversion_rate_pct = segSt.registration_rate_pct;
+      stObj.post_campaign_conversions = segSt.post_campaign_conversions;
+      stObj.post_campaign_revenue_inr = segSt.post_campaign_revenue_inr;
+      stObj.segments = segSt.segments || [];
+
+      if (segSt.leads_uploaded > 0 || segSt.post_campaign_conversions > 0) {
+        stObj.has_active = true;
+      }
+
+      // Enrich matching cluster_details entries
+      const segCluMap = new Map((segSt.clusters || []).map((c) => [c.cluster_code || c.cluster_name, c]));
+      stObj.cluster_details = stObj.cluster_details.map((cd) => {
+        const sc = segCluMap.get(cd.cluster_code) || segCluMap.get(cd.cluster_name);
+        if (!sc) return cd;
+        return {
+          ...cd,
+          leads_uploaded: sc.leads_uploaded,
+          registered_count: sc.registered_count,
+          verified_count: sc.verified_count,
+          buyers_count: sc.buyers_count,
+          orders_count: sc.orders_count,
+          revenue_inr: sc.revenue_inr,
+          post_campaign_conversions: sc.post_campaign_conversions,
+          district_breakdown: sc.districts || []
+        };
+      });
+    });
+
+    // Index which segment IDs belong to which states so segment-targeted campaigns attribute to exact states
+    const segStatesLookup = new Map();
+    for (const seg of segmentAnalytics.segments || []) {
+      const stNames = (seg.state_breakdown || []).map((sb) => sb.state).filter((s) => s && s !== 'Unspecified');
+      segStatesLookup.set(String(seg._id), stNames);
+    }
+
+    // 3. Attribute real MarketingCampaigns to states
+    const chanSets = new Map();
+    for (const c of campaigns) {
+      const targetStateNames = new Set();
+      for (const sid of c.state_ids || []) {
+        const sDoc = geoResolver.stateById.get(String(sid));
+        if (sDoc?.name) targetStateNames.add(sDoc.name);
+      }
+      for (const did of c.district_ids || []) {
+        const dDoc = geoResolver.districtById.get(String(did));
+        const sDoc = dDoc ? geoResolver.stateById.get(String(dDoc.level_1)) : null;
+        if (sDoc?.name) targetStateNames.add(sDoc.name);
+      }
+      if (c.segment_state_filter) {
+        const resSt = geoResolver.resolve({ stateName: c.segment_state_filter });
+        if (resSt.state) targetStateNames.add(resSt.state);
+      }
+      for (const segId of c.segment_ids || []) {
+        const stList = segStatesLookup.get(String(segId)) || [];
+        for (const sName of stList) targetStateNames.add(sName);
+      }
+      // If a running/scheduled campaign targets all_india with no narrower geo restriction, reflect it on active states
+      if (targetStateNames.size === 0 && c.area_type === 'all_india' && ['running', 'scheduled', 'completed'].includes(c.status)) {
+        Object.keys(stateCampaignData).forEach((sName) => {
+          if (stateCampaignData[sName].cluster_details.length > 0 || stateCampaignData[sName].segment_leads_uploaded > 0) {
+            targetStateNames.add(sName);
+          }
+        });
+      }
+
+      const s = c.stats || {};
+      const divisor = Math.max(1, targetStateNames.size);
+      for (const sName of targetStateNames) {
+        const stObj = ensureState(sName);
+        if (!stObj) continue;
+        stObj.has_active = true;
+        stObj.campaign_count += 1;
+        stObj.delivered += Math.round(Number(s.delivered || 0) / divisor);
+        stObj.leads += Math.round(Number(s.form_submissions || 0) / divisor);
+        stObj.conversions += Math.round(Number(s.conversions || 0) / divisor);
+        stObj.revenue += Math.round(Number(s.revenue_generated || 0) / divisor);
+
+        if (!chanSets.has(stObj.state_name)) chanSets.set(stObj.state_name, new Set());
+        const cs = chanSets.get(stObj.state_name);
+        if (c.campaign_type === 'both') {
+          cs.add('whatsapp');
+          cs.add('email');
+        } else if (c.campaign_type) {
+          cs.add(c.campaign_type);
+        }
+
+        stObj.running_campaigns.push({
+          _id: c._id,
+          name: c.campaign_name,
+          code: c.campaign_code,
+          type: c.campaign_type,
+          objective: c.campaign_objective || c.purpose,
+          status: c.status,
+          delivered: Number(s.delivered || 0),
+          leads: Number(s.form_submissions || 0),
+          conversions: Number(s.conversions || 0),
+          revenue: Number(s.revenue_generated || 0)
+        });
+      }
+    }
+
+    // Finalize channel type string & summary
     let totalLiveStates = 0;
     let totalLiveClusters = 0;
     let totalTerritoryDelivered = 0;
@@ -561,9 +618,15 @@ const getTerritoryMapAnalytics = async (req, res) => {
     let totalTerritoryRevenue = 0;
 
     Object.values(stateCampaignData).forEach((st) => {
-      if (st.has_active) {
-        totalLiveStates += 1;
-        totalLiveClusters += (st.clusters || []).length;
+      const ch = Array.from(chanSets.get(st.state_name) || []);
+      st.channels = ch;
+      if (ch.includes('whatsapp') && ch.includes('email')) st.campaign_type = 'both';
+      else if (ch.length === 1) st.campaign_type = ch[0];
+      else st.campaign_type = st.has_active ? 'segment_only' : 'none';
+
+      if (st.has_active || st.clusters.length > 0) {
+        if (st.has_active) totalLiveStates += 1;
+        totalLiveClusters += st.clusters.length;
         totalTerritoryDelivered += st.delivered;
         totalTerritoryLeads += st.leads;
         totalTerritoryConversions += st.conversions;
@@ -580,12 +643,22 @@ const getTerritoryMapAnalytics = async (req, res) => {
           total_territory_delivered: totalTerritoryDelivered,
           total_territory_leads: totalTerritoryLeads,
           total_territory_conversions: totalTerritoryConversions,
-          total_territory_revenue: totalTerritoryRevenue
+          total_territory_revenue: Math.round(totalTerritoryRevenue),
+          total_segment_leads: segmentAnalytics.summary.total_leads_uploaded,
+          total_segment_registered: segmentAnalytics.summary.total_registered,
+          total_segment_verified: segmentAnalytics.summary.total_verified,
+          total_segment_buyers: segmentAnalytics.summary.total_buyers,
+          total_segment_orders: segmentAnalytics.summary.total_orders,
+          total_segment_revenue_inr: segmentAnalytics.summary.total_revenue_inr,
+          total_post_campaign_conversions: segmentAnalytics.summary.post_campaign_registered + segmentAnalytics.summary.post_campaign_buyers
         },
-        states: stateCampaignData
+        states: stateCampaignData,
+        districts_lookup: segmentAnalytics.map_territory?.districts || [],
+        segment_analytics_summary: segmentAnalytics.summary
       }
     });
   } catch (error) {
+    console.error('❌ [Marketing] getTerritoryMapAnalytics error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -634,12 +707,16 @@ const getCampaignById = async (req, res) => {
 
 const createCampaign = async (req, res) => {
   try {
-    const data = req.body;
+    const data = { ...(req.body || {}) };
     if (req.user?.id) {
       data.created_by = req.user.id;
     }
 
-    // Auto-resolve audience count and recipients with channel consent & industry preferences
+    if (data.campaign_type) {
+      data.campaign_type = String(data.campaign_type).toLowerCase();
+    }
+
+    // Auto-resolve EPC + isolated Segment Group audience with channel consent & industry preferences
     const audience = await audienceService.resolveAudience({
       epc_groups: data.epc_groups,
       exclude_groups: data.exclude_groups,
@@ -649,6 +726,9 @@ const createCampaign = async (req, res) => {
       warehouse_ids: data.warehouse_ids,
       purchase_activity: data.purchase_activity,
       last_order_days: data.last_order_days,
+      segment_ids: data.segment_ids || [],
+      segment_state_filter: data.segment_state_filter || '',
+      segment_district_filter: data.segment_district_filter || '',
       channel: data.campaign_type || null,
       industry_ids: data.industry_ids || [],
       kit_ids: data.kit_ids || [],
@@ -658,7 +738,11 @@ const createCampaign = async (req, res) => {
 
     data.total_recipients = audience.total_eligible;
     data.recipients = audience.recipients.map(r => ({
-      epc_id: r.epc_id,
+      epc_id: r.epc_id || null,
+      source_type: r.source_type || 'epc',
+      segment_id: r.segment_id || null,
+      segment_contact_id: r.segment_contact_id || null,
+      custom_fields: r.custom_fields || {},
       name: r.name,
       phone: r.phone,
       email: r.email,
@@ -1052,263 +1136,116 @@ const getReports = async (req, res) => {
   }
 };
 
-// ── In-Memory Unified Staging for Dynamic CSV Uploads ────────────────
-const dynamicImportedLeads = [];
-
-// ── 9. Live EPC Audience Hub List (Boss Requirement 1 & 2) ────────────────
+// ── 9. Live EPC Audience Hub List (100% Dynamic from MongoDB — Zero Static/Mock Data) ──
 const getAudienceList = async (req, res) => {
   try {
     const { search, epc_type, state, cluster, warehouse } = req.query;
 
-    let dbEpcs = [];
-    let dbLeads = [];
-    let buyerSet = new Set();
-    let orderCountMap = new Map();
+    const orderCountMap = new Map();
 
-    try {
-      if (EpcOrder) {
-        const orders = await EpcOrder.find({
-          order_status: { $nin: ['cancelled', 'rejected'] }
-        }).select('epc_id customer_phone customer_email created_at').lean();
+    const [ordersRes, dbEpcs, dbLeads, geoResolver] = await Promise.all([
+      EpcOrder
+        ? EpcOrder.find({
+            order_status: { $nin: ['cancelled', 'rejected'] }
+          })
+            .select('epc_id customer_phone customer_email created_at')
+            .lean()
+            .catch(() => [])
+        : Promise.resolve([]),
+      EpcAccount
+        ? EpcAccount.find({ deleted_at: null })
+            .select('name company_name email whatsapp phone state_name district_name gstin is_gstin_active gst_verification_status epc_type created_at')
+            .sort({ created_at: -1 })
+            .lean()
+            .catch(() => [])
+        : Promise.resolve([]),
+      WebsiteEpcLead
+        ? WebsiteEpcLead.find({ deleted_at: null })
+            .select('lead_id name company_name contact_person phone mobile_number email state_name district_id district_name cluster_id cluster_name cluster_code gst_number epc_type lead_source custom_attributes lifetime_orders created_at')
+            .sort({ created_at: -1 })
+            .lean()
+            .catch(() => [])
+        : Promise.resolve([]),
+      buildGeoAndClusterResolver().catch(() => null),
+    ]);
 
-        for (const ord of orders) {
-          if (ord.epc_id) {
-            const idStr = String(ord.epc_id);
-            buyerSet.add(idStr);
-            orderCountMap.set(idStr, (orderCountMap.get(idStr) || 0) + 1);
-          }
-          if (ord.customer_phone) {
-            const ph = String(ord.customer_phone).slice(-10);
-            buyerSet.add(ph);
-            orderCountMap.set(ph, (orderCountMap.get(ph) || 0) + 1);
-          }
-        }
+    for (const ord of ordersRes) {
+      if (ord.epc_id) {
+        const idStr = String(ord.epc_id);
+        orderCountMap.set(idStr, (orderCountMap.get(idStr) || 0) + 1);
       }
-    } catch (e) {
-      // Orders lookup fallback
+      if (ord.customer_phone) {
+        const ph = String(ord.customer_phone).replace(/\D/g, '').slice(-10);
+        if (ph.length === 10) orderCountMap.set(ph, (orderCountMap.get(ph) || 0) + 1);
+      }
     }
 
-    try {
-      if (EpcAccount) {
-        dbEpcs = await EpcAccount.find({ deleted_at: null })
-          .select('name email whatsapp state_name district_name gstin created_at')
-          .limit(100)
-          .lean();
-      }
-    } catch (e) {
-      // EpcAccount fallback
-    }
+    const combined = [];
 
-    try {
-      if (WebsiteEpcLead) {
-        dbLeads = await WebsiteEpcLead.find({ deleted_at: null })
-          .select('name company_name contact_person phone mobile_number email state_name district_name gst_number created_at')
-          .limit(100)
-          .lean();
-      }
-    } catch (e) {
-      // WebsiteEpcLead fallback
-    }
-
-    // Benchmark Master EPCs list representing all primary Indian clusters
-    const defaultEPCs = [
-      {
-        _id: 'epc-101',
-        name: 'SunVolt Solar Solutions',
-        contactPerson: 'Ramesh Patel',
-        phone: '+91 98234 56789',
-        email: 'ramesh@sunvoltsolar.com',
-        state: 'Maharashtra',
-        cluster: 'Pune Cluster',
-        warehouse: 'Pune South Facility',
-        gstin: '27AABCS1429B1Z8',
-        lifetimeOrders: 28,
-        lastActive: '2 days ago',
-        whatsappOptIn: true,
-        emailVerified: true
-      },
-      {
-        _id: 'epc-102',
-        name: 'Apex Green Energy LLP',
-        contactPerson: 'Vikram Shinde',
-        phone: '+91 98765 43210',
-        email: 'contact@apexgreen.in',
-        state: 'Maharashtra',
-        cluster: 'Bhiwandi Central',
-        warehouse: 'Bhiwandi Super Depot (WH-MH-01)',
-        gstin: '27AAECP4421C1Z4',
-        lifetimeOrders: 0,
-        lastActive: '5 days ago',
-        whatsappOptIn: true,
-        emailVerified: true
-      },
-      {
-        _id: 'epc-103',
-        name: 'Gujarat Solar Power Corp',
-        contactPerson: 'Dhaval Shah',
-        phone: '+91 94280 11223',
-        email: 'dhaval@gspc-solar.co.in',
-        state: 'Gujarat',
-        cluster: 'Surat Cluster',
-        warehouse: 'Surat Central Hub',
-        gstin: '24AAFCG8920D1Z1',
-        lifetimeOrders: 42,
-        lastActive: 'Yesterday',
-        whatsappOptIn: true,
-        emailVerified: true
-      },
-      {
-        _id: 'epc-104',
-        name: 'Marwar Renewable Systems',
-        contactPerson: 'Surendra Singh',
-        phone: '+91 98290 88776',
-        email: 'surendra@marwarsolar.com',
-        state: 'Rajasthan',
-        cluster: 'Jaipur Central',
-        warehouse: 'Jaipur Regional Depot',
-        gstin: null,
-        lifetimeOrders: 0,
-        lastActive: '12 days ago',
-        whatsappOptIn: true,
-        emailVerified: false
-      },
-      {
-        _id: 'epc-105',
-        name: 'Kaveri Tech Solar Solutions',
-        contactPerson: 'Anand Kumar',
-        phone: '+91 97400 44556',
-        email: 'anand@kaverisolar.com',
-        state: 'Karnataka',
-        cluster: 'Bengaluru South',
-        warehouse: 'Bengaluru Logistics Park',
-        gstin: '29AABCK7788F1Z6',
-        lifetimeOrders: 19,
-        lastActive: 'Today',
-        whatsappOptIn: true,
-        emailVerified: true
-      },
-      {
-        _id: 'epc-106',
-        name: 'Vidarbha Energy EPC Network',
-        contactPerson: 'Nitin Deshmukh',
-        phone: '+91 98220 99881',
-        email: 'nitin@vidarbhaenergy.in',
-        state: 'Maharashtra',
-        cluster: 'Nagpur East',
-        warehouse: 'Nagpur Distribution Center',
-        gstin: null,
-        lifetimeOrders: 0,
-        lastActive: '3 days ago',
-        whatsappOptIn: true,
-        emailVerified: true
-      },
-      {
-        _id: 'epc-107',
-        name: 'Sabarmati CleanTech Power',
-        contactPerson: 'Ketan Parikh',
-        phone: '+91 98251 77665',
-        email: 'ketan@sabarmaticlean.com',
-        state: 'Gujarat',
-        cluster: 'Ahmedabad Industrial',
-        warehouse: 'Ahmedabad Industrial Hub',
-        gstin: '24AABCS9988H1Z5',
-        lifetimeOrders: 0,
-        lastActive: 'Just now',
-        whatsappOptIn: true,
-        emailVerified: true
-      },
-      {
-        _id: 'epc-108',
-        name: 'Thane Rooftop Solar Direct',
-        contactPerson: 'Sachin Patil',
-        phone: '+91 99200 11442',
-        email: 'sachin@thanerootop.in',
-        state: 'Maharashtra',
-        cluster: 'Bhiwandi Central',
-        warehouse: 'Bhiwandi Super Depot (WH-MH-01)',
-        gstin: '27AABCT9981K1Z2',
-        lifetimeOrders: 15,
-        lastActive: '1 day ago',
-        whatsappOptIn: true,
-        emailVerified: true
-      },
-      {
-        _id: 'epc-109',
-        name: 'Mewar Solar Energy Works',
-        contactPerson: 'Bhanwar Singh',
-        phone: '+91 94140 66554',
-        email: 'bhanwar@mewarsolar.co.in',
-        state: 'Rajasthan',
-        cluster: 'Jaipur Central',
-        warehouse: 'Jaipur Regional Depot',
-        gstin: '08AAECM5544J1Z8',
-        lifetimeOrders: 0,
-        lastActive: '4 days ago',
-        whatsappOptIn: true,
-        emailVerified: true
-      },
-      {
-        _id: 'epc-110',
-        name: 'Deccan Photon Power Ltd',
-        contactPerson: 'Suresh Reddy',
-        phone: '+91 98480 33221',
-        email: 'suresh@deccanphoton.in',
-        state: 'Karnataka',
-        cluster: 'Bengaluru South',
-        warehouse: 'Bengaluru Logistics Park',
-        gstin: null,
-        lifetimeOrders: 0,
-        lastActive: '8 days ago',
-        whatsappOptIn: true,
-        emailVerified: false
-      }
-    ];
-
-    // Combine dynamic imported leads, DB leads, and baseline
-    const combined = [...dynamicImportedLeads, ...defaultEPCs];
-
-    // Merge database accounts if present
     for (const acc of dbEpcs) {
-      const ph = (acc.whatsapp || '').replace(/\D/g, '').slice(-10);
-      const orders = orderCountMap.get(String(acc._id)) || orderCountMap.get(ph) || 0;
+      const ph = String(acc.whatsapp || acc.phone || '').replace(/\D/g, '').slice(-10);
+      const orders = Math.max(
+        orderCountMap.get(String(acc._id)) || 0,
+        (ph && orderCountMap.get(ph)) || 0
+      );
+      const resolved = geoResolver
+        ? geoResolver.resolve({
+            stateName: acc.state_name || '',
+            districtName: acc.district_name || '',
+          })
+        : { state: acc.state_name || '', district: acc.district_name || '', cluster_name: '' };
+
       combined.push({
         _id: String(acc._id),
-        name: acc.name || 'Solar Partner',
-        contactPerson: acc.name || 'Contractor',
-        phone: acc.whatsapp || '',
+        name: acc.company_name || acc.name || 'EPC Partner',
+        contactPerson: acc.name || acc.company_name || '',
+        phone: acc.whatsapp || acc.phone || '',
         email: acc.email || '',
-        state: acc.state_name || 'Maharashtra',
-        cluster: acc.district_name || 'Pune Cluster',
-        warehouse: 'Regional Facility',
+        state: resolved.state || acc.state_name || '',
+        district: resolved.district || acc.district_name || '',
+        cluster: resolved.cluster_name || acc.district_name || '',
+        warehouse: resolved.cluster_name ? `${resolved.cluster_name} Depot` : '',
         gstin: acc.gstin || null,
         lifetimeOrders: orders,
-        lastActive: 'Recent',
+        lastActive: acc.created_at ? new Date(acc.created_at).toLocaleDateString('en-IN') : '',
         whatsappOptIn: true,
-        emailVerified: true
+        emailVerified: Boolean(acc.email),
+        recordSource: 'epc_account',
       });
     }
 
     for (const lead of dbLeads) {
-      const ph = (lead.phone || lead.mobile_number || '').replace(/\D/g, '').slice(-10);
-      const orders = orderCountMap.get(ph) || 0;
+      const ph = String(lead.phone || lead.mobile_number || '').replace(/\D/g, '').slice(-10);
+      const orders = Math.max(Number(lead.lifetime_orders || 0), (ph && orderCountMap.get(ph)) || 0);
+      const resolved = geoResolver
+        ? geoResolver.resolve({
+            stateName: lead.state_name || '',
+            districtName: lead.district_name || '',
+          })
+        : { state: lead.state_name || '', district: lead.district_name || '', cluster_name: '' };
+
       combined.push({
         _id: String(lead._id || lead.lead_id),
         name: lead.company_name || lead.name || 'Lead Contractor',
-        contactPerson: lead.contact_person || lead.name || 'Lead Contact',
+        contactPerson: lead.contact_person || lead.name || '',
         phone: lead.phone || lead.mobile_number || '',
         email: lead.email || '',
-        state: lead.state_name || 'Maharashtra',
-        cluster: lead.district_name || 'Bhiwandi Central',
-        warehouse: 'Central Depot',
+        state: resolved.state || lead.state_name || '',
+        district: resolved.district || lead.district_name || '',
+        cluster: lead.cluster_name || resolved.cluster_name || lead.district_name || '',
+        cluster_code: lead.cluster_code || resolved.cluster_code || '',
+        warehouse: (lead.cluster_name || resolved.cluster_name) ? `${lead.cluster_name || resolved.cluster_name} Depot` : '',
         gstin: lead.gst_number || null,
         lifetimeOrders: orders,
-        lastActive: 'Lead Captured',
+        lastActive: lead.lead_source || 'Imported Lead',
         whatsappOptIn: true,
-        emailVerified: Boolean(lead.email)
+        emailVerified: Boolean(lead.email),
+        customFields: lead.custom_attributes || {},
+        recordSource: 'website_epc_lead',
       });
     }
 
-    // Apply strict deduplication by normalized phone or email
+    // Strict deduplication by normalized phone or email
     const seenMap = new Map();
     for (const item of combined) {
       const ph = String(item.phone || '').replace(/\D/g, '').slice(-10);
@@ -1316,21 +1253,20 @@ const getAudienceList = async (req, res) => {
       const key = ph || em || String(item._id);
 
       if (!seenMap.has(key)) {
-        // Apply Boss Rule: Classify EPC
         const type = classifyEpcPartner({
           gstin: item.gstin,
-          lifetimeOrders: item.lifetimeOrders
+          lifetimeOrders: item.lifetimeOrders,
         });
         seenMap.set(key, { ...item, type });
       }
     }
 
-    let allList = Array.from(seenMap.values());
+    const fullList = Array.from(seenMap.values());
+    let allList = [...fullList];
 
-    // Filter
     if (search && search.trim()) {
       const q = search.toLowerCase().trim();
-      allList = allList.filter(item =>
+      allList = allList.filter((item) =>
         (item.name || '').toLowerCase().includes(q) ||
         (item.contactPerson || '').toLowerCase().includes(q) ||
         (item.phone || '').includes(q) ||
@@ -1340,43 +1276,45 @@ const getAudienceList = async (req, res) => {
     }
 
     if (epc_type && epc_type !== 'ALL') {
-      allList = allList.filter(item => item.type === epc_type);
+      allList = allList.filter((item) => item.type === epc_type);
     }
 
     if (state && state !== 'ALL') {
-      allList = allList.filter(item => (item.state || '').toLowerCase() === state.toLowerCase());
+      const stTok = cleanStateToken(state);
+      allList = allList.filter(
+        (item) => (item.state || '').toLowerCase() === state.toLowerCase() || (stTok && cleanStateToken(item.state) === stTok)
+      );
     }
 
     if (cluster && cluster !== 'ALL') {
-      allList = allList.filter(item => (item.cluster || '').toLowerCase().includes(cluster.toLowerCase()));
+      const cTok = cleanGeoToken(cluster);
+      allList = allList.filter(
+        (item) => (item.cluster || '').toLowerCase().includes(cluster.toLowerCase()) || (cTok && cleanGeoToken(item.cluster) === cTok)
+      );
     }
 
     if (warehouse && warehouse !== 'ALL') {
-      allList = allList.filter(item => (item.warehouse || '').toLowerCase().includes(warehouse.toLowerCase()));
+      allList = allList.filter((item) => (item.warehouse || '').toLowerCase().includes(warehouse.toLowerCase()));
     }
 
-    // Aggregate statistics
-    const fullList = Array.from(seenMap.values());
-    const totalEpcs = 14250 + dynamicImportedLeads.length;
-    const buyerEpcs = fullList.filter(i => i.type === 'Buyer EPC').length;
-    const verifiedEpcs = fullList.filter(i => i.type === 'Verified EPC').length;
-    const registeredEpcs = fullList.filter(i => i.type === 'Registered EPC').length;
+    const buyerEpcs = fullList.filter((i) => i.type === 'Buyer EPC').length;
+    const verifiedEpcs = fullList.filter((i) => i.type === 'Verified EPC').length;
+    const registeredEpcs = fullList.filter((i) => i.type === 'Registered EPC').length;
     const totalKitsOrdered = fullList.reduce((acc, i) => acc + (Number(i.lifetimeOrders) || 0), 0);
 
-    // Compute cluster breakdown for the Interactive Map
     const clusterMap = new Map();
     for (const item of fullList) {
-      const cName = item.cluster || 'Other Cluster';
+      const cName = item.cluster || 'Unassigned Cluster';
       if (!clusterMap.has(cName)) {
         clusterMap.set(cName, {
           name: cName,
-          state: item.state || 'Maharashtra',
-          warehouse: item.warehouse || 'Central Facility',
+          state: item.state || '',
+          warehouse: item.warehouse || '',
           buyer_epcs: 0,
           verified_epcs: 0,
           registered_epcs: 0,
           total_epcs: 0,
-          total_orders: 0
+          total_orders: 0,
         });
       }
       const cObj = clusterMap.get(cName);
@@ -1387,120 +1325,250 @@ const getAudienceList = async (req, res) => {
       else cObj.registered_epcs++;
     }
 
-    const clusters = Array.from(clusterMap.values()).map(c => {
+    const clusters = Array.from(clusterMap.values()).map((c) => {
       let dominant = 'Registered EPC';
       if (c.buyer_epcs >= c.verified_epcs && c.buyer_epcs >= c.registered_epcs) dominant = 'Buyer EPC';
       else if (c.verified_epcs >= c.registered_epcs) dominant = 'Verified EPC';
       return {
         ...c,
-        dominant_type: dominant
+        dominant_type: dominant,
       };
     });
+
+    const activeStatesSet = new Set(fullList.map((i) => i.state).filter(Boolean));
 
     res.json({
       success: true,
       audiences: allList,
       stats: {
-        total_epc_database: totalEpcs,
-        unique_eligible_epcs: fullList.length + 9840,
-        buyer_epcs: buyerEpcs + 2150,
-        verified_epcs: verifiedEpcs + 3420,
-        registered_epcs: registeredEpcs + 8680,
-        lifetime_kits_ordered: totalKitsOrdered + 1420,
-        active_clusters_count: clusters.length,
-        active_states_count: new Set(fullList.map(i => i.state)).size
+        total_epc_database: fullList.length,
+        unique_eligible_epcs: fullList.length,
+        buyer_epcs: buyerEpcs,
+        verified_epcs: verifiedEpcs,
+        registered_epcs: registeredEpcs,
+        lifetime_kits_ordered: totalKitsOrdered,
+        active_clusters_count: clusters.filter((c) => c.name !== 'Unassigned Cluster').length,
+        active_states_count: activeStatesSet.size,
       },
-      clusters
+      clusters,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ── 10. Dynamic CSV Lead Import with Custom Field Mapping (Boss Requirement 2) ──
+// ── 10. Dynamic Bulk Lead Import to MongoDB (Zero In-Memory Dummy Data + Option B Duplicates) ──
 const importDynamicCsvLeads = async (req, res) => {
   try {
-    const { leads = [], customFieldMappings = {} } = req.body;
+    const { leads = [], default_settings = {} } = req.body;
     if (!Array.isArray(leads) || leads.length === 0) {
       return res.status(400).json({ success: false, message: 'No lead rows provided for import.' });
     }
+    if (!WebsiteEpcLead) {
+      return res.status(500).json({ success: false, message: 'WebsiteEpcLead database model unavailable.' });
+    }
+
+    const batchPhones = [];
+    const batchEmails = [];
+    for (const raw of leads) {
+      const p10 = String(raw.mobile_number || raw.phone || raw.mobile || raw.whatsapp || raw.whatsapp_number || '').replace(/\D/g, '').slice(-10);
+      const em = raw.email ? String(raw.email).trim().toLowerCase() : '';
+      if (p10.length === 10) batchPhones.push(p10);
+      if (em && em.includes('@')) batchEmails.push(em);
+    }
+
+    const existingLeadPhoneSet = new Set();
+    const existingLeadEmailSet = new Set();
+    const existingAccPhoneSet = new Set();
+    const existingAccEmailSet = new Set();
+
+    if (batchPhones.length > 0 || batchEmails.length > 0) {
+      const leadOr = [];
+      if (batchPhones.length > 0) leadOr.push({ phone: { $in: batchPhones } }, { mobile_number: { $in: batchPhones } });
+      if (batchEmails.length > 0) leadOr.push({ email: { $in: batchEmails } });
+
+      const [existingLeads, existingEpcs] = await Promise.all([
+        leadOr.length > 0 ? WebsiteEpcLead.find({ deleted_at: null, $or: leadOr }).select('phone mobile_number email').lean() : [],
+        EpcAccount
+          ? EpcAccount.find({
+              deleted_at: null,
+              $or: [
+                ...(batchPhones.length > 0 ? [{ whatsapp: { $in: batchPhones } }, { phone: { $in: batchPhones } }] : []),
+                ...(batchEmails.length > 0 ? [{ email: { $in: batchEmails } }] : []),
+              ]
+            }).select('whatsapp phone email').lean()
+          : [],
+      ]);
+
+      for (const l of existingLeads) {
+        const p10 = String(l.mobile_number || l.phone || '').replace(/\D/g, '').slice(-10);
+        if (p10.length === 10) existingLeadPhoneSet.add(p10);
+        if (l.email) existingLeadEmailSet.add(String(l.email).toLowerCase());
+      }
+      for (const a of existingEpcs) {
+        const p10 = String(a.whatsapp || a.phone || '').replace(/\D/g, '').slice(-10);
+        if (p10.length === 10) existingAccPhoneSet.add(p10);
+        if (a.email) existingAccEmailSet.add(String(a.email).toLowerCase());
+      }
+    }
+
+    const geoResolver = await buildGeoAndClusterResolver().catch(() => null);
+    const reqFieldsArr = Array.isArray(default_settings.required_fields) && default_settings.required_fields.length > 0
+      ? default_settings.required_fields
+      : ['company_name', 'mobile_number', 'state_name'];
+    const reqSet = new Set(reqFieldsArr);
 
     let importedCount = 0;
+    let duplicatesSkipped = 0;
+    let skippedInvalid = 0;
     let buyerCount = 0;
     let verifiedCount = 0;
     let registeredCount = 0;
+    const skippedDetails = [];
+    const seenPhones = new Set();
+    const seenEmails = new Set();
+    const clusterSummary = {};
+    const stateSummary = {};
+    const year = new Date().getFullYear();
 
-    for (const raw of leads) {
-      const name = raw.company_name || raw.name || raw.firm_name || 'Solar EPC Contractor';
-      const contactPerson = raw.contact_person || raw.contactPerson || raw.person || name;
-      const phone = String(raw.whatsapp || raw.phone || raw.mobile || raw.mobile_number || '').trim();
-      const email = raw.email ? String(raw.email).trim().toLowerCase() : (phone ? `${phone.slice(-10)}@lead.solarkits.in` : '');
-      const state = raw.state_name || raw.state || 'Maharashtra';
-      const cluster = raw.district_name || raw.cluster || raw.district || 'Bhiwandi Central';
-      const gstin = raw.gstin || raw.gst_number || raw.gst || null;
+    for (let idx = 0; idx < leads.length; idx++) {
+      const raw = leads[idx] || {};
+      const name = String(raw.company_name || raw.name || raw.firm_name || '').trim();
+      const contactPerson = String(raw.contact_person || raw.contactPerson || raw.person || name).trim();
+      const phoneDigits = String(raw.mobile_number || raw.phone || raw.mobile || raw.whatsapp || raw.whatsapp_number || '').replace(/\D/g, '');
+      const phone10 = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : '';
+      const rawEmail = raw.email ? String(raw.email).trim().toLowerCase() : '';
+      const email = rawEmail && rawEmail.includes('@') ? rawEmail : '';
+
+      const rawState = String(raw.state_name || raw.state || default_settings.default_state || '').trim();
+      const rawDistrict = String(raw.district_name || raw.district || raw.cluster || default_settings.default_district || default_settings.default_cluster || '').trim();
+      const rawCluster = String(raw.cluster_name || raw.cluster || default_settings.default_cluster || '').trim();
+
+      const resolvedGeo = geoResolver
+        ? geoResolver.resolve({ stateName: rawState, districtName: rawDistrict, clusterName: rawCluster })
+        : { state_id: null, state: rawState, district_id: null, district: rawDistrict, cluster_id: null, cluster_name: rawCluster, cluster_code: '' };
+      const finalState = resolvedGeo.state || rawState;
+      const finalDistrict = resolvedGeo.district || rawDistrict;
+      const finalClusterName = resolvedGeo.cluster_name || rawCluster || null;
+
+      let invalidReason = '';
+      if (!name && !phone10 && !email) {
+        invalidReason = 'Empty row (missing Name, Phone & Email)';
+      } else if (reqSet.has('company_name') && !name) {
+        invalidReason = 'Missing required Company / Firm Name';
+      } else if (reqSet.has('mobile_number') && !phone10) {
+        invalidReason = 'Missing required 10-digit Mobile Number';
+      } else if (reqSet.has('email') && !email) {
+        invalidReason = 'Missing required Email Address';
+      } else if (reqSet.has('state_name') && !finalState) {
+        invalidReason = 'Missing required State (no state/district match or Default State)';
+      } else if (reqSet.has('district_name') && !finalDistrict) {
+        invalidReason = 'Missing required District / City';
+      }
+
+      if (invalidReason) {
+        skippedInvalid++;
+        if (skippedDetails.length < 300) {
+          skippedDetails.push({
+            row_number: idx + 1,
+            name: name || `Row ${idx + 1}`,
+            phone: phone10,
+            email,
+            reason: invalidReason,
+          });
+        }
+        continue;
+      }
+
+      if ((phone10 && existingAccPhoneSet.has(phone10)) || (email && existingAccEmailSet.has(email))) {
+        duplicatesSkipped++;
+        if (skippedDetails.length < 300) {
+          skippedDetails.push({ row_number: idx + 1, name, phone: phone10, email, reason: 'Already registered Platform EPC' });
+        }
+        continue;
+      }
+      if ((phone10 && existingLeadPhoneSet.has(phone10)) || (email && existingLeadEmailSet.has(email))) {
+        duplicatesSkipped++;
+        if (skippedDetails.length < 300) {
+          skippedDetails.push({ row_number: idx + 1, name, phone: phone10, email, reason: 'Already exists in Website / Audience Leads' });
+        }
+        continue;
+      }
+      if ((phone10 && seenPhones.has(phone10)) || (email && seenEmails.has(email))) {
+        duplicatesSkipped++;
+        if (skippedDetails.length < 300) {
+          skippedDetails.push({ row_number: idx + 1, name, phone: phone10, email, reason: 'Duplicate entry in same uploaded file' });
+        }
+        continue;
+      }
+
+      if (phone10) seenPhones.add(phone10);
+      if (email) seenEmails.add(email);
+
+      const gstin = raw.gst_number || raw.gstin || raw.gst ? String(raw.gst_number || raw.gstin || raw.gst).trim().toUpperCase() : null;
       const lifetimeOrders = Number(raw.lifetime_orders || raw.lifetimeOrders || raw.orders || 0);
-
-      // Classify according to Boss Rule
-      const type = classifyEpcPartner({ gstin, lifetimeOrders });
+      const explicitType = String(raw.epc_type || default_settings.default_epc_type || '').trim();
+      const type = explicitType || classifyEpcPartner({ gstin, lifetimeOrders });
 
       if (type === 'Buyer EPC') buyerCount++;
       else if (type === 'Verified EPC') verifiedCount++;
       else registeredCount++;
 
-      const record = {
-        _id: `imp-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
-        name,
-        contactPerson,
-        phone: phone.startsWith('+91') ? phone : `+91 ${phone.slice(-10)}`,
-        email,
-        state,
-        cluster,
-        warehouse: raw.warehouse || `${cluster} Depot`,
-        gstin: gstin ? String(gstin).toUpperCase().trim() : null,
-        lifetimeOrders,
-        lastActive: 'Just imported via CSV',
-        whatsappOptIn: true,
-        emailVerified: Boolean(raw.email),
-        type,
-        customFields: raw.customFields || {}
-      };
+      const leadSource = String(raw.lead_source || raw.source || default_settings.default_lead_source || 'audience_dynamic_import').trim();
 
-      dynamicImportedLeads.unshift(record);
+      await WebsiteEpcLead.create({
+        lead_id: `IMP-${year}-${Date.now().toString().slice(-4)}${Math.floor(1000 + Math.random() * 9000)}`,
+        name: name || email || phone10,
+        company_name: name || email || phone10,
+        contact_person: contactPerson || name || email || phone10,
+        phone: phone10 || null,
+        mobile_number: phone10 || null,
+        email: email || null,
+        state_id: resolvedGeo.state_id || null,
+        state_name: finalState || '',
+        district_id: resolvedGeo.district_id || null,
+        district_name: finalDistrict || null,
+        cluster_id: resolvedGeo.cluster_id || null,
+        cluster_name: finalClusterName,
+        cluster_code: resolvedGeo.cluster_code || null,
+        pincode: raw.pincode ? String(raw.pincode).replace(/\D/g, '').slice(0, 6) || null : null,
+        address_line: raw.address_line ? String(raw.address_line).trim() : null,
+        project_type: raw.interested_products || 'Bulk Solar Combo Kits',
+        interested_products: raw.interested_products || null,
+        follow_up_date: raw.follow_up_date || null,
+        remarks: raw.remarks || default_settings.default_remarks || null,
+        gst_number: gstin,
+        gst_verification_status: gstin ? 'verified_admin' : 'unverified',
+        epc_type: type,
+        lifetime_orders: lifetimeOrders,
+        status: 'new',
+        lead_status: 'New',
+        lead_source: leadSource,
+        source: leadSource,
+        custom_attributes: raw.custom_attributes || raw.customFields || raw.custom_fields || {},
+      });
+
+      if (finalState) stateSummary[finalState] = (stateSummary[finalState] || 0) + 1;
+      if (finalClusterName) clusterSummary[finalClusterName] = (clusterSummary[finalClusterName] || 0) + 1;
       importedCount++;
-
-      // Also persist to DB if collections are ready
-      try {
-        if (WebsiteEpcLead) {
-          await WebsiteEpcLead.create({
-            lead_id: `IMP-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`,
-            name,
-            company_name: name,
-            contact_person: contactPerson,
-            phone: phone.slice(-10),
-            mobile_number: phone.slice(-10),
-            email,
-            state_name: state,
-            district_name: cluster,
-            gst_number: gstin,
-            status: 'new',
-            lead_status: 'New',
-            lead_source: 'csv_dynamic_import'
-          });
-        }
-      } catch (dbErr) {
-        // Keep in in-memory unified store
-      }
     }
 
     res.json({
       success: true,
-      message: `Successfully imported and classified ${importedCount} EPC leads.`,
+      message: `Imported ${importedCount} lead(s) to MongoDB across States & Clusters. Skipped ${duplicatesSkipped} duplicate(s) and ${skippedInvalid} invalid row(s).`,
       count: importedCount,
+      imported_count: importedCount,
+      importedCount,
+      duplicates_skipped: duplicatesSkipped,
+      skipped_invalid: skippedInvalid,
+      cluster_summary: clusterSummary,
+      state_summary: stateSummary,
+      skipped_details: skippedDetails,
       breakdown: {
         buyer_epcs: buyerCount,
         verified_epcs: verifiedCount,
-        registered_epcs: registeredCount
-      }
+        registered_epcs: registeredCount,
+      },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -1704,5 +1772,6 @@ module.exports = {
   uploadMarketingMedia,
   getMarketingQueueStatus,
   handleUnsubscribe,
-  getUnsubscribedList
+  getUnsubscribedList,
+  ...segmentGroupsController
 };
