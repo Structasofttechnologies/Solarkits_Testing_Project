@@ -26,14 +26,16 @@ import {
   FaInfoCircle
 } from 'react-icons/fa';
 import { FiZoomIn, FiZoomOut, FiRefreshCw, FiMapPin, FiCheck, FiSliders } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getAuthToken } from '../../app/authHeader';
 import {
-  ALL_36_INDIAN_STATES,
   fetchLiveActiveStates,
   fetchLiveClusters,
   fetchLiveWarehouses
 } from './services/marketingDataService';
+import DynamicBulkUploadModal from '../../components/bulk-upload/DynamicBulkUploadModal';
+import { EPC_LEAD_FIELD_OPTIONS, EPC_LEAD_PRESETS } from '../../components/bulk-upload/bulkUploadSchemas';
 
 const API_BASE = import.meta.env.VITE_ADMIN_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/admin-api';
 
@@ -77,171 +79,8 @@ const classifyEpc = (item) => {
   return 'Registered EPC';
 };
 
-// Default high-density benchmark EPC partner dataset covering major Indian solar hubs
-const DEFAULT_EPC_PARTNERS = [
-  {
-    _id: 'epc-101',
-    name: 'SunVolt Solar Solutions',
-    contactPerson: 'Ramesh Patel',
-    phone: '+91 98234 56789',
-    email: 'ramesh@sunvoltsolar.com',
-    state: 'Maharashtra',
-    cluster: 'Pune Cluster',
-    warehouse: 'Pune South Facility',
-    type: 'Buyer EPC',
-    lifetimeOrders: 28,
-    lastActive: '2 days ago',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '27AABCS1429B1Z8'
-  },
-  {
-    _id: 'epc-102',
-    name: 'Apex Green Energy LLP',
-    contactPerson: 'Vikram Shinde',
-    phone: '+91 98765 43210',
-    email: 'contact@apexgreen.in',
-    state: 'Maharashtra',
-    cluster: 'Bhiwandi Central',
-    warehouse: 'Bhiwandi Super Depot (WH-MH-01)',
-    type: 'Verified EPC',
-    lifetimeOrders: 0,
-    lastActive: '5 days ago',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '27AAECP4421C1Z4'
-  },
-  {
-    _id: 'epc-103',
-    name: 'Gujarat Solar Power Corp',
-    contactPerson: 'Dhaval Shah',
-    phone: '+91 94280 11223',
-    email: 'dhaval@gspc-solar.co.in',
-    state: 'Gujarat',
-    cluster: 'Surat Cluster',
-    warehouse: 'Surat Central Hub',
-    type: 'Buyer EPC',
-    lifetimeOrders: 42,
-    lastActive: 'Yesterday',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '24AAFCG8920D1Z1'
-  },
-  {
-    _id: 'epc-104',
-    name: 'Marwar Renewable Systems',
-    contactPerson: 'Surendra Singh',
-    phone: '+91 98290 88776',
-    email: 'surendra@marwarsolar.com',
-    state: 'Rajasthan',
-    cluster: 'Jaipur Central',
-    warehouse: 'Jaipur Regional Depot',
-    type: 'Registered EPC',
-    lifetimeOrders: 0,
-    lastActive: '12 days ago',
-    whatsappOptIn: true,
-    emailVerified: false,
-    gstin: null
-  },
-  {
-    _id: 'epc-105',
-    name: 'Kaveri Tech Solar Solutions',
-    contactPerson: 'Anand Kumar',
-    phone: '+91 97400 44556',
-    email: 'anand@kaverisolar.com',
-    state: 'Karnataka',
-    cluster: 'Bengaluru South',
-    warehouse: 'Bengaluru Logistics Park',
-    type: 'Buyer EPC',
-    lifetimeOrders: 19,
-    lastActive: 'Today',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '29AABCK7788F1Z6'
-  },
-  {
-    _id: 'epc-106',
-    name: 'Vidarbha Energy EPC Network',
-    contactPerson: 'Nitin Deshmukh',
-    phone: '+91 98220 99881',
-    email: 'nitin@vidarbhaenergy.in',
-    state: 'Maharashtra',
-    cluster: 'Nagpur East',
-    warehouse: 'Nagpur Distribution Center',
-    type: 'Registered EPC',
-    lifetimeOrders: 0,
-    lastActive: '3 days ago',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: null
-  },
-  {
-    _id: 'epc-107',
-    name: 'Sabarmati CleanTech Power',
-    contactPerson: 'Ketan Parikh',
-    phone: '+91 98251 77665',
-    email: 'ketan@sabarmaticlean.com',
-    state: 'Gujarat',
-    cluster: 'Ahmedabad Industrial',
-    warehouse: 'Ahmedabad Industrial Hub',
-    type: 'Verified EPC',
-    lifetimeOrders: 0,
-    lastActive: 'Just now',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '24AABCS9988H1Z5'
-  },
-  {
-    _id: 'epc-108',
-    name: 'Thane Rooftop Solar Direct',
-    contactPerson: 'Sachin Patil',
-    phone: '+91 99200 11442',
-    email: 'sachin@thanerootop.in',
-    state: 'Maharashtra',
-    cluster: 'Bhiwandi Central',
-    warehouse: 'Bhiwandi Super Depot (WH-MH-01)',
-    type: 'Buyer EPC',
-    lifetimeOrders: 15,
-    lastActive: '1 day ago',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '27AABCT9981K1Z2'
-  },
-  {
-    _id: 'epc-109',
-    name: 'Mewar Solar Energy Works',
-    contactPerson: 'Bhanwar Singh',
-    phone: '+91 94140 66554',
-    email: 'bhanwar@mewarsolar.co.in',
-    state: 'Rajasthan',
-    cluster: 'Jaipur Central',
-    warehouse: 'Jaipur Regional Depot',
-    type: 'Verified EPC',
-    lifetimeOrders: 0,
-    lastActive: '4 days ago',
-    whatsappOptIn: true,
-    emailVerified: true,
-    gstin: '08AAECM5544J1Z8'
-  },
-  {
-    _id: 'epc-110',
-    name: 'Deccan Photon Power Ltd',
-    contactPerson: 'Suresh Reddy',
-    phone: '+91 98480 33221',
-    email: 'suresh@deccanphoton.in',
-    state: 'Karnataka',
-    cluster: 'Bengaluru South',
-    warehouse: 'Bengaluru Logistics Park',
-    type: 'Registered EPC',
-    lifetimeOrders: 0,
-    lastActive: '8 days ago',
-    whatsappOptIn: true,
-    emailVerified: false,
-    gstin: null
-  }
-];
-
 export default function AudienceManagementPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('ALL'); // ALL | Buyer EPC | Verified EPC | Registered EPC
@@ -251,22 +90,21 @@ export default function AudienceManagementPage() {
 
   // Modals
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showSegmentModal, setShowSegmentModal] = useState(false);
 
-  // Audience Data
-  const [audiences, setAudiences] = useState(DEFAULT_EPC_PARTNERS);
+  // Audience Data (100% live from MongoDB — zero static/dummy baseline)
+  const [audiences, setAudiences] = useState([]);
   const [liveStates, setLiveStates] = useState([]);
   const [liveClusters, setLiveClusters] = useState([]);
   const [liveWarehouses, setLiveWarehouses] = useState([]);
   const [stats, setStats] = useState({
-    total_epc_database: 14250,
-    unique_eligible_epcs: 9840,
-    buyer_epcs: 2150,
-    verified_epcs: 3420,
-    registered_epcs: 8680,
-    lifetime_kits_ordered: 1845,
-    active_clusters_count: 8,
-    active_states_count: 36
+    total_epc_database: 0,
+    unique_eligible_epcs: 0,
+    buyer_epcs: 0,
+    verified_epcs: 0,
+    registered_epcs: 0,
+    lifetime_kits_ordered: 0,
+    active_clusters_count: 0,
+    active_states_count: 0
   });
 
   // Fetch live active states, clusters, and warehouses from central services
@@ -301,27 +139,9 @@ export default function AudienceManagementPage() {
   const mapWidth = 520;
   const mapHeight = 580;
 
-  // ── CSV Import Wizard State ─────────────────────────────────────────
-  const [importStep, setImportStep] = useState(1); // 1: Select File, 2: Map Fields & Preview
-  const [csvFileName, setCsvFileName] = useState('');
-  const [csvHeaders, setCsvHeaders] = useState([]);
-  const [rawCsvRows, setRawCsvRows] = useState([]);
-  const [fieldMappings, setFieldMappings] = useState({
-    name: '',
-    contactPerson: '',
-    phone: '',
-    email: '',
-    gstin: '',
-    state: '',
-    cluster: '',
-    pincode: '',
-    lifetimeOrders: ''
-  });
-  const [customFields, setCustomFields] = useState([]); // [{ key: 'extra1', label: 'Solar KW', csvHeader: '' }]
-  const [importSuccessMessage, setImportSuccessMessage] = useState(null);
-  const [importing, setImporting] = useState(false);
+  const [importFeedback, setImportFeedback] = useState(null);
 
-  // Fetch Audience list from Backend
+  // Fetch Audience list from Backend (100% Dynamic from MongoDB)
   const fetchAudience = useCallback(async () => {
     setLoading(true);
     try {
@@ -337,15 +157,14 @@ export default function AudienceManagementPage() {
         headers: token ? { Authorization: token } : {}
       });
 
-      if (res.data?.success && Array.isArray(res.data.audiences) && res.data.audiences.length > 0) {
-        setAudiences(res.data.audiences);
+      if (res.data?.success) {
+        setAudiences(Array.isArray(res.data.audiences) ? res.data.audiences : []);
         if (res.data.stats) setStats(res.data.stats);
         if (res.data.clusters) setClustersData(res.data.clusters);
       }
     } catch (err) {
       console.warn('Backend audience fetch notice:', err.message);
-      // Fallback baseline for seamless UI
-      setAudiences(prev => (prev && prev.length > 0) ? prev : DEFAULT_EPC_PARTNERS);
+      setAudiences([]);
     } finally {
       setLoading(false);
     }
@@ -400,14 +219,11 @@ export default function AudienceManagementPage() {
     return { districtFeatures: dFeatures, stateBoundaries: sBoundaries };
   }, [geoData]);
 
-  // Distinct Filter Lists (Mirrors Location Setup, Cluster Setup & Company Warehouses)
+  // Distinct Filter Lists (100% Dynamic from Live MongoDB Masters & Loaded Audiences)
   const availableStates = useMemo(() => {
     const set = new Set();
     liveStates.forEach(s => { if (s.name) set.add(s.name); });
     audiences.forEach(a => { if (a.state) set.add(a.state); });
-    if (set.size === 0) {
-      ALL_36_INDIAN_STATES.forEach(s => set.add(s.name));
-    }
     return Array.from(set).sort();
   }, [liveStates, audiences]);
 
@@ -625,214 +441,50 @@ export default function AudienceManagementPage() {
     });
   };
 
-  // ── CSV File Parser ────────────────────────────────────────────────
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Dynamic BDE-Style Bulk Import Submit Handler
+  const handleBulkAudienceImport = async (validRows, { batchDefaults, requiredFields }) => {
+    const token = getAuthToken();
+    const transformedPayload = validRows.map((row) => ({
+      name: row.company_name,
+      company_name: row.company_name,
+      contact_person: row.contact_person || row.company_name,
+      phone: row.mobile_number,
+      mobile_number: row.mobile_number,
+      email: row.email || null,
+      gstin: row.gst_number || null,
+      gst_number: row.gst_number || null,
+      state_name: row.state_name || batchDefaults?.default_state || '',
+      district_name: row.district_name || batchDefaults?.default_district || '',
+      cluster_id: row.cluster_id || null,
+      cluster_name: row.cluster_name || batchDefaults?.default_cluster || '',
+      cluster_code: row.cluster_code || '',
+      pincode: row.pincode || '',
+      address_line: row.address_line || '',
+      epc_type: row.epc_type || batchDefaults?.default_epc_type || '',
+      lead_source: row.lead_source || batchDefaults?.default_lead_source || 'audience_dynamic_import',
+      interested_products: row.interested_products || '',
+      follow_up_date: row.follow_up_date || '',
+      remarks: row.remarks || batchDefaults?.default_remarks || '',
+      lifetime_orders: Number(row.lifetime_orders || 0),
+      custom_attributes: row._customFields || {},
+    }));
 
-    setCsvFileName(file.name);
-    const reader = new FileReader();
+    const res = await axios.post(
+      `${API_BASE}/marketing/audience/import-leads`,
+      { leads: transformedPayload, default_settings: { ...batchDefaults, required_fields: requiredFields } },
+      { headers: token ? { Authorization: token } : {} }
+    );
 
-    reader.onload = (event) => {
-      const text = event.target?.result;
-      if (typeof text !== 'string') return;
-
-      const lines = text.split(/\r\n|\n/).filter(line => line.trim().length > 0);
-      if (lines.length === 0) return;
-
-      // Extract CSV headers
-      const delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
-      const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, ''));
-      setCsvHeaders(headers);
-
-      // Parse sample data rows
-      const parsedRows = [];
-      for (let i = 1; i < lines.length; i++) {
-        const parts = lines[i].split(delimiter).map(p => p.trim().replace(/^["']|["']$/g, ''));
-        if (parts.length > 0) {
-          const rowObj = {};
-          headers.forEach((h, idx) => {
-            rowObj[h] = parts[idx] || '';
-          });
-          parsedRows.push(rowObj);
-        }
-      }
-      setRawCsvRows(parsedRows);
-
-      // Smart auto-mapping detection
-      const autoMap = {
-        name: '',
-        contactPerson: '',
-        phone: '',
-        email: '',
-        gstin: '',
-        state: '',
-        cluster: '',
-        pincode: '',
-        lifetimeOrders: ''
-      };
-
-      headers.forEach(h => {
-        const lh = h.toLowerCase();
-        if (!autoMap.name && (lh.includes('company') || lh.includes('firm') || lh.includes('epc') || lh.includes('name'))) autoMap.name = h;
-        if (!autoMap.contactPerson && (lh.includes('contact') || lh.includes('person') || lh.includes('owner') || lh.includes('proprietor'))) autoMap.contactPerson = h;
-        if (!autoMap.phone && (lh.includes('phone') || lh.includes('mobile') || lh.includes('whatsapp') || lh.includes('cell'))) autoMap.phone = h;
-        if (!autoMap.email && (lh.includes('email') || lh.includes('mail'))) autoMap.email = h;
-        if (!autoMap.gstin && (lh.includes('gst') || lh.includes('gstin') || lh.includes('tax'))) autoMap.gstin = h;
-        if (!autoMap.state && (lh.includes('state') || lh.includes('region'))) autoMap.state = h;
-        if (!autoMap.cluster && (lh.includes('cluster') || lh.includes('city') || lh.includes('district') || lh.includes('area'))) autoMap.cluster = h;
-        if (!autoMap.pincode && (lh.includes('pin') || lh.includes('zip') || lh.includes('postal'))) autoMap.pincode = h;
-        if (!autoMap.lifetimeOrders && (lh.includes('order') || lh.includes('orders') || lh.includes('past') || lh.includes('kits') || lh.includes('qty'))) autoMap.lifetimeOrders = h;
-      });
-
-      setFieldMappings(autoMap);
-      setImportStep(2); // Advance to Mapping Configurator
-    };
-
-    reader.readAsText(file);
-  };
-
-  // Add Custom Dynamic Field
-  const handleAddCustomField = () => {
-    const key = `custom_${Date.now()}`;
-    setCustomFields(prev => [...prev, { key, label: `Custom Field ${prev.length + 1}`, csvHeader: '' }]);
-  };
-
-  const handleRemoveCustomField = (key) => {
-    setCustomFields(prev => prev.filter(f => f.key !== key));
-  };
-
-  // Live Mapped Preview Data (Calculated dynamically)
-  const mappedPreviewData = useMemo(() => {
-    return rawCsvRows.slice(0, 5).map((row, idx) => {
-      const name = row[fieldMappings.name] || `EPC Contractor ${idx + 1}`;
-      const contactPerson = row[fieldMappings.contactPerson] || name;
-      const phone = row[fieldMappings.phone] || '';
-      const email = row[fieldMappings.email] || '';
-      const gstin = row[fieldMappings.gstin] || null;
-      const state = row[fieldMappings.state] || 'Maharashtra';
-      const cluster = row[fieldMappings.cluster] || 'Bhiwandi Central';
-      const pincode = row[fieldMappings.pincode] || '';
-      const lifetimeOrders = Number(row[fieldMappings.lifetimeOrders] || 0);
-
-      const computedType = classifyEpc({ gstin, lifetimeOrders });
-
-      return {
-        _id: `preview-${idx}`,
-        name,
-        contactPerson,
-        phone,
-        email,
-        gstin,
-        state,
-        cluster,
-        pincode,
-        lifetimeOrders,
-        type: computedType
-      };
-    });
-  }, [rawCsvRows, fieldMappings]);
-
-  // Submit and Upload Mapped Leads
-  const handleUploadAndProcess = async () => {
-    setImporting(true);
-    try {
-      const token = getAuthToken();
-      // Prepare full transformed payload
-      const transformedPayload = rawCsvRows.map(row => {
-        const item = {
-          name: row[fieldMappings.name] || 'Solar EPC Contractor',
-          company_name: row[fieldMappings.name] || 'Solar EPC Contractor',
-          contact_person: row[fieldMappings.contactPerson] || row[fieldMappings.name] || 'Contact Person',
-          phone: row[fieldMappings.phone] || '',
-          email: row[fieldMappings.email] || '',
-          gstin: row[fieldMappings.gstin] || null,
-          state_name: row[fieldMappings.state] || 'Maharashtra',
-          district_name: row[fieldMappings.cluster] || 'Bhiwandi Central',
-          pincode: row[fieldMappings.pincode] || '',
-          lifetime_orders: Number(row[fieldMappings.lifetimeOrders] || 0),
-          customFields: {}
-        };
-
-        customFields.forEach(cf => {
-          if (cf.csvHeader && row[cf.csvHeader]) {
-            item.customFields[cf.label || cf.key] = row[cf.csvHeader];
-          }
-        });
-
-        return item;
-      });
-
-      const res = await axios.post(`${API_BASE}/marketing/audience/import-leads`, {
-        leads: transformedPayload,
-        customFieldMappings: fieldMappings
-      }, {
-        headers: token ? { Authorization: token } : {}
-      });
-
-      if (res.data?.success) {
-        setImportSuccessMessage(res.data.message || `Successfully imported ${transformedPayload.length} EPC leads!`);
-        // Refresh live list
-        fetchAudience();
-        setTimeout(() => {
-          setShowImportModal(false);
-          setImportStep(1);
-          setRawCsvRows([]);
-          setImportSuccessMessage(null);
-        }, 1500);
-      }
-    } catch (err) {
-      console.warn('Import API notice:', err.message);
-      // Fallback local append so user is never blocked
-      const fallbackList = rawCsvRows.map((row, idx) => ({
-        _id: `imp-${Date.now()}-${idx}`,
-        name: row[fieldMappings.name] || 'Solar EPC Partner',
-        contactPerson: row[fieldMappings.contactPerson] || 'Contact',
-        phone: row[fieldMappings.phone] || '+91 99999 88888',
-        email: row[fieldMappings.email] || 'partner@solarkits.in',
-        state: row[fieldMappings.state] || 'Maharashtra',
-        cluster: row[fieldMappings.cluster] || 'Pune Cluster',
-        warehouse: 'Regional Facility',
-        gstin: row[fieldMappings.gstin] || null,
-        lifetimeOrders: Number(row[fieldMappings.lifetimeOrders] || 0),
-        lastActive: 'Just imported via CSV',
-        whatsappOptIn: true,
-        emailVerified: Boolean(row[fieldMappings.email]),
-        type: classifyEpc({ gstin: row[fieldMappings.gstin], lifetimeOrders: row[fieldMappings.lifetimeOrders] })
-      }));
-
-      setAudiences(prev => [...fallbackList, ...prev]);
-      setImportSuccessMessage(`Imported ${fallbackList.length} EPC leads successfully!`);
-      setTimeout(() => {
-        setShowImportModal(false);
-        setImportStep(1);
-        setRawCsvRows([]);
-        setImportSuccessMessage(null);
-      }, 1500);
-    } finally {
-      setImporting(false);
+    if (res.data?.success) {
+      setImportFeedback(res.data.message || `Successfully imported ${transformedPayload.length} leads!`);
+      await fetchAudience();
     }
-  };
 
-  // Download Sample CSV template for testing lead uploads directly in browser
-  const handleDownloadSampleCsv = () => {
-    const csvContent = `Company Name,Contact Person,Mobile Number,Email Address,GSTIN Number,State,Cluster Area,Pincode,Lifetime Orders,Solar Requirement KW
-Surat SunTech Energy Ltd,Karan Patel,9825012345,karan@suntechsurat.in,24AAECS1234B1Z5,Gujarat,Surat Cluster,395001,12,50 KW
-Pune Power Grid Solar,Sanjay Kulkarni,9822198765,sanjay@punepowergrid.com,27AABCP5678C1Z8,Maharashtra,Pune Cluster,411001,8,25 KW
-Bhiwandi CleanVolt Systems,Aditya Patil,9820055443,aditya@cleanvoltepc.in,27AAACB9988D1Z2,Maharashtra,Bhiwandi Central,421302,0,40 KW
-Jaipur Solar Rays Pvt Ltd,Mahendra Rathore,9414077889,mahendra@jaipursolarrays.co.in,08AAECJ3344E1Z9,Rajasthan,Jaipur Central,302001,0,30 KW
-Bengaluru Rooftop Solar Works,Naveen Gowda,9845011223,naveen@bengalurusolarworks.com,,Karnataka,Bengaluru South,560001,0,15 KW
-Nagpur Solar Solutions,Pramod Joshi,9823044556,pramod@nagpursolarsolutions.in,,Maharashtra,Nagpur East,440001,0,20 KW
-Ahmedabad SunPower Engineering,Mehul Vora,9879033445,mehul@sunpowereng.com,,Gujarat,Ahmedabad Industrial,380001,0,35 KW`;
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'sample_epc_leads_template.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    return {
+      success: Boolean(res.data?.success),
+      message: res.data?.message || `Imported ${transformedPayload.length} leads.`,
+      skippedDetails: res.data?.skipped_details || [],
+    };
   };
 
   return (
@@ -853,32 +505,30 @@ Ahmedabad SunPower Engineering,Mehul Vora,9879033445,mehul@sunpowereng.com,,Guja
 
         <div className="flex items-center gap-3">
           <button
-            onClick={handleDownloadSampleCsv}
-            className="px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors shadow-xs"
-            title="Download sample leads CSV template for testing"
+            onClick={() => setShowImportModal(true)}
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors shadow-sm"
           >
-            <FaDownload className="text-emerald-600 dark:text-emerald-400 text-xs" />
-            <span>Download Sample CSV</span>
+            <FaFileImport />
+            <span>Bulk Upload (Excel / CSV)</span>
           </button>
           <button
-            onClick={() => {
-              setImportStep(1);
-              setShowImportModal(true);
-            }}
-            className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors shadow-xs"
-          >
-            <FaFileImport className="text-blue-500" />
-            <span>Import CSV / Excel (Dynamic Fields)</span>
-          </button>
-          <button
-            onClick={() => setShowSegmentModal(true)}
+            onClick={() => navigate('/marketing-panel/segments')}
             className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md shadow-blue-500/20 transition-all"
           >
-            <FaPlus />
-            <span>Create Custom Segment</span>
+            <FaLayerGroup />
+            <span>Manage Segment Groups</span>
           </button>
         </div>
       </div>
+
+      {importFeedback && (
+        <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+          <span>{importFeedback}</span>
+          <button type="button" onClick={() => setImportFeedback(null)} className="cursor-pointer">
+            <FaTimes />
+          </button>
+        </div>
+      )}
 
       {/* ── Metric Cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -1502,430 +1152,22 @@ Ahmedabad SunPower Engineering,Mehul Vora,9879033445,mehul@sunpowereng.com,,Guja
 
       </div>
 
-      {/* ===================== DYNAMIC CSV / EXCEL IMPORT MODAL ===================== */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto">
-            
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
-                  <FaFileImport />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold">Import EPC Leads (Dynamic Field Mapping)</h3>
-                  <p className="text-[11px] text-slate-500">Upload CSV / Excel with custom columns and map them dynamically without failure</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-              >
-                <FaTimes />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="py-4 space-y-5">
-              
-              {/* Step Progress Tabs */}
-              <div className="flex items-center gap-2 text-xs font-bold border-b border-slate-100 dark:border-slate-700 pb-3">
-                <span className={`px-3 py-1 rounded-full ${importStep === 1 ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
-                  1. Select File
-                </span>
-                <FaArrowRight className="text-slate-400 text-[10px]" />
-                <span className={`px-3 py-1 rounded-full ${importStep === 2 ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
-                  2. Dynamic Column Mapping & Preview
-                </span>
-              </div>
-
-              {/* STEP 1: FILE PICKER */}
-              {importStep === 1 && (
-                <div className="space-y-4">
-                  <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-8 text-center hover:border-blue-500 transition-colors">
-                    <FaFileImport className="w-10 h-10 mx-auto text-blue-500 mb-3" />
-                    <h4 className="text-sm font-bold mb-1">Select or drop your Lead CSV / XLSX file</h4>
-                    <p className="text-xs text-slate-500 mb-4">
-                      Any column names allowed! In the next step you can map your CSV column headers directly to system fields.
-                    </p>
-                    <div className="flex flex-wrap items-center justify-center gap-3">
-                      <label className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer transition-all inline-flex items-center gap-2 shadow-sm">
-                        <span>Choose CSV File</span>
-                        <input
-                          type="file"
-                          accept=".csv, .xlsx, .xls"
-                          onChange={handleFileChange}
-                          className="hidden"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={handleDownloadSampleCsv}
-                        className="px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 text-xs font-bold cursor-pointer transition-all inline-flex items-center gap-2"
-                      >
-                        <FaDownload className="text-emerald-600" />
-                        <span>Download Sample CSV</span>
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl text-[11px] text-slate-500 space-y-1">
-                    <span className="font-bold text-slate-700 dark:text-slate-200">💡 Smart Header Matching:</span>
-                    <p>The parser automatically matches common headers like "Company", "Firm Name", "GSTIN", "Mobile", "WhatsApp", "Orders" etc. You can freely change or add dynamic custom fields.</p>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 2: DYNAMIC COLUMN MAPPING & PREVIEW */}
-              {importStep === 2 && (
-                <div className="space-y-5 text-xs">
-                  
-                  {/* File Stats Summary Pill */}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50">
-                    <div>
-                      <strong className="text-blue-700 dark:text-blue-300 font-bold">{csvFileName}</strong>
-                      <div className="text-[11px] text-slate-500">{rawCsvRows.length} total rows parsed • {csvHeaders.length} columns detected</div>
-                    </div>
-                    <button
-                      onClick={() => setImportStep(1)}
-                      className="text-xs text-blue-600 hover:underline font-bold cursor-pointer"
-                    >
-                      Change File
-                    </button>
-                  </div>
-
-                  {/* Field Mapping Grid */}
-                  <div>
-                    <h4 className="font-bold text-sm mb-2 flex items-center justify-between">
-                      <span>Dynamic Column Mapping</span>
-                      <span className="text-[11px] text-slate-400 font-normal">Map each CSV header to the system field</span>
-                    </h4>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
-                      
-                      {/* Company Name */}
-                      <div>
-                        <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
-                          Company / Firm Name <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          value={fieldMappings.name}
-                          onChange={(e) => setFieldMappings(prev => ({ ...prev, name: e.target.value }))}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium"
-                        >
-                          <option value="">-- Select CSV Column --</option>
-                          {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      </div>
-
-                      {/* Contact Person */}
-                      <div>
-                        <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
-                          Contact Person Name
-                        </label>
-                        <select
-                          value={fieldMappings.contactPerson}
-                          onChange={(e) => setFieldMappings(prev => ({ ...prev, contactPerson: e.target.value }))}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium"
-                        >
-                          <option value="">-- Select CSV Column --</option>
-                          {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      </div>
-
-                      {/* Phone / WhatsApp */}
-                      <div>
-                        <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
-                          Mobile / WhatsApp <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          value={fieldMappings.phone}
-                          onChange={(e) => setFieldMappings(prev => ({ ...prev, phone: e.target.value }))}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium"
-                        >
-                          <option value="">-- Select CSV Column --</option>
-                          {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      </div>
-
-                      {/* Email */}
-                      <div>
-                        <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
-                          Email Address
-                        </label>
-                        <select
-                          value={fieldMappings.email}
-                          onChange={(e) => setFieldMappings(prev => ({ ...prev, email: e.target.value }))}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium"
-                        >
-                          <option value="">-- Select CSV Column --</option>
-                          {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      </div>
-
-                      {/* GSTIN */}
-                      <div>
-                        <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
-                          GSTIN / Tax ID
-                        </label>
-                        <select
-                          value={fieldMappings.gstin}
-                          onChange={(e) => setFieldMappings(prev => ({ ...prev, gstin: e.target.value }))}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium"
-                        >
-                          <option value="">-- Select CSV Column --</option>
-                          {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      </div>
-
-                      {/* State */}
-                      <div>
-                        <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
-                          State / Territory
-                        </label>
-                        <select
-                          value={fieldMappings.state}
-                          onChange={(e) => setFieldMappings(prev => ({ ...prev, state: e.target.value }))}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium"
-                        >
-                          <option value="">-- Select CSV Column --</option>
-                          {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      </div>
-
-                      {/* Cluster / District */}
-                      <div>
-                        <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
-                          District / Cluster / City
-                        </label>
-                        <select
-                          value={fieldMappings.cluster}
-                          onChange={(e) => setFieldMappings(prev => ({ ...prev, cluster: e.target.value }))}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium"
-                        >
-                          <option value="">-- Select CSV Column --</option>
-                          {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      </div>
-
-                      {/* Lifetime Orders / Past Purchases */}
-                      <div>
-                        <label className="block font-bold text-slate-700 dark:text-slate-200 mb-1">
-                          Past Orders Count (Lifetime Kits)
-                        </label>
-                        <select
-                          value={fieldMappings.lifetimeOrders}
-                          onChange={(e) => setFieldMappings(prev => ({ ...prev, lifetimeOrders: e.target.value }))}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium"
-                        >
-                          <option value="">-- Select CSV Column (Optional) --</option>
-                          {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      </div>
-
-                    </div>
-                  </div>
-
-                  {/* Add Dynamic Custom Fields Configurator */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-bold text-xs text-slate-700 dark:text-slate-300">
-                        Additional Dynamic Custom Fields ({customFields.length})
-                      </span>
-                      <button
-                        onClick={handleAddCustomField}
-                        className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold hover:bg-blue-100 flex items-center gap-1 cursor-pointer"
-                      >
-                        <FaPlus className="w-2.5 h-2.5" /> Add Custom Field
-                      </button>
-                    </div>
-
-                    {customFields.length > 0 && (
-                      <div className="space-y-2">
-                        {customFields.map((cf) => (
-                          <div key={cf.key} className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
-                            <input
-                              type="text"
-                              value={cf.label}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setCustomFields(prev => prev.map(f => f.key === cf.key ? { ...f, label: val } : f));
-                              }}
-                              placeholder="Field Name"
-                              className="w-1/2 p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                            />
-                            <select
-                              value={cf.csvHeader}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setCustomFields(prev => prev.map(f => f.key === cf.key ? { ...f, csvHeader: val } : f));
-                              }}
-                              className="w-1/2 p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                            >
-                              <option value="">-- Select CSV Header --</option>
-                              {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                            </select>
-                            <button
-                              onClick={() => handleRemoveCustomField(cf.key)}
-                              className="text-red-500 hover:text-red-700 p-1.5"
-                              title="Delete Field"
-                            >
-                              <FaTrashAlt />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Live Preview Table with Auto EPC Classification */}
-                  <div>
-                    <h4 className="font-bold text-xs text-slate-700 dark:text-slate-300 mb-2">
-                      Live Mapped Data Preview (First {mappedPreviewData.length} Rows)
-                    </h4>
-                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                      <table className="w-full text-left text-[11px]">
-                        <thead className="bg-slate-100 dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-400">
-                          <tr>
-                            <th className="p-2 pl-3">Company</th>
-                            <th className="p-2">Contact</th>
-                            <th className="p-2">Phone</th>
-                            <th className="p-2">GSTIN</th>
-                            <th className="p-2">Orders</th>
-                            <th className="p-2 pr-3">Auto Classification</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                          {mappedPreviewData.map((row, i) => (
-                            <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                              <td className="p-2 pl-3 font-semibold">{row.name}</td>
-                              <td className="p-2 text-slate-500">{row.contactPerson}</td>
-                              <td className="p-2 font-mono">{row.phone || 'N/A'}</td>
-                              <td className="p-2 font-mono">{row.gstin || 'None'}</td>
-                              <td className="p-2 font-bold">{row.lifetimeOrders} Kits</td>
-                              <td className="p-2 pr-3">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                  row.type === 'Buyer EPC'
-                                    ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
-                                    : row.type === 'Verified EPC'
-                                      ? 'bg-blue-500/10 text-blue-600 border border-blue-500/20'
-                                      : 'bg-amber-500/10 text-amber-600 border border-amber-500/20'
-                                }`}>
-                                  {row.type}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Success Alert */}
-                  {importSuccessMessage && (
-                    <div className="p-3 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold flex items-center gap-2">
-                      <FaCheck /> {importSuccessMessage}
-                    </div>
-                  )}
-
-                </div>
-              )}
-
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-              >
-                Cancel
-              </button>
-              {importStep === 2 && (
-                <button
-                  disabled={importing}
-                  onClick={handleUploadAndProcess}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50"
-                >
-                  {importing ? (
-                    <>
-                      <FaSyncAlt className="animate-spin" />
-                      <span>Processing & Classifying...</span>
-                    </>
-                  ) : (
-                    <>
-                      <FaCheck />
-                      <span>Upload & Process ({rawCsvRows.length} Leads)</span>
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* ===================== CREATE DYNAMIC SEGMENT MODAL ===================== */}
-      {showSegmentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
-              <h3 className="text-base font-bold">Create Dynamic Segment</h3>
-              <button onClick={() => setShowSegmentModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
-                <FaTimes />
-              </button>
-            </div>
-            <div className="py-4 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Segment Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g., High-Value Maharashtra EPCs (5+ Orders)"
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Target EPC Type</label>
-                  <select className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl">
-                    <option>All Types</option>
-                    <option>Buyer EPCs Only</option>
-                    <option>Verified EPCs Only</option>
-                    <option>Registered EPCs Only</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Minimum Order Count</label>
-                  <input
-                    type="number"
-                    defaultValue={3}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
-              <button
-                onClick={() => setShowSegmentModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  alert('Segment created successfully!');
-                  setShowSegmentModal(false);
-                }}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
-              >
-                Save Segment
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DynamicBulkUploadModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Bulk Upload Audience & EPC Leads"
+        subtitle="Import contractor & audience leads via Excel (.xlsx) or CSV with dynamic batch defaults, automatic column renaming, and live inline correction"
+        badgeText="Dynamic Fields + Option B Dedupe"
+        fieldOptions={EPC_LEAD_FIELD_OPTIONS}
+        presets={EPC_LEAD_PRESETS}
+        defaultSelectedKeys={['company_name', 'mobile_number', 'gst_number', 'email', 'contact_person', 'district_name', 'state_name']}
+        enableDefaultFields={{ state: true, district: true, cluster: true, epcType: true, leadSource: true, remarks: true }}
+        allowCustomColumns={true}
+        customColumnsDefaultOn={true}
+        sampleFileName="audience_leads_template.csv"
+        submitLabel="Import Leads"
+        onSubmitImport={handleBulkAudienceImport}
+      />
 
     </div>
   );

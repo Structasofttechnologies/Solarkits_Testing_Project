@@ -23,11 +23,13 @@ import {
   FaPlus,
   FaChartLine,
   FaMapMarkedAlt,
-  FaGift
+  FaGift,
+  FaLayerGroup
 } from "react-icons/fa";
 
 /* ===================== Marketing Module Pages ===================== */
 const MarketingDashboard = lazy(() => import("../../admin/pages/marketing/MarketingDashboard"));
+const SegmentGroupAnalyticsPage = lazy(() => import("../../admin/pages/marketing/SegmentGroupAnalyticsPage"));
 const IndiaCampaignMap = lazy(() => import("../../admin/pages/marketing/IndiaCampaignMap"));
 const CampaignsListPage = lazy(() => import("../../admin/pages/marketing/CampaignsListPage"));
 const CreateCampaignWizard = lazy(() => import("../../admin/pages/marketing/CreateCampaignWizard"));
@@ -37,6 +39,7 @@ const EmailTemplatesPage = lazy(() => import("../../admin/pages/marketing/EmailT
 const WhatsAppSettingsPage = lazy(() => import("../../admin/pages/marketing/WhatsAppSettingsPage"));
 const WhatsAppTemplatesPage = lazy(() => import("../../admin/pages/marketing/WhatsAppTemplatesPage"));
 const AudienceManagementPage = lazy(() => import("../../admin/pages/marketing/AudienceManagementPage"));
+const SegmentGroupsPage = lazy(() => import("../../admin/pages/marketing/SegmentGroupsPage"));
 const WebsiteFormMappingPage = lazy(() => import("../../admin/pages/marketing/WebsiteFormMappingPage"));
 const UtmTrackingPage = lazy(() => import("../../admin/pages/marketing/UtmTrackingPage"));
 const AutomationsPage = lazy(() => import("../../admin/pages/marketing/AutomationsPage"));
@@ -50,8 +53,19 @@ const menus = [
     {
       name: "Marketing Dashboard",
       icon: <FaChartLine />,
-      path: "/marketing-panel/dashboard",
-      unique_id: "MKT_DASH"
+      unique_id: "MKT_DASH",
+      subMenu: [
+        {
+          name: "Overview Analytics",
+          path: "/marketing-panel/dashboard",
+          unique_id: "MKT_DASH_OVERVIEW"
+        },
+        {
+          name: "Segment Group Analytics",
+          path: "/marketing-panel/dashboard/segment-analytics",
+          unique_id: "MKT_DASH_SEGMENT_ANALYTICS"
+        }
+      ]
     },
     {
       name: "Live Territory Campaign Map",
@@ -110,6 +124,12 @@ const menus = [
       icon: <FaUsers />,
       path: "/marketing-panel/audience",
       unique_id: "MKT_AUDIENCE"
+    },
+    {
+      name: "Segment Groups",
+      icon: <FaLayerGroup />,
+      path: "/marketing-panel/segments",
+      unique_id: "MKT_SEGMENTS"
     },
     {
       name: "Website Form Mapping",
@@ -207,6 +227,7 @@ export default function MarketingDashboardPortal() {
                 <Routes>
                   <Route path="/" element={<Navigate to="/marketing-panel/dashboard" replace />} />
                   <Route path="/dashboard" element={<Suspense fallback={<Loader text="Loading Marketing Dashboard..." />}><MarketingDashboard /></Suspense>} />
+                  <Route path="/dashboard/segment-analytics" element={<Suspense fallback={<Loader text="Loading Segment Group Analytics..." />}><SegmentGroupAnalyticsPage /></Suspense>} />
                   <Route path="/campaign-map" element={<Suspense fallback={<Loader text="Loading Live India Campaign Map..." />}><IndiaCampaignMap /></Suspense>} />
                   <Route path="/campaigns" element={<Suspense fallback={<Loader text="Loading Campaigns..." />}><CampaignsListPage /></Suspense>} />
                   <Route path="/seasonal-coupons" element={<Suspense fallback={<Loader text="Loading Seasonal Coupons..." />}><SeasonalCouponsPage /></Suspense>} />
@@ -216,6 +237,7 @@ export default function MarketingDashboardPortal() {
                   <Route path="/whatsapp-settings" element={<Suspense fallback={<Loader text="Loading WhatsApp Settings..." />}><WhatsAppSettingsPage /></Suspense>} />
                   <Route path="/whatsapp-templates" element={<Suspense fallback={<Loader text="Loading WhatsApp Templates..." />}><WhatsAppTemplatesPage /></Suspense>} />
                   <Route path="/audience" element={<Suspense fallback={<Loader text="Loading Audience Management..." />}><AudienceManagementPage /></Suspense>} />
+                  <Route path="/segments" element={<Suspense fallback={<Loader text="Loading Segment Groups..." />}><SegmentGroupsPage /></Suspense>} />
                   <Route path="/form-mapping" element={<Suspense fallback={<Loader text="Loading Website Form Mappings..." />}><WebsiteFormMappingPage /></Suspense>} />
                   <Route path="/utm-tracking" element={<Suspense fallback={<Loader text="Loading UTM Tracking..." />}><UtmTrackingPage /></Suspense>} />
                   <Route path="/automations" element={<Suspense fallback={<Loader text="Loading Automation Rules..." />}><AutomationsPage /></Suspense>} />

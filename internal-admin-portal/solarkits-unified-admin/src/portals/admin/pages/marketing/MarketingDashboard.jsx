@@ -29,40 +29,85 @@ import {
   FaPercentage,
   FaBuilding,
   FaChartBar,
-  FaSlidersH
+  FaSlidersH,
+  FaLayerGroup
 } from 'react-icons/fa';
 import { MdTrendingUp, MdVisibility } from 'react-icons/md';
 import IndiaCampaignMap from './IndiaCampaignMap';
+import SegmentGroupAnalyticsPage from './SegmentGroupAnalyticsPage';
 import {
   getQuotaState,
   rechargeQuota,
-  getCouponsList,
-  toggleCouponStatus,
   fetchLiveActiveStates,
   fetchLiveClusters,
-  ALL_36_INDIAN_STATES
+  fetchMarketingDashboardAnalytics
 } from './services/marketingDataService';
+
+const EMPTY_DASHBOARD_DATA = {
+  summary: {
+    totalCampaigns: 0,
+    activeCampaigns: 0,
+    successfulCampaignsCount: 0,
+    totalSent: 0,
+    totalDelivered: 0,
+    totalRead: 0,
+    totalClicks: 0,
+    totalVisits: 0,
+    totalLeads: 0,
+    totalQualified: 0,
+    totalConversions: 0,
+    totalRevenue: 0,
+    totalCost: 0,
+    deliveryRate: '0.0',
+    clickRate: '0.0',
+    leadConversionRate: '0.0',
+    qualifiedLeadRate: '0.0',
+    salesConversionRate: '0.0',
+    roi: '0.0',
+    totalEpcs: 0,
+    buyerEpcs: 0,
+    verifiedEpcs: 0,
+    registeredEpcs: 0,
+    activeCouponsCount: 0,
+    totalCouponsCount: 0,
+    activeClustersCount: 0,
+    activeStatesCount: 0,
+    segmentGroupsCount: 0,
+    segmentLeadsUploaded: 0,
+    segmentRegistered: 0,
+    segmentVerified: 0,
+    segmentBuyers: 0,
+    segmentRevenueInr: 0
+  },
+  channels: {
+    email: { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0 },
+    whatsapp: { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0 }
+  },
+  funnel: [],
+  campaignsRanking: [],
+  couponsList: [],
+  epcTerritoryPerformance: []
+};
 
 export default function MarketingDashboard() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [dashboardTab, setDashboardTab] = useState('analytics'); // 'analytics' | 'map'
+  const [loading, setLoading] = useState(true);
+  const [dashboardTab, setDashboardTab] = useState('analytics'); // 'analytics' | 'segment-analytics' | 'map'
   const [quota, setQuota] = useState(() => getQuotaState());
-  const [coupons, setCoupons] = useState(() => getCouponsList());
   const [showRechargeModal, setShowRechargeModal] = useState(false);
   const [rechargeAmount, setRechargeAmount] = useState(5000);
   const [copiedCode, setCopiedCode] = useState(null);
 
-  // Live dynamic states & clusters from Admin Panel
-  const [liveStates, setLiveStates] = useState(ALL_36_INDIAN_STATES);
+  // Live dynamic states & clusters from Admin Panel DB (zero static seed)
+  const [liveStates, setLiveStates] = useState([]);
   const [liveClusters, setLiveClusters] = useState([]);
 
   useEffect(() => {
     let isMounted = true;
     Promise.all([fetchLiveActiveStates(), fetchLiveClusters()]).then(([sList, cList]) => {
       if (!isMounted) return;
-      if (Array.isArray(sList) && sList.length > 0) setLiveStates(sList);
-      if (Array.isArray(cList) && cList.length > 0) setLiveClusters(cList);
+      if (Array.isArray(sList)) setLiveStates(sList);
+      if (Array.isArray(cList)) setLiveClusters(cList);
     }).catch(err => console.warn('Dashboard filters notice:', err.message));
     return () => { isMounted = false; };
   }, []);
@@ -76,341 +121,22 @@ export default function MarketingDashboard() {
   useEffect(() => {
     const handleUpdate = () => {
       setQuota(getQuotaState());
-      setCoupons(getCouponsList());
     };
     window.addEventListener('solarkits-quota-updated', handleUpdate);
     return () => window.removeEventListener('solarkits-quota-updated', handleUpdate);
   }, []);
 
-  const [data, setData] = useState({
-    summary: {
-      totalCampaigns: 8,
-      activeCampaigns: 3,
-      successfulCampaignsCount: 5,
-      totalSent: 18450,
-      totalDelivered: 17200,
-      totalRead: 9840,
-      totalClicks: 2680,
-      totalVisits: 2420,
-      totalLeads: 310,
-      totalQualified: 145,
-      totalConversions: 42,
-      totalRevenue: 3450000,
-      totalCost: 125000,
-      deliveryRate: '93.2',
-      clickRate: '15.6',
-      leadConversionRate: '12.8',
-      qualifiedLeadRate: '46.8',
-      salesConversionRate: '29.0',
-      roi: '2660.0',
-      // Boss EPC breakdown
-      totalEpcs: 14250,
-      buyerEpcs: 2150,
-      verifiedEpcs: 3420,
-      registeredEpcs: 8680,
-      activeCouponsCount: 6,
-      totalCouponsCount: 8,
-      activeClustersCount: 7,
-      activeStatesCount: 4
-    },
-    channels: {
-      email: { sent: 11200, delivered: 10450, read: 4180, clicks: 1120, visits: 980, leads: 115, conversions: 16 },
-      whatsapp: { sent: 7250, delivered: 6750, read: 5660, clicks: 1560, visits: 1440, leads: 195, conversions: 26 }
-    },
-    funnel: [
-      { stage: '1. Campaign Audience', count: 18450, desc: 'Targeted EPCs across selected clusters' },
-      { stage: '2. Messages Delivered', count: 17200, desc: '93.2% successful delivery' },
-      { stage: '3. Website & Kit Visits', count: 2420, desc: 'Unique campaign URL visits' },
-      { stage: '4. Form Submissions', count: 310, desc: 'Enquiries, registrations & quote requests' },
-      { stage: '5. Qualified Leads', count: 145, desc: 'Accepted by BDE/Sales team' },
-      { stage: '6. Confirmed Conversions', count: 42, desc: 'Paid Kit orders & Franchisee ongoings' }
-    ],
-    campaignsRanking: [
-      {
-        _id: 'cmp-b1',
-        name: 'Diwali 3kW EPC Wholesale Flash Sale',
-        code: 'CMP-2026-DIWALI',
-        channel: 'both',
-        objective: 'Kit Sales & Repeat Orders',
-        state: 'Maharashtra',
-        cluster: 'Bhiwandi Central',
-        status: 'running',
-        delivered: 4850,
-        clicks: 820,
-        leads: 135,
-        conversions: 24,
-        revenue: 2143600,
-        conversionRate: '32.4%',
-        deliveryRate: '95.6%',
-        roi: '1240%'
-      },
-      {
-        _id: 'cmp-b2',
-        name: 'Gujarat 5kW Commercial Subsidy Push',
-        code: 'CMP-2026-GUJ5KW',
-        channel: 'whatsapp',
-        objective: 'Discount Coupon & Promotional Offer',
-        state: 'Gujarat',
-        cluster: 'Surat Cluster',
-        status: 'running',
-        delivered: 3420,
-        clicks: 640,
-        leads: 92,
-        conversions: 16,
-        revenue: 1428000,
-        conversionRate: '28.8%',
-        deliveryRate: '94.2%',
-        roi: '950%'
-      },
-      {
-        _id: 'cmp-b3',
-        name: 'Maharashtra Inactive EPC Reactivation',
-        code: 'CMP-2026-MHREACT',
-        channel: 'email',
-        objective: 'Inactive EPC Reactivation',
-        state: 'Maharashtra',
-        cluster: 'Pune Cluster',
-        status: 'running',
-        delivered: 2890,
-        clicks: 390,
-        leads: 58,
-        conversions: 9,
-        revenue: 803850,
-        conversionRate: '21.5%',
-        deliveryRate: '91.8%',
-        roi: '720%'
-      },
-      {
-        _id: 'cmp-b4',
-        name: 'Surat Diamond Cluster Onboarding Drive',
-        code: 'CMP-2026-SURAT',
-        channel: 'whatsapp',
-        objective: 'New EPC Registration & Sign-Up Drive',
-        state: 'Gujarat',
-        cluster: 'Surat Cluster',
-        status: 'scheduled',
-        delivered: 1950,
-        clicks: 280,
-        leads: 41,
-        conversions: 5,
-        revenue: 446585,
-        conversionRate: '18.2%',
-        deliveryRate: '93.5%',
-        roi: '540%'
-      },
-      {
-        _id: 'cmp-b5',
-        name: 'Marwar Agricultural Solar Pump Launch',
-        code: 'CMP-2026-MARWAR',
-        channel: 'both',
-        objective: 'Product Promotion & Awareness',
-        state: 'Rajasthan',
-        cluster: 'Jaipur Central',
-        status: 'completed',
-        delivered: 1640,
-        clicks: 210,
-        leads: 29,
-        conversions: 3,
-        revenue: 267950,
-        conversionRate: '15.6%',
-        deliveryRate: '89.4%',
-        roi: '380%'
-      },
-      {
-        _id: 'cmp-b6',
-        name: 'Bengaluru Rooftop EPC Expansion Drive',
-        code: 'CMP-2026-BLRROOF',
-        channel: 'both',
-        objective: 'Franchisee Store Visits',
-        state: 'Karnataka',
-        cluster: 'Bengaluru South',
-        status: 'scheduled',
-        delivered: 1400,
-        clicks: 190,
-        leads: 19,
-        conversions: 2,
-        revenue: 178634,
-        conversionRate: '12.4%',
-        deliveryRate: '92.1%',
-        roi: '290%'
-      }
-    ],
-    couponsList: [
-      {
-        code: 'DIWALI3KW',
-        title: 'Diwali Special ₹5,000 Flat Off',
-        discount: '₹5,000 Flat',
-        type: 'flat',
-        value: 5000,
-        applicableKits: '3kW Solarkits DCR Combokit',
-        redemptionsCount: 420,
-        uniqueEpcsRedeemed: 310,
-        revenueGenerated: 1875600,
-        status: 'Active'
-      },
-      {
-        code: 'SURATSUMMER',
-        title: 'Surat Diamond Cluster Exclusive',
-        discount: '8% Off',
-        type: 'percentage',
-        value: 8,
-        applicableKits: 'All Commercial 5kW+ Kits',
-        redemptionsCount: 285,
-        uniqueEpcsRedeemed: 215,
-        revenueGenerated: 1420000,
-        status: 'Active'
-      },
-      {
-        code: 'TOPCON5KW',
-        title: 'TopCon Premium Bifacial Introductory',
-        discount: '₹7,500 Flat',
-        type: 'flat',
-        value: 7500,
-        applicableKits: '5kW Premium Bifacial Kit',
-        redemptionsCount: 195,
-        uniqueEpcsRedeemed: 148,
-        revenueGenerated: 980000,
-        status: 'Active'
-      },
-      {
-        code: 'REACTIVATE2026',
-        title: 'Welcome Back 60-Day Re-engagement',
-        discount: '5% Extra Margin',
-        type: 'percentage',
-        value: 5,
-        applicableKits: 'Any Rooftop Solar Combo Kit',
-        redemptionsCount: 160,
-        uniqueEpcsRedeemed: 130,
-        revenueGenerated: 780000,
-        status: 'Active'
-      },
-      {
-        code: 'FESTIVE10',
-        title: 'Festive Season Bulk Order Vouchers',
-        discount: '10% Off',
-        type: 'percentage',
-        value: 10,
-        applicableKits: 'Bulk Orders (5+ Kits)',
-        redemptionsCount: 95,
-        uniqueEpcsRedeemed: 82,
-        revenueGenerated: 620000,
-        status: 'Active'
-      },
-      {
-        code: 'MAHAPUSH',
-        title: 'Maharashtra State Depot Incentive',
-        discount: '₹3,000 Flat',
-        type: 'flat',
-        value: 3000,
-        applicableKits: '1kW & 2kW Residential DCR Kits',
-        redemptionsCount: 85,
-        uniqueEpcsRedeemed: 70,
-        revenueGenerated: 340000,
-        status: 'Active'
-      }
-    ],
-    epcTerritoryPerformance: [
-      {
-        cluster: 'Bhiwandi Central',
-        state: 'Maharashtra',
-        warehouse: 'Bhiwandi Super Depot (WH-MH-01)',
-        totalEpcs: 3840,
-        buyerEpcs: 920,
-        verifiedEpcs: 1450,
-        registeredEpcs: 1470,
-        ordersPlaced: 480,
-        conversionRatio: '24.0%',
-        dominantType: 'Buyer EPC'
-      },
-      {
-        cluster: 'Pune Cluster',
-        state: 'Maharashtra',
-        warehouse: 'Pune South Facility',
-        totalEpcs: 2650,
-        buyerEpcs: 610,
-        verifiedEpcs: 980,
-        registeredEpcs: 1060,
-        ordersPlaced: 320,
-        conversionRatio: '23.0%',
-        dominantType: 'Verified EPC'
-      },
-      {
-        cluster: 'Surat Cluster',
-        state: 'Gujarat',
-        warehouse: 'Surat Central Hub',
-        totalEpcs: 2180,
-        buyerEpcs: 450,
-        verifiedEpcs: 820,
-        registeredEpcs: 910,
-        ordersPlaced: 215,
-        conversionRatio: '20.6%',
-        dominantType: 'Buyer EPC'
-      },
-      {
-        cluster: 'Ahmedabad Industrial',
-        state: 'Gujarat',
-        warehouse: 'Ahmedabad Industrial Hub',
-        totalEpcs: 1940,
-        buyerEpcs: 380,
-        verifiedEpcs: 710,
-        registeredEpcs: 850,
-        ordersPlaced: 185,
-        conversionRatio: '19.6%',
-        dominantType: 'Verified EPC'
-      },
-      {
-        cluster: 'Jaipur Central',
-        state: 'Rajasthan',
-        warehouse: 'Jaipur Regional Depot',
-        totalEpcs: 1620,
-        buyerEpcs: 260,
-        verifiedEpcs: 490,
-        registeredEpcs: 870,
-        ordersPlaced: 110,
-        conversionRatio: '16.0%',
-        dominantType: 'Registered EPC'
-      },
-      {
-        cluster: 'Bengaluru South',
-        state: 'Karnataka',
-        warehouse: 'Bengaluru Logistics Park',
-        totalEpcs: 1240,
-        buyerEpcs: 190,
-        verifiedEpcs: 380,
-        registeredEpcs: 670,
-        ordersPlaced: 85,
-        conversionRatio: '15.3%',
-        dominantType: 'Verified EPC'
-      },
-      {
-        cluster: 'Nagpur East',
-        state: 'Maharashtra',
-        warehouse: 'Nagpur Distribution Center',
-        totalEpcs: 780,
-        buyerEpcs: 110,
-        verifiedEpcs: 240,
-        registeredEpcs: 430,
-        ordersPlaced: 48,
-        conversionRatio: '14.1%',
-        dominantType: 'Registered EPC'
-      }
-    ]
-  });
+  const [data, setData] = useState(EMPTY_DASHBOARD_DATA);
 
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin-panel/marketing/analytics', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-        }
-      });
-      const json = await res.json();
-      if (json.success && json.data) {
-        setData(json.data);
+      const liveData = await fetchMarketingDashboardAnalytics();
+      if (liveData) {
+        setData(liveData);
       }
     } catch (err) {
-      // Retain fallback data
+      console.error('Failed fetching live marketing analytics:', err.message);
     } finally {
       setLoading(false);
     }
@@ -497,7 +223,7 @@ export default function MarketingDashboard() {
           </div>
 
           {/* Dashboard View Switcher */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 flex-wrap">
             <button
               onClick={() => setDashboardTab('analytics')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -508,6 +234,17 @@ export default function MarketingDashboard() {
             >
               <FaChartLine />
               <span>Performance Analytics</span>
+            </button>
+            <button
+              onClick={() => setDashboardTab('segment-analytics')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                dashboardTab === 'segment-analytics'
+                  ? 'bg-white dark:bg-slate-700 text-violet-600 dark:text-violet-400 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <FaLayerGroup />
+              <span>Segment Group Analytics</span>
             </button>
             <button
               onClick={() => setDashboardTab('map')}
@@ -542,9 +279,11 @@ export default function MarketingDashboard() {
 
       {dashboardTab === 'map' ? (
         <IndiaCampaignMap />
+      ) : dashboardTab === 'segment-analytics' ? (
+        <SegmentGroupAnalyticsPage embedded />
       ) : (
         <>
-          {/* ── Executive Numbers Cards (Boss Requirement 3) ── */}
+          {/* ── Executive Numbers Cards (100% Dynamic Live DB Metrics) ── */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             
             {/* 1. Active Campaigns */}
@@ -554,10 +293,10 @@ export default function MarketingDashboard() {
                 <FaBullhorn className="text-indigo-500" />
               </div>
               <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                {s.activeCampaigns || 3} <span className="text-xs font-normal text-slate-400">/ {s.totalCampaigns || 8} Total</span>
+                {s.activeCampaigns || 0} <span className="text-xs font-normal text-slate-400">/ {s.totalCampaigns || 0} Total</span>
               </div>
               <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1 flex items-center gap-1">
-                <MdTrendingUp /> Multi-Territory Live
+                <MdTrendingUp /> {s.totalDelivered || 0} Messages Delivered
               </div>
             </div>
 
@@ -568,12 +307,12 @@ export default function MarketingDashboard() {
                 <FaUsers className="text-blue-500" />
               </div>
               <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                {(s.totalEpcs || 14250).toLocaleString('en-IN')}
+                {(s.totalEpcs || 0).toLocaleString('en-IN')}
               </div>
               <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
-                <span className="text-emerald-600 font-bold">{(s.buyerEpcs || 2150).toLocaleString('en-IN')} B</span> • 
-                <span className="text-blue-600 font-bold">{(s.verifiedEpcs || 3420).toLocaleString('en-IN')} V</span> • 
-                <span className="text-amber-500 font-bold">{(s.registeredEpcs || 8680).toLocaleString('en-IN')} R</span>
+                <span className="text-emerald-600 font-bold">{(s.buyerEpcs || 0).toLocaleString('en-IN')} B</span> • 
+                <span className="text-blue-600 font-bold">{(s.verifiedEpcs || 0).toLocaleString('en-IN')} V</span> • 
+                <span className="text-amber-500 font-bold">{(s.registeredEpcs || 0).toLocaleString('en-IN')} R</span>
               </div>
             </div>
 
@@ -584,24 +323,27 @@ export default function MarketingDashboard() {
                 <FaGift className="text-amber-500" />
               </div>
               <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                {s.activeCouponsCount || 6} <span className="text-xs font-normal text-slate-400">/ {s.totalCouponsCount || 8}</span>
+                {s.activeCouponsCount || 0} <span className="text-xs font-normal text-slate-400">/ {s.totalCouponsCount || 0}</span>
               </div>
               <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">
-                1,240 Total Redemptions
+                {displayCoupons.reduce((acc, c) => acc + (c.redemptionsCount || 0), 0).toLocaleString('en-IN')} Total Redemptions
               </div>
             </div>
 
-            {/* 4. Successful Campaigns */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700 shadow-xs hover:border-emerald-500/50 transition-all">
+            {/* 4. Segment Groups Impact */}
+            <div
+              onClick={() => setDashboardTab('segment-analytics')}
+              className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-violet-200/80 dark:border-violet-800 shadow-xs hover:border-violet-500 transition-all cursor-pointer"
+            >
               <div className="flex items-center justify-between text-slate-400 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">Successful Campaigns</span>
-                <FaTrophy className="text-emerald-500" />
+                <span className="text-xs font-bold uppercase tracking-wider text-violet-600">Segment Groups</span>
+                <FaLayerGroup className="text-violet-500" />
               </div>
-              <div className="text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
-                {s.successfulCampaignsCount || 5} <span className="text-xs font-normal text-slate-400">Wins</span>
+              <div className="text-2xl font-black tracking-tight text-violet-700 dark:text-violet-300">
+                {(s.segmentLeadsUploaded || 0).toLocaleString('en-IN')} <span className="text-xs font-normal text-slate-400">Leads</span>
               </div>
-              <div className="text-xs text-emerald-600 font-semibold mt-1">
-                {s.salesConversionRate || '29.0'}% Sales Win Rate
+              <div className="text-[11px] text-violet-600 dark:text-violet-400 font-semibold mt-1">
+                {s.segmentRegistered || 0} Reg • {s.segmentBuyers || 0} Buyers → View Analytics
               </div>
             </div>
 
@@ -612,10 +354,10 @@ export default function MarketingDashboard() {
                 <FaMapMarkedAlt className="text-violet-500" />
               </div>
               <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                {liveClusters.length || 8} <span className="text-xs font-normal text-slate-400">Clusters</span>
+                {s.activeClustersCount ?? liveClusters.length ?? 0} <span className="text-xs font-normal text-slate-400">Clusters</span>
               </div>
               <div className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold mt-1">
-                Across {liveStates.length || 36} Indian States
+                Across {s.activeStatesCount || liveStates.length || 0} Active States
               </div>
             </div>
 
@@ -626,10 +368,10 @@ export default function MarketingDashboard() {
                 <FaFunnelDollar className="text-emerald-600" />
               </div>
               <div className="text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300">
-                ₹{((s.totalRevenue || 3450000) / 100000).toFixed(2)}L
+                ₹{((s.totalRevenue || 0) / 100000).toFixed(2)}L
               </div>
               <div className="text-xs text-emerald-700 dark:text-emerald-400 font-bold mt-1">
-                {s.totalConversions || 42} Commercial Kits
+                {s.totalConversions || 0} Conversions
               </div>
             </div>
 
@@ -651,7 +393,7 @@ export default function MarketingDashboard() {
               >
                 <option value="ALL">All States ({liveStates.length})</option>
                 {liveStates.map(st => (
-                  <option key={st.name || st} value={st.name || st}>
+                  <option key={st._id || st.name || st} value={st.name || st}>
                     {st.name || st}
                   </option>
                 ))}
@@ -663,7 +405,7 @@ export default function MarketingDashboard() {
                 onChange={(e) => setFilterCluster(e.target.value)}
                 className="px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-hidden"
               >
-                <option value="ALL">All Clusters ({liveClusters.length || 8})</option>
+                <option value="ALL">All Clusters ({liveClusters.length})</option>
                 {liveClusters.map(cl => {
                   const name = cl.cluster_name || cl.name;
                   return (
@@ -757,7 +499,13 @@ export default function MarketingDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-medium">
-                  {rankedCampaigns.map((camp, index) => {
+                  {rankedCampaigns.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-8 text-center text-slate-400 font-semibold">
+                        No live campaigns found matching the active filters. Create your first campaign to see real-time ranking.
+                      </td>
+                    </tr>
+                  ) : rankedCampaigns.map((camp, index) => {
                     const rankNum = index + 1;
                     return (
                       <tr key={camp._id || index} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/20 transition-colors">
@@ -827,7 +575,7 @@ export default function MarketingDashboard() {
 
                         <td className="py-3 px-3">
                           <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 font-bold text-[11px]">
-                            {camp.conversionRate || '24.5%'}
+                            {camp.conversionRate || '0.0%'}
                           </span>
                         </td>
 
@@ -876,7 +624,11 @@ export default function MarketingDashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {displayCoupons.map((coupon) => {
+              {displayCoupons.length === 0 ? (
+                <div className="col-span-full py-8 text-center text-xs text-slate-400 font-semibold border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                  No active promo coupon codes configured in Offer Master or Campaigns yet.
+                </div>
+              ) : displayCoupons.map((coupon) => {
                 const isCopied = copiedCode === coupon.code;
                 return (
                   <div
@@ -981,8 +733,14 @@ export default function MarketingDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-medium">
-                  {filteredTerritories.map((item, idx) => {
-                    const convNum = parseFloat(item.conversionRatio) || 15;
+                  {filteredTerritories.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-8 text-center text-slate-400 font-semibold">
+                        No live cluster/territory EPC metrics match the selected filters.
+                      </td>
+                    </tr>
+                  ) : filteredTerritories.map((item, idx) => {
+                    const convNum = parseFloat(item.conversionRatio) || 0;
                     return (
                       <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/20 transition-colors">
                         <td className="py-3 px-3 pl-4">

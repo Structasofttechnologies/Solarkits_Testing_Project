@@ -1130,3 +1130,177 @@ export function deleteSeasonalCoupon(id) {
     return null;
   }
 }
+
+// ── 9. Marketing Locations, Isolated Segment Groups & Campaign API Helpers ──
+const marketingHeaders = () => ({
+  ...authHeaderObj(),
+  'Content-Type': 'application/json'
+});
+
+export async function fetchMarketingStates() {
+  const res = await axios.get(`${API_BASE_URL}/marketing/locations/states`, {
+    headers: authHeaderObj()
+  });
+  return res.data?.data || [];
+}
+
+export async function fetchMarketingDistricts({ stateId = '', stateName = '' } = {}) {
+  const params = {};
+  if (stateId) params.state_id = stateId;
+  if (stateName) params.state_name = stateName;
+  const res = await axios.get(`${API_BASE_URL}/marketing/locations/districts`, {
+    params,
+    headers: authHeaderObj()
+  });
+  return res.data?.data || [];
+}
+
+export async function fetchSegments(params = {}) {
+  const res = await axios.get(`${API_BASE_URL}/marketing/segments`, {
+    params,
+    headers: authHeaderObj()
+  });
+  return {
+    segments: res.data?.data || [],
+    purposes: res.data?.purposes || []
+  };
+}
+
+export async function fetchMarketingClusters({ stateId = '', stateName = '' } = {}) {
+  const params = {};
+  if (stateId) params.state_id = stateId;
+  if (stateName) params.state_name = stateName;
+  const res = await axios.get(`${API_BASE_URL}/marketing/locations/clusters`, {
+    params,
+    headers: authHeaderObj()
+  });
+  return res.data?.data || [];
+}
+
+export async function fetchMarketingKits() {
+  const res = await axios.get(`${API_BASE_URL}/marketing/kits`, {
+    headers: authHeaderObj()
+  });
+  return res.data?.data || [];
+}
+
+export async function fetchSegmentTerritorySummary(params = {}) {
+  const res = await axios.get(`${API_BASE_URL}/marketing/segments/territory-summary`, {
+    params,
+    headers: authHeaderObj()
+  });
+  return res.data;
+}
+
+export async function createSegment(payload) {
+  const res = await axios.post(`${API_BASE_URL}/marketing/segments`, payload, {
+    headers: marketingHeaders()
+  });
+  return res.data?.data;
+}
+
+export async function updateSegment(id, payload) {
+  const res = await axios.put(`${API_BASE_URL}/marketing/segments/${id}`, payload, {
+    headers: marketingHeaders()
+  });
+  return res.data?.data;
+}
+
+export async function deleteSegment(id) {
+  const res = await axios.delete(`${API_BASE_URL}/marketing/segments/${id}`, {
+    headers: authHeaderObj()
+  });
+  return res.data;
+}
+
+export async function fetchSegmentContacts(segmentId, params = {}) {
+  const res = await axios.get(`${API_BASE_URL}/marketing/segments/${segmentId}/contacts`, {
+    params,
+    headers: authHeaderObj()
+  });
+  return res.data;
+}
+
+export async function uploadSegmentCsv(segmentId, payload) {
+  const res = await axios.post(`${API_BASE_URL}/marketing/segments/${segmentId}/upload-csv`, payload, {
+    headers: marketingHeaders()
+  });
+  return res.data;
+}
+
+export async function deleteSegmentContact(segmentId, contactId) {
+  const res = await axios.delete(`${API_BASE_URL}/marketing/segments/${segmentId}/contacts/${contactId}`, {
+    headers: authHeaderObj()
+  });
+  return res.data;
+}
+
+export async function clearSegmentContacts(segmentId, resetFields = true) {
+  const res = await axios.delete(`${API_BASE_URL}/marketing/segments/${segmentId}/contacts`, {
+    params: { reset_fields: resetFields ? 'true' : 'false' },
+    headers: authHeaderObj()
+  });
+  return res.data;
+}
+
+export async function fetchSegmentAnalytics(params = {}) {
+  const res = await axios.get(`${API_BASE_URL}/marketing/segments/analytics`, {
+    params,
+    headers: authHeaderObj()
+  });
+  return res.data?.data || res.data;
+}
+
+export async function fetchMarketingDashboardAnalytics(params = {}) {
+  const res = await axios.get(`${API_BASE_URL}/marketing/analytics`, {
+    params,
+    headers: authHeaderObj()
+  });
+  return res.data?.data || res.data;
+}
+
+export async function fetchMarketingTerritoryMap(params = {}) {
+  const res = await axios.get(`${API_BASE_URL}/marketing/territory-map`, {
+    params,
+    headers: authHeaderObj()
+  });
+  return res.data?.data || res.data;
+}
+
+export async function fetchMarketingCampaigns(params = {}) {
+  const res = await axios.get(`${API_BASE_URL}/marketing/campaigns`, {
+    params,
+    headers: authHeaderObj()
+  });
+  return res.data?.data || [];
+}
+
+export async function syncVerifiedEpcsWithSegments(segmentId = null) {
+  const res = await axios.post(
+    `${API_BASE_URL}/marketing/segments/sync-verified-epcs`,
+    segmentId ? { segment_id: segmentId } : {},
+    { headers: marketingHeaders() }
+  );
+  return res.data;
+}
+
+export async function previewMarketingAudience(payload) {
+  const res = await axios.post(`${API_BASE_URL}/marketing/audience/preview`, payload, {
+    headers: marketingHeaders()
+  });
+  return res.data?.data;
+}
+
+export async function createMarketingCampaign(payload) {
+  const res = await axios.post(`${API_BASE_URL}/marketing/campaigns`, payload, {
+    headers: marketingHeaders()
+  });
+  return res.data?.data;
+}
+
+export async function launchMarketingCampaign(campaignId) {
+  const res = await axios.post(`${API_BASE_URL}/marketing/campaigns/${campaignId}/launch`, {}, {
+    headers: marketingHeaders()
+  });
+  return res.data;
+}

@@ -4,94 +4,54 @@ import {
   FiZoomIn,
   FiZoomOut,
   FiRefreshCw,
-  FiFilter,
-  FiLayers,
   FiMapPin,
-  FiCheckCircle,
   FiAlertCircle,
-  FiTrendingUp,
-  FiDollarSign,
-  FiUsers,
   FiX,
   FiArrowRight
 } from 'react-icons/fi';
-import { FaWhatsapp, FaEnvelope, FaBullhorn, FaPlus, FaWarehouse, FaCogs, FaPercentage, FaCoins } from 'react-icons/fa';
+import { FaPlus, FaPercentage, FaCoins } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import {
   CAMPAIGN_OBJECTIVES,
   fetchLiveClusters,
   fetchLiveWarehouses,
   fetchLiveActiveStates,
+  fetchMarketingTerritoryMap,
   getQuotaState
 } from './services/marketingDataService';
 
-// Center coordinates & metadata for Indian States
-const STATE_INFO = {
-  'Gujarat': { code: 'GJ', center: [71.577, 22.7] },
-  'Maharashtra': { code: 'MH', center: [76.094, 19.455] },
-  'Madhya Pradesh': { code: 'MP', center: [78.284, 23.541] },
-  'Rajasthan': { code: 'RJ', center: [73.852, 26.578] },
-  'Uttar Pradesh': { code: 'UP', center: [80.591, 26.922] },
-  'Karnataka': { code: 'KA', center: [76.168, 14.7] },
-  'Tamil Nadu': { code: 'TN', center: [78.406, 11.011] },
-  'Kerala': { code: 'KL', center: [76.412, 10.449] },
-  'Telangana': { code: 'TG', center: [79.007, 17.798] },
-  'Andhra Pradesh': { code: 'AP', center: [79.942, 15.753] },
-  'Odisha': { code: 'OD', center: [84.42, 20.511] },
-  'Chhattisgarh': { code: 'CG', center: [82.029, 21.254] },
-  'West Bengal': { code: 'WB', center: [87.961, 23.82] },
-  'Bihar': { code: 'BR', center: [85.607, 25.68] },
-  'Jharkhand': { code: 'JH', center: [85.552, 23.655] },
-  'Punjab': { code: 'PB', center: [75.416, 30.841] },
-  'Haryana': { code: 'HR', center: [76.346, 29.196] },
-  'Delhi': { code: 'DL', center: [77.114, 28.645] }
-};
+const clean = (s) =>
+  String(s || '')
+    .toLowerCase()
+    .replace(/\b(district|dist|region|division|cluster|state)\b/g, ' ')
+    .replace(/[^a-z0-9]/g, '');
 
-const clean = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const formatInr = (val) => {
+  const num = Number(val || 0);
+  if (num >= 100000) return `₹${(num / 100000).toFixed(2)}L`;
+  return `₹${Math.round(num).toLocaleString('en-IN')}`;
+};
 
 export default function IndiaCampaignMap() {
   const navigate = useNavigate();
   const [geoData, setGeoData] = useState(null);
   const [loadingGeo, setLoadingGeo] = useState(true);
+  const [loadingMapData, setLoadingMapData] = useState(true);
   const [errorGeo, setErrorGeo] = useState(null);
 
-  // Dynamic Clusters, Warehouses & Active States fetched from Admin Panel APIs
+  // Live DB state
+  const [mapPayload, setMapPayload] = useState({ summary: {}, states: {}, districts_lookup: [] });
   const [clustersList, setClustersList] = useState([]);
   const [warehousesList, setWarehousesList] = useState([]);
   const [activeStatesList, setActiveStatesList] = useState([]);
-
-  // Live Persistent Quota Balance State
   const [quota, setQuota] = useState(() => getQuotaState());
 
-  useEffect(() => {
-    const handleQuotaUpdate = () => setQuota(getQuotaState());
-    window.addEventListener('solarkits-quota-updated', handleQuotaUpdate);
-    return () => window.removeEventListener('solarkits-quota-updated', handleQuotaUpdate);
-  }, []);
-
-  // Fetch live clusters, warehouses & active states on mount
-  useEffect(() => {
-    let isMounted = true;
-    Promise.all([
-      fetchLiveClusters(),
-      fetchLiveWarehouses(),
-      fetchLiveActiveStates()
-    ]).then(([cList, wList, sList]) => {
-      if (isMounted) {
-        setClustersList(cList);
-        setWarehousesList(wList);
-        if (Array.isArray(sList)) setActiveStatesList(sList);
-      }
-    });
-    return () => { isMounted = false; };
-  }, []);
-
-  // Filters (Boss Requirements)
-  const [channelFilter, setChannelFilter] = useState('ALL'); // ALL, WHATSAPP, EMAIL, BOTH
-  const [objectiveFilter, setObjectiveFilter] = useState('ALL'); // ALL or any from CAMPAIGN_OBJECTIVES
-  const [clusterFilter, setClusterFilter] = useState('ALL'); // ALL or dynamic cluster name
-  const [warehouseFilter, setWarehouseFilter] = useState('ALL'); // ALL or dynamic warehouse name
-  const [resultMetric, setResultMetric] = useState('STATUS'); // STATUS, SUCCESS_RATIO, DELIVERED, LEADS, CONVERSIONS, REVENUE
+  // Filters
+  const [channelFilter, setChannelFilter] = useState('ALL');
+  const [objectiveFilter, setObjectiveFilter] = useState('ALL');
+  const [clusterFilter, setClusterFilter] = useState('ALL');
+  const [warehouseFilter, setWarehouseFilter] = useState('ALL');
+  const [resultMetric, setResultMetric] = useState('STATUS');
   const [selectedState, setSelectedState] = useState('');
 
   // Zoom & Pan
@@ -100,7 +60,7 @@ export default function IndiaCampaignMap() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // Hover & Selection
+  // Hover & Click Area Details
   const [hoveredData, setHoveredData] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [selectedTerritory, setSelectedTerritory] = useState(null);
@@ -109,145 +69,39 @@ export default function IndiaCampaignMap() {
   const width = 800;
   const height = 750;
 
-  // Master State Campaign Data (Integrated with SolarKits MIS)
-  const territoryData = useMemo(() => ({
-    'maharashtra': {
-      state: 'Maharashtra',
-      isActive: true,
-      channels: ['whatsapp', 'email'],
-      primaryChannel: 'both',
-      campaignCount: 4,
-      delivered: 9840,
-      leads: 185,
-      conversions: 28,
-      successRatio: '15.1%',
-      revenue: '₹22.40L',
-      warehouses: ['Bhiwandi Central Master Warehouse (WH-IND-MH-001)'],
-      clusters: [
-        'Konkan Cluster (CLU-MH-001)',
-        'Pune Division Cluster (CLU-MH-002)',
-        'Nashik Division Cluster (CLU-MH-003)',
-        'Nagpur Division Cluster (CLU-MH-004)'
-      ],
-      campaigns: [
-        { name: 'Diwali 3kW EPC Wholesale Flash Sale', type: 'both', objective: 'sales', leads: 95, orders: 18, rev: '₹14.50L' },
-        { name: 'Maharashtra Inactive EPC Reactivation', type: 'email', objective: 'epc_activation', leads: 45, orders: 6, rev: '₹4.90L' },
-        { name: 'Pune High-Power Commercial BOS Push', type: 'whatsapp', objective: 'product_promotion', leads: 45, orders: 4, rev: '₹3.00L' }
-      ]
-    },
-    'gujarat': {
-      state: 'Gujarat',
-      isActive: true,
-      channels: ['whatsapp'],
-      primaryChannel: 'whatsapp',
-      campaignCount: 2,
-      delivered: 4120,
-      leads: 78,
-      conversions: 11,
-      successRatio: '14.1%',
-      revenue: '₹8.90L',
-      warehouses: ['Ahmedabad Sanand Central Warehouse (WH-IND-GJ-001)'],
-      clusters: [
-        'Central Gujarat Cluster (CLU-GJ-001)',
-        'South Gujarat Cluster (CLU-GJ-002)',
-        'North Gujarat Cluster (CLU-GJ-003)',
-        'Saurashtra Cluster (CLU-GJ-004)'
-      ],
-      campaigns: [
-        { name: 'Gujarat 5kW Commercial Solar Subsidy Drive', type: 'whatsapp', objective: 'sales', leads: 62, orders: 9, rev: '₹7.20L' },
-        { name: 'Surat Diamond Cluster EPC Onboarding', type: 'whatsapp', objective: 'epc_onboarding', leads: 16, orders: 2, rev: '₹1.70L' }
-      ]
-    },
-    'rajasthan': {
-      state: 'Rajasthan',
-      isActive: true,
-      channels: ['email'],
-      primaryChannel: 'email',
-      campaignCount: 1,
-      delivered: 1840,
-      leads: 28,
-      conversions: 3,
-      successRatio: '10.7%',
-      revenue: '₹2.40L',
-      warehouses: ['Jaipur Sitapura Central Depo (WH-IND-RJ-001)'],
-      clusters: [
-        'Central Rajasthan Cluster (CLU-RJ-001)',
-        'West Rajasthan Cluster (CLU-RJ-002)',
-        'East Rajasthan Cluster (CLU-RJ-003)'
-      ],
-      campaigns: [
-        { name: 'Marwar Agricultural Pump Solar Kit Push', type: 'email', objective: 'product_promotion', leads: 28, orders: 3, rev: '₹2.40L' }
-      ]
-    },
-    'karnataka': {
-      state: 'Karnataka',
-      isActive: true,
-      channels: ['whatsapp', 'email'],
-      primaryChannel: 'both',
-      campaignCount: 1,
-      delivered: 1400,
-      leads: 19,
-      conversions: 2,
-      successRatio: '10.5%',
-      revenue: '₹0.80L',
-      warehouses: ['Bengaluru Peenya Central Hub (WH-IND-KA-001)'],
-      clusters: [
-        'South Karnataka Cluster (CLU-KA-001)',
-        'North Karnataka Cluster (CLU-KA-002)'
-      ],
-      campaigns: [
-        { name: 'Bengaluru Rooftop EPC Expansion Drive', type: 'both', objective: 'epc_onboarding', leads: 19, orders: 2, rev: '₹0.80L' }
-      ]
-    },
-    'delhi': {
-      state: 'Delhi',
-      isActive: false,
-      channels: [],
-      primaryChannel: 'none',
-      campaignCount: 0,
-      delivered: 0,
-      leads: 0,
-      conversions: 0,
-      successRatio: '0.0%',
-      revenue: '₹0.00',
-      warehouses: ['Delhi Okhla Regional Depo (WH-IND-DL-001)'],
-      clusters: [
-        'South Delhi Cluster (CLU-DL-001)',
-        'Central Delhi Cluster (CLU-DL-002)'
-      ],
-      campaigns: []
-    },
-    'madhyapradesh': {
-      state: 'Madhya Pradesh',
-      isActive: false,
-      channels: [],
-      primaryChannel: 'none',
-      campaignCount: 0,
-      delivered: 0,
-      leads: 0,
-      conversions: 0,
-      successRatio: '0.0%',
-      revenue: '₹0.00',
-      warehouses: ['Indore Regional Hub'],
-      clusters: ['Indore Commercial', 'Bhopal Central'],
-      campaigns: []
-    },
-    'uttarpradesh': {
-      state: 'Uttar Pradesh',
-      isActive: false,
-      channels: [],
-      primaryChannel: 'none',
-      campaignCount: 0,
-      delivered: 0,
-      leads: 0,
-      conversions: 0,
-      successRatio: '0.0%',
-      revenue: '₹0.00',
-      warehouses: ['Lucknow Central Hub'],
-      clusters: ['Noida Tech Zone', 'Lucknow Central'],
-      campaigns: []
+  useEffect(() => {
+    const handleQuotaUpdate = () => setQuota(getQuotaState());
+    window.addEventListener('solarkits-quota-updated', handleQuotaUpdate);
+    return () => window.removeEventListener('solarkits-quota-updated', handleQuotaUpdate);
+  }, []);
+
+  const loadLiveTerritory = useCallback(async () => {
+    setLoadingMapData(true);
+    try {
+      const [tData, cList, wList, sList] = await Promise.all([
+        fetchMarketingTerritoryMap({
+          type: channelFilter !== 'ALL' ? channelFilter.toLowerCase() : undefined,
+          objective: objectiveFilter !== 'ALL' ? objectiveFilter : undefined,
+          state: selectedState || undefined
+        }),
+        fetchLiveClusters().catch(() => []),
+        fetchLiveWarehouses().catch(() => []),
+        fetchLiveActiveStates().catch(() => [])
+      ]);
+      if (tData) setMapPayload(tData);
+      if (Array.isArray(cList)) setClustersList(cList);
+      if (Array.isArray(wList)) setWarehousesList(wList);
+      if (Array.isArray(sList)) setActiveStatesList(sList);
+    } catch (err) {
+      console.error('Failed loading live India campaign map:', err.message);
+    } finally {
+      setLoadingMapData(false);
     }
-  }), []);
+  }, [channelFilter, objectiveFilter, selectedState]);
+
+  useEffect(() => {
+    loadLiveTerritory();
+  }, [loadLiveTerritory]);
 
   // Fetch GeoJSON
   useEffect(() => {
@@ -270,34 +124,23 @@ export default function IndiaCampaignMap() {
           setLoadingGeo(false);
         }
       });
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
-  // Extract District & State Features
   const { districtFeatures, stateBoundaries } = useMemo(() => {
     if (!geoData?.features) return { districtFeatures: [], stateBoundaries: [] };
     const dFeatures = [];
     const sBoundaries = [];
     for (const f of geoData.features) {
-      if (f.properties?.district && f.properties.district.trim()) {
-        dFeatures.push(f);
-      } else {
-        sBoundaries.push(f);
-      }
+      if (f.properties?.district && f.properties.district.trim()) dFeatures.push(f);
+      else sBoundaries.push(f);
     }
     return { districtFeatures: dFeatures, stateBoundaries: sBoundaries };
   }, [geoData]);
 
-  // D3 Projection centered to encompass entire Indian territory
   const { projection, pathGenerator } = useMemo(() => {
     if (!geoData) return { projection: null, pathGenerator: null };
-    const proj = d3Geo
-      .geoMercator()
-      .center([82.5, 0])
-      .scale(1050)
-      .translate([width / 2, 770]);
+    const proj = d3Geo.geoMercator().center([82.5, 0]).scale(1050).translate([width / 2, 770]);
     const pathGen = d3Geo.geoPath().projection(proj);
     return { projection: proj, pathGenerator: pathGen };
   }, [geoData, width, height]);
@@ -310,10 +153,7 @@ export default function IndiaCampaignMap() {
       setPan({ x: 0, y: 0 });
       return;
     }
-    const stateFeatures = districtFeatures.filter((f) => {
-      const st = f.properties?.st_nm || '';
-      return clean(st) === clean(selectedState) || (STATE_INFO[st] && clean(STATE_INFO[st].code) === clean(selectedState));
-    });
+    const stateFeatures = districtFeatures.filter((f) => clean(f.properties?.st_nm || '') === clean(selectedState));
     if (stateFeatures.length > 0) {
       const bounds = d3Geo.geoBounds({ type: 'FeatureCollection', features: stateFeatures });
       const p0 = projection(bounds[0]);
@@ -327,87 +167,147 @@ export default function IndiaCampaignMap() {
       const midX = (x0 + x1) / 2;
       const midY = (y0 + y1) / 2;
       const targetScale = Math.min(6, Math.max(1.8, 0.85 / Math.max(dx / width, dy / height)));
-      const targetPanX = width / 2 - targetScale * midX;
-      const targetPanY = height / 2 - targetScale * midY;
       setZoom(targetScale);
-      setPan({ x: targetPanX, y: targetPanY });
+      setPan({ x: width / 2 - targetScale * midX, y: height / 2 - targetScale * midY });
     }
   }, [selectedState, geoData, projection, districtFeatures, width, height]);
 
-  // Territory matching helper
-  const getFeatureTerritory = useCallback((feature) => {
-    if (!feature?.properties) return null;
-    const sName = clean(feature.properties.st_nm || '');
-    return territoryData[sName] || null;
-  }, [territoryData]);
+  // Normalize API state & district lookups
+  const { territoryByStateToken, districtStatsLookup } = useMemo(() => {
+    const sMap = new Map();
+    const rawStates = mapPayload?.states || {};
+    Object.values(rawStates).forEach((st) => {
+      const totalLeadsCombined = (st.leads || 0) + (st.segment_leads_uploaded || 0);
+      const totalRevCombined = (st.revenue || 0) + (st.segment_revenue_inr || 0);
+      const convCombined = (st.conversions || 0) + (st.segment_buyers || 0);
+      const ratioVal = totalLeadsCombined > 0
+        ? ((convCombined / totalLeadsCombined) * 100).toFixed(1)
+        : (st.segment_conversion_rate_pct ? String(st.segment_conversion_rate_pct) : '0.0');
 
-  // Color logic based on Boss's filters
-  const getFeatureFill = useCallback((feature) => {
-    const t = getFeatureTerritory(feature);
-    if (!t || !t.isActive) {
-      return '#f1f5f9'; // Inactive slate gray
+      const whMatches = warehousesList
+        .filter((w) => clean(w.state_name || w.state) === clean(st.state_name))
+        .map((w) => w.warehouse_name || w.name)
+        .filter(Boolean);
+
+      sMap.set(clean(st.state_name), {
+        state: st.state_name,
+        isActive: Boolean(st.has_active || st.campaign_count > 0 || st.segment_leads_uploaded > 0),
+        channels: st.channels || [],
+        primaryChannel: st.campaign_type || 'none',
+        campaignCount: st.campaign_count || 0,
+        delivered: st.delivered || 0,
+        leads: st.leads || 0,
+        conversions: st.conversions || 0,
+        revenueNum: totalRevCombined,
+        revenue: formatInr(totalRevCombined),
+        successRatio: `${ratioVal}%`,
+        warehouses: whMatches,
+        clusters: st.clusters || [],
+        cluster_details: st.cluster_details || [],
+        campaigns: st.running_campaigns || [],
+        segment_leads_uploaded: st.segment_leads_uploaded || 0,
+        segment_registered: st.segment_registered || 0,
+        segment_verified: st.segment_verified || 0,
+        segment_buyers: st.segment_buyers || 0,
+        segment_orders: st.segment_orders || 0,
+        segment_revenue_inr: st.segment_revenue_inr || 0,
+        post_campaign_conversions: st.post_campaign_conversions || 0,
+        post_campaign_revenue_inr: st.post_campaign_revenue_inr || 0,
+        segments: st.segments || []
+      });
+    });
+
+    const dMap = new Map();
+    for (const d of mapPayload?.districts_lookup || []) {
+      dMap.set(`${clean(d.state_name)}::${clean(d.district_name)}`, d);
     }
 
-    // Filter by Channel
-    if (channelFilter === 'WHATSAPP' && !t.channels.includes('whatsapp')) return '#f1f5f9';
-    if (channelFilter === 'EMAIL' && !t.channels.includes('email')) return '#f1f5f9';
-    if (channelFilter === 'BOTH' && t.primaryChannel !== 'both') return '#f1f5f9';
+    return { territoryByStateToken: sMap, districtStatsLookup: dMap };
+  }, [mapPayload, warehousesList]);
 
-    // Filter by Objective
-    if (objectiveFilter !== 'ALL') {
-      const hasObj = t.campaigns.some(c => clean(c.objective) === clean(objectiveFilter));
-      if (!hasObj) return '#f1f5f9';
-    }
+  const getFeatureTerritory = useCallback(
+    (feature) => {
+      if (!feature?.properties) return null;
+      const stName = feature.properties.st_nm || '';
+      const distName = feature.properties.district || '';
+      const stNode = territoryByStateToken.get(clean(stName)) || null;
+      const distNode = districtStatsLookup.get(`${clean(stName)}::${clean(distName)}`) || null;
+      return { stNode, distNode };
+    },
+    [territoryByStateToken, districtStatsLookup]
+  );
 
-    // Filter by Cluster
-    if (clusterFilter !== 'ALL') {
-      const hasCluster = t.clusters.some(c => clean(c).includes(clean(clusterFilter)) || clean(clusterFilter).includes(clean(c)));
-      if (!hasCluster) return '#f1f5f9';
-    }
+  const getFeatureFill = useCallback(
+    (feature) => {
+      const { stNode: t, distNode } = getFeatureTerritory(feature) || {};
+      if (!t || (!t.isActive && !distNode)) {
+        return '#f1f5f9';
+      }
 
-    // Filter by Warehouse
-    if (warehouseFilter !== 'ALL') {
-      const hasWarehouse = t.warehouses?.some(w => clean(w).includes(clean(warehouseFilter)) || clean(warehouseFilter).includes(clean(w)));
-      if (!hasWarehouse) return '#f1f5f9';
-    }
+      if (channelFilter === 'WHATSAPP' && !t.channels.includes('whatsapp')) return '#f1f5f9';
+      if (channelFilter === 'EMAIL' && !t.channels.includes('email')) return '#f1f5f9';
+      if (channelFilter === 'BOTH' && t.primaryChannel !== 'both') return '#f1f5f9';
 
-    // Success Ratio Metric Mode
-    if (resultMetric === 'SUCCESS_RATIO') {
-      const ratioNum = parseFloat(t.successRatio) || 0;
-      if (ratioNum >= 14) return '#059669'; // Deep vibrant emerald (>14%)
-      if (ratioNum >= 10) return '#0d9488'; // Teal (10% - 14%)
-      if (ratioNum > 0) return '#d97706'; // Amber / gold (>0%)
-      return '#f1f5f9';
-    }
+      if (objectiveFilter !== 'ALL') {
+        const hasObj = t.campaigns.some((c) => clean(c.objective) === clean(objectiveFilter));
+        if (!hasObj) return '#f1f5f9';
+      }
 
-    // Result Metric Color Mode
-    if (resultMetric === 'DELIVERED') {
-      if (t.delivered > 8000) return '#1e40af';
-      if (t.delivered > 3000) return '#3b82f6';
-      return '#93c5fd';
-    }
-    if (resultMetric === 'LEADS') {
-      if (t.leads > 150) return '#047857';
-      if (t.leads > 50) return '#10b981';
-      return '#6ee7b7';
-    }
-    if (resultMetric === 'CONVERSIONS') {
-      if (t.conversions > 20) return '#b91c1c';
-      if (t.conversions > 8) return '#ef4444';
-      return '#fca5a5';
-    }
-    if (resultMetric === 'REVENUE') {
-      return '#8b5cf6';
-    }
+      if (clusterFilter !== 'ALL') {
+        const matchesCluster =
+          (distNode?.cluster_name && clean(distNode.cluster_name) === clean(clusterFilter)) ||
+          t.clusters.some((c) => clean(c).includes(clean(clusterFilter)) || clean(clusterFilter).includes(clean(c)));
+        if (!matchesCluster) return '#f1f5f9';
+      }
 
-    // Default Status Color by Active Channel
-    if (t.primaryChannel === 'both') return '#6366f1'; // Indigo for Omnichannel
-    if (t.primaryChannel === 'whatsapp') return '#10b981'; // Emerald for WhatsApp
-    if (t.primaryChannel === 'email') return '#3b82f6'; // Sky blue for Email
-    return '#6366f1';
-  }, [getFeatureTerritory, channelFilter, objectiveFilter, clusterFilter, warehouseFilter, resultMetric]);
+      if (warehouseFilter !== 'ALL') {
+        const hasWarehouse = t.warehouses?.some((w) => clean(w).includes(clean(warehouseFilter)) || clean(warehouseFilter).includes(clean(w)));
+        if (!hasWarehouse) return '#f1f5f9';
+      }
 
-  // Mouse pan & zoom handlers
+      if (resultMetric === 'SUCCESS_RATIO') {
+        const ratioNum = parseFloat(t.successRatio) || 0;
+        if (ratioNum >= 14) return '#059669';
+        if (ratioNum > 0) return '#0d9488';
+        return '#cbd5e1';
+      }
+      if (resultMetric === 'DELIVERED') {
+        return t.delivered > 0 ? '#3b82f6' : '#cbd5e1';
+      }
+      if (resultMetric === 'LEADS') {
+        const leadsVal = (distNode?.leads_uploaded || 0) + (t.leads || 0) + (t.segment_leads_uploaded || 0);
+        return leadsVal > 0 ? '#10b981' : '#cbd5e1';
+      }
+      if (resultMetric === 'CONVERSIONS') {
+        const convVal = (distNode?.buyers_count || 0) + (t.conversions || 0) + (t.segment_buyers || 0);
+        return convVal > 0 ? '#ef4444' : '#cbd5e1';
+      }
+      if (resultMetric === 'REVENUE') {
+        return t.revenueNum > 0 ? '#8b5cf6' : '#cbd5e1';
+      }
+
+      if (t.primaryChannel === 'both') return '#6366f1';
+      if (t.primaryChannel === 'whatsapp') return '#10b981';
+      if (t.primaryChannel === 'email') return '#3b82f6';
+      if (t.segment_leads_uploaded > 0 || distNode?.leads_uploaded > 0) return '#8b5cf6';
+      return '#cbd5e1';
+    },
+    [getFeatureTerritory, channelFilter, objectiveFilter, clusterFilter, warehouseFilter, resultMetric]
+  );
+
+  const summary = mapPayload?.summary || {};
+  const dynamicStatesDropdown = useMemo(() => {
+    const names = new Set();
+    activeStatesList.forEach((s) => names.add(s.name || s));
+    Object.keys(mapPayload?.states || {}).forEach((k) => names.add(k));
+    return Array.from(names).filter(Boolean).sort();
+  }, [activeStatesList, mapPayload]);
+
+  const totalLeadsAll = (summary.total_territory_leads || 0) + (summary.total_segment_leads || 0);
+  const totalConvAll = (summary.total_territory_conversions || 0) + (summary.total_segment_buyers || 0);
+  const totalRevAll = (summary.total_territory_revenue || 0) + (summary.total_segment_revenue_inr || 0);
+  const convRatioAll = totalLeadsAll > 0 ? ((totalConvAll / totalLeadsAll) * 100).toFixed(1) : '0.0';
+
   const handleMouseDown = (e) => {
     if (e.button !== 0) return;
     setIsDragging(true);
@@ -420,10 +320,7 @@ export default function IndiaCampaignMap() {
     }
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      setTooltipPos({
-        x: e.clientX - rect.left + 15,
-        y: e.clientY - rect.top + 15
-      });
+      setTooltipPos({ x: e.clientX - rect.left + 15, y: e.clientY - rect.top + 15 });
     }
   };
 
@@ -442,21 +339,20 @@ export default function IndiaCampaignMap() {
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider mb-2">
             <FiMapPin className="w-3.5 h-3.5" />
-            <span>Real-Time Geographic Marketing Intelligence</span>
+            <span>100% Live Database Geographic Intelligence</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">Live India Campaign Territory Map</h1>
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">Live India Campaign & Segment Map</h1>
           <p className="text-sm text-slate-500">
-            Real-time visual map of live active campaigns across Indian states, clusters, and warehouses with delivery, success ratio, and sales conversion metrics.
+            Real-time State, Active Cluster & District tracking for campaigns, Segment Groups, registrations, verifications, and revenue.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Live Quota Pill */}
           <div className="px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs flex items-center gap-2 border border-slate-700 shadow-xs">
             <FaCoins className="text-amber-400" />
             <span>Quota Balance:</span>
-            <strong className="text-emerald-400">{quota.available.toLocaleString()}</strong>
-            <span className="text-slate-400">/ {quota.total.toLocaleString()}</span>
+            <strong className="text-emerald-400">{(quota?.available ?? 0).toLocaleString()}</strong>
+            <span className="text-slate-400">/ {(quota?.total ?? 0).toLocaleString()}</span>
           </div>
 
           <button
@@ -469,43 +365,49 @@ export default function IndiaCampaignMap() {
         </div>
       </div>
 
-      {/* KPI Territory Banner */}
+      {/* Live Dynamic KPI Territory Banner (Zero static defaults) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Live Active States</div>
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Active States</div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-            <span>{activeStatesList.length || 36} States</span>
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+            <span>{summary.total_live_states || 0} Active</span>
           </div>
-          <span className="text-[11px] text-slate-500">Across India (Location Setup)</span>
+          <span className="text-[11px] text-slate-500">{activeStatesList.length} Configured States</span>
         </div>
 
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Active Clusters Covered</div>
-          <div className="text-2xl font-black text-blue-600 dark:text-blue-400">{clustersList.length || 7} Clusters</div>
-          <span className="text-[11px] text-slate-500">Live mapped from Cluster Mgmt</span>
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Franchisee Clusters</div>
+          <div className="text-2xl font-black text-blue-600 dark:text-blue-400">
+            {summary.total_live_clusters ?? clustersList.length ?? 0} Clusters
+          </div>
+          <span className="text-[11px] text-slate-500">
+            {summary.total_segment_leads || 0} Segment Leads • {summary.total_segment_registered || 0} Reg
+          </span>
         </div>
 
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Conversion Success Ratio</div>
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Conversion Ratio</div>
           <div className="text-2xl font-black text-emerald-600 flex items-center gap-1.5">
             <FaPercentage className="w-4 h-4 text-emerald-500" />
-            <span>14.2%</span>
+            <span>{convRatioAll}%</span>
           </div>
-          <span className="text-[11px] text-slate-500">Avg Lead-to-Order Conversion</span>
+          <span className="text-[11px] text-slate-500">
+            {summary.total_post_campaign_conversions || 0} Post-Campaign Conversions
+          </span>
         </div>
 
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Territory Attributed Revenue</div>
-          <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">₹34.50L</div>
-          <span className="text-[11px] text-emerald-600 font-semibold">42 Confirmed Kit Orders</span>
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Attributed Revenue</div>
+          <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{formatInr(totalRevAll)}</div>
+          <span className="text-[11px] text-emerald-600 font-semibold">
+            {totalConvAll} Buyer Conversions
+          </span>
         </div>
       </div>
 
-      {/* Filter Bar with Dynamic Objective, Cluster & Warehouse from Admin Panel */}
+      {/* Filter Bar */}
       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          {/* Channel Type Filter */}
           <div>
             <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Campaign Channel</label>
             <select
@@ -513,14 +415,13 @@ export default function IndiaCampaignMap() {
               onChange={(e) => setChannelFilter(e.target.value)}
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-hidden"
             >
-              <option value="ALL">All Channels (WhatsApp & Email)</option>
-              <option value="WHATSAPP">WhatsApp API Live Only</option>
-              <option value="EMAIL">Email Marketing Live Only</option>
-              <option value="BOTH">Dual Omnichannel (Both Live)</option>
+              <option value="ALL">All Channels</option>
+              <option value="WHATSAPP">WhatsApp Only</option>
+              <option value="EMAIL">Email Only</option>
+              <option value="BOTH">Dual Omnichannel</option>
             </select>
           </div>
 
-          {/* Dynamic Campaign Objective Filter (Matches CreateCampaignWizard 100%) */}
           <div>
             <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Campaign Objective</label>
             <select
@@ -529,15 +430,12 @@ export default function IndiaCampaignMap() {
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-hidden"
             >
               <option value="ALL">All Objectives</option>
-              {CAMPAIGN_OBJECTIVES.map(obj => (
-                <option key={obj.id} value={obj.id}>
-                  {obj.label}
-                </option>
+              {CAMPAIGN_OBJECTIVES.map((obj) => (
+                <option key={obj.id} value={obj.id}>{obj.label}</option>
               ))}
             </select>
           </div>
 
-          {/* Dynamic Cluster Filter (Fetched from Franchise Cluster Mgmt) */}
           <div>
             <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Cluster Filter</label>
             <select
@@ -545,8 +443,8 @@ export default function IndiaCampaignMap() {
               onChange={(e) => setClusterFilter(e.target.value)}
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 focus:outline-hidden"
             >
-              <option value="ALL">All Clusters</option>
-              {clustersList.map(c => (
+              <option value="ALL">All Clusters ({clustersList.length})</option>
+              {clustersList.map((c) => (
                 <option key={c._id || c.cluster_name} value={c.cluster_name}>
                   {c.cluster_name} ({c.state_name})
                 </option>
@@ -554,7 +452,6 @@ export default function IndiaCampaignMap() {
             </select>
           </div>
 
-          {/* Dynamic Warehouse Filter (Fetched from Warehouse Mgmt) */}
           <div>
             <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Warehouse Filter</label>
             <select
@@ -562,8 +459,8 @@ export default function IndiaCampaignMap() {
               onChange={(e) => setWarehouseFilter(e.target.value)}
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-400 focus:outline-hidden"
             >
-              <option value="ALL">All Warehouses</option>
-              {warehousesList.map(w => (
+              <option value="ALL">All Warehouses ({warehousesList.length})</option>
+              {warehousesList.map((w) => (
                 <option key={w._id || w.warehouse_code} value={w.warehouse_name}>
                   {w.warehouse_name}
                 </option>
@@ -571,24 +468,22 @@ export default function IndiaCampaignMap() {
             </select>
           </div>
 
-          {/* Result / Metric Filter including Success Ratio */}
           <div>
-            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Result / Metric Mode</label>
+            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Result Mode</label>
             <select
               value={resultMetric}
               onChange={(e) => setResultMetric(e.target.value)}
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold focus:outline-hidden text-emerald-600 dark:text-emerald-400"
             >
-              <option value="STATUS">Live Active vs Inactive</option>
-              <option value="SUCCESS_RATIO">🎯 Success Ratio (%)</option>
-              <option value="DELIVERED">Messages Delivered (Reach)</option>
-              <option value="LEADS">Leads Generated (Forms)</option>
-              <option value="CONVERSIONS">Confirmed Conversions (Orders)</option>
-              <option value="REVENUE">Attributed Revenue (₹)</option>
+              <option value="STATUS">Live Campaigns & Segments</option>
+              <option value="SUCCESS_RATIO">Success Ratio (%)</option>
+              <option value="DELIVERED">Messages Delivered</option>
+              <option value="LEADS">Segment & Form Leads</option>
+              <option value="CONVERSIONS">Buyers & Conversions</option>
+              <option value="REVENUE">Attributed Revenue</option>
             </select>
           </div>
 
-          {/* State Zoom */}
           <div>
             <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">State Focus</label>
             <select
@@ -596,63 +491,17 @@ export default function IndiaCampaignMap() {
               onChange={(e) => setSelectedState(e.target.value)}
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-hidden"
             >
-              <option value="">All India (Whole Country)</option>
-              <option value="Maharashtra">Maharashtra (Live)</option>
-              <option value="Gujarat">Gujarat (Live)</option>
-              <option value="Rajasthan">Rajasthan (Live)</option>
-              <option value="Karnataka">Karnataka (Live)</option>
-              <option value="Delhi">Delhi (Unserved)</option>
-              <option value="Madhya Pradesh">Madhya Pradesh (Unserved)</option>
-              <option value="Uttar Pradesh">Uttar Pradesh (Unserved)</option>
+              <option value="">All India</option>
+              {dynamicStatesDropdown.map((stName) => (
+                <option key={stName} value={stName}>{stName}</option>
+              ))}
             </select>
           </div>
         </div>
-
-        {/* Legend */}
-        {resultMetric === 'SUCCESS_RATIO' ? (
-          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded-md bg-emerald-600"></span>
-              <span>&gt; 14% High Success</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded-md bg-teal-600"></span>
-              <span>10% - 14% Moderate</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded-md bg-amber-600"></span>
-              <span>&lt; 10% Low Ratio</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded-md bg-slate-200 dark:bg-slate-700"></span>
-              <span className="text-slate-400">No Campaign Running</span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded-md bg-indigo-500"></span>
-              <span>Omnichannel (Both)</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded-md bg-emerald-500"></span>
-              <span>WhatsApp Live</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded-md bg-blue-500"></span>
-              <span>Email Live</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded-md bg-slate-200 dark:bg-slate-700"></span>
-              <span className="text-slate-400">No Campaign Running</span>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Map Container */}
+      {/* Map + Details Split */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Map Box */}
         <div
           ref={containerRef}
           className="lg:col-span-2 relative h-[720px] bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden select-none cursor-grab active:cursor-grabbing"
@@ -665,20 +514,11 @@ export default function IndiaCampaignMap() {
           }}
           onWheel={handleWheel}
         >
-          {/* Zoom Controls */}
           <div className="absolute top-4 left-4 z-20 flex flex-col gap-1.5 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-md">
-            <button
-              onClick={() => setZoom((prev) => Math.min(prev * 1.35, 10))}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 text-sm cursor-pointer"
-              title="Zoom In"
-            >
+            <button onClick={() => setZoom((prev) => Math.min(prev * 1.35, 10))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm cursor-pointer" title="Zoom In">
               <FiZoomIn />
             </button>
-            <button
-              onClick={() => setZoom((prev) => Math.max(prev / 1.35, 0.8))}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 text-sm cursor-pointer"
-              title="Zoom Out"
-            >
+            <button onClick={() => setZoom((prev) => Math.max(prev / 1.35, 0.8))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm cursor-pointer" title="Zoom Out">
               <FiZoomOut />
             </button>
             <button
@@ -689,18 +529,17 @@ export default function IndiaCampaignMap() {
                 setClusterFilter('ALL');
                 setWarehouseFilter('ALL');
               }}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 text-sm cursor-pointer"
-              title="Reset India Map"
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm cursor-pointer"
+              title="Reset Map"
             >
               <FiRefreshCw />
             </button>
           </div>
 
-          {/* Loading / Error States */}
-          {loadingGeo && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 dark:bg-slate-800/80 backdrop-blur-xs">
-              <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-              <p className="mt-3 text-xs font-bold text-slate-600 dark:text-slate-300">Loading Precise Geographic Vector Map...</p>
+          {(loadingGeo || loadingMapData) && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/75 dark:bg-slate-800/75 backdrop-blur-xs">
+              <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <p className="mt-3 text-xs font-bold text-slate-600 dark:text-slate-300">Loading Live Territory Telemetry...</p>
             </div>
           )}
 
@@ -711,13 +550,8 @@ export default function IndiaCampaignMap() {
             </div>
           )}
 
-          {/* D3 Vector SVG Rendering */}
           {pathGenerator && (
-            <svg
-              className="w-full h-full"
-              viewBox={`0 0 ${width} ${height}`}
-              preserveAspectRatio="xMidYMid meet"
-            >
+            <svg className="w-full h-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
               <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
                 {districtFeatures.map((feature, idx) => {
                   const fill = getFeatureFill(feature);
@@ -739,19 +573,21 @@ export default function IndiaCampaignMap() {
                       strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 0.4}
                       className="transition-colors duration-150 cursor-pointer"
                       onMouseEnter={() => {
-                        const t = getFeatureTerritory(feature);
+                        const { stNode, distNode } = getFeatureTerritory(feature) || {};
                         setHoveredData({
                           district: feature.properties?.district || 'Unknown District',
                           state: feature.properties?.st_nm || '',
-                          territory: t
+                          territory: stNode,
+                          districtStats: distNode
                         });
                       }}
                       onClick={() => {
-                        const t = getFeatureTerritory(feature);
+                        const { stNode, distNode } = getFeatureTerritory(feature) || {};
                         setSelectedTerritory({
                           district: feature.properties?.district || 'Unknown District',
                           state: feature.properties?.st_nm || '',
-                          territory: t
+                          territory: stNode,
+                          districtStats: distNode
                         });
                       }}
                     />
@@ -778,61 +614,65 @@ export default function IndiaCampaignMap() {
             <div
               className="absolute z-30 pointer-events-none bg-slate-900/95 text-white p-3 rounded-xl shadow-2xl border border-slate-700 text-xs max-w-xs space-y-1.5 backdrop-blur-md"
               style={{
-                left: `${Math.min(tooltipPos.x, width - 260)}px`,
-                top: `${Math.min(tooltipPos.y, height - 200)}px`
+                left: `${Math.min(tooltipPos.x, width - 270)}px`,
+                top: `${Math.min(tooltipPos.y, height - 220)}px`
               }}
             >
               <div className="flex items-center justify-between gap-2 border-b border-slate-700 pb-1">
                 <span className="font-bold">{hoveredData.district}, {hoveredData.state}</span>
                 {hoveredData.territory?.isActive ? (
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
-                    🟢 Live
-                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">Live</span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 text-[10px] font-bold">
-                    ⚪ Inactive
-                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 text-[10px] font-bold">Inactive</span>
                 )}
               </div>
 
-              {hoveredData.territory?.isActive ? (
+              {hoveredData.districtStats && (
+                <div className="text-[11px] space-y-0.5 border-b border-slate-700 pb-1">
+                  <p className="text-amber-300 font-bold">
+                    {hoveredData.districtStats.cluster_name || 'Outside Cluster'}
+                  </p>
+                  <p>
+                    District: <strong>{hoveredData.districtStats.leads_uploaded}</strong> Leads •{' '}
+                    <strong>{hoveredData.districtStats.registered_count}</strong> Reg •{' '}
+                    <strong>{hoveredData.districtStats.buyers_count}</strong> Buyers
+                  </p>
+                </div>
+              )}
+
+              {hoveredData.territory ? (
                 <div className="space-y-1 text-[11px]">
                   <div className="text-slate-300">
-                    Active Campaigns: <strong className="text-white">{hoveredData.territory.campaignCount} Running</strong>
+                    State Campaigns: <strong className="text-white">{hoveredData.territory.campaignCount}</strong> • Active Clusters:{' '}
+                    <strong className="text-indigo-300">{hoveredData.territory.cluster_details?.length || 0}</strong>
                   </div>
                   <div className="text-slate-300">
-                    Success Ratio: <strong className="text-emerald-400 font-bold">{hoveredData.territory.successRatio}</strong>
+                    Segment Leads: <strong className="text-violet-300">{hoveredData.territory.segment_leads_uploaded}</strong> • Reg:{' '}
+                    <strong className="text-blue-300">{hoveredData.territory.segment_registered}</strong> • Ver:{' '}
+                    <strong className="text-emerald-300">{hoveredData.territory.segment_verified}</strong>
                   </div>
                   <div className="text-slate-300">
-                    Reach: <strong>{hoveredData.territory.delivered.toLocaleString()} msgs</strong>
-                  </div>
-                  <div className="text-slate-300">
-                    Leads: <strong className="text-emerald-400">{hoveredData.territory.leads}</strong> | Orders: <strong className="text-indigo-400">{hoveredData.territory.conversions}</strong>
-                  </div>
-                  <div className="text-slate-300">
-                    Revenue: <strong className="text-emerald-300 font-bold">{hoveredData.territory.revenue}</strong>
+                    Campaign Impact Conv: <strong className="text-emerald-400">{hoveredData.territory.post_campaign_conversions}</strong> • Rev:{' '}
+                    <strong className="text-emerald-300">{hoveredData.territory.revenue}</strong>
                   </div>
                 </div>
               ) : (
-                <p className="text-[11px] text-slate-400">No campaigns currently active in this territory. Click to launch.</p>
+                <p className="text-[11px] text-slate-400">No active campaigns or leads mapped in this region yet.</p>
               )}
             </div>
           )}
         </div>
 
-        {/* Territory Detail & Actions Panel */}
+        {/* Right Side Territory Details Drawer */}
         <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto max-h-[620px] pr-1">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
               <h3 className="font-bold text-base flex items-center gap-2">
                 <FiMapPin className="text-indigo-600" />
                 <span>Territory Details</span>
               </h3>
               {selectedTerritory && (
-                <button
-                  onClick={() => setSelectedTerritory(null)}
-                  className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
+                <button onClick={() => setSelectedTerritory(null)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
                   <FiX />
                 </button>
               )}
@@ -841,76 +681,108 @@ export default function IndiaCampaignMap() {
             {selectedTerritory ? (
               <div className="space-y-4">
                 <div>
-                  <h4 className="text-lg font-black text-slate-900 dark:text-white">
-                    {selectedTerritory.district}
-                  </h4>
+                  <h4 className="text-lg font-black text-slate-900 dark:text-white">{selectedTerritory.district}</h4>
                   <p className="text-xs text-slate-500">{selectedTerritory.state}</p>
                 </div>
 
-                {selectedTerritory.territory?.isActive ? (
+                {selectedTerritory.territory ? (
                   <div className="space-y-3">
-                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between text-xs">
-                      <span className="font-bold text-emerald-700 dark:text-emerald-400">Status: Running Live</span>
-                      <span className="font-mono font-bold text-slate-800 dark:text-slate-100">{selectedTerritory.territory.campaignCount} Campaigns</span>
-                    </div>
-
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl">
-                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Delivered</span>
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Campaign Delivered</span>
                         <strong className="text-sm">{selectedTerritory.territory.delivered.toLocaleString()}</strong>
                       </div>
                       <div className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl">
-                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Success Ratio</span>
-                        <strong className="text-sm text-emerald-600">{selectedTerritory.territory.successRatio}</strong>
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Segment Uploaded</span>
+                        <strong className="text-sm text-indigo-600">{selectedTerritory.territory.segment_leads_uploaded}</strong>
                       </div>
                       <div className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl">
-                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Leads</span>
-                        <strong className="text-sm text-blue-600">{selectedTerritory.territory.leads}</strong>
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Registered / Verified</span>
+                        <strong className="text-sm text-blue-600">
+                          {selectedTerritory.territory.segment_registered} / {selectedTerritory.territory.segment_verified}
+                        </strong>
                       </div>
                       <div className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl">
-                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Kit Orders</span>
-                        <strong className="text-sm text-indigo-600">{selectedTerritory.territory.conversions}</strong>
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Buyers & Impact</span>
+                        <strong className="text-sm text-emerald-600">
+                          {selectedTerritory.territory.segment_buyers} ({selectedTerritory.territory.post_campaign_conversions} post-camp)
+                        </strong>
                       </div>
                     </div>
 
-                    {/* Warehouses list */}
-                    {selectedTerritory.territory.warehouses && (
-                      <div className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700/60 text-xs">
-                        <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Serving Warehouse:</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-200">
-                          🏭 {selectedTerritory.territory.warehouses.join(', ')}
+                    {/* Active Clusters & Districts inside Clusters */}
+                    {selectedTerritory.territory.cluster_details?.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Active Clusters & Districts in {selectedTerritory.state}:
                         </span>
+                        {selectedTerritory.territory.cluster_details.map((clu) => (
+                          <div key={clu.cluster_code} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: clu.color_code }} />
+                                {clu.cluster_name} ({clu.cluster_code})
+                              </span>
+                              <span className="text-[10px] font-bold text-indigo-600">
+                                {clu.leads_uploaded}L • {clu.registered_count}R • {clu.buyers_count}B
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500">
+                              Districts: {(clu.districts || []).join(', ') || 'None'}
+                            </p>
+                          </div>
+                        ))}
                       </div>
                     )}
 
-                    <div className="space-y-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Live Campaigns in this Zone:</span>
-                      {selectedTerritory.territory.campaigns.map((c, i) => (
-                        <div key={i} className="p-2.5 rounded-xl border border-slate-100 dark:border-slate-700/60 text-xs flex items-center justify-between">
-                          <div className="truncate mr-2">
-                            <div className="font-bold truncate">{c.name}</div>
-                            <div className="text-[10px] text-slate-400 uppercase">{c.type} • {c.rev}</div>
+                    {/* Segment Groups in this State */}
+                    {selectedTerritory.territory.segments?.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Segment Groups Impact:</span>
+                        {selectedTerritory.territory.segments.map((sg) => (
+                          <div key={sg.segment_id} className="p-2 rounded-lg bg-violet-50/60 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 text-[11px] flex items-center justify-between">
+                            <span className="font-bold text-violet-900 dark:text-violet-200">{sg.segment_name}</span>
+                            <span className="font-semibold text-violet-700 dark:text-violet-300">
+                              {sg.leads_uploaded}L → {sg.registered_count}R → {sg.buyers_count}B
+                            </span>
                           </div>
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-bold shrink-0">
-                            Live
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Running Campaigns */}
+                    {selectedTerritory.territory.campaigns?.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Campaigns in {selectedTerritory.state}:</span>
+                        {selectedTerritory.territory.campaigns.map((c, i) => (
+                          <div key={i} className="p-2.5 rounded-xl border border-slate-100 dark:border-slate-700/60 text-xs flex items-center justify-between">
+                            <div className="truncate mr-2">
+                              <div className="font-bold truncate">{c.name}</div>
+                              <div className="text-[10px] text-slate-400 uppercase">
+                                {c.type} • {formatInr(c.revenue)} • {c.leads} Leads
+                              </div>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-bold shrink-0">
+                              {c.status || 'Live'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="p-6 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-xs space-y-2">
                     <FiAlertCircle className="w-8 h-8 text-slate-400 mx-auto" />
-                    <p className="font-bold">No Active Campaigns in {selectedTerritory.district}</p>
-                    <p className="text-slate-500 text-[11px]">This area is currently unserved. Launching a campaign here can onboard new EPC partners and expand market reach.</p>
+                    <p className="font-bold">No Active Campaigns or Segments in {selectedTerritory.district}</p>
+                    <p className="text-slate-500 text-[11px]">Click below to launch a campaign or upload Segment leads for this state.</p>
                   </div>
                 )}
               </div>
             ) : (
               <div className="p-8 text-center text-slate-400 text-xs space-y-2">
                 <FiMapPin className="w-8 h-8 text-indigo-500 mx-auto opacity-70 animate-bounce" />
-                <p className="font-bold text-slate-700 dark:text-slate-200">Interactive Territory Explorer</p>
-                <p>Click on any state or district on the India map to inspect live running campaigns, audience delivery, and sales attribution.</p>
+                <p className="font-bold text-slate-700 dark:text-slate-200">Interactive Live Territory Explorer</p>
+                <p>Click any state or district on the India map to inspect active clusters, districts inside clusters, Segment Group metrics, and campaign impact.</p>
               </div>
             )}
           </div>

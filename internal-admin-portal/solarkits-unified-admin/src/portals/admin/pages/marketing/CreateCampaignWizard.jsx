@@ -57,8 +57,15 @@ import {
   rechargeQuota,
   saveNewCoupon,
   PRESET_WHATSAPP_TEMPLATES,
-  PRESET_EMAIL_TEMPLATES
+  PRESET_EMAIL_TEMPLATES,
+  fetchSegments,
+  fetchMarketingStates,
+  fetchMarketingDistricts,
+  previewMarketingAudience,
+  createMarketingCampaign,
+  launchMarketingCampaign
 } from './services/marketingDataService';
+import { generateResponsiveEmailHtml } from './services/emailTemplateGenerator';
 
 const WIZARD_STEPS = [
   { id: 1, label: 'Details & Wallet', icon: FaBullhorn, desc: 'Identity, channel & credit balance' },
@@ -78,11 +85,23 @@ export default function CreateCampaignWizard() {
   const [rechargeAmount, setRechargeAmount] = useState(5000);
   const [creativeChannelTab, setCreativeChannelTab] = useState('WHATSAPP');
 
-  // Live cluster, warehouse, states & kit catalog data
+  // Live cluster, warehouse, states, segment groups & kit catalog data
   const [clustersList, setClustersList] = useState([]);
   const [warehousesList, setWarehousesList] = useState([]);
   const [activeStatesList, setActiveStatesList] = useState([]);
   const [liveKitsCatalog, setLiveKitsCatalog] = useState(STORE_KITS_CATALOG);
+  const [segmentsList, setSegmentsList] = useState([]);
+  const [marketingStates, setMarketingStates] = useState([]);
+  const [segmentDistricts, setSegmentDistricts] = useState([]);
+  const [selectedSegmentStateId, setSelectedSegmentStateId] = useState('');
+  const [audiencePreview, setAudiencePreview] = useState({
+    epcCount: 0,
+    segmentCount: 0,
+    deduplicatedTotal: 0,
+    segment_breakdown: {}
+  });
+  const [loadingAudiencePreview, setLoadingAudiencePreview] = useState(false);
+  const [launchingCampaign, setLaunchingCampaign] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
 
   // Form State
@@ -104,6 +123,9 @@ export default function CreateCampaignWizard() {
       verified: true,
       buyer: true
     },
+    selectedSegmentIds: [],
+    segmentStateFilter: '',
+    segmentDistrictFilter: '',
 
     // Step 3: Purpose, Kits & Coupon Engine
     objective: 'coupon_discount',
@@ -188,16 +210,17 @@ export default function CreateCampaignWizard() {
     return () => window.removeEventListener('solarkits-quota-updated', handleQuotaUpdate);
   }, []);
 
-  // Fetch clusters, warehouses, states, and live store kits catalog
+  // Fetch clusters, warehouses, states, live store kits catalog, and isolated Segment Groups
   useEffect(() => {
     async function loadResources() {
       setLoadingData(true);
       try {
-        const [cList, wList, kList, sList] = await Promise.all([
+        const [cList, wList, kList, sList, mktStatesRes] = await Promise.all([
           fetchLiveClusters(),
           fetchLiveWarehouses(),
           fetchLiveComboKits(),
-          fetchLiveActiveStates()
+          fetchLiveActiveStates(),
+          fetchMarketingStates().catch(() => [])
         ]);
         setClustersList(cList);
         setWarehousesList(wList);
@@ -207,6 +230,9 @@ export default function CreateCampaignWizard() {
         if (Array.isArray(kList) && kList.length > 0) {
           setLiveKitsCatalog(kList);
         }
+        if (Array.isArray(mktStatesRes)) {
+          setMarketingStates(mktStatesRes);
+        }
       } catch (err) {
         console.error('Failed to load clusters/warehouses/kits/states:', err);
       } finally {
@@ -215,6 +241,30 @@ export default function CreateCampaignWizard() {
     }
     loadResources();
   }, []);
+
+  // Load cascading GeoLevel2 districts when Segment State filter changes
+  useEffect(() => {
+    if (!selectedSegmentStateId && !formData.segmentStateFilter) {
+      setSegmentDistricts([]);
+      return;
+    }
+    fetchMarketingDistricts({
+      stateId: selectedSegmentStateId,
+      stateName: formData.segmentStateFilter
+    })
+      .then((list) => setSegmentDistricts(list))
+      .catch(() => setSegmentDistricts([]));
+  }, [selectedSegmentStateId, formData.segmentStateFilter]);
+
+  // Reload live Segment Groups whenever State/District segment filters change
+  useEffect(() => {
+    fetchSegments({
+      state: formData.segmentStateFilter || undefined,
+      district: formData.segmentDistrictFilter || undefined
+    })
+      .then(({ segments }) => setSegmentsList(segments || []))
+      .catch((err) => console.error('Failed loading segment groups in wizard:', err));
+  }, [formData.segmentStateFilter, formData.segmentDistrictFilter]);
 
   // Distinct available states from active states or clusters list
   const availableStates = useMemo(() => {
@@ -327,51 +377,128 @@ export default function CreateCampaignWizard() {
     return fetchAreaKits(formData.servingWarehouses, liveKitsCatalog);
   }, [formData.servingWarehouses, liveKitsCatalog]);
 
+  // Detect if any EPC group is selected vs Segment-only mode
+  const hasAnyEpcGroup = useMemo(() => {
+    return Boolean(formData.audienceGroups.registered || formData.audienceGroups.verified || formData.audienceGroups.buyer);
+  }, [formData.audienceGroups]);
+
   // Detect if ONLY Registered EPC is selected (Registered EPCs haven't logged in yet and have no preferences)
   const isOnlyRegistered = useMemo(() => {
     return Boolean(formData.audienceGroups.registered && !formData.audienceGroups.verified && !formData.audienceGroups.buyer);
   }, [formData.audienceGroups]);
 
-  // Industry-wise counts dynamically calculated based on selected clusters & groups
-  const industryCounts = useMemo(() => {
-    const verifiedBase = formData.audienceGroups.verified ? 840 : 0;
-    const buyerBase = formData.audienceGroups.buyer ? 350 : 0;
-    const registeredBase = formData.audienceGroups.registered ? 620 : 0;
-    const clusterMultiplier = Math.max(formData.selectedClusterIds.length, 1);
+  const resolvedSelectedStateIds = useMemo(() => {
+    const combinedStates = [...marketingStates, ...activeStatesList];
+    const idSet = new Set();
+    formData.selectedStates.forEach((stName) => {
+      const target = String(stName || '').trim().toLowerCase();
+      const match = combinedStates.find((s) => String(s?.name || s || '').trim().toLowerCase() === target);
+      if (match && (match._id || match.id)) {
+        idSet.add(String(match._id || match.id));
+      }
+    });
+    return Array.from(idSet);
+  }, [marketingStates, activeStatesList, formData.selectedStates]);
 
-    // Total base across selected groups
-    const totalBase = (verifiedBase + buyerBase + registeredBase) * clusterMultiplier;
-    const deduplicatedTotal = Math.round(totalBase * 0.85);
-
-    // Active preference pool (Verified + Buyer EPCs who completed business preference setup)
-    const prefBase = Math.round((verifiedBase + buyerBase) * clusterMultiplier * 0.85);
-
-    return {
-      all: deduplicatedTotal,
-      solar_pv: Math.round(prefBase * 0.42),
-      solar_agri: Math.round(prefBase * 0.31),
-      commercial: Math.round(prefBase * 0.16),
-      solar_ev: Math.round(prefBase * 0.07),
-      energy_storage: Math.round(prefBase * 0.04)
-    };
-  }, [formData.selectedClusterIds, formData.audienceGroups]);
-
-  // Calculated audience count based on selected clusters, groups & industry filter
-  const audienceCalculation = useMemo(() => {
-    let deduplicatedTotal = industryCounts.all;
-
-    // If an industry filter is active and we are not in only-registered mode:
-    if (!isOnlyRegistered && formData.industryPreference && formData.industryPreference !== 'all') {
-      deduplicatedTotal = industryCounts[formData.industryPreference] ?? 0;
+  // Live MongoDB Audience Preview (keeps EPC count separate from Segment Leads and sums Total Sending Count)
+  useEffect(() => {
+    let cancelled = false;
+    const noAudienceSelected = !hasAnyEpcGroup && formData.selectedSegmentIds.length === 0;
+    if (noAudienceSelected) {
+      setAudiencePreview({ epcCount: 0, segmentCount: 0, deduplicatedTotal: 0, segment_breakdown: {} });
+      return undefined;
     }
 
-    const finalCount = typeof deduplicatedTotal === 'number' ? deduplicatedTotal : 0;
+    const timer = setTimeout(async () => {
+      setLoadingAudiencePreview(true);
+      try {
+        const preview = await previewMarketingAudience({
+          epc_groups: {
+            registered_epc: Boolean(formData.audienceGroups.registered),
+            verified_epc: Boolean(formData.audienceGroups.verified),
+            buyer_epc: Boolean(formData.audienceGroups.buyer)
+          },
+          area_type: resolvedSelectedStateIds.length > 0 ? 'state' : 'all_india',
+          state_ids: resolvedSelectedStateIds,
+          state_names: formData.selectedStates,
+          segment_ids: formData.selectedSegmentIds,
+          segment_state_filter: formData.segmentStateFilter || '',
+          segment_district_filter: formData.segmentDistrictFilter || '',
+          channel: String(formData.channel || 'BOTH').toLowerCase(),
+          require_consent: true
+        });
+        if (!cancelled && preview) {
+          setAudiencePreview({
+            epcCount: preview.epcCount ?? 0,
+            segmentCount: preview.segmentCount ?? 0,
+            deduplicatedTotal: preview.deduplicatedTotal ?? preview.total_eligible ?? 0,
+            segment_breakdown: preview.segment_breakdown || {}
+          });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('Live audience preview fallback notice:', err.message);
+        }
+      } finally {
+        if (!cancelled) setLoadingAudiencePreview(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    hasAnyEpcGroup,
+    formData.audienceGroups.registered,
+    formData.audienceGroups.verified,
+    formData.audienceGroups.buyer,
+    formData.selectedStates,
+    resolvedSelectedStateIds,
+    formData.selectedSegmentIds,
+    formData.segmentStateFilter,
+    formData.segmentDistrictFilter,
+    formData.channel
+  ]);
+
+  // Live EPC industry pill counts derived from real MongoDB preview
+  const industryCounts = useMemo(() => {
+    const epcTotal = audiencePreview.epcCount || 0;
+    return {
+      all: epcTotal,
+      solar_pv: epcTotal,
+      solar_agri: epcTotal,
+      commercial: epcTotal,
+      solar_ev: epcTotal,
+      energy_storage: epcTotal
+    };
+  }, [audiencePreview.epcCount]);
+
+  // Calculated audience counts keeping Target EPCs & Segment Leads separate and summed into Total Sending Count
+  const audienceCalculation = useMemo(() => {
+    const epcCount = Number(audiencePreview.epcCount || 0);
+    const segmentCount = Number(audiencePreview.segmentCount || 0);
+    const deduplicatedTotal = Number(audiencePreview.deduplicatedTotal ?? (epcCount + segmentCount));
 
     return {
-      rawTotal: finalCount,
-      deduplicatedTotal: finalCount
+      rawTotal: epcCount + segmentCount,
+      deduplicatedTotal,
+      epcCount,
+      segmentCount
     };
-  }, [industryCounts, formData.industryPreference, isOnlyRegistered]);
+  }, [audiencePreview]);
+
+  // Toggle isolated Segment Group selection
+  const handleToggleSegment = (segId) => {
+    if (!segId) return;
+    setFormData((prev) => {
+      const exists = prev.selectedSegmentIds.includes(segId);
+      const next = exists
+        ? prev.selectedSegmentIds.filter((id) => id !== segId)
+        : [...prev.selectedSegmentIds, segId];
+      return { ...prev, selectedSegmentIds: next };
+    });
+  };
 
   // Reset industry preference to 'all' if only registered EPC is selected
   useEffect(() => {
@@ -602,64 +729,138 @@ export default function CreateCampaignWizard() {
     setShowRechargeModal(false);
   };
 
-  // Launch campaign handler
-  const handleLaunchCampaign = () => {
+  // Launch campaign handler (wires live backend campaign creation, dispatch & Step 4 Email HTML)
+  const handleLaunchCampaign = async () => {
+    if (launchingCampaign) return;
+
     const requiredCredits = audienceCalculation.deduplicatedTotal;
+    if (requiredCredits <= 0) {
+      alert('No eligible EPCs or Segment Group leads match the selected audience filters. Please adjust your targeting.');
+      return;
+    }
+
     const available = quota?.available ?? 0;
     if (available < requiredCredits) {
-      alert(`Insufficient account wallet balance. You have ${available.toLocaleString('en-IN')} credits, but this campaign targets ${requiredCredits.toLocaleString('en-IN')} EPCs. Please recharge your wallet.`);
+      alert(`Insufficient account wallet balance. You have ${available.toLocaleString('en-IN')} credits, but this campaign targets ${requiredCredits.toLocaleString('en-IN')} recipients. Please recharge your wallet.`);
       setShowRechargeModal(true);
       return;
     }
 
-    // 1. Deduct wallet quota
-    deductQuotaOnLaunch(formData.campaignName, requiredCredits);
-
-    // 2. Register coupon in coupon ledger
-    if (formData.hasCoupon && formData.couponCode) {
-      saveNewCoupon({
-        code: formData.couponCode.toUpperCase().trim(),
-        campaignName: formData.campaignName,
-        objective: formData.objective,
-        discountType: formData.discountType,
-        discountValue: Number(formData.discountValue),
-        minOrderQty: Number(formData.minOrderQty),
-        expiryDate: formData.couponExpiry,
-        singleUsePerEpc: formData.singleUsePerEpc,
-        deactivateOnCampaignEnd: formData.deactivateOnCampaignEnd,
-        status: 'Active',
-        assignedClusters: formData.selectedClusterIds,
-        assignedWarehouses: formData.servingWarehouses,
-        eligibleKits: formData.selectedKitIds
-      });
-    }
-
-    // 3. Save new campaign to localStorage for live maps & list
-    const newCampaign = {
-      id: 'CMP-' + Date.now().toString().slice(-6),
-      name: formData.campaignName,
-      status: 'Live Active',
-      channel: formData.channel,
-      objective: formData.objective,
-      targetAudienceCount: requiredCredits,
-      selectedStates: formData.selectedStates,
-      selectedClusters: formData.selectedClusterIds,
-      servingWarehouses: formData.servingWarehouses,
-      couponCode: formData.couponCode,
-      stopOnGoalAchievement: formData.stopOnGoalAchievement,
-      createdAt: new Date().toISOString()
-    };
-
+    setLaunchingCampaign(true);
     try {
-      const existing = JSON.parse(localStorage.getItem('solarkits_live_campaigns_v1') || '[]');
-      existing.unshift(newCampaign);
-      localStorage.setItem('solarkits_live_campaigns_v1', JSON.stringify(existing));
-    } catch (e) {
-      console.warn(e);
-    }
+      const objectiveToPurposeMap = {
+        coupon_discount: 'coupon_kit',
+        sales: 'kit_sales',
+        epc_signup: 'custom',
+        store_visits: 'store_visits',
+        epc_onboarding: 'custom',
+        product_promotion: 'new_kit',
+        add_to_cart: 'kit_sales',
+        epc_activation: 'inactive_reactivation'
+      };
 
-    alert(`Campaign "${formData.campaignName}" launched successfully! ${requiredCredits.toLocaleString('en-IN')} message credits auto-deducted from wallet.`);
-    navigate('/marketing-panel/campaigns');
+      const selectedKitNames = selectedKitObjects.map((k) => k.name).filter(Boolean).join(', ');
+      const emailSubject =
+        formData.emailSubject ||
+        `Special Wholesale Offer: ${selectedKitNames || formData.campaignName}`;
+      const emailHtmlContent = generateResponsiveEmailHtml({
+        ...formData,
+        selectedKitObjects
+      });
+
+      const backendCampaign = await createMarketingCampaign({
+        campaign_name: formData.campaignName,
+        campaign_type: String(formData.channel || 'BOTH').toLowerCase(),
+        campaign_objective: formData.objective || 'sales',
+        purpose: objectiveToPurposeMap[formData.objective] || 'kit_sales',
+        epc_groups: {
+          registered_epc: Boolean(formData.audienceGroups.registered),
+          verified_epc: Boolean(formData.audienceGroups.verified),
+          buyer_epc: Boolean(formData.audienceGroups.buyer)
+        },
+        area_type: resolvedSelectedStateIds.length > 0 ? 'state' : 'all_india',
+        state_ids: resolvedSelectedStateIds,
+        state_names: formData.selectedStates,
+        segment_ids: formData.selectedSegmentIds,
+        segment_state_filter: formData.segmentStateFilter || '',
+        segment_district_filter: formData.segmentDistrictFilter || '',
+        email_subject: emailSubject,
+        email_html_content: emailHtmlContent,
+        destination_url: formData.destinationUrl,
+        campaign_target_value: Number(formData.targetKitCount || 100),
+        purpose_data: {
+          objective: formData.objective,
+          coupon_code: formData.hasCoupon ? formData.couponCode : '',
+          discount_type: formData.discountType,
+          discount_value: Number(formData.discountValue || 0),
+          selected_states: formData.selectedStates,
+          selected_clusters: formData.selectedClusterIds
+        },
+        require_consent: true
+      });
+
+      const createdCampaignId = backendCampaign?._id || backendCampaign?.id;
+      if (createdCampaignId) {
+        await launchMarketingCampaign(createdCampaignId);
+      }
+
+      // 1. Deduct wallet quota
+      deductQuotaOnLaunch(formData.campaignName, requiredCredits);
+
+      // 2. Register coupon in coupon ledger
+      if (formData.hasCoupon && formData.couponCode) {
+        saveNewCoupon({
+          code: formData.couponCode.toUpperCase().trim(),
+          campaignName: formData.campaignName,
+          objective: formData.objective,
+          discountType: formData.discountType,
+          discountValue: Number(formData.discountValue),
+          minOrderQty: Number(formData.minOrderQty),
+          expiryDate: formData.couponExpiry,
+          singleUsePerEpc: formData.singleUsePerEpc,
+          deactivateOnCampaignEnd: formData.deactivateOnCampaignEnd,
+          status: 'Active',
+          assignedClusters: formData.selectedClusterIds,
+          assignedWarehouses: formData.servingWarehouses,
+          eligibleKits: formData.selectedKitIds
+        });
+      }
+
+      // 3. Mirror campaign summary locally for dashboard widgets
+      const newCampaign = {
+        id: createdCampaignId || 'CMP-' + Date.now().toString().slice(-6),
+        name: formData.campaignName,
+        status: 'Live Active',
+        channel: formData.channel,
+        objective: formData.objective,
+        targetAudienceCount: requiredCredits,
+        epcAudienceCount: audienceCalculation.epcCount,
+        segmentAudienceCount: audienceCalculation.segmentCount,
+        selectedStates: formData.selectedStates,
+        selectedClusters: formData.selectedClusterIds,
+        selectedSegmentIds: formData.selectedSegmentIds,
+        servingWarehouses: formData.servingWarehouses,
+        couponCode: formData.couponCode,
+        stopOnGoalAchievement: formData.stopOnGoalAchievement,
+        createdAt: new Date().toISOString()
+      };
+
+      try {
+        const existing = JSON.parse(localStorage.getItem('solarkits_live_campaigns_v1') || '[]');
+        existing.unshift(newCampaign);
+        localStorage.setItem('solarkits_live_campaigns_v1', JSON.stringify(existing));
+      } catch (e) {
+        console.warn(e);
+      }
+
+      alert(`Campaign "${formData.campaignName}" launched! Sending to ${requiredCredits.toLocaleString('en-IN')} recipient(s) (${audienceCalculation.epcCount.toLocaleString('en-IN')} EPCs + ${audienceCalculation.segmentCount.toLocaleString('en-IN')} Segment Leads).`);
+      navigate('/marketing-panel/campaigns');
+    } catch (err) {
+      console.error('Campaign launch error:', err);
+      alert(err.response?.data?.message || err.message || 'Failed to create & launch campaign.');
+    } finally {
+      setLaunchingCampaign(false);
+    }
   };
 
   // Selected WhatsApp and Email template objects
@@ -1143,11 +1344,17 @@ export default function CreateCampaignWizard() {
                 </div>
               )}
 
-              {/* TARGET EPC AUDIENCE GROUPS & DEDUPLICATED COUNTER */}
+              {/* TARGET EPC AUDIENCE GROUPS & ISOLATED SEGMENT GROUPS */}
               <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block">
-                  Target EPC Audience Groups (Deduplicated) *
-                </label>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block">
+                    Target EPC Audience Groups (Deduplicated)
+                  </label>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    Uncheck all 3 for Segment-Only Campaigns • Active EPCs:{' '}
+                    <strong className="text-indigo-600 dark:text-indigo-400">{audienceCalculation.epcCount.toLocaleString('en-IN')}</strong>
+                  </span>
+                </div>
 
                 <div className="grid grid-cols-3 gap-3">
                   {[
@@ -1183,24 +1390,126 @@ export default function CreateCampaignWizard() {
                   ))}
                 </div>
 
+                {/* ISOLATED SEGMENT GROUPS (NON-EPC LEADS) */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-700/60 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                        <FaLayerGroup className="text-amber-500" /> Target Isolated Segment Groups (Non-EPC Leads)
+                      </label>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Select non-EPC Segment Groups (auto-excludes leads who already verified a GSTIN).
+                      </p>
+                    </div>
+                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                      Segment Leads: {audienceCalculation.segmentCount.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+
+                  {/* Live MongoDB State & District Filters for Segment Groups */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <select
+                      value={selectedSegmentStateId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        const st = marketingStates.find((s) => String(s._id) === id);
+                        setSelectedSegmentStateId(id);
+                        setFormData((prev) => ({
+                          ...prev,
+                          segmentStateFilter: st?.name || '',
+                          segmentDistrictFilter: ''
+                        }));
+                      }}
+                      className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200"
+                    >
+                      <option value="">All Segment States (Live DB)</option>
+                      {marketingStates.map((st) => (
+                        <option key={st._id} value={st._id}>{st.name}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={formData.segmentDistrictFilter}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, segmentDistrictFilter: e.target.value }))}
+                      disabled={!selectedSegmentStateId}
+                      className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-50"
+                    >
+                      <option value="">{selectedSegmentStateId ? 'All Districts in State' : 'Select Segment State First'}</option>
+                      {segmentDistricts.map((dist) => (
+                        <option key={dist._id} value={dist.name}>{dist.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {segmentsList.length === 0 ? (
+                    <div className="p-3.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-400 text-center">
+                      No isolated Segment Groups found yet. Create groups under <strong>Marketing Portal → Segment Groups</strong>.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                      {segmentsList.map((seg) => {
+                        const isChecked = formData.selectedSegmentIds.includes(seg._id);
+                        const filteredCnt = seg.filtered_contact_count ?? seg.contact_count ?? 0;
+                        return (
+                          <label
+                            key={seg._id}
+                            className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2 ${
+                              isChecked
+                                ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30'
+                                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white truncate">{seg.name}</span>
+                                <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+                                  {seg.segment_type}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                {filteredCnt.toLocaleString('en-IN')} active leads
+                                {(formData.segmentStateFilter || formData.segmentDistrictFilter) && ` (filtered)`}
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleSegment(seg._id)}
+                              className="mt-0.5 rounded-sm text-amber-600"
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 {/* Industry Preference Segment Filter (PRD Section 5 & 7) */}
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block">
                       Filter by EPC Industry Interest (Buyer Preferences)
                     </label>
-                    {isOnlyRegistered ? (
+                    {!hasAnyEpcGroup ? (
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                        Segment-Only Mode Active
+                      </span>
+                    ) : isOnlyRegistered ? (
                       <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
                         Disabled for Registered-Only EPCs
                       </span>
                     ) : (
                       <span className="text-[10px] text-slate-400">
-                        Live audience count per industry vertical
+                        Live EPC audience filter
                       </span>
                     )}
                   </div>
 
-                  {isOnlyRegistered ? (
+                  {!hasAnyEpcGroup ? (
+                    <div className="p-3 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs text-amber-800 dark:text-amber-300">
+                      Targeting Selected Isolated Segment Groups only (all 3 EPC checkboxes unchecked).
+                    </div>
+                  ) : isOnlyRegistered ? (
                     <div className="p-3.5 bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
                       <FaInfoCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                       <div>
@@ -1272,21 +1581,26 @@ export default function CreateCampaignWizard() {
                 </div>
 
                 {/* Live Area Audience Count vs Account Wallet Counter */}
-                <div className="p-4 rounded-xl bg-slate-900 text-white flex items-center justify-between">
-                  <div>
+                <div className="p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1.5">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                      Calculated Area Audience Count
+                      Live MongoDB Audience Calculation {loadingAudiencePreview ? '(Refreshing...)' : ''}
                     </span>
                     <p className="text-xl font-black text-white">
                       {audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')}{' '}
-                      <span className="text-xs font-normal text-slate-300">Target EPCs</span>
+                      <span className="text-xs font-normal text-slate-300">Total Sending Count</span>
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      Deduplicated across {formData.selectedStates.length} states & {formData.selectedClusterIds.length} clusters
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-500/25 border border-indigo-400/40 text-[11px] font-bold text-indigo-200">
+                        Target EPCs: {audienceCalculation.epcCount.toLocaleString('en-IN')}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500/25 border border-amber-400/40 text-[11px] font-bold text-amber-200">
+                        Segment Leads (Non-EPC): {audienceCalculation.segmentCount.toLocaleString('en-IN')}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="text-right">
+                  <div className="text-left sm:text-right">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
                       Quota Comparison
                     </span>
@@ -2447,7 +2761,7 @@ export default function CreateCampaignWizard() {
               <span className="text-[10px] uppercase font-bold text-amber-600">Remaining Gap for Campaign</span>
               <p className="text-xl font-black text-amber-600 mt-1">68 Kits</p>
               <p className="text-[10px] text-slate-400 mt-0.5">
-                Requires ~{((68 / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)}% Conversion
+                Requires ~{audienceCalculation.deduplicatedTotal > 0 ? ((68 / audienceCalculation.deduplicatedTotal) * 100).toFixed(2) : '0.00'}% Conversion
               </p>
             </div>
           </div>
@@ -2818,11 +3132,11 @@ export default function CreateCampaignWizard() {
               </p>
             </div>
 
-            {/* Card 2: 2. Territory Area & Serving Warehouses */}
+            {/* Card 2: 2. Territory Area, Segments & Audience Breakdown */}
             <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2 bg-slate-50/50 dark:bg-slate-900/20">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1.5">
-                  <FaMapMarkerAlt className="text-indigo-600" /> 2. Area & Warehouses
+                  <FaMapMarkerAlt className="text-indigo-600" /> 2. Area, Segments & Audience
                 </span>
                 <button
                   onClick={() => setCurrentStep(2)}
@@ -2834,12 +3148,34 @@ export default function CreateCampaignWizard() {
               <p className="text-sm font-black text-slate-900 dark:text-white">
                 {formData.selectedStates.join(', ')} ({formData.selectedClusterIds.length} Clusters)
               </p>
-              <p className="text-xs text-emerald-600 font-semibold truncate">
-                Serving: {formData.servingWarehouses.join(', ')}
+              <p className="text-xs text-slate-600 dark:text-slate-300">
+                Total Sending Count: <strong>{audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')}</strong>
               </p>
-              <p className="text-xs text-slate-500">
-                Audience: <strong>{audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')} Target EPCs</strong>
-              </p>
+              <div className="flex flex-wrap gap-1.5 text-[11px]">
+                <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800">
+                  Target EPCs: {audienceCalculation.epcCount.toLocaleString('en-IN')}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-800">
+                  Segment Leads: {audienceCalculation.segmentCount.toLocaleString('en-IN')}
+                </span>
+              </div>
+              {formData.selectedSegmentIds.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {formData.selectedSegmentIds.map((segId) => {
+                    const segObj = segmentsList.find((s) => s._id === segId);
+                    return (
+                      <span key={segId} className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-[10px] font-semibold text-slate-700 dark:text-slate-200">
+                        {segObj?.name || segId}
+                      </span>
+                    );
+                  })}
+                  {(formData.segmentStateFilter || formData.segmentDistrictFilter) && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                      Filter: {[formData.segmentStateFilter, formData.segmentDistrictFilter].filter(Boolean).join(' / ')}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Card 3: 3. Strategic Purpose, Kits & Coupon Voucher */}
@@ -2925,9 +3261,11 @@ export default function CreateCampaignWizard() {
                   : `Quarterly Target: 150 Kits • Achieved: 82 Kits (Gap: 68 Kits)`}
               </p>
               <p className="text-[11px] text-amber-600 font-semibold">
-                Required Conversion: ~{formData.objective === 'epc_signup'
-                  ? (((formData.targetEpcSignups || 150) / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)
-                  : ((formData.targetKitCount / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)}%
+                Required Conversion: ~{audienceCalculation.deduplicatedTotal > 0
+                  ? (formData.objective === 'epc_signup'
+                      ? (((formData.targetEpcSignups || 150) / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)
+                      : ((formData.targetKitCount / audienceCalculation.deduplicatedTotal) * 100).toFixed(2))
+                  : '0.00'}%
               </p>
             </div>
 
@@ -2984,9 +3322,10 @@ export default function CreateCampaignWizard() {
 
             <button
               onClick={handleLaunchCampaign}
-              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
+              disabled={launchingCampaign}
+              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer disabled:opacity-60"
             >
-              <FaRocket className="w-4 h-4" /> Launch & Activate Campaign Now
+              <FaRocket className="w-4 h-4" /> {launchingCampaign ? 'Launching Campaign...' : 'Launch & Activate Campaign Now'}
             </button>
           </div>
         </div>
@@ -3019,9 +3358,10 @@ export default function CreateCampaignWizard() {
           <button
             type="button"
             onClick={handleLaunchCampaign}
-            className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition-all"
+            disabled={launchingCampaign}
+            className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition-all disabled:opacity-60"
           >
-            Launch Campaign <FaCheck className="w-3 h-3" />
+            <FaCheck className="w-3 h-3" /> {launchingCampaign ? 'Launching...' : 'Launch Campaign'}
           </button>
         )}
       </div>
