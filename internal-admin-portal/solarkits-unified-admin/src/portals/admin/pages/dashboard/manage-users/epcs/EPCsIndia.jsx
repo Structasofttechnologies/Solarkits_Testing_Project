@@ -37,9 +37,10 @@ import { FaWhatsapp } from "react-icons/fa";
 import MultiSelectDropdownWithSearchInput from "@/components/MultiSelectDropdownWithSearchInput";
 import PageHeader from "@/components/PageHeader";
 import Pagination from "@/components/Pagination";
-import readXlsxFile from "read-excel-file";
 import axios from "axios";
 import { authHeaderObj } from "@/app/authHeader";
+import DynamicBulkUploadModal from "../../../../components/bulk-upload/DynamicBulkUploadModal";
+import { EPC_DIRECTORY_FIELD_OPTIONS, EPC_DIRECTORY_PRESETS } from "../../../../components/bulk-upload/bulkUploadSchemas";
 
 // Custom debounce hook
 function useDebounce(value, delay) {
@@ -82,16 +83,8 @@ export default function EPCsIndia({ moduleUniqueId }) {
         }
     });
 
-    // ============ EXCEL UPLOAD STATES ============
-    const [excelData, setExcelData] = useState([]);
-    const [processing, setProcessing] = useState(false);
-    const [uploading, setUploading] = useState(false);
-    const [uploadStatus, setUploadStatus] = useState(null);
-    const [invalidRows, setInvalidRows] = useState([]);
-    const [duplicateCombinationRows, setDuplicateCombinationRows] = useState([]);
-    const [invalidStateRows, setInvalidStateRows] = useState([]);
-    const [uploadResults, setUploadResults] = useState(null);
-    const [uploadErrorMessage, setUploadErrorMessage] = useState("");
+    // ============ BULK UPLOAD MODAL STATE ============
+    const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
 
     // ============ SINGLE EPC FORM STATES ============
     const [showSingleEPCForm, setShowSingleEPCForm] = useState(false);
@@ -109,6 +102,9 @@ export default function EPCsIndia({ moduleUniqueId }) {
     const [statusFilter, setStatusFilter] = useState("all");
     const [sourceFilter, setSourceFilter] = useState("all");
     const [stateFilter, setStateFilter] = useState([]);
+    const [clusterFilter, setClusterFilter] = useState("all");
+    const [clusterGroups, setClusterGroups] = useState([]);
+    const [stateGroups, setStateGroups] = useState([]);
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [showFilters, setShowFilters] = useState(false);
@@ -206,7 +202,8 @@ export default function EPCsIndia({ moduleUniqueId }) {
                 ...(searchValue && { search: searchValue }),
                 ...(dateFrom && { fromDate: dateFrom }),
                 ...(dateTo && { toDate: dateTo }),
-                ...(stateFilter.length > 0 && { stateIds: stateFilter.join(',') })
+                ...(stateFilter.length > 0 && { stateIds: stateFilter.join(',') }),
+                ...(clusterFilter && clusterFilter !== "all" && { clusterId: clusterFilter })
             });
 
             const response = await axios.get(
@@ -226,6 +223,8 @@ export default function EPCsIndia({ moduleUniqueId }) {
                 }
 
                 setEpcs(filteredEpcs);
+                setClusterGroups(response.data.cluster_groups || []);
+                setStateGroups(response.data.state_groups || []);
                 const totalCount = (response.data.pagination.total_records || apiEpcs.length) + approvedLocal.length;
                 setTotalRecords(totalCount);
                 setTotalPages(Math.max(1, Math.ceil(totalCount / itemsPerPage)));
@@ -287,6 +286,7 @@ export default function EPCsIndia({ moduleUniqueId }) {
         statusFilter,
         sourceFilter,
         stateFilter,
+        clusterFilter,
         dateFrom,
         dateTo
     ]);
@@ -330,296 +330,61 @@ export default function EPCsIndia({ moduleUniqueId }) {
         };
     }, []);
 
-    // ============ EXCEL UPLOAD FUNCTIONS ============
-    const handleFile = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+    // ============ DYNAMIC BULK UPLOAD HANDLER ============
+    const handleBulkDirectoryImport = async (validRows, { batchDefaults, requiredFields }) => {
+        const epcsPayload = validRows.map((row) => ({
+            name: row.name,
+            email: row.email || undefined,
+            states: String(row.state_name || batchDefaults?.default_state || '')
+                .split(/[,;|]+/)
+                .map((s) => s.trim())
+                .filter(Boolean),
+            contact_person: row.contact_person || undefined,
+            mobile_number: row.mobile_number || undefined,
+            gst_number: row.gst_number || undefined,
+            district_name: row.district_name || undefined,
+            cluster_id: row.cluster_id || undefined,
+            cluster_name: row.cluster_name || undefined,
+            cluster_code: row.cluster_code || undefined,
+            pincode: row.pincode || undefined,
+            address_line: row.address_line || undefined,
+            epc_type: row.epc_type || undefined,
+            source: row.source || undefined,
+            remarks: row.remarks || undefined,
+            custom_attributes: row._customFields || {},
+        }));
 
-        setProcessing(true);
-        setUploadStatus(null);
-        setInvalidRows([]);
-        setDuplicateCombinationRows([]);
-        setInvalidStateRows([]);
-        setUploadResults(null);
-        setUploadErrorMessage("");
+        const response = await axios.post(
+            `${API_URL}/epcs/in/list?unique_id=${moduleUniqueId}&req_for=add`,
+            { epcs: epcsPayload, default_settings: { ...batchDefaults, required_fields: requiredFields } },
+            { headers: { ...authHeaderObj() } }
+        );
 
-        try {
-            const rows = await readXlsxFile(file);
+        const summary = response.data?.summary || {};
+        const added = Number(summary.added || 0);
+        const merged = Number(summary.merged || 0);
+        const duplicate = Number(summary.duplicate || 0);
+        const failed = Number(summary.failed || 0) + Number(summary.email_conflict || 0);
+        const clusterSummaryEntries = Object.entries(response.data?.cluster_summary || {});
 
-            if (rows.length === 0) {
-                setUploadStatus('no-data');
-                dispatch(setAlert({ message: "Excel file is empty", type: "error" }));
-                setProcessing(false);
-                e.target.value = "";
-                return;
-            }
-
-            const headers = rows[0].map(h => (h || "").toString().trim().toLowerCase());
-            const data = rows.slice(1).map(row => {
-                const obj = {};
-                headers.forEach((header, i) => {
-                    if (header) obj[header] = row[i] || "";
-                });
-                return obj;
-            });
-
-            // Check required columns
-            const requiredColumns = ["state", "name", "email"];
-            const columns = Object.keys(data[0] || {});
-
-            const missingColumns = requiredColumns.filter(
-                (col) => !columns.includes(col)
-            );
-
-            if (missingColumns.length > 0) {
-                const msg = `Missing required columns: ${missingColumns.join(", ")}`;
-                dispatch(
-                    setAlert({
-                        message: msg,
-                        type: "error",
-                    })
-                );
-                setUploadErrorMessage(msg);
-                e.target.value = "";
-                setProcessing(false);
-                setUploadStatus('error');
-                return;
-            }
-
-            // Group data by name and email combination
-            const groupedData = {};
-
-            data.forEach((row, index) => {
-                if (!row.name || !row.email || !row.state) return;
-
-                const name = row.name.toString().trim();
-                const email = row.email
-                    .toString()
-                    .trim()
-                    .replace("Email : ", "")
-                    .replace(/\[dot\]/g, '.')
-                    .replace(/\[at\]/g, '@')
-                    .toLowerCase();
-                const state = row.state.toLowerCase().toString().trim();
-
-                const key = `${name}-${email}`;
-
-                if (!groupedData[key]) {
-                    groupedData[key] = {
-                        name: name,
-                        email: email,
-                        states: new Set()
-                    };
-                }
-
-                groupedData[key].states.add(state);
-            });
-
-            let candidateData = Object.values(groupedData).map(item => ({
-                name: item.name,
-                email: item.email,
-                states: Array.from(item.states)
-            }));
-
-            // Validate email format and states
-            const validData = [];
-            const invalidEmailRows = [];
-            const invalidStateRows = [];
-
-            const validStateNames = new Set(states.map(s => s.text.toLowerCase()));
-
-            for (const row of candidateData) {
-                const emailValid = emailRegex.test(row.email);
-
-                const invalidStates = row.states.filter(state =>
-                    !validStateNames.has(state.toLowerCase())
-                );
-
-                if (!emailValid) {
-                    invalidEmailRows.push(row);
-                } else if (invalidStates.length > 0) {
-                    invalidStateRows.push({
-                        ...row,
-                        invalidStates
-                    });
-                } else {
-                    validData.push(row);
-                }
-            }
-
-            setInvalidRows(invalidEmailRows);
-            setInvalidStateRows(invalidStateRows);
-
-            if (invalidEmailRows.length > 0) {
-                dispatch(
-                    setAlert({
-                        message: `${invalidRows.length} rows have invalid email formats.`,
-                        type: "warning",
-                    })
-                );
-            }
-
-            if (invalidStateRows.length > 0) {
-                dispatch(
-                    setAlert({
-                        message: `${invalidStateRows.length} rows have invalid state names.`,
-                        type: "warning",
-                    })
-                );
-            }
-
-            // Check for duplicates within the file
-            const combinationMap = new Map();
-            const duplicateCombinations = [];
-            const uniqueData = [];
-
-            validData.forEach((row) => {
-                const rowValid = [];
-
-                for (const state of row.states) {
-                    const combinationKey = `${row.name.toLowerCase()}-${row.email.toLowerCase()}-${state.toLowerCase()}`;
-
-                    if (!combinationMap.has(combinationKey)) {
-                        combinationMap.set(combinationKey, true);
-                        rowValid.push(state);
-                    } else {
-                        duplicateCombinations.push({
-                            ...row,
-                            duplicateState: state
-                        });
-                    }
-                }
-
-                if (rowValid.length > 0) {
-                    uniqueData.push({
-                        ...row,
-                        states: rowValid
-                    });
-                }
-            });
-
-            setDuplicateCombinationRows(duplicateCombinations);
-
-            if (duplicateCombinations.length > 0) {
-                dispatch(
-                    setAlert({
-                        message: `${duplicateCombinations.length} duplicate state combinations found in file.`,
-                        type: "warning",
-                    })
-                );
-            }
-
-            setExcelData(uniqueData);
-
-            if (uniqueData.length > 0) {
-                setUploadStatus('preview');
-            } else {
-                setUploadStatus('no-data');
-            }
-
-        } catch (error) {
-            console.error('Error parsing Excel:', error);
-            const msg = `Failed to parse Excel file: ${error.message}`;
-            setUploadStatus('error');
-            setUploadErrorMessage(msg);
-            dispatch(
-                setAlert({
-                    message: `${msg}. Please ensure it's a valid .xlsx or .xls file.`,
-                    type: "error",
-                })
-            );
-        } finally {
-            setProcessing(false);
-            e.target.value = "";
-        }
-    };
-
-    const handleUploadToServer = async () => {
-        if (excelData.length === 0) {
-            dispatch(setAlert({
-                type: "warning",
-                message: "No data to upload."
-            }));
-            return;
+        if (added > 0 || merged > 0) {
+            fetchEPCs();
         }
 
-        setUploading(true);
-        try {
-            const response = await axios.post(
-                `${API_URL}/epcs/in/list?unique_id=${moduleUniqueId}&req_for=add`,
-                { epcs: excelData },
-                { headers: { ...authHeaderObj() } }
-            );
+        const clusterNote = clusterSummaryEntries.length > 0
+            ? ` Auto-assigned into ${clusterSummaryEntries.length} Cluster(s) (${clusterSummaryEntries.slice(0, 3).map(([c, n]) => `${c}: ${n}`).join(', ')}).`
+            : '';
+        const msg = `Added ${added} new EPC(s), updated ${merged} existing assignment(s).${clusterNote} Skipped ${duplicate} duplicate(s) and ${failed} invalid/conflicting row(s).`;
+        dispatch(setAlert({
+            type: added > 0 || merged > 0 ? "success" : "warning",
+            message: msg
+        }));
 
-            setUploadResults(response.data);
-
-            const summary = response.data.summary || {};
-            const total = Number(summary.total || excelData.length || 0);
-            const added = Number(summary.added || 0);
-            const duplicate = Number(summary.duplicate || 0);
-            const failed = Number(summary.failed || 0);
-
-            if (added === total && total > 0) {
-                setUploadStatus('success');
-                dispatch(setAlert({
-                    type: "success",
-                    message: response.data.message || `Successfully added all ${added} EPCs with their states.`
-                }));
-            } else if (added > 0 || duplicate > 0) {
-                setUploadStatus('success'); // Still success if some were added or are duplicates
-                dispatch(setAlert({
-                    type: added > 0 ? "success" : "info",
-                    message: response.data.message ||
-                        (added > 0 ? `Added ${added} EPCs. ${duplicate} duplicates skipped.` : `All ${duplicate} items were duplicates.`)
-                }));
-            } else if (failed > 0) {
-                const msg = response.data.message || `Failed to add EPCs. ${failed} entries had errors.`;
-                setUploadStatus('error');
-                setUploadErrorMessage(msg);
-                dispatch(setAlert({
-                    type: "error",
-                    message: msg
-                }));
-            } else {
-                const msg = response.data.message || "Failed to process the upload. Please check the file format.";
-                setUploadStatus('error');
-                setUploadErrorMessage(msg);
-                dispatch(setAlert({
-                    type: "error",
-                    message: msg
-                }));
-            }
-
-            if (added > 0) {
-                fetchEPCs();
-            }
-
-            setTimeout(() => {
-                setExcelData([]);
-                setUploadStatus(null);
-                setUploadResults(null);
-            }, 5000);
-        } catch (error) {
-            console.error("Error uploading EPCs:", error);
-            const msg = error.response?.data?.message || "Failed to upload EPCs.";
-            setUploadStatus('error');
-            setUploadErrorMessage(msg);
-            dispatch(setAlert({
-                type: "error",
-                message: msg
-            }));
-        } finally {
-            setUploading(false);
-        }
-    };
-
-    const cancelUpload = () => {
-        setExcelData([]);
-        setUploadStatus(null);
-        setUploadResults(null);
-        setInvalidRows([]);
-        setInvalidStateRows([]);
-        setDuplicateCombinationRows([]);
+        return {
+            success: true,
+            message: msg,
+            skippedDetails: response.data?.skipped_details || [],
+        };
     };
 
     // ============ SINGLE EPC FUNCTIONS ============
@@ -820,6 +585,7 @@ export default function EPCsIndia({ moduleUniqueId }) {
         setStatusFilter("all");
         setSourceFilter("all");
         setStateFilter([]);
+        setClusterFilter("all");
         setDateFrom("");
         setDateTo("");
         setSortBy("created_at");
@@ -1110,118 +876,51 @@ export default function EPCsIndia({ moduleUniqueId }) {
                             )}
                         </div>
 
-                        {/* Excel Upload Section */}
+                        {/* Dynamic BDE-Style Bulk Upload Section */}
                         <div className="lg:pl-6">
                             <h3 className="font-semibold text-text-primary flex items-center gap-2 mb-4">
                                 <FaFileExcel className="text-success" />
-                                Bulk Upload via Excel
+                                Dynamic Bulk Upload (Excel / CSV)
                             </h3>
 
-                            <div className="space-y-4">
-                                {/* Upload Status */}
-                                {processing && (
-                                    <div className="p-3 bg-warning-soft border border-warning/20 rounded-lg flex items-center gap-2">
-                                        <FaSpinner className="animate-spin text-warning" />
-                                        <span className="text-sm text-warning font-medium">Processing Excel file...</span>
-                                    </div>
-                                )}
-                                {uploading && (
-                                    <div className="p-3 bg-warning-soft border border-warning/20 rounded-lg flex items-center gap-2">
-                                        <FaSpinner className="animate-spin text-warning" />
-                                        <span className="text-sm text-warning font-medium">Saving Data...</span>
-                                    </div>
-                                )}
-
-                                {uploadStatus === 'preview' && (
-                                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div className="flex items-center gap-2">
-                                                <FaInfoCircle className="text-primary" />
-                                                <span className="text-sm font-bold text-primary uppercase tracking-tight">
-                                                    {excelData.length} valid entries ready
-                                                </span>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    onClick={handleUploadToServer}
-                                                    variant="primary"
-                                                    size="sm"
-                                                    leftIcon={<FaUpload />}
-                                                    disabled={uploading}
-                                                >
-                                                    Upload
-                                                </Button>
-                                                <Button
-                                                    onClick={cancelUpload}
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    leftIcon={<FaTimes />}
-                                                >
-                                                    Cancel
-                                                </Button>
-                                            </div>
-                                        </div>
-
-                                        {/* Validation Summary */}
-                                        {(invalidRows.length > 0 || invalidStateRows.length > 0 || duplicateCombinationRows.length > 0) && (
-                                            <div className="mt-3 space-y-2 text-xs font-medium">
-                                                {invalidRows.length > 0 && (
-                                                    <p className="text-warning">⚠ {invalidRows.length} row(s) with invalid email format skipped</p>
-                                                )}
-                                                {invalidStateRows.length > 0 && (
-                                                    <p className="text-warning">⚠ {invalidStateRows.length} row(s) with invalid state names skipped</p>
-                                                )}
-                                                {duplicateCombinationRows.length > 0 && (
-                                                    <p className="text-warning">⚠ {duplicateCombinationRows.length} duplicate state combination(s) removed</p>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {uploadStatus === 'success' && (
-                                    <div className="p-3 bg-success-soft border border-success/20 rounded-lg flex items-center gap-2">
-                                        <FaCheckCircle className="text-success" />
-                                        <span className="text-sm text-success font-medium">File uploaded successfully!</span>
-                                    </div>
-                                )}
-
-                                {uploadStatus === 'error' && (
-                                    <div className="p-3 bg-danger-soft border border-danger/20 rounded-lg flex items-center gap-2">
-                                        <FaInfoCircle className="text-danger" />
-                                        <span className="text-sm text-danger font-medium">{uploadErrorMessage || "Failed to process file. Please check the format."}</span>
-                                    </div>
-                                )}
-
-                                <CustomFilePicker
-                                    type="file"
-                                    accept=".xlsx, .xls"
-                                    onChange={handleFile}
-                                    icon={<FaUpload className="mr-2" />}
-                                    label="Choose Excel File"
-                                    className="w-full"
-                                    disabled={uploading || processing}
-                                />
-
-                                {/* File Format Information */}
-                                <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
-                                    <div className="flex items-start gap-2">
-                                        <FaLightbulb className="text-primary shrink-0 mt-0.5" size={16} />
-                                        <div className="text-sm">
-                                            <span className="font-medium text-primary">Required columns:</span>
-                                            <div className="flex flex-wrap gap-2 mt-1">
-                                                <code className="px-2 py-1 bg-primary/10 border border-primary/20 text-primary rounded text-xs font-mono">state</code>
-                                                <code className="px-2 py-1 bg-primary/10 border border-primary/20 text-primary rounded text-xs font-mono">name</code>
-                                                <code className="px-2 py-1 bg-primary/10 border border-primary/20 text-primary rounded text-xs font-mono">email</code>
-                                            </div>
-                                        </div>
-                                    </div>
+                            <div className="space-y-4 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-6 text-center">
+                                <FaUpload className="text-primary text-3xl mx-auto" />
+                                <div>
+                                    <p className="text-sm font-bold text-text-primary">
+                                        BDE-Style Dynamic Field Selection & Inline Correction
+                                    </p>
+                                    <p className="text-xs text-text-secondary mt-1">
+                                        Tick required/optional fields, load .xlsx or .csv, auto-translate renamed headers into DB fields, apply live DB batch defaults, and fix invalid rows inline before saving.
+                                    </p>
                                 </div>
+                                <Button
+                                    onClick={() => setShowBulkUploadModal(true)}
+                                    variant="primary"
+                                    leftIcon={<FaUpload />}
+                                >
+                                    Open Bulk Upload EPCs
+                                </Button>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <DynamicBulkUploadModal
+                isOpen={showBulkUploadModal}
+                onClose={() => setShowBulkUploadModal(false)}
+                title="Bulk Upload EPCs (India Directory)"
+                subtitle="Import contractor companies in bulk via Excel (.xlsx) or CSV with dynamic batch defaults, automatic column renaming, and inline error correction"
+                badgeText="Dynamic Fields Support"
+                fieldOptions={EPC_DIRECTORY_FIELD_OPTIONS}
+                presets={EPC_DIRECTORY_PRESETS}
+                defaultSelectedKeys={['name', 'email', 'state_name', 'mobile_number', 'gst_number', 'district_name']}
+                enableDefaultFields={{ state: true, district: true, cluster: true, epcType: true, leadSource: true, remarks: true }}
+                allowCustomColumns={false}
+                sampleFileName="india_epcs_sample_template.csv"
+                submitLabel="Import EPCs"
+                onSubmitImport={handleBulkDirectoryImport}
+            />
 
             {/* ============ CARD 3: EPC DATA TABLE ============ */}
             <div className="card shadow-sm hover:shadow-md transition-all duration-300">
@@ -1382,6 +1081,70 @@ export default function EPCsIndia({ moduleUniqueId }) {
                         )}
                     </div>
 
+                    {/* State-wise & Cluster-wise Dynamic Grouping Filter */}
+                    {(clusterGroups.length > 0 || stateGroups.length > 0) && (
+                        <div className="mb-4 p-3 rounded-xl bg-slate-50/90 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 space-y-2">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                                    <FaLayerGroup className="text-indigo-500" />
+                                    State & Cluster-Wise EPC Groups ({clusterGroups.filter((c) => c.is_assigned).length} Assigned Clusters • {stateGroups.length} States)
+                                </span>
+                                {clusterFilter !== "all" && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setClusterFilter("all");
+                                            setCurrentPage(1);
+                                        }}
+                                        className="text-[11px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                                    >
+                                        Clear Cluster Filter
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setClusterFilter("all");
+                                        setCurrentPage(1);
+                                    }}
+                                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors cursor-pointer ${
+                                        clusterFilter === "all"
+                                            ? "bg-indigo-600 text-white border-indigo-600"
+                                            : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-indigo-400"
+                                    }`}
+                                >
+                                    All EPCs ({totalRecords})
+                                </button>
+                                {clusterGroups.slice(0, 18).map((cg) => {
+                                    const filterVal = cg.is_assigned ? (cg.cluster_id || cg.cluster_name) : `unassigned::${cg.state_name || 'Unspecified State'}`;
+                                    const isActive = clusterFilter === filterVal;
+                                    return (
+                                        <button
+                                            key={cg.cluster_id || cg.cluster_name}
+                                            type="button"
+                                            onClick={() => {
+                                                setClusterFilter(filterVal);
+                                                setCurrentPage(1);
+                                            }}
+                                            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors cursor-pointer ${
+                                                isActive
+                                                    ? "bg-indigo-600 text-white border-indigo-600"
+                                                    : cg.is_assigned
+                                                    ? "bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:border-indigo-400"
+                                                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                                            }`}
+                                        >
+                                            {cg.cluster_name}
+                                            {cg.cluster_code ? ` (${cg.cluster_code})` : ""} • {cg.state_name} ({cg.count})
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Data Table */}
                     {loading ? (
                         <div className="text-center py-8">
@@ -1421,6 +1184,9 @@ export default function EPCsIndia({ moduleUniqueId }) {
                                                 </div>
                                             </th>
                                             <th className="py-3 px-4 text-left font-medium text-text-primary">
+                                                Category
+                                            </th>
+                                            <th className="py-3 px-4 text-left font-medium text-text-primary">
                                                 Status
                                             </th>
                                             <th
@@ -1432,6 +1198,9 @@ export default function EPCsIndia({ moduleUniqueId }) {
                                                     States
                                                     {getSortIcon("state_count")}
                                                 </div>
+                                            </th>
+                                            <th className="py-3 px-4 text-left font-medium text-text-primary">
+                                                Cluster & District
                                             </th>
                                             <th
                                                 className="py-3 px-4 text-left font-medium text-text-primary cursor-pointer hover:bg-primary/10 transition-colors"
@@ -1451,7 +1220,7 @@ export default function EPCsIndia({ moduleUniqueId }) {
                                                     {epc.name}
                                                 </td>
                                                 <td className="py-3 px-4 text-text-secondary">
-                                                    {epc.email}
+                                                    {epc.email || '—'}
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${epc.source === 'government'
@@ -1460,6 +1229,23 @@ export default function EPCsIndia({ moduleUniqueId }) {
                                                         }`}>
                                                         {epc.source || 'government'}
                                                     </span>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    {(() => {
+                                                        const code = (epc.epc_type_code || '').toLowerCase();
+                                                        const label = epc.epc_type || 'Registered EPC';
+                                                        const badgeClass =
+                                                            code === 'buyer' || label.toLowerCase().includes('buyer')
+                                                                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                                                : code === 'verified_epc' || label.toLowerCase().includes('verified')
+                                                                ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                                                : 'bg-amber-100 text-amber-800 border-amber-200';
+                                                        return (
+                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${badgeClass}`}>
+                                                                {label}
+                                                            </span>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     {(() => {
@@ -1476,6 +1262,25 @@ export default function EPCsIndia({ moduleUniqueId }) {
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     {renderStates(epc.states)}
+                                                </td>
+                                                <td className="py-3 px-4 text-xs">
+                                                    {epc.cluster_name ? (
+                                                        <div className="space-y-0.5">
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold text-[11px]">
+                                                                {epc.cluster_name}
+                                                                {epc.cluster_code ? ` (${epc.cluster_code})` : ''}
+                                                            </span>
+                                                            {epc.district_name && (
+                                                                <div className="text-[11px] text-text-secondary pl-1">
+                                                                    {epc.district_name}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-text-secondary">
+                                                            {epc.district_name || 'Unassigned'}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="py-3 px-4 text-text-secondary text-xs">
                                                     {formatDate(epc.created_at)}
@@ -1515,7 +1320,7 @@ export default function EPCsIndia({ moduleUniqueId }) {
                             <FaBuilding className="text-primary/30 text-5xl mx-auto mb-4" />
                             <h3 className="text-lg font-semibold text-text-primary mb-2">No EPCs Found</h3>
                             <p className="text-text-secondary max-w-md mx-auto">
-                                {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || stateFilter.length > 0 || dateFrom || dateTo
+                                {searchQuery || statusFilter !== 'all' || sourceFilter !== 'all' || stateFilter.length > 0 || clusterFilter !== 'all' || dateFrom || dateTo
                                     ? "No records match your filter criteria. Try adjusting your filters."
                                     : "Get started by uploading an Excel file or adding a single EPC."}
                             </p>
@@ -1733,16 +1538,6 @@ export default function EPCsIndia({ moduleUniqueId }) {
                                 </Button>
                             </div>
                         </form>
-
-                        {/* Success Message Example (shown after successful submission) */}
-                        {uploadResults?.added?.some(item => item.name === singleEPCFormData.epc_name) && (
-                            <div className="mt-4 p-3 bg-success-soft border border-success/20 rounded-lg">
-                                <p className="text-sm text-success flex items-center gap-2 font-medium">
-                                    <FaCheckCircle className="text-success" />
-                                    EPC added successfully!
-                                </p>
-                            </div>
-                        )}
                     </div>
                 </Dialog>
         </div>

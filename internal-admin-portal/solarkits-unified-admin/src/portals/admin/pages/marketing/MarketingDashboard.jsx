@@ -29,22 +29,72 @@ import {
   FaPercentage,
   FaBuilding,
   FaChartBar,
-  FaSlidersH
+  FaSlidersH,
+  FaLayerGroup
 } from 'react-icons/fa';
 import { MdTrendingUp, MdVisibility } from 'react-icons/md';
 import IndiaCampaignMap from './IndiaCampaignMap';
+import SegmentGroupAnalyticsPage from './SegmentGroupAnalyticsPage';
 import {
   fetchLiveActiveStates,
   fetchLiveClusters,
   fetchLiveQueueStatus,
-  toggleLiveCoupon
+  toggleLiveCoupon,
+  fetchMarketingDashboardAnalytics
 } from './services/marketingDataService';
 import { marketingHttp } from './services/marketingApi';
+
+const EMPTY_DASHBOARD_DATA = {
+  summary: {
+    totalCampaigns: 0,
+    activeCampaigns: 0,
+    successfulCampaignsCount: 0,
+    totalSent: 0,
+    totalDelivered: 0,
+    totalFailed: 0,
+    totalRead: 0,
+    totalClicks: 0,
+    totalVisits: 0,
+    totalLeads: 0,
+    totalQualified: 0,
+    totalConversions: 0,
+    totalRevenue: 0,
+    totalCost: 0,
+    deliveryRate: '0.0',
+    clickRate: '0.0',
+    leadConversionRate: '0.0',
+    qualifiedLeadRate: '0.0',
+    salesConversionRate: '0.0',
+    roi: '0.0',
+    totalEpcs: 0,
+    buyerEpcs: 0,
+    verifiedEpcs: 0,
+    registeredEpcs: 0,
+    activeCouponsCount: 0,
+    totalCouponsCount: 0,
+    activeClustersCount: 0,
+    activeStatesCount: 0,
+    segmentGroupsCount: 0,
+    segmentLeadsUploaded: 0,
+    segmentRegistered: 0,
+    segmentVerified: 0,
+    segmentBuyers: 0,
+    segmentRevenueInr: 0
+  },
+  channels: {
+    email: { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0, failed: 0 },
+    whatsapp: { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0, failed: 0 }
+  },
+  funnel: [],
+  campaignsRanking: [],
+  couponsList: [],
+  epcTerritoryPerformance: []
+};
 
 export default function MarketingDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [dashboardTab, setDashboardTab] = useState('analytics'); // 'analytics' | 'map'
+  const [dashboardTab, setDashboardTab] = useState('analytics'); // 'analytics' | 'segment-analytics' | 'map'
   const [queueStatus, setQueueStatus] = useState(null);
   const [copiedCode, setCopiedCode] = useState(null);
 
@@ -69,46 +119,7 @@ export default function MarketingDashboard() {
   const [filterEpcType, setFilterEpcType] = useState('ALL');
   const [filterChannel, setFilterChannel] = useState('ALL');
 
-  const [data, setData] = useState({
-    summary: {
-      totalCampaigns: 0,
-      activeCampaigns: 0,
-      successfulCampaignsCount: 0,
-      totalSent: 0,
-      totalDelivered: 0,
-      totalFailed: 0,
-      totalRead: 0,
-      totalClicks: 0,
-      totalVisits: 0,
-      totalLeads: 0,
-      totalQualified: 0,
-      totalConversions: 0,
-      totalRevenue: 0,
-      totalCost: 0,
-      deliveryRate: '0.0',
-      clickRate: '0.0',
-      leadConversionRate: '0.0',
-      qualifiedLeadRate: '0.0',
-      salesConversionRate: '0.0',
-      roi: '0.0',
-      totalEpcs: 0,
-      buyerEpcs: 0,
-      verifiedEpcs: 0,
-      registeredEpcs: 0,
-      activeCouponsCount: 0,
-      totalCouponsCount: 0,
-      activeClustersCount: 0,
-      activeStatesCount: 0
-    },
-    channels: {
-      email: { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0, failed: 0 },
-      whatsapp: { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0, failed: 0 }
-    },
-    funnel: [],
-    campaignsRanking: [],
-    couponsList: [],
-    epcTerritoryPerformance: []
-  });
+  const [data, setData] = useState(EMPTY_DASHBOARD_DATA);
 
   const fetchAnalytics = async () => {
     setLoading(true);
@@ -206,7 +217,7 @@ export default function MarketingDashboard() {
           </div>
 
           {/* Dashboard View Switcher */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 flex-wrap">
             <button
               onClick={() => setDashboardTab('analytics')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -217,6 +228,17 @@ export default function MarketingDashboard() {
             >
               <FaChartLine />
               <span>Performance Analytics</span>
+            </button>
+            <button
+              onClick={() => setDashboardTab('segment-analytics')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                dashboardTab === 'segment-analytics'
+                  ? 'bg-white dark:bg-slate-700 text-violet-600 dark:text-violet-400 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <FaLayerGroup />
+              <span>Segment Group Analytics</span>
             </button>
             <button
               onClick={() => setDashboardTab('map')}
@@ -251,10 +273,12 @@ export default function MarketingDashboard() {
 
       {dashboardTab === 'map' ? (
         <IndiaCampaignMap />
+      ) : dashboardTab === 'segment-analytics' ? (
+        <SegmentGroupAnalyticsPage embedded />
       ) : (
         <>
-          {/* ── Executive Numbers Cards (Boss Requirement 3) ── */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {/* ── Executive Numbers Cards (100% Dynamic Live DB Metrics) ── */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
             
             {/* 1. Active Campaigns */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700 shadow-xs hover:border-indigo-500/50 transition-all">
@@ -296,7 +320,7 @@ export default function MarketingDashboard() {
                 {s.activeCouponsCount ?? 0} <span className="text-xs font-normal text-slate-400">/ {s.totalCouponsCount ?? 0}</span>
               </div>
               <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">
-                OfferMaster Live Sync
+                {displayCoupons.reduce((acc, c) => acc + (c.redemptionsCount || 0), 0).toLocaleString('en-IN')} Redemptions
               </div>
             </div>
 
@@ -314,7 +338,24 @@ export default function MarketingDashboard() {
               </div>
             </div>
 
-            {/* 5. Active States & Clusters */}
+            {/* 5. Segment Groups Impact */}
+            <div
+              onClick={() => setDashboardTab('segment-analytics')}
+              className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-violet-200/80 dark:border-violet-800 shadow-xs hover:border-violet-500 transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between text-slate-400 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-violet-600">Segment Groups</span>
+                <FaLayerGroup className="text-violet-500" />
+              </div>
+              <div className="text-2xl font-black tracking-tight text-violet-700 dark:text-violet-300">
+                {(s.segmentLeadsUploaded || 0).toLocaleString('en-IN')} <span className="text-xs font-normal text-slate-400">Leads</span>
+              </div>
+              <div className="text-[11px] text-violet-600 dark:text-violet-400 font-semibold mt-1">
+                {s.segmentRegistered || 0} Reg • {s.segmentBuyers || 0} Buyers
+              </div>
+            </div>
+
+            {/* 6. Active States & Clusters */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700 shadow-xs hover:border-violet-500/50 transition-all">
               <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider">Active Clusters</span>
@@ -328,7 +369,7 @@ export default function MarketingDashboard() {
               </div>
             </div>
 
-            {/* 6. Total Sales Booked */}
+            {/* 7. Total Sales Booked */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-emerald-500/40 dark:border-emerald-600/40 shadow-xs bg-gradient-to-br from-emerald-50/30 to-white dark:from-emerald-950/20 dark:to-slate-800">
               <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Attributed Revenue</span>
@@ -360,7 +401,7 @@ export default function MarketingDashboard() {
               >
                 <option value="ALL">All States ({liveStates.length})</option>
                 {liveStates.map(st => (
-                  <option key={st.name || st} value={st.name || st}>
+                  <option key={st._id || st.name || st} value={st.name || st}>
                     {st.name || st}
                   </option>
                 ))}
@@ -466,7 +507,13 @@ export default function MarketingDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-medium">
-                  {rankedCampaigns.map((camp, index) => {
+                  {rankedCampaigns.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-8 text-center text-slate-400 font-semibold">
+                        No live campaigns found matching the active filters. Create your first campaign to see real-time ranking.
+                      </td>
+                    </tr>
+                  ) : rankedCampaigns.map((camp, index) => {
                     const rankNum = index + 1;
                     return (
                       <tr key={camp._id || index} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/20 transition-colors">
@@ -536,7 +583,7 @@ export default function MarketingDashboard() {
 
                         <td className="py-3 px-3">
                           <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 font-bold text-[11px]">
-                            {camp.conversionRate || '24.5%'}
+                            {camp.conversionRate || '0.0%'}
                           </span>
                         </td>
 
@@ -586,7 +633,7 @@ export default function MarketingDashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayCoupons.length === 0 ? (
-                <div className="col-span-full py-8 text-center text-xs text-slate-500">
+                <div className="col-span-full py-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
                   No coupon offers in OfferMaster yet. Click "Create New Coupon Code" to add one.
                 </div>
               ) : (
@@ -611,7 +658,6 @@ export default function MarketingDashboard() {
                               {isCopied ? <FaCheck className="text-emerald-500 w-3 h-3" /> : <FaCopy className="w-3 h-3" />}
                             </button>
                           </div>
-
                           <button
                             type="button"
                             onClick={() => coupon._id && handleCouponToggle(coupon._id)}
@@ -690,8 +736,14 @@ export default function MarketingDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-medium">
-                  {filteredTerritories.map((item, idx) => {
-                    const convNum = parseFloat(item.conversionRatio) || 15;
+                  {filteredTerritories.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-8 text-center text-slate-400 font-semibold">
+                        No live cluster/territory EPC metrics match the selected filters.
+                      </td>
+                    </tr>
+                  ) : filteredTerritories.map((item, idx) => {
+                    const convNum = parseFloat(item.conversionRatio) || 0;
                     return (
                       <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/20 transition-colors">
                         <td className="py-3 px-3 pl-4">

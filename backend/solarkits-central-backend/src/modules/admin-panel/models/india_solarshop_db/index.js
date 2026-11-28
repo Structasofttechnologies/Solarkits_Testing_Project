@@ -288,5 +288,5 @@ module.exports = {
  
  
   TrialKitProcurement: require('./trial_kit_procurements.schema'),
- 
+  TrialKitFeedbackConfig: require('./trial_kit_feedback_configs.schema'),
 };

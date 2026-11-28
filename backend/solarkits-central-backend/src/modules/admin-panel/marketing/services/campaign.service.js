@@ -8,6 +8,8 @@ const emailService = require('./email.service');
 const whatsappService = require('./whatsapp.service');
 const audienceService = require('./audience.service');
 const emailQueueService = require('./emailQueue.service');
+const { resolveWebsiteInfo } = require('../constants/websiteRegistry');
+const { normalizePagePath } = require('./webTelemetry.service');
 
 /**
  * Derive clean public backend origin for tracking & unsubscribe URLs.
@@ -123,12 +125,18 @@ const launchCampaign = async (campaignId) => {
       kit_ids: campaign.kit_ids || [],
       subcategory_ids: campaign.subcategory_ids || [],
       include_imported_leads: campaign.include_imported_leads !== false,
-      require_consent: campaign.require_consent !== false
+      require_consent: campaign.require_consent !== false,
+      segment_ids: campaign.segment_ids || [],
+      segment_state_filter: campaign.segment_state_filter || '',
+      segment_district_filter: campaign.segment_district_filter || ''
     });
 
     campaign.recipients = audience.recipients.map((r) => ({
       epc_id: r.epc_id || null,
       lead_id: r.lead_id || null,
+      segment_id: r.segment_id || null,
+      segment_contact_id: r.segment_contact_id || null,
+      custom_fields: r.custom_fields || {},
       source_type: r.source_type || 'epc_account',
       name: r.name,
       phone: r.phone,
@@ -183,7 +191,14 @@ const launchCampaign = async (campaignId) => {
  */
 const enqueueCampaignDispatch = async (campaign, pendingIndices) => {
   const campaignId = String(campaign._id);
-  const emailTemplate = campaign.email_template_id;
+  const emailTemplate = campaign.email_template_id || (
+    (campaign.email_html_content || campaign.email_subject)
+      ? {
+          subject: campaign.email_subject || campaign.campaign_name,
+          html_content: campaign.email_html_content || ''
+        }
+      : null
+  );
   const waTemplate = campaign.whatsapp_template_id;
   const channel = campaign.campaign_type || 'both';
   const backendBase = resolveBackendBaseUrl();
@@ -268,10 +283,14 @@ const enqueueCampaignDispatch = async (campaign, pendingIndices) => {
         }
 
         const unsubsUrl = `${backendBase}/api/marketing/unsubscribe?email=${encodeURIComponent(cleanEmail)}&c=${campaign._id}`;
+        const customFields = (recipient.custom_fields && typeof recipient.custom_fields === 'object')
+          ? recipient.custom_fields
+          : {};
         const vars = {
-          name: recipient.name || 'Solar Partner',
-          company: recipient.name || 'Solar Partner EPC',
-          company_name: recipient.name || 'Solar Partner EPC',
+          ...customFields,
+          name: recipient.name || customFields.name || 'Solar Partner',
+          company: customFields.company || customFields.company_name || recipient.name || 'Solar Partner EPC',
+          company_name: customFields.company_name || customFields.company || recipient.name || 'Solar Partner EPC',
           kit_name: campaign.kit_category || 'Solar Combo Kit',
           campaign_price: campaign.campaign_price ? `₹${Number(campaign.campaign_price).toLocaleString('en-IN')}` : '',
           price: campaign.campaign_price ? `₹${Number(campaign.campaign_price).toLocaleString('en-IN')}` : '',
@@ -428,15 +447,21 @@ const handleShortUrlClick = async (shortCode, req) => {
 
   const standaloneLink = await MarketingTrackingLink.findOne({ short_code: shortCode, is_active: true });
   if (standaloneLink) {
+    const targetUrl = standaloneLink.full_url || standaloneLink.base_url || 'https://solarkits.in';
+    const siteInfo = resolveWebsiteInfo({ landing_url: targetUrl });
     await UtmVisit.create({
       campaign_id: standaloneLink.campaign_id || null,
       short_code: shortCode,
+      website_key: siteInfo.website_key,
+      site_domain: siteInfo.site_domain,
+      site_url: siteInfo.site_url,
       utm_source: standaloneLink.utm_source,
       utm_medium: standaloneLink.utm_medium,
       utm_campaign: standaloneLink.utm_campaign,
       utm_content: standaloneLink.utm_content,
       utm_term: standaloneLink.utm_term,
-      landing_url: standaloneLink.full_url || standaloneLink.base_url || 'https://solarkits.in',
+      landing_url: normalizePagePath(targetUrl),
+      page_path: normalizePagePath(targetUrl),
       referrer: req.headers['referer'] || null,
       ip_address: req.ip || req.connection?.remoteAddress,
       user_agent: req.headers['user-agent'] || null

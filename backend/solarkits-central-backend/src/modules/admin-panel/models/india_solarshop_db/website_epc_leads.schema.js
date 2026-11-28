@@ -55,11 +55,31 @@ const schema = new mongoose.Schema({
   },
   state_name: {
     type: String,
-    required: true,
+    required: false,
+    default: '',
     trim: true,
     index: true,
   },
+  district_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null,
+  },
   district_name: {
+    type: String,
+    default: null,
+    trim: true,
+  },
+  cluster_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null,
+    index: true,
+  },
+  cluster_name: {
+    type: String,
+    default: null,
+    trim: true,
+  },
+  cluster_code: {
     type: String,
     default: null,
     trim: true,

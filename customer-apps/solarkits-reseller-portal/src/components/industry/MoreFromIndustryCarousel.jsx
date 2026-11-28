@@ -68,7 +68,7 @@ export default function MoreFromIndustryCarousel({
         className="flex items-stretch gap-4 overflow-x-auto pb-2 pt-1 scrollbar-thin"
       >
         {products.map((item, idx) => {
-          const thumb = item.thumbnail_url || item.primary_image || item.image || 'https://images.unsplash.com/photo-1509391365360-2e959784a276?q=80&w=400';
+          const thumb = item.thumbnail_url || item.primary_image || item.image || null;
           const price = item.b2b_price_inr || item.price_inr || item.mrp_inr;
           const targetUrl = role === 'DISTRIBUTOR'
             ? `/distributor/portal/procure`
@@ -81,13 +81,20 @@ export default function MoreFromIndustryCarousel({
               className="shrink-0 w-56 sm:w-64 bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-3 border border-slate-200 dark:border-slate-700/60 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all group flex flex-col justify-between"
             >
               <div className="space-y-2.5">
-                <div className="w-full aspect-[4/3] rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-900 relative">
-                  <img
-                    src={thumb}
-                    alt={item.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    loading="lazy"
-                  />
+                <div className="w-full aspect-[4/3] rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-900 relative flex items-center justify-center">
+                  {thumb ? (
+                    <img
+                      src={thumb}
+                      alt={item.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
+                      <FiPackage size={28} />
+                      <span className="text-[10px] font-bold mt-1 opacity-75">Solar Kit</span>
+                    </div>
+                  )}
                   {item.category && (
                     <span className="absolute top-2 left-2 px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-md text-white text-[9px] font-bold uppercase tracking-wider">
                       {item.category}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import axiosInstance from "@/utils/axiosInstance";
 import { useSelector, useDispatch } from "react-redux";
 import {
   FiZap,
@@ -63,8 +63,8 @@ export default function EpcPreferencesProfileTab() {
         setLoading(true);
 
         const [configRes, prefRes] = await Promise.all([
-          axios.get(`${API_URL}/india/v1/epc/preferences/config-options`, { withCredentials: true }),
-          axios.get(`${API_URL}/india/v1/epc/preferences/my-preferences?epc_id=${epcId}`, { withCredentials: true })
+          axiosInstance.get(`${API_URL}/india/v1/epc/preferences/config-options`, { withCredentials: true }),
+          axiosInstance.get(`${API_URL}/india/v1/epc/preferences/my-preferences?epc_id=${epcId}`, { withCredentials: true })
         ]);
 
         if (configRes.data?.status === "success" && Array.isArray(configRes.data.data?.industries)) {
@@ -164,7 +164,7 @@ export default function EpcPreferencesProfileTab() {
   const handleSavePreferences = async () => {
     try {
       setSaving(true);
-      const res = await axios.post(
+      const res = await axiosInstance.post(
         `${API_URL}/india/v1/epc/preferences/submit`,
         {
           epc_id: epcId,

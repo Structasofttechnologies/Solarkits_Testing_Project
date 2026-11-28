@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useDispatch } from 'react-redux';
 import { setAlert } from '@/features/alert.slice';
@@ -49,6 +50,7 @@ export const PRESET_CLUSTER_COLORS = [
 
 export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTracking }) {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   // Current Financial Year determination (Apr-Mar)
@@ -62,6 +64,9 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
   // Clusters list
   const [clusters, setClusters] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Warehouses list for warehouse-first validation
+  const [availableWarehouses, setAvailableWarehouses] = useState([]);
 
   // Filters
   const [selectedStateFilter, setSelectedStateFilter] = useState('');
@@ -120,13 +125,25 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
   // Audit History Modal
   const [auditModalCluster, setAuditModalCluster] = useState(null);
 
-  // Load States, Resellers, BDEs
+  // Load States, Resellers, BDEs, Warehouses
   useEffect(() => {
     fetchStates();
     fetchResellers();
     fetchBdes();
     fetchClusters();
+    fetchWarehouses();
   }, []);
+
+  const fetchWarehouses = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/solarshop/cluster-routing/available-warehouses`, authHeaderObj()).catch(() => null);
+      if (res?.data?.data && Array.isArray(res.data.data)) {
+        setAvailableWarehouses(res.data.data);
+      }
+    } catch (err) {
+      console.error('Error loading available warehouses:', err);
+    }
+  };
 
   const fetchStates = async () => {
     try {
@@ -266,6 +283,19 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
     return Math.max(0, fee + renewal + deposit + extras - waiver);
   }, [setupFee, renewalFee, securityDeposit, additionalCharges, waiverAmount]);
 
+  const selectedStateDoc = useMemo(() => {
+    return states.find(s => String(s._id || s.id) === String(selectedState));
+  }, [states, selectedState]);
+
+  const stateWarehouse = useMemo(() => {
+    if (!selectedState) return null;
+    const sName = (selectedStateDoc?.name || selectedStateDoc?.state_name || '').toLowerCase().trim();
+    return availableWarehouses.find(w => {
+      const wState = (w.state_name || w.state || '').toLowerCase().trim();
+      return (sName && wState === sName) || String(w.level_1) === String(selectedState);
+    });
+  }, [selectedState, selectedStateDoc, availableWarehouses]);
+
   // Open Create Modal
   const handleOpenCreateModal = () => {
     setEditingCluster(null);
@@ -371,6 +401,17 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
     }
     if (selectedDistricts.length === 0) {
       dispatch(setAlert({ title: 'Validation', message: 'Please select at least one District', type: 'error' }));
+      return;
+    }
+
+    if (!editingCluster && !stateWarehouse) {
+      dispatch(
+        setAlert({
+          title: 'Warehouse Required',
+          message: `A regional warehouse must be established for ${selectedStateDoc?.name || 'this state'} before creating clusters.`,
+          type: 'error',
+        })
+      );
       return;
     }
 
@@ -835,6 +876,39 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
                       </option>
                     ))}
                   </select>
+
+                  {/* Regional Warehouse Prerequisite Alert */}
+                  {selectedState && !editingCluster && !stateWarehouse && (
+                    <div className="mt-2.5 p-3.5 bg-amber-500/10 border-2 border-amber-500/40 rounded-xl space-y-2 animate-in fade-in duration-300">
+                      <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
+                        <FiAlertCircle className="text-amber-600 shrink-0" size={16} />
+                        <span>Regional Warehouse Required First</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        No regional warehouse exists for <strong>{selectedStateDoc?.name || selectedStateDoc?.state_name || 'this state'}</strong>. By company policy, a regional warehouse must be established before creating clusters in this territory.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/admin-panel/operations/company-warehouses/add')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold text-xs shadow-xs transition-colors"
+                      >
+                        + Create Regional Warehouse
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Regional Warehouse Verified Banner */}
+                  {selectedState && !editingCluster && stateWarehouse && (
+                    <div className="mt-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between text-xs text-emerald-800">
+                      <span className="flex items-center gap-1.5 font-bold">
+                        <FiCheck className="text-emerald-600" size={14} />
+                        Serviced by: {stateWarehouse.name || stateWarehouse.warehouse_name}
+                      </span>
+                      <span className="text-[10px] font-mono bg-white px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-700 font-bold">
+                        {stateWarehouse.warehouse_code}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1345,8 +1419,8 @@ export default function ClusterManagement({ onOpenMapWithDistrict, onOpenGoalTra
                 </Button>
                 <Button
                   type="submit"
-                  disabled={submitting}
-                  className="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold text-xs shadow-sm"
+                  disabled={submitting || (!editingCluster && selectedState && !stateWarehouse)}
+                  className="px-5 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold text-xs shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? 'Saving...' : editingCluster ? 'Update Cluster' : 'Create Cluster'}
                 </Button>

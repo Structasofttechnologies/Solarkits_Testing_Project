@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import axiosInstance from "../../utils/axiosInstance";
+import { getTelemetryContext, trackFormSubmission } from "../../utils/websiteTelemetry";
 import {
   FiArrowRight,
   FiMail,
@@ -118,17 +119,21 @@ export default function Footer({ footerConfig }) {
         pincode: formData.pincode.trim() || undefined,
         estimated_quantity: formData.pincode.trim() || "Bulk Order (5+ Kits)",
         project_type: "Bulk Solar Combo Kits",
+        source: "solar-store-bulk-banner",
+        website_key: "solar_store",
+        tracking: getTelemetryContext("store_bulk_banner"),
       };
 
       let res;
       try {
         res = await axiosInstance.post("/india/v1/website-leads/submit", payload);
-      } catch (axErr) {
+      } catch {
         // Fallback to direct absolute URL if axiosInstance fails
         res = await axios.post(`${apiBase}/india/v1/website-leads/submit`, payload);
       }
 
       if (res.data?.success) {
+        trackFormSubmission("store_bulk_banner");
         setSuccessData(res.data.data);
         setFormData({ name: "", phone: "", state_name: "", gstin: "", pincode: "" });
       } else {
@@ -301,7 +306,7 @@ export default function Footer({ footerConfig }) {
                       </div>
 
                       {/* Pincode or Quantity (Optional) */}
- 
+
                       {/* <div className="sm:col-span-2">
                         <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-1">
                           Pincode / Bulk Quantity (Optional)
@@ -315,7 +320,7 @@ export default function Footer({ footerConfig }) {
                           className="w-full rounded-xl border border-white/25 bg-white px-3.5 py-2.5 text-xs text-navy outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-accent"
                         />
                       </div> */}
- 
+
                     </div>
 
                     <div className="mt-3.5 flex items-center justify-between gap-3 pt-1 border-t border-white/10">

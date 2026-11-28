@@ -110,6 +110,7 @@ adminRouter.use('/datasheet-settings', require('./modules/admin-panel/routes/dat
 adminRouter.use('/pincode-delivery-costs', require('./modules/admin-panel/routes/pincode_delivery_costs.route'));
 adminRouter.use('/best-seller-configs', require('./modules/admin-panel/routes/best_seller_kits.route'));
 adminRouter.use('/govt-tender-configs', require('./modules/admin-panel/routes/govt_tender_kits.route'));
+
 adminRouter.use('/product-sku-prices', require('./modules/admin-panel/routes/product_sku_prices.route'));
 adminRouter.use('/price-requests', require('./modules/admin-panel/routes/price_requests.route'));
 adminRouter.use('/industry-types', require('./modules/admin-panel/routes/industry.types.route'));
@@ -233,6 +234,7 @@ adminRouter.use('/business-profiles', require('./modules/admin-panel/routes/busi
 adminRouter.use('/operations-dashboard', require('./modules/admin-panel/routes/operations.dashboard.route'));
 adminRouter.use('/store-dashboard', require('./modules/admin-panel/routes/store.dashboard.route'));
 adminRouter.use('/epc-analytics', require('./modules/admin-panel/routes/epc.analytics.route'));
+adminRouter.use('/main-dashboard', require('./modules/admin-panel/routes/main.dashboard.route'));
 adminRouter.use('/knowledge-center', require('./modules/solarshop-india/routes/v1.routes/knowledge_center.route'));
 
 // ─── Franchisee Cluster & Business Model Module ───
@@ -246,18 +248,27 @@ adminRouter.use('/registers', require('./modules/account-panel/routes/registers.
 
 // ─── SOLARKITS: Trial Kit Management Module ───
 adminRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
- 
+
 
 // ─── SOLARKITS: Email & WhatsApp Marketing & Campaign Automation Engine ───
-adminRouter.use('/marketing', require('./modules/admin-panel/marketing/routes/marketing.route'));
+const marketingRouter = require('./modules/admin-panel/marketing/routes/marketing.route');
+adminRouter.use('/marketing', marketingRouter);
+app.use('/api/admin/marketing', marketingRouter);
+adminRouter.use('/telemetry', require('./modules/admin-panel/marketing/routes/webTelemetry.route'));
 try {
   const { initScheduler } = require('./modules/admin-panel/marketing/services/scheduler.service');
   initScheduler();
 } catch (schedErr) {
   console.warn('⚠️ Marketing scheduler startup notice:', schedErr.message);
 }
- 
- 
+
+// ─── SOLARKITS: Central Email Management & Monitoring Engine ───
+const emailManagementRouter = require('./modules/admin-panel/email-management/routes/emailManagement.routes');
+adminRouter.use('/email-management', emailManagementRouter);
+app.use('/api/admin/email-management', emailManagementRouter);
+app.use('/api/email-management', emailManagementRouter);
+
+
 
 app.use('/admin-api', adminRouter);
 app.use('/api', adminRouter);
@@ -290,6 +301,7 @@ app.use('/warehouse-api', warehouseRouter);
 // 6. Account Panel routes
 const accountRouter = express.Router();
 accountRouter.use('/trial-kits', require('./modules/admin-panel/routes/trial_kits.admin.route'));
+accountRouter.use('/franchise-clusters', require('./modules/admin-panel/routes/franchisee.cluster.route'));
 accountRouter.use('/', require('./modules/account-panel/routes/root.route'));
 app.use('/account-api', accountRouter);
 

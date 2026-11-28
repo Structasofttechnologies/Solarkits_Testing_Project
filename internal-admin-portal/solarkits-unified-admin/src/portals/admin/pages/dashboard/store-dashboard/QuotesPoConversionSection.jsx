@@ -122,20 +122,24 @@ export default function QuotesPoConversionSection({ conversionData = {}, onSelec
         <div className="bg-surface rounded-2xl border border-border p-4 shadow-xs space-y-3">
           <h4 className="text-xs font-bold text-text uppercase tracking-wider">Conversion Ratio by Kit Type</h4>
           <div className="space-y-2.5 text-xs">
-            {byKitType.map((kt) => (
-              <div key={kt.kit} className="space-y-1">
-                <div className="flex justify-between font-medium">
-                  <span className="text-text">{kt.kit}</span>
-                  <span className="font-bold text-primary">{kt.conversion} ({kt.orders} orders)</span>
+            {byKitType && byKitType.length > 0 ? (
+              byKitType.map((kt) => (
+                <div key={kt.kit} className="space-y-1">
+                  <div className="flex justify-between font-medium">
+                    <span className="text-text">{kt.kit}</span>
+                    <span className="font-bold text-primary">{kt.conversion} ({kt.orders} orders)</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-surface-subtle overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full"
+                      style={{ width: kt.conversion }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full h-1.5 rounded-full bg-surface-subtle overflow-hidden">
-                  <div
-                    className="h-full bg-primary rounded-full"
-                    style={{ width: kt.conversion }}
-                  />
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="text-xs text-text-muted italic py-2">No kit conversions recorded</div>
+            )}
           </div>
         </div>
 
@@ -147,21 +151,25 @@ export default function QuotesPoConversionSection({ conversionData = {}, onSelec
           </div>
 
           <div className="space-y-2 text-xs">
-            {cohorts.map((c) => (
-              <div
-                key={c.cohort}
-                onClick={() => onSelectConversionRow && onSelectConversionRow(c)}
-                className="p-2.5 rounded-xl bg-surface-subtle border border-border flex items-center justify-between hover:border-primary/50 cursor-pointer transition-colors"
-              >
-                <div>
-                  <span className="font-bold text-text block">{c.cohort}</span>
-                  <span className="text-[11px] text-text-muted">
-                    {c.quotes} Quotes Generated · <b>{c.converted} Converted</b>
-                  </span>
+            {cohorts && cohorts.length > 0 ? (
+              cohorts.map((c) => (
+                <div
+                  key={c.cohort}
+                  onClick={() => onSelectConversionRow && onSelectConversionRow(c)}
+                  className="p-2.5 rounded-xl bg-surface-subtle border border-border flex items-center justify-between hover:border-primary/50 cursor-pointer transition-colors"
+                >
+                  <div>
+                    <span className="font-bold text-text block">{c.cohort}</span>
+                    <span className="text-[11px] text-text-muted">
+                      {c.quotes} Quotes Generated · <b>{c.converted} Converted</b>
+                    </span>
+                  </div>
+                  <span className="font-black text-primary text-sm">{c.ratio}</span>
                 </div>
-                <span className="font-black text-primary text-sm">{c.ratio}</span>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="text-xs text-text-muted italic py-2">No cohort data available</div>
+            )}
           </div>
         </div>
       </div>

@@ -13,6 +13,7 @@ const PincodeDeliveryCosts = lazy(() => import("./pincode-delivery-costs/Pincode
 const BestSellerConfiguration = lazy(() => import("./best-seller-configuration/BestSellerConfiguration"));
 const GovtTenderKits = lazy(() => import("./govt-tender-kits/GovtTenderKits"));
 const ProductDatasheets = lazy(() => import("./product-datasheets/ProductDatasheets"));
+const TrialKitFeedbackConfigPage = lazy(() => import("./TrialKitFeedbackConfigPage"));
 
 function ComboKitConfigurations() {
     return (
@@ -105,6 +106,16 @@ function ComboKitConfigurations() {
                         <ProductDatasheets moduleUniqueId="ADM_COMBO_KITS" />
                     </Suspense>
                 </PermissionGuard>
+            } />
+            <Route path="/feedback-settings" element={
+                <Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}>
+                    <TrialKitFeedbackConfigPage />
+                </Suspense>
+            } />
+            <Route path="/feedback-configuration" element={
+                <Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}>
+                    <TrialKitFeedbackConfigPage />
+                </Suspense>
             } />
         </Routes>
     )

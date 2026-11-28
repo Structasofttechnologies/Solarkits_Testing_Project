@@ -11,6 +11,7 @@ import {
 } from "react-icons/fi";
 import { INDIAN_STATES_DISTRICTS } from "../../data/territoryData";
 import api from "../../services/api";
+import { getTelemetryContext, trackFormSubmission } from "../../utils/websiteTelemetry";
 
 const FAQ_CATEGORIES = {
   "Complete SolarKits": [
@@ -115,10 +116,12 @@ export default function FaqContactSection({ onOpenLeadModal, faqConfig }) {
       action_type: "callback_request",
       notes: formData.message || "Requested priority partner consultation callback within 2 hours regarding state distribution or container pricing.",
       source: "consultation_desk",
+      tracking: getTelemetryContext("franchise_consultation"),
     };
 
     try {
       await api.post("/india/v1/reseller/leads/submit", payload);
+      trackFormSubmission("franchise_consultation");
     } catch (err) {
       console.warn("Backend lead submit note, trying fallback:", err);
       try {

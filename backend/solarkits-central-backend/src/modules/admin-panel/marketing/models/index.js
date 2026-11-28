@@ -7,5 +7,7 @@ module.exports = {
   MarketingUnsubscribe: require('./MarketingUnsubscribe.schema'),
   MarketingDeliveryLog: require('./MarketingDeliveryLog.schema'),
   MarketingSegment: require('./MarketingSegment.schema'),
+  MarketingSegmentContact: require('./MarketingSegmentContact.schema'),
+  MarketingAudienceSegment: require('./MarketingAudienceSegment.schema'),
   MarketingTrackingLink: require('./MarketingTrackingLink.schema')
 };

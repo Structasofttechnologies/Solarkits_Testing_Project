@@ -52,9 +52,12 @@ const schema = new mongoose.Schema(
     // Geographic Territory
     country_name: { type: String, default: 'India', trim: true },
     state_id: { type: mongoose.Schema.Types.ObjectId, default: null },
-    state_name: { type: String, required: true, trim: true, index: true },
+    state_name: { type: String, required: false, default: '', trim: true, index: true },
     district_id: { type: mongoose.Schema.Types.ObjectId, default: null },
-    district_name: { type: String, required: true, trim: true, index: true },
+    district_name: { type: String, required: false, default: '', trim: true, index: true },
+    cluster_id: { type: mongoose.Schema.Types.ObjectId, ref: 'franchisee_clusters', default: null, index: true },
+    cluster_name: { type: String, default: null, trim: true },
+    cluster_code: { type: String, default: null, trim: true, uppercase: true },
     pincode: { type: String, default: null, trim: true, maxlength: 10 },
     address_line: { type: String, default: null, trim: true },
 
@@ -75,9 +78,11 @@ const schema = new mongoose.Schema(
     },
     interested_products: [{ type: String, trim: true }], // e.g. 'Residential On-Grid', 'Commercial On-Grid', 'Solar Pump', 'Combo Kits', 'Off-Grid'
 
-    // EPC Classification Type (Government Contractor, Tender Bidder, New EPC, Experienced EPC)
+    // EPC Classification Type (Government Contractor, Tender Bidder, New EPC, Experienced EPC, Buyer EPC, Verified EPC, Registered EPC)
     epc_type: { type: String, default: 'New EPC', trim: true, index: true },
+    epc_type_code: { type: String, default: null, trim: true },
     epc_type_id: { type: mongoose.Schema.Types.ObjectId, ref: 'epc_types', default: null },
+    custom_attributes: { type: mongoose.Schema.Types.Mixed, default: {} },
 
     // Franchisee Attribution
     assigned_franchisee_id: {

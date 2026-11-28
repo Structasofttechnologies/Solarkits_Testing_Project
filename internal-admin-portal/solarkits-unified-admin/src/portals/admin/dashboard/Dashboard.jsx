@@ -10,9 +10,9 @@ import { PermissionGuard } from "../components/PermissionGuard";
 import { selectAllowedUniqueIds } from "../features/modules.slice";
 
 
- 
+
 import { FaHome, FaIndustry, FaRulerCombined, FaUserPlus, FaUserShield, FaUserTie, FaUsers, FaUsersCog, FaGlobe, FaCoins, FaStore, FaFileContract, FaUserCheck, FaBriefcase, FaChartLine, FaGraduationCap, FaBook, FaExchangeAlt, FaReceipt, FaFileInvoiceDollar, FaBalanceScale, FaClipboardCheck, FaMoneyBillWave, FaWarehouse, FaBoxes, FaTruck, FaBullhorn, FaEnvelope, FaWhatsapp, FaCreditCard } from "react-icons/fa";
- 
+
 
 import {
   MdAccountTree,
@@ -61,12 +61,25 @@ const InvoiceValidationModule = lazy(() => import("../../accounts/pages/complian
 const ExpenseManagementModule = lazy(() => import("../../accounts/pages/expenses/ExpenseManagementModule"));
 const WarehouseFinanceModule = lazy(() => import("../../accounts/pages/warehouse-finance/WarehouseFinanceModule"));
 const ExecutiveFinanceDashboard = lazy(() => import("../../accounts/pages/executive/ExecutiveFinanceDashboard"));
+
+/* ===================== Delivery & Logistics Management Pages ===================== */
+const DeliveryDashboard = lazy(() => import("../pages/solar-shop/delivery-management/DeliveryDashboard"));
+const DeliveryQueue = lazy(() => import("../pages/solar-shop/delivery-management/DeliveryQueue"));
+const DeliveryTracking = lazy(() => import("../pages/solar-shop/delivery-management/DeliveryTracking"));
+const RouteConsolidationSettings = lazy(() => import("../pages/solar-shop/delivery-management/RouteConsolidationSettings"));
+const VehicleMaster = lazy(() => import("../pages/solar-shop/delivery-management/VehicleMaster"));
+const TransportVendors = lazy(() => import("../pages/solar-shop/delivery-management/TransportVendors"));
+const PhysicalVehicles = lazy(() => import("../pages/solar-shop/delivery-management/PhysicalVehicles"));
+const ComboKitWeightMaster = lazy(() => import("../pages/solar-shop/delivery-management/ComboKitWeightMaster"));
+const DeliveryCostSettings = lazy(() => import("../pages/solar-shop/delivery-management/DeliveryCostSettings"));
+const DeliveryApprovalQueue = lazy(() => import("../pages/solar-shop/delivery-management/DeliveryApprovalQueue"));
 const AccountsModuleHub = lazy(() => import("../pages/accounting/AccountsModuleHub"));
 const InvoiceDoSettings = lazy(() => import("../pages/solar-shop/order-management-settings/InvoiceDoSettings"));
 const TrialKitInventoryPage = lazy(() => import("../pages/trial-kits/TrialKitInventoryPage"));
 const TrialKitOrdersPage = lazy(() => import("../pages/trial-kits/TrialKitOrdersPage"));
 const TrialKitAnalyticsPage = lazy(() => import("../pages/trial-kits/TrialKitAnalyticsPage"));
 const TrialKitProcurementPage = lazy(() => import("../pages/trial-kits/TrialKitProcurementPage"));
+const TrialKitFeedbackConfigPage = lazy(() => import("../pages/solar-shop/combokit-configurations/TrialKitFeedbackConfigPage"));
 
 /* ===================== Marketing Management Module Pages ===================== */
 const MarketingDashboard = lazy(() => import("../pages/marketing/MarketingDashboard"));
@@ -77,19 +90,18 @@ const WhatsAppSettingsPage = lazy(() => import("../pages/marketing/WhatsAppSetti
 const WebsiteFormMappingPage = lazy(() => import("../pages/marketing/WebsiteFormMappingPage"));
 const UtmTrackingPage = lazy(() => import("../pages/marketing/UtmTrackingPage"));
 const MarketingReportsPage = lazy(() => import("../pages/marketing/MarketingReportsPage"));
+// Lazy import OrderJourneyDashboard from solar-shop pages
+const OrderJourneyDashboard = lazy(() => import("../pages/solar-shop/order-management-settings/OrderJourneyDashboard"));
 
+/* ===================== Email Management & Monitoring Module ===================== */
+const EmailManagementHub = lazy(() => import("../pages/email-management/EmailManagementHub"));
 
 /* ===================== MENU CONFIG ===================== */
 
 const menus = [
   [
     { name: "Dashboard", icon: <FaHome />, path: "/admin-panel/home", unique_id: "00000000" },
-    {
-      name: "Invoice & DO Settings",
-      icon: <FaReceipt />,
-      path: "/admin-panel/invoice-do-settings",
-      unique_id: "00000000",
-    },
+ 
     {
       name: "Accounts Module",
       icon: <FaFileInvoiceDollar />,
@@ -119,7 +131,7 @@ const menus = [
     {
       name: "Delivery & Logistics Dashboard",
       icon: <FaTruck />,
-      path: "/admin-panel/solar-shop/delivery-management/dashboard",
+      path: "/admin-panel/delivery-management/dashboard",
       unique_id: "00000000"
     },
     { name: "Vision Dashboard", icon: <MdVisibility />, path: "/admin-panel/vision-dashboard", unique_id: "00000000" },
@@ -129,11 +141,29 @@ const menus = [
     { name: "Store Dashboard", icon: <FaStore />, path: "/admin-panel/store-dashboard", unique_id: "00000000" },
     { name: "EPC Analytics", icon: <FaChartLine />, path: "/admin-panel/epc-analytics", unique_id: "00000000" },
     {
-      name: "Marketing Overview",
-      icon: <FaBullhorn />,
-      path: "/marketing-panel/dashboard",
+      name: "Email Management",
+      icon: <FaEnvelope />,
+      path: "/admin-panel/email-management",
+      unique_id: "00000000",
+    },
+    {
+      name: "BDE Dashboard",
+      icon: <FaHome />,
+      path: "/admin-panel/bde-management/dashboard",
+      unique_id: "ADM_BDE_MGMT",
+    },
+    {
+      name: "Order Journey Dashboard",
+      icon: <FiBarChart2 />,
+      path: "/admin-panel/order-journey-dashboard",
       unique_id: "00000000"
     },
+    // {
+    //   name: "Marketing Overview",
+    //   icon: <FaBullhorn />,
+    //   path: "/marketing-panel/dashboard",
+    //   unique_id: "00000000"
+    // },
     // {
     //   name: "Trial Kit Management",
     //   icon: <FaBoxes />,
@@ -174,12 +204,7 @@ const menus = [
       path: "/admin-panel/bde-management",
       unique_id: "ADM_BDE_MGMT",
       subMenu: [
-        {
-          name: "BDE Dashboard",
-          icon: <FaHome />,
-          path: "/admin-panel/bde-management/dashboard",
-          unique_id: "ADM_BDE_MGMT",
-        },
+
         {
           name: "All BDEs",
           icon: <FaUsers />,
@@ -283,6 +308,12 @@ const menus = [
           ],
         },
         {
+          name: "Invoice & DO Settings",
+          icon: <FaReceipt />,
+          path: "/admin-panel/invoice-do-settings",
+          unique_id: "00000000",
+        },
+        {
           name: "HR Settings",
           icon: <MdManageAccounts />,
           path: "/admin-panel/settings/hr-settings",
@@ -327,12 +358,12 @@ const menus = [
           path: "/admin-panel/settings/epc-types",
           unique_id: "00000000"
         },
-        {
-          name: "Invoice & DO Settings",
-          icon: <FaReceipt />,
-          path: "/admin-panel/accounts-module?tab=invoice-do",
-          unique_id: "00000000"
-        },
+        // {
+        //   name: "Invoice & DO Settings",
+        //   icon: <FaReceipt />,
+        //   path: "/admin-panel/accounts-module?tab=invoice-do",
+        //   unique_id: "00000000"
+        // },
         {
           name: "Franchise Business Profiles",
           icon: <FaBriefcase />,
@@ -702,6 +733,118 @@ export default function Dashboard() {
                     }
                   />
 
+                  {/* Delivery & Logistics Management Routes */}
+                  <Route
+                    path="/delivery-management"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Delivery & Logistics Dashboard..." />}>
+                          <DeliveryDashboard />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/delivery-management/dashboard"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Delivery & Logistics Dashboard..." />}>
+                          <DeliveryDashboard />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/delivery-management/queue"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Delivery Queue..." />}>
+                          <DeliveryQueue />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/delivery-management/tracking"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Delivery Tracking..." />}>
+                          <DeliveryTracking />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/delivery-management/fleet"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Fleet Vehicles..." />}>
+                          <PhysicalVehicles />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/delivery-management/providers"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Transport Providers..." />}>
+                          <TransportVendors />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/delivery-management/vehicle-master"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Vehicle Master..." />}>
+                          <VehicleMaster />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/delivery-management/kit-weights"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Kit Weights Master..." />}>
+                          <ComboKitWeightMaster />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/delivery-management/cost-settings"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Delivery Cost Settings..." />}>
+                          <DeliveryCostSettings />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/delivery-management/routes"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Delivery Routes..." />}>
+                          <RouteConsolidationSettings />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/delivery-management/approval-queue"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Delivery Approvals..." />}>
+                          <DeliveryApprovalQueue />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+
                   <Route
                     path="/vision-dashboard"
                     element={
@@ -898,6 +1041,33 @@ export default function Dashboard() {
                       </Suspense>
                     }
                   />
+                  <Route
+                    path="/trial-kits/feedback-settings"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}>
+                        <TrialKitFeedbackConfigPage />
+                      </Suspense>
+                    }
+                  />
+
+                  <Route
+                    path="/order-journey-dashboard"
+                    element={
+                      <PermissionGuard requiredUniqueId="00000000">
+                        <Suspense fallback={<Loader text="Loading Order Journey Dashboard..." />}>
+                          <OrderJourneyDashboard />
+                        </Suspense>
+                      </PermissionGuard>
+                    }
+                  />
+                  <Route
+                    path="/solar-shop/combokit-configurations/feedback-settings"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Feedback Configuration Settings..." />}>
+                        <TrialKitFeedbackConfigPage />
+                      </Suspense>
+                    }
+                  />
                   <Route path="/trial-kits" element={<Navigate to="/admin-panel/trial-kits/inventory" replace />} />
 
                   {/* Marketing Management Module Routes */}
@@ -910,6 +1080,24 @@ export default function Dashboard() {
                   <Route path="/marketing/form-mapping" element={<Suspense fallback={<Loader text="Loading Form Mappings..." />}><WebsiteFormMappingPage /></Suspense>} />
                   <Route path="/marketing/utm-tracking" element={<Suspense fallback={<Loader text="Loading UTM Tracking..." />}><UtmTrackingPage /></Suspense>} />
                   <Route path="/marketing/reports" element={<Suspense fallback={<Loader text="Loading Marketing Reports..." />}><MarketingReportsPage /></Suspense>} />
+
+                  {/* Email Management & Monitoring Module Routes */}
+                  <Route
+                    path="/email-management/*"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Email Management..." />}>
+                        <EmailManagementHub />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/email-management"
+                    element={
+                      <Suspense fallback={<Loader text="Loading Email Management..." />}>
+                        <EmailManagementHub />
+                      </Suspense>
+                    }
+                  />
 
                   <Route
                     path="/profile"

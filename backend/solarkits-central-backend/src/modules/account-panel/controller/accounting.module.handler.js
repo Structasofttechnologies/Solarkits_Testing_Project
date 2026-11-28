@@ -98,41 +98,15 @@ async function generateNextVoucherNumber(type = 'Journal') {
 }
 
 /**
- * 1. SEED DEFAULT HEADS
+ * 1. SEED DEFAULT HEADS (Disabled - dummy seeds purged)
  * POST /accounts/accounting/heads/seed
  */
 exports.seed_default_heads = async (req, res) => {
-  try {
-    const existingCount = await AccountingHead.countDocuments();
-    if (existingCount > 0) {
-      return res.status(200).json({
-        status: 'success',
-        message: `Chart of Accounts already initialized (${existingCount} heads exist).`,
-        count: existingCount
-      });
-    }
-
-    let codeIndex = 1001;
-    const records = DEFAULT_ACCOUNTING_HEADS.map(h => ({
-      ...h,
-      head_code: `AH-${codeIndex++}`,
-      is_system_head: true,
-      is_active: true,
-      financial_year: '2026-2027',
-      opening_balance: { amount: 0, type: h.ledger_type === 'Income' || h.ledger_type === 'Liability' || h.ledger_type === 'Equity' ? 'Cr' : 'Dr' },
-      current_balance: { amount: 0, type: h.ledger_type === 'Income' || h.ledger_type === 'Liability' || h.ledger_type === 'Equity' ? 'Cr' : 'Dr' }
-    }));
-
-    await AccountingHead.insertMany(records);
-    return res.status(201).json({
-      status: 'success',
-      message: `Successfully seeded ${records.length} standard accounting heads into Chart of Accounts.`,
-      count: records.length
-    });
-  } catch (error) {
-    console.error('seed_default_heads error:', error);
-    return res.status(500).json({ status: 'error', message: error.message });
-  }
+  return res.status(200).json({
+    status: 'success',
+    message: 'Static dummy head seeding is disabled. Please create dynamic accounting heads via the New Accounting Head modal.',
+    count: 0
+  });
 };
 
 /**
@@ -160,23 +134,6 @@ exports.list_accounting_heads = async (req, res) => {
 
     let heads = await AccountingHead.find(filter).sort({ head_code: 1 });
 
-    // If database has 0 heads, auto-seed defaults so user sees full populated data immediately!
-    if (heads.length === 0 && Object.keys(filter).length === 0) {
-      const existingTotal = await AccountingHead.countDocuments();
-      if (existingTotal === 0) {
-        let codeIndex = 1001;
-        const records = DEFAULT_ACCOUNTING_HEADS.map(h => ({
-          ...h,
-          head_code: `AH-${codeIndex++}`,
-          is_system_head: true,
-          is_active: true,
-          financial_year: '2026-2027',
-          opening_balance: { amount: 0, type: h.ledger_type === 'Income' || h.ledger_type === 'Liability' || h.ledger_type === 'Equity' ? 'Cr' : 'Dr' },
-          current_balance: { amount: 0, type: h.ledger_type === 'Income' || h.ledger_type === 'Liability' || h.ledger_type === 'Equity' ? 'Cr' : 'Dr' }
-        }));
-        heads = await AccountingHead.insertMany(records);
-      }
-    }
 
     // Category summary statistics
     const stats = {

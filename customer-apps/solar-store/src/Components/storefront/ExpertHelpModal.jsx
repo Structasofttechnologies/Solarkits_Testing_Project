@@ -12,6 +12,8 @@ import {
   FiZap
 } from "react-icons/fi";
 import { setAlert } from "@/features/alert.slice";
+import axiosInstance from "@/utils/axiosInstance";
+import { getTelemetryContext, trackFormSubmission } from "@/utils/websiteTelemetry";
 import Button from "../Button";
 import IconButton from "../IconButton";
 
@@ -36,20 +38,37 @@ export default function ExpertHelpModal({ isOpen, onClose, preselectedKit = null
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.phone.trim()) {
-      dispatch(setAlert({ type: "error", message: "Please provide your name and contact phone number." }));
+    const cleanPhone = formData.phone.replace(/\D/g, "");
+    if (!formData.name.trim() || cleanPhone.length < 10) {
+      dispatch(setAlert({ type: "error", message: "Please provide your name and a valid 10-digit mobile number." }));
       return;
     }
 
     setLoading(true);
-    // Simulate submission
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        phone: cleanPhone.slice(-10),
+        email: formData.email.trim() || undefined,
+        state_name: selectedState?.name || "All India",
+        district_name: selectedDistrict?.name || undefined,
+        pincode: formData.pincode.trim() || undefined,
+        estimated_quantity: formData.requiredCapacity || "3 kW",
+        project_type: formData.propertyType || "Residential Rooftop",
+        query_message: formData.notes.trim() || undefined,
+        source: "solar-store-expert-help",
+        website_key: "solar_store",
+        tracking: getTelemetryContext("store_expert_help"),
+      };
+      await axiosInstance.post("/india/v1/website-leads/submit", payload).catch(() => { });
+      trackFormSubmission("store_expert_help");
       setSubmitted(true);
       dispatch(setAlert({ type: "success", message: "Your solar consultation request has been submitted. A solar specialist will call you shortly!" }));
-    }, 800);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -60,7 +79,7 @@ export default function ExpertHelpModal({ isOpen, onClose, preselectedKit = null
       />
 
       <div className="relative bg-surface rounded-3xl border border-border shadow-2xl w-full max-w-lg overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200">
-        
+
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-slate-50 dark:bg-slate-900/50">
           <div className="flex items-center gap-2">

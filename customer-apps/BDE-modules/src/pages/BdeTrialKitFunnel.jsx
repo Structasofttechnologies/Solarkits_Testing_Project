@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import {
   Package,
+  Plus,
   CheckCircle2,
   Clock,
   AlertCircle,
@@ -164,16 +165,26 @@ export default function BdeTrialKitFunnel() {
           </p>
         </div>
 
-        {/* Search */}
-        <div className="relative w-full md:w-72">
-          <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search EPC, Company, GSTIN..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white shadow-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
-          />
+        {/* Search & Actions */}
+        <div className="flex items-center gap-2.5 w-full md:w-auto">
+          <div className="relative w-full md:w-64">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search EPC, Company, GSTIN..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white shadow-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            />
+          </div>
+
+          <Link
+            to="/trial-kit-quotes/create"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-sm transition whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" />
+            Create Trial Quote
+          </Link>
         </div>
       </div>
 
@@ -537,7 +548,7 @@ export default function BdeTrialKitFunnel() {
                   <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
                     <button
                       type="button"
-                      onClick={() => navigate(`/epc-quotes/create?epc_id=${activeLead.epc_id?._id || activeLead.epc_id}&quote_type=trial_kit&combo_kit_id=${activeLead.combo_kit_id || ''}`)}
+                      onClick={() => navigate(`/trial-kit-quotes/create?epc_id=${activeLead.epc_id?._id || activeLead.epc_id}&combo_kit_id=${activeLead.combo_kit_id || ''}`)}
                       className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-bold text-xs flex items-center gap-1 shadow-2xs"
                     >
                       <Package className="w-3.5 h-3.5 text-purple-600" />

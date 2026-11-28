@@ -52,7 +52,9 @@ const {
   FranchiseeAlert,
   EpcSignupRequest,
   TrialKitOrder,
+  FranchiseeCluster,
 } = require('../../admin-panel/models/india_solarshop_db');
+const { buildGeoAndClusterResolver } = require('../../admin-panel/marketing/services/segmentGeo.service');
 const {
   createPoDraft,
   submitPo,
@@ -1144,8 +1146,13 @@ exports.bulk_create_epc_leads = async (req, res) => {
     // Fallback defaults from territory if not provided in default_settings
     const defaultState = default_settings.state_name || activeTerritories?.[0]?.state_name || '';
     const defaultDistrict = default_settings.district_name || activeTerritories?.[0]?.district_names?.[0] || '';
+    const defaultCluster = default_settings.cluster_name || '';
     const defaultSource = default_settings.lead_source || 'direct_visit';
-    const resolvedBulkType = await _resolveActiveEpcType(default_settings.epc_type, default_settings.epc_type_id);
+    const rawDefaultType = String(default_settings.epc_type || '').trim();
+    const isAutoCategoryMode = !rawDefaultType || rawDefaultType.toLowerCase() === 'auto';
+    const resolvedBulkType = !isAutoCategoryMode
+      ? await _resolveActiveEpcType(rawDefaultType, default_settings.epc_type_id)
+      : { name: null, id: null };
     const defaultEpcType = resolvedBulkType.name;
     const defaultEpcTypeId = resolvedBulkType.id;
     const defaultProducts = Array.isArray(default_settings.interested_products) && default_settings.interested_products.length > 0
@@ -1154,13 +1161,20 @@ exports.bulk_create_epc_leads = async (req, res) => {
     const defaultFollowUp = default_settings.follow_up_date ? new Date(default_settings.follow_up_date) : null;
     const defaultRemarks = default_settings.remarks ? String(default_settings.remarks).trim() : null;
 
-    // 2. Pre-extract identifiers to query existing DB duplicates in one batch
+    const requiredFieldsArr = Array.isArray(default_settings.required_fields) && default_settings.required_fields.length > 0
+      ? default_settings.required_fields
+      : ['company_name', 'mobile_number', 'state_name', 'district_name'];
+    const requiredSet = new Set(requiredFieldsArr);
+
+    const geoResolver = await buildGeoAndClusterResolver().catch(() => null);
+
+    // 2. Pre-extract identifiers to query existing DB duplicates & EPC categories in one batch
     const candidateMobiles = [];
     const candidateEmails = [];
     const candidateGsts = [];
 
     leads.forEach((l) => {
-      const m = String(l.mobile_number || '').trim().replace(/\D/g, '');
+      const m = String(l.mobile_number || '').trim().replace(/\D/g, '').slice(-10);
       if (/^[6-9]\d{9}$/.test(m)) candidateMobiles.push(m);
 
       const e = String(l.email || '').trim().toLowerCase();
@@ -1169,6 +1183,11 @@ exports.bulk_create_epc_leads = async (req, res) => {
       const g = l.gst_number ? String(l.gst_number).trim().toUpperCase() : null;
       if (g && /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(g)) candidateGsts.push(g);
     });
+
+    const acctOrConds = [];
+    if (candidateGsts.length) acctOrConds.push({ gstin: { $in: candidateGsts } });
+    if (candidateEmails.length) acctOrConds.push({ email: { $in: candidateEmails } });
+    if (candidateMobiles.length) acctOrConds.push({ whatsapp: { $in: candidateMobiles } }, { registered_whatsapp: { $in: candidateMobiles } });
 
     const [existingLeads, existingAccounts] = await Promise.all([
       EPCLead.find({
@@ -1181,8 +1200,10 @@ exports.bulk_create_epc_leads = async (req, res) => {
       })
         .select('mobile_number email gst_number company_name lead_id')
         .lean(),
-      candidateGsts.length
-        ? EpcAccount.find({ deleted_at: null, gstin: { $in: candidateGsts } }).select('gstin company_name').lean()
+      acctOrConds.length
+        ? EpcAccount.find({ deleted_at: null, $or: acctOrConds })
+            .select('_id gstin email whatsapp registered_whatsapp status gst_verification_status company_name')
+            .lean()
         : [],
     ]);
 
@@ -1197,9 +1218,68 @@ exports.bulk_create_epc_leads = async (req, res) => {
     });
 
     const existingAccountGstMap = new Map();
+    const acctByEmail = new Map();
+    const acctByPhone = new Map();
+    const acctByGst = new Map();
+    const acctIds = [];
+
     existingAccounts.forEach((ea) => {
-      if (ea.gstin) existingAccountGstMap.set(ea.gstin.toUpperCase(), ea);
+      acctIds.push(ea._id);
+      if (ea.gstin) {
+        existingAccountGstMap.set(ea.gstin.toUpperCase(), ea);
+        acctByGst.set(ea.gstin.toUpperCase(), ea);
+      }
+      if (ea.email) acctByEmail.set(String(ea.email).toLowerCase(), ea);
+      if (ea.whatsapp) {
+        const ph = String(ea.whatsapp).replace(/\D/g, '').slice(-10);
+        if (ph.length === 10) acctByPhone.set(ph, ea);
+      }
+      if (ea.registered_whatsapp) {
+        const ph = String(ea.registered_whatsapp).replace(/\D/g, '').slice(-10);
+        if (ph.length === 10 && !acctByPhone.has(ph)) acctByPhone.set(ph, ea);
+      }
     });
+
+    // Fetch EpcOrders for matched accounts to identify Buyers
+    const buyerAccountIds = new Set();
+    if (acctIds.length > 0) {
+      const buyerOrders = await EpcOrder.find({ epc_id: { $in: acctIds }, deleted_at: null })
+        .select('epc_id')
+        .lean();
+      for (const ord of buyerOrders) {
+        if (ord.epc_id) buyerAccountIds.add(String(ord.epc_id));
+      }
+    }
+
+    // Fetch/upsert live EpcType docs for Buyer / Verified / Registered
+    const CATEGORY_DEFAULTS = {
+      buyer:          { name: 'Buyer EPC',      badge_color: 'emerald', display_order: 1, is_active: true },
+      verified_epc:   { name: 'Verified EPC',   badge_color: 'blue',    display_order: 2, is_active: true },
+      registered_epc: { name: 'Registered EPC', badge_color: 'amber',   display_order: 3, is_active: true },
+    };
+    const epcTypeDocs = {};
+    for (const code of ['buyer', 'verified_epc', 'registered_epc']) {
+      epcTypeDocs[code] = await EpcType.findOneAndUpdate(
+        { code, deleted_at: null },
+        { $setOnInsert: { code, ...CATEGORY_DEFAULTS[code] } },
+        { upsert: true, new: true, lean: true }
+      );
+    }
+
+    const resolveEpcCategory = (email, phone, gst) => {
+      const acct = (email ? acctByEmail.get(email) : null)
+        || (phone ? acctByPhone.get(phone) : null)
+        || (gst ? acctByGst.get(gst) : null);
+      if (!acct) return epcTypeDocs['registered_epc'];
+      const isBuyer = buyerAccountIds.has(String(acct._id));
+      const hasGstin = Boolean((acct.gstin && String(acct.gstin).trim()) || gst);
+      const isVerified = hasGstin
+        && acct.status === 'approved'
+        && ['verified_automatic', 'verified_admin'].includes(acct.gst_verification_status);
+      if (isBuyer) return epcTypeDocs['buyer'];
+      if (isVerified) return epcTypeDocs['verified_epc'];
+      return epcTypeDocs['registered_epc'];
+    };
 
     // 3. Sequential Lead ID generator setup
     const currentYear = new Date().getFullYear();
@@ -1228,23 +1308,59 @@ exports.bulk_create_epc_leads = async (req, res) => {
 
     const validDocs = [];
     const skipped = [];
+    const clusterSummary = {};
+    const stateSummary = {};
 
     for (let i = 0; i < leads.length; i++) {
       const raw = leads[i] || {};
       const rowNum = i + 1;
 
-      const company_name = String(raw.company_name || '').trim();
+      const company_name = String(raw.company_name || raw.name || '').trim();
       const contact_person = String(raw.contact_person || company_name || '').trim();
-      const cleanMobile = String(raw.mobile_number || '').trim().replace(/\D/g, '');
+      const cleanMobile = String(raw.mobile_number || '').trim().replace(/\D/g, '').slice(-10);
       const cleanEmail = String(raw.email || '').trim().toLowerCase();
-      const state_name = String(raw.state_name || defaultState || '').trim();
-      const district_name = String(raw.district_name || defaultDistrict || '').trim();
+      const rawStateName = String(raw.state_name || defaultState || '').trim();
+      const rawDistrictName = String(raw.district_name || defaultDistrict || '').trim();
+      const rawClusterName = String(raw.cluster_name || defaultCluster || '').trim();
+
+      const resolvedGeo = geoResolver
+        ? geoResolver.resolve({
+            stateName: rawStateName,
+            districtName: rawDistrictName,
+            clusterName: rawClusterName,
+          })
+        : null;
+
+      const state_name = resolvedGeo?.state || rawStateName;
+      const district_name = resolvedGeo?.district || rawDistrictName;
+      const cluster_id = raw.cluster_id || resolvedGeo?.cluster_id || null;
+      const cluster_name = raw.cluster_name || resolvedGeo?.cluster_name || rawClusterName || null;
+      const cluster_code = raw.cluster_code || resolvedGeo?.cluster_code || null;
+      const state_id = resolvedGeo?.state_id || null;
+      const district_id = resolvedGeo?.district_id || null;
+
       const cleanGst = raw.gst_number ? String(raw.gst_number).trim().toUpperCase() : null;
       const cleanPincode = raw.pincode ? String(raw.pincode).trim().replace(/\D/g, '') : null;
       const address_line = raw.address_line ? String(raw.address_line).trim() : null;
       const lead_source = raw.lead_source || defaultSource;
-      const epc_type = raw.epc_type ? String(raw.epc_type).trim() : defaultEpcType;
-      const epc_type_id = raw.epc_type_id || defaultEpcTypeId;
+
+      // Auto-resolve EPC Category (Buyer > Verified > Registered) unless explicitly overridden
+      const csvEpcType = raw.epc_type ? String(raw.epc_type).trim() : null;
+      const autoCat = resolveEpcCategory(cleanEmail, cleanMobile, cleanGst);
+      const epc_type = csvEpcType || (!isAutoCategoryMode && defaultEpcType) || (autoCat ? autoCat.name : 'Registered EPC');
+      const epc_type_code = (!csvEpcType && (isAutoCategoryMode || !defaultEpcType) && autoCat) ? autoCat.code : null;
+      const epc_type_id = raw.epc_type_id
+        || (!csvEpcType && !isAutoCategoryMode ? defaultEpcTypeId : null)
+        || (autoCat ? autoCat._id : null);
+
+      const cleanCustomAttrs = {};
+      if (raw.custom_attributes && typeof raw.custom_attributes === 'object' && !Array.isArray(raw.custom_attributes)) {
+        for (const [ck, cv] of Object.entries(raw.custom_attributes)) {
+          const safeCk = String(ck || '').trim().replace(/[.$]/g, '_').replace(/^_+/, '');
+          const safeCv = cv !== undefined && cv !== null ? String(cv).trim() : '';
+          if (safeCk && safeCv) cleanCustomAttrs[safeCk] = safeCv;
+        }
+      }
 
       let interested_products = defaultProducts;
       if (Array.isArray(raw.interested_products) && raw.interested_products.length > 0) {
@@ -1256,29 +1372,41 @@ exports.bulk_create_epc_leads = async (req, res) => {
       const follow_up_date = raw.follow_up_date ? new Date(raw.follow_up_date) : defaultFollowUp;
       const remarks = raw.remarks ? String(raw.remarks).trim() : defaultRemarks;
 
-      // Validation
-      if (!company_name) {
+      // Dynamic Required & Format Validation
+      if (requiredSet.has('company_name') && !company_name) {
         skipped.push({ row: rowNum, company_name: 'Unnamed', mobile_number: cleanMobile, reason: 'Company Name is required' });
         continue;
       }
-      if (!contact_person) {
-        skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: 'Contact Person is required' });
+      if (requiredSet.has('contact_person') && !contact_person) {
+        skipped.push({ row: rowNum, company_name: company_name || 'Unnamed', mobile_number: cleanMobile, reason: 'Contact Person is required' });
         continue;
       }
-      if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
-        skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile || 'Empty', reason: 'Invalid Indian 10-digit mobile number' });
+      if ((requiredSet.has('mobile_number') || cleanMobile) && !/^[6-9]\d{9}$/.test(cleanMobile)) {
+        skipped.push({ row: rowNum, company_name: company_name || 'Unnamed', mobile_number: cleanMobile || 'Empty', reason: 'Invalid Indian 10-digit mobile number' });
+        continue;
+      }
+      if (requiredSet.has('email') && !cleanEmail) {
+        skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: 'Email Address is required' });
         continue;
       }
       if (cleanEmail && !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
         skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: 'Invalid email address format' });
         continue;
       }
-      if (!state_name || !district_name) {
-        skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: 'State and District are required' });
+      if (requiredSet.has('state_name') && !state_name) {
+        skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: 'State is required' });
         continue;
       }
-      if (allowedStates.length > 0 && !allowedStates.includes(state_name.toLowerCase())) {
+      if (requiredSet.has('district_name') && !district_name) {
+        skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: 'District is required' });
+        continue;
+      }
+      if (state_name && allowedStates.length > 0 && !allowedStates.includes(state_name.toLowerCase())) {
         skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: `State "${state_name}" is outside BDE territory` });
+        continue;
+      }
+      if (requiredSet.has('gst_number') && !cleanGst) {
+        skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: 'GSTIN is required' });
         continue;
       }
       if (cleanGst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(cleanGst)) {
@@ -1291,7 +1419,7 @@ exports.bulk_create_epc_leads = async (req, res) => {
       }
 
       // Check within uploaded batch duplicates
-      if (seenBatchMobiles.has(cleanMobile)) {
+      if (cleanMobile && seenBatchMobiles.has(cleanMobile)) {
         skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: 'Duplicate mobile number in this batch' });
         continue;
       }
@@ -1305,7 +1433,7 @@ exports.bulk_create_epc_leads = async (req, res) => {
       }
 
       // Check database duplicates
-      if (existingMobileMap.has(cleanMobile)) {
+      if (cleanMobile && existingMobileMap.has(cleanMobile)) {
         const dup = existingMobileMap.get(cleanMobile);
         skipped.push({ row: rowNum, company_name, mobile_number: cleanMobile, reason: `Mobile already exists (${dup.lead_id} - ${dup.company_name})` });
         continue;
@@ -1325,7 +1453,7 @@ exports.bulk_create_epc_leads = async (req, res) => {
         continue;
       }
 
-      seenBatchMobiles.add(cleanMobile);
+      if (cleanMobile) seenBatchMobiles.add(cleanMobile);
       if (cleanEmail) seenBatchEmails.add(cleanEmail);
       if (cleanGst) seenBatchGsts.add(cleanGst);
 
@@ -1333,22 +1461,32 @@ exports.bulk_create_epc_leads = async (req, res) => {
       const generatedLeadId = `${prefix}${String(nextNum).padStart(4, '0')}`;
       nextNum++;
 
+      if (state_name) stateSummary[state_name] = (stateSummary[state_name] || 0) + 1;
+      if (cluster_name) clusterSummary[cluster_name] = (clusterSummary[cluster_name] || 0) + 1;
+
       validDocs.push({
         lead_id: generatedLeadId,
-        company_name,
-        contact_person,
+        company_name: company_name || cleanMobile || cleanEmail,
+        contact_person: contact_person || company_name || cleanMobile,
         mobile_number: cleanMobile,
         email: cleanEmail || null,
         gst_number: cleanGst,
         gst_verified: false,
+        state_id,
         state_name,
+        district_id,
         district_name,
+        cluster_id,
+        cluster_name,
+        cluster_code,
         pincode: cleanPincode,
         address_line,
         lead_source,
         interested_products,
         epc_type,
+        epc_type_code,
         epc_type_id,
+        custom_attributes: cleanCustomAttrs,
         created_by_bde_id: bdeId,
         current_bde_id: bdeId,
         lead_status: 'New',
@@ -1409,6 +1547,8 @@ exports.bulk_create_epc_leads = async (req, res) => {
         created_count: insertedLeads.length,
         skipped_count: skipped.length,
         skipped_leads: skipped,
+        cluster_summary: clusterSummary,
+        state_summary: stateSummary,
         created_leads: insertedLeads.map(l => ({
           _id: l._id,
           lead_id: l.lead_id,
@@ -1417,12 +1557,31 @@ exports.bulk_create_epc_leads = async (req, res) => {
           mobile_number: l.mobile_number,
           district_name: l.district_name,
           state_name: l.state_name,
+          cluster_name: l.cluster_name,
+          epc_type: l.epc_type,
         })),
       },
     });
   } catch (err) {
     console.error('[bulk_create_epc_leads Error]', err);
     return res.status(500).json({ status: 'error', message: 'Failed to bulk create EPC leads', error: err.message });
+  }
+};
+
+/**
+ * GET /epc-leads/clusters
+ * Returns active Franchisee Clusters for client-side auto-cluster preview during BDE bulk upload.
+ */
+exports.get_epc_lead_clusters = async (req, res) => {
+  try {
+    const clusters = await FranchiseeCluster.find({ deleted_at: null, status: { $ne: 'inactive' } })
+      .select('_id cluster_name cluster_code state_id state_name district_names district_ids color_code status is_active')
+      .sort({ state_name: 1, cluster_name: 1 })
+      .lean();
+    return res.status(200).json({ status: 'success', data: clusters });
+  } catch (err) {
+    console.error('[get_epc_lead_clusters Error]', err);
+    return res.status(500).json({ status: 'error', message: 'Failed to fetch clusters' });
   }
 };
 
@@ -1439,7 +1598,7 @@ async function _syncOnboardedEpcAccountsToLeads(bdeId, territory) {
 exports.list_epc_leads = async (req, res) => {
   try {
     const bdeId = req.user.id;
-    const { search = '', status = '', district = '', state = '', franchisee = '', epc_type = '', page = 1, limit = 50 } = req.query;
+    const { search = '', status = '', district = '', state = '', cluster_name = '', franchisee = '', epc_type = '', page = 1, limit = 50 } = req.query;
 
     const territories = await _getBdeTerritories(bdeId);
     const territory = territories[0] || null;
@@ -1497,6 +1656,8 @@ exports.list_epc_leads = async (req, res) => {
             { email: { $regex: s, $options: 'i' } },
             { gst_number: { $regex: s, $options: 'i' } },
             { lead_id: { $regex: s, $options: 'i' } },
+            { district_name: { $regex: s, $options: 'i' } },
+            { cluster_name: { $regex: s, $options: 'i' } },
           ],
         },
       ];
@@ -1507,6 +1668,13 @@ exports.list_epc_leads = async (req, res) => {
     }
     if (state && state !== 'all') {
       baseQuery.state_name = new RegExp(`^${state}$`, 'i');
+    }
+    if (cluster_name && cluster_name !== 'all') {
+      if (cluster_name === 'unassigned') {
+        baseQuery.$and = [...(baseQuery.$and || []), { $or: [{ cluster_name: null }, { cluster_name: '' }] }];
+      } else {
+        baseQuery.cluster_name = new RegExp(`^${cluster_name}$`, 'i');
+      }
     }
     if (franchisee && franchisee !== 'all') {
       baseQuery.assigned_franchisee_id = franchisee;
@@ -1552,18 +1720,41 @@ exports.list_epc_leads = async (req, res) => {
     }
 
     // EPC Type aggregation counts for BDE leads
-    const typeAgg = await EPCLead.aggregate([
-      { $match: { ...baseQuery, epc_type: { $ne: null } } },
-      { $group: { _id: '$epc_type', count: { $sum: 1 } } }
+    const [typeAgg, clusterAgg] = await Promise.all([
+      EPCLead.aggregate([
+        { $match: { ...baseQuery, epc_type: { $ne: null } } },
+        { $group: { _id: '$epc_type', count: { $sum: 1 } } }
+      ]),
+      EPCLead.aggregate([
+        { $match: { deleted_at: null, $or: [{ current_bde_id: bdeId }, { created_by_bde_id: bdeId }] } },
+        {
+          $group: {
+            _id: { cluster_name: { $ifNull: ['$cluster_name', ''] }, state_name: { $ifNull: ['$state_name', ''] } },
+            cluster_code: { $first: '$cluster_code' },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { count: -1 } },
+      ]),
     ]);
     const epcTypeCounts = {};
     typeAgg.forEach(t => { if (t._id) epcTypeCounts[t._id] = t.count; });
+
+    const clusterSummary = clusterAgg
+      .filter(c => c._id?.cluster_name)
+      .map(c => ({
+        cluster_name: c._id.cluster_name,
+        state_name: c._id.state_name || '',
+        cluster_code: c.cluster_code || '',
+        count: c.count,
+      }));
 
     return res.status(200).json({
       status: 'success',
       data: leads,
       stage_counts: stageCounts,
       epc_type_counts: epcTypeCounts,
+      cluster_summary: clusterSummary,
       total_all_leads: totalAll,
       pagination: {
         total: totalAll,

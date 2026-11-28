@@ -134,7 +134,31 @@ export default function ProjectOrderStatus() {
   const [firstPaymentMethodUsed, setFirstPaymentMethodUsed] = useState("icici"); // 'icici' | 'offline'
   const [isRegionOnlineEnabled, setIsRegionOnlineEnabled] = useState(true);
   const [isRegionOfflineEnabled, setIsRegionOfflineEnabled] = useState(true);
+  const [companyBankDetails, setCompanyBankDetails] = useState({
+    account_name: "SUNNOVATIVE SOLAR ENERGY SOLUTION PRIVATE LIMITED",
+    bank_name: "ICICI Bank",
+    account_number: "624805017426",
+    ifsc_code: "ICICI0006248",
+  });
   const [iciciVanDetails, setIciciVanDetails] = useState(null);
+
+  useEffect(() => {
+    const rawApiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+    const apiBase = rawApiUrl.replace(/\/api\/?$/, "");
+    fetch(`${apiBase}/api/payment-config/bank-account`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.status === "success" && d?.data?.account_number) {
+          setCompanyBankDetails({
+            account_name: d.data.account_holder_name || "SUNNOVATIVE SOLAR ENERGY SOLUTION PRIVATE LIMITED",
+            bank_name: d.data.bank_name || "ICICI Bank",
+            account_number: d.data.account_number,
+            ifsc_code: d.data.ifsc_code || "ICICI0006248",
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [vanLoading, setVanLoading] = useState(false);
   const [copiedModalField, setCopiedModalField] = useState(null);
   const [milestoneUtr, setMilestoneUtr] = useState("");
@@ -3520,23 +3544,23 @@ export default function ProjectOrderStatus() {
                   <div className="bg-surface p-2 rounded-lg border border-border flex justify-between items-center">
                     <div>
                       <span className="text-text-muted text-[10px] block">Account Name</span>
-                      <span className="font-bold text-text-primary">SolarKits Technologies Pvt Ltd</span>
+                      <span className="font-bold text-text-primary">{companyBankDetails.account_name}</span>
                     </div>
                   </div>
                   <div className="bg-surface p-2 rounded-lg border border-border flex justify-between items-center">
                     <div>
                       <span className="text-text-muted text-[10px] block">Bank Name</span>
-                      <span className="font-bold text-text-primary">HDFC Bank</span>
+                      <span className="font-bold text-text-primary">{companyBankDetails.bank_name}</span>
                     </div>
                   </div>
                   <div className="bg-surface p-2 rounded-lg border border-border flex justify-between items-center">
                     <div>
                       <span className="text-text-muted text-[10px] block">A/C Number</span>
-                      <span className="font-mono font-black text-text-primary">50200088991122</span>
+                      <span className="font-mono font-black text-text-primary">{companyBankDetails.account_number}</span>
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleCopyModalText("50200088991122", "modal_off_acc")}
+                      onClick={() => handleCopyModalText(companyBankDetails.account_number, "modal_off_acc")}
                       className="p-1 text-text-secondary hover:text-primary transition-colors cursor-pointer"
                     >
                       {copiedModalField === "modal_off_acc" ? <FaCheck className="text-emerald-500" size={11} /> : <FaCopy size={11} />}
@@ -3545,11 +3569,11 @@ export default function ProjectOrderStatus() {
                   <div className="bg-surface p-2 rounded-lg border border-border flex justify-between items-center">
                     <div>
                       <span className="text-text-muted text-[10px] block">IFSC Code</span>
-                      <span className="font-mono font-black text-text-primary">HDFC0001234</span>
+                      <span className="font-mono font-black text-text-primary">{companyBankDetails.ifsc_code}</span>
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleCopyModalText("HDFC0001234", "modal_off_ifsc")}
+                      onClick={() => handleCopyModalText(companyBankDetails.ifsc_code, "modal_off_ifsc")}
                       className="p-1 text-text-secondary hover:text-primary transition-colors cursor-pointer"
                     >
                       {copiedModalField === "modal_off_ifsc" ? <FaCheck className="text-emerald-500" size={11} /> : <FaCopy size={11} />}

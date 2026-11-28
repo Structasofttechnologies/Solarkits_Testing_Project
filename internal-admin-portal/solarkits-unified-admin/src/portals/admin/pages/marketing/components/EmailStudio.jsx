@@ -396,6 +396,7 @@ export default function EmailStudio({
     ];
   });
 
+
   const insertVariable = (key) => {
     updateCreative({ customBodyText: (creative.customBodyText || '') + ` {{${key}}}` });
     setShowVarDropdown(false);

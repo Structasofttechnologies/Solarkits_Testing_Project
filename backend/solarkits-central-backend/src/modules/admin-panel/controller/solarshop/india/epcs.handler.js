@@ -3,6 +3,7 @@ const { EpcAccount, EpcSignupRequest, EPCLead } = require("../../../models/india
 const { EpcCompany } = require("../../../models/india_core_db");
 const { GeoLevel0, GeoLevel1 } = require("../../../models/geolocation_db");
 const { delete_uploaded_files } = require("../../../utils/upload.files");
+const { promoteMatchingSegmentLeads } = require("../../../marketing/services/segmentPromotion.service");
 
 const get_epc_requests = async (req, res) => {
     try {
@@ -214,6 +215,26 @@ const update_epc_request_status = async (req, res) => {
                     },
                 }
             );
+
+            try {
+                const approvedAccount = await EpcAccount.findById(request.account_id);
+                const verifiedGstin = request.gstin || approvedAccount?.gstin || '';
+                if (verifiedGstin || approvedAccount?.is_gstin_active) {
+                    await promoteMatchingSegmentLeads({
+                        email: approvedAccount?.email || request.email,
+                        phone: approvedAccount?.whatsapp || request.whatsapp,
+                        gstin: verifiedGstin,
+                        epcAccount: approvedAccount,
+                        legalName: request.company_name,
+                        tradeName: request.company_name,
+                        stateId: request.state_id,
+                        districtId: request.district_id,
+                        verificationStatus: 'verified_admin'
+                    });
+                }
+            } catch (promoErr) {
+                console.warn('[update_epc_request_status] Segment promotion notice:', promoErr.message);
+            }
         } else if (resolvedAction === "reject") {
             if (req.files) delete_uploaded_files(req.files);
             await EpcAccount.updateOne({ _id: request.account_id }, { $set: { status: 'rejected' } });

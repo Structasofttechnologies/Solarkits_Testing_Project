@@ -16,79 +16,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
 
-const RESELLER_FALLBACK_VIDEOS = [
-  {
-    _id: "reseller_v1",
-    title: "Franchisee Store Operations & Territory Management",
-    headline: "Franchisee Store Operations & Territory Management",
-    description: "Learn how to manage your allocated state and district territories, set inventory levels, and handle customer demand.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "store_setup",
-    category_name: "Store Setup",
-    kit_type: "All",
-    duration_label: "6 mins",
-    duration: "6 mins",
-    tags: ["Territory", "District", "Inventory", "Storefront"],
-    target_audience: "franchisee"
-  },
-  {
-    _id: "reseller_v2",
-    title: "Managing EPC Buyers & Quote Approvals",
-    headline: "Managing EPC Buyers & Quote Approvals",
-    description: "How to review incoming EPC quotations, set custom profit margins, and approve B2B Solar Kit deals in your region.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "epc_management",
-    category_name: "EPC Management",
-    kit_type: "Commercial",
-    duration_label: "5 mins",
-    duration: "5 mins",
-    tags: ["EPC", "Quotes", "Approvals", "B2B"],
-    target_audience: "franchisee"
-  },
-  {
-    _id: "reseller_v3",
-    title: "PO Orders, Fulfillment & Warehouse Cluster Routing",
-    headline: "PO Orders, Fulfillment & Warehouse Cluster Routing",
-    description: "Step-by-step process of approving purchase orders and tracking dispatched consignments from central supplier warehouses.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "purchase_orders",
-    category_name: "POs & Approvals",
-    kit_type: "Residential",
-    duration_label: "7 mins",
-    duration: "7 mins",
-    tags: ["PO Orders", "Dispatch", "Warehouse", "Delivery"],
-    target_audience: "franchisee"
-  },
-  {
-    _id: "reseller_v4",
-    title: "Franchisee Commissions, Wallet & Payout Withdrawals",
-    headline: "Franchisee Commissions, Wallet & Payout Withdrawals",
-    description: "How your per-watt commission is credited into your franchisee wallet and how to request payouts directly to your bank account.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "wallet_commission",
-    category_name: "Wallet & Commissions",
-    kit_type: "All",
-    duration_label: "4 mins",
-    duration: "4 mins",
-    tags: ["Commissions", "Wallet", "Payouts", "Earnings"],
-    target_audience: "franchisee"
-  },
-  {
-    _id: "reseller_v5",
-    title: "Quick 4-Digit Security PIN & Multi-User Access",
-    headline: "Quick 4-Digit Security PIN & Multi-User Access",
-    description: "How to configure your team's quick 4-digit PIN for instant access on counter devices and POS terminals.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "how_to_use",
-    category_name: "Account & Security",
-    kit_type: "All",
-    duration_label: "3 mins",
-    duration: "3 mins",
-    tags: ["PIN", "Security", "Team", "Login"],
-    target_audience: "franchisee"
-  }
-];
-
 export default function KnowledgeCenter() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -103,13 +30,13 @@ export default function KnowledgeCenter() {
         params: { audience: "franchisee" },
         timeout: 8000
       });
-      if (res.data?.success && Array.isArray(res.data?.data) && res.data.data.length > 0) {
+      if (res.data?.success && Array.isArray(res.data?.data)) {
         setVideos(res.data.data);
       } else {
-        setVideos(RESELLER_FALLBACK_VIDEOS);
+        setVideos([]);
       }
     } catch {
-      setVideos(RESELLER_FALLBACK_VIDEOS);
+      setVideos([]);
     } finally {
       setLoading(false);
     }

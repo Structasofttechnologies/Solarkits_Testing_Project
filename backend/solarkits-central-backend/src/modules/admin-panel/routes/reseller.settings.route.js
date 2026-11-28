@@ -15,6 +15,7 @@ const router  = express.Router();
 
 const check_auth        = require('../middlewares/check.auth');
 const check_permissions = require('../middlewares/check.permissions');
+const { upload_any_files } = require('../utils/upload.files');
 const handler           = require('../controller/reseller.settings.handler');
 
 // GET /admin-api/reseller-mgmt/settings
@@ -24,6 +25,15 @@ router.get(
   check_auth,
   check_permissions([{ unique_code: 'RSL_SETTINGS', permissions: ['view'] }]),
   handler.get_platform_settings,
+);
+
+// POST /admin-api/reseller-mgmt/settings/agreement-types/upload
+// Upload agreement template PDF file (up to 25MB)
+router.post(
+  '/agreement-types/upload',
+  check_auth,
+  upload_any_files('public/uploads/franchise_agreement_templates', 25),
+  handler.upload_agreement_type_document,
 );
 
 // PUT /admin-api/reseller-mgmt/settings

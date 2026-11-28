@@ -8,6 +8,7 @@ const {
   MarketingUnsubscribe,
   MarketingDeliveryLog,
   MarketingSegment,
+  MarketingAudienceSegment,
   MarketingTrackingLink
 } = require('../models');
 
@@ -43,6 +44,9 @@ const campaignService = require('../services/campaign.service');
 const emailService = require('../services/email.service');
 const whatsappService = require('../services/whatsapp.service');
 const emailQueueService = require('../services/emailQueue.service');
+const { buildGeoAndClusterResolver, cleanStateToken, cleanGeoToken } = require('../services/segmentGeo.service');
+const { computeDynamicSegmentAnalytics } = require('../services/segmentAnalytics.service');
+const segmentGroupsController = require('./segmentGroups.controller');
 
 /**
  * Unified EPC Classification Engine:
@@ -176,17 +180,43 @@ const getMarketingResources = async (req, res) => {
 // ── 1. Dashboard Analytics (100% Real MongoDB Aggregation) ─────────────────
 const getDashboardAnalytics = async (req, res) => {
   try {
-    const [campaigns, epcs, leads, orders, offers, clusters] = await Promise.all([
-      MarketingCampaign.find({}).lean(),
-      EpcAccount.find({ deleted_at: null }).select('email whatsapp gstin gst_verification_status is_gstin_active state_name district_name').lean().catch(() => []),
-      WebsiteEpcLead.find({ deleted_at: null }).select('email phone mobile_number gst_number state_name district_name lifetime_orders').lean().catch(() => []),
-      EpcOrder.find({ order_status: { $nin: ['cancelled', 'rejected'] } }).select('epc_id customer_phone grand_total_paise state_name cluster_id created_at').lean().catch(() => []),
-      OfferMaster.find({ deleted_at: null, $or: [{ offer_type: 'coupon' }, { coupon_code: { $ne: null } }] })
+    const [
+      campaigns,
+      epcs,
+      leads,
+      orders,
+      offers,
+      geoResolver,
+      segmentAnalytics
+    ] = await Promise.all([
+      MarketingCampaign.find({}).sort({ created_at: -1 }).lean(),
+      EpcAccount.find({ deleted_at: null })
+        .select('_id email whatsapp gstin gst_verification_status is_gstin_active states districts state_name district_name')
+        .lean()
+        .catch(() => []),
+      WebsiteEpcLead.find({ deleted_at: null })
+        .select('_id email phone mobile_number gst_number state_name district_name lifetime_orders')
+        .lean()
+        .catch(() => []),
+      EpcOrder.find({ order_status: { $nin: ['cancelled', 'rejected'] } })
+        .select('_id epc_id customer_phone grand_total_paise state_name cluster_id created_at')
+        .lean()
+        .catch(() => []),
+      OfferMaster.find({ deleted_at: null, $or: [{ offer_type: 'coupon' }, { coupon_code: { $nin: [null, ''] } }] })
         .populate('products_applicable', 'name')
         .sort({ created_at: -1 })
         .lean()
         .catch(() => []),
-      FranchiseeCluster.find({ deleted_at: null, is_active: true }).select('cluster_name state_name district_names').lean().catch(() => [])
+      buildGeoAndClusterResolver().catch(() => ({
+        franchiseeClusters: [],
+        districtById: new Map(),
+        stateById: new Map(),
+        resolve: ({ stateName, districtName }) => ({ state: stateName || '', district: districtName || '', cluster_name: '', cluster_code: '' })
+      })),
+      computeDynamicSegmentAnalytics().catch(() => ({
+        summary: { total_segments: 0, total_leads_uploaded: 0, total_registered: 0, total_verified: 0, total_buyers: 0, total_revenue_inr: 0 },
+        segments: []
+      }))
     ]);
 
     const totalCampaigns = campaigns.length;
@@ -208,48 +238,64 @@ const getDashboardAnalytics = async (req, res) => {
     const emailMetrics = { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0, failed: 0 };
     const waMetrics = { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0, failed: 0 };
 
+    const addChannelTelemetry = (target, s) => {
+      target.sent += Number(s.messages_sent || 0);
+      target.delivered += Number(s.delivered || 0);
+      target.read += Number(s.opened_or_read || 0);
+      target.clicks += Number(s.link_clicks || 0);
+      target.visits += Number(s.website_visits || 0);
+      target.leads += Number(s.form_submissions || 0);
+      target.conversions += Number(s.conversions || 0);
+      target.failed += Number(s.failed || 0);
+    };
+
     for (const c of campaigns) {
       const s = c.stats || {};
       const ds = c.delivery_summary || {};
-      totalSent += s.messages_sent || 0;
-      totalDelivered += s.delivered || 0;
-      totalRead += s.opened_or_read || 0;
-      totalClicks += s.link_clicks || 0;
-      totalVisits += s.website_visits || 0;
-      totalLeads += s.form_submissions || 0;
-      totalQualified += s.qualified_leads || 0;
-      totalConversions += s.conversions || 0;
-      totalRevenue += s.revenue_generated || 0;
-      totalCost += c.budget || 0;
-      totalFailed += s.failed || 0;
+      totalSent += Number(s.messages_sent || 0);
+      totalDelivered += Number(s.delivered || 0);
+      totalRead += Number(s.opened_or_read || 0);
+      totalClicks += Number(s.link_clicks || 0);
+      totalVisits += Number(s.website_visits || 0);
+      totalLeads += Number(s.form_submissions || 0);
+      totalQualified += Number(s.qualified_leads || 0);
+      totalConversions += Number(s.conversions || 0);
+      totalRevenue += Number(s.revenue_generated || 0);
+      totalCost += Number(c.actual_spent || c.budget || 0);
+      totalFailed += Number(s.failed || 0);
 
       if (c.campaign_type === 'email') {
-        emailMetrics.sent += s.messages_sent || 0;
-        emailMetrics.delivered += s.delivered || 0;
-        emailMetrics.read += s.opened_or_read || 0;
-        emailMetrics.clicks += s.link_clicks || 0;
-        emailMetrics.visits += s.website_visits || 0;
-        emailMetrics.leads += s.form_submissions || 0;
-        emailMetrics.conversions += s.conversions || 0;
-        emailMetrics.failed += s.failed || 0;
+        addChannelTelemetry(emailMetrics, s);
       } else if (c.campaign_type === 'whatsapp') {
-        waMetrics.sent += s.messages_sent || 0;
-        waMetrics.delivered += s.delivered || 0;
-        waMetrics.read += s.opened_or_read || 0;
-        waMetrics.clicks += s.link_clicks || 0;
-        waMetrics.visits += s.website_visits || 0;
-        waMetrics.leads += s.form_submissions || 0;
-        waMetrics.conversions += s.conversions || 0;
-        waMetrics.failed += s.failed || 0;
+        addChannelTelemetry(waMetrics, s);
       } else {
-        emailMetrics.sent += ds.email_sent || 0;
-        emailMetrics.failed += ds.email_failed || 0;
-        waMetrics.sent += ds.wa_sent || 0;
-        waMetrics.failed += ds.wa_failed || 0;
+        emailMetrics.sent += Number(ds.email_sent || 0);
+        emailMetrics.failed += Number(ds.email_failed || 0);
+        waMetrics.sent += Number(ds.wa_sent || 0);
+        waMetrics.failed += Number(ds.wa_failed || 0);
+        const recips = Array.isArray(c.recipients) ? c.recipients : [];
+        for (const r of recips) {
+          const isDeliv = ['sent', 'delivered', 'read', 'opened', 'clicked', 'visited', 'submitted_form', 'converted'].includes(r.status) || Boolean(r.delivered_at);
+          const isRead = ['read', 'opened', 'clicked', 'visited', 'submitted_form', 'converted'].includes(r.status) || Boolean(r.read_at);
+          const isClick = ['clicked', 'visited', 'submitted_form', 'converted'].includes(r.status) || Boolean(r.clicked_at);
+          const isVisit = ['visited', 'submitted_form', 'converted'].includes(r.status) || Boolean(r.visited_at);
+          const isLead = ['submitted_form', 'converted'].includes(r.status);
+          const isConv = r.status === 'converted' || Boolean(r.converted_at);
+          const applyRecip = (m) => {
+            if (isDeliv) m.delivered += 1;
+            if (isRead) m.read += 1;
+            if (isClick) m.clicks += 1;
+            if (isVisit) m.visits += 1;
+            if (isLead) m.leads += 1;
+            if (isConv) m.conversions += 1;
+          };
+          if (r.email_message_id || r.channel === 'email' || r.channel === 'both') applyRecip(emailMetrics);
+          if (r.wa_message_id || r.channel === 'whatsapp' || r.channel === 'both') applyRecip(waMetrics);
+        }
       }
     }
 
-    const deliveryRate = totalSent > 0 ? ((totalSent - totalFailed) / totalSent * 100).toFixed(1) : '0.0';
+    const deliveryRate = totalSent > 0 ? (((totalSent - totalFailed) / totalSent) * 100).toFixed(1) : '0.0';
     const clickRate = totalSent > 0 ? ((totalClicks / totalSent) * 100).toFixed(1) : '0.0';
     const leadConversionRate = totalVisits > 0 ? ((totalLeads / totalVisits) * 100).toFixed(1) : '0.0';
     const qualifiedLeadRate = totalLeads > 0 ? ((totalQualified / totalLeads) * 100).toFixed(1) : '0.0';
@@ -259,12 +305,13 @@ const getDashboardAnalytics = async (req, res) => {
     const campaignsRanking = campaigns
       .map((c) => {
         const s = c.stats || {};
-        const sent = s.messages_sent || 0;
-        const del = s.delivered || sent;
+        const sent = Number(s.messages_sent || 0);
+        const del = Number(s.delivered || sent);
         const delRate = sent > 0 ? ((del / sent) * 100).toFixed(1) : '0.0';
         const convRate = s.website_visits > 0 ? ((s.conversions / s.website_visits) * 100).toFixed(1) : '0.0';
-        const rev = s.revenue_generated || 0;
-        const roiVal = c.budget > 0 ? (((rev - c.budget) / c.budget) * 100).toFixed(1) : '0.0';
+        const rev = Number(s.revenue_generated || 0);
+        const spend = Number(c.actual_spent || c.budget || 0);
+        const roiVal = spend > 0 ? (((rev - spend) / spend) * 100).toFixed(1) : '0.0';
 
         return {
           _id: c._id,
@@ -275,10 +322,10 @@ const getDashboardAnalytics = async (req, res) => {
           status: c.status,
           sent,
           delivered: del,
-          failed: s.failed || 0,
-          clicks: s.link_clicks || 0,
-          leads: s.form_submissions || 0,
-          conversions: s.conversions || 0,
+          failed: Number(s.failed || 0),
+          clicks: Number(s.link_clicks || 0),
+          leads: Number(s.form_submissions || 0),
+          conversions: Number(s.conversions || 0),
           revenue: rev,
           conversionRate: `${convRate}%`,
           deliveryRate: `${delRate}%`,
@@ -309,23 +356,43 @@ const getDashboardAnalytics = async (req, res) => {
       };
     });
 
-    // Live EPC classification counts from real DB
     const buyerIdSet = new Set();
     const buyerPhoneSet = new Set();
     const orderCountMap = new Map();
+    const orderRevenueMap = new Map();
     for (const o of orders) {
+      const revInr = Number(o.grand_total_paise || 0) / 100;
       if (o.epc_id) {
         const sid = String(o.epc_id);
         buyerIdSet.add(sid);
         orderCountMap.set(sid, (orderCountMap.get(sid) || 0) + 1);
+        orderRevenueMap.set(sid, (orderRevenueMap.get(sid) || 0) + revInr);
       }
       if (o.customer_phone) {
         const p10 = String(o.customer_phone).replace(/\D/g, '').slice(-10);
         if (p10) {
           buyerPhoneSet.add(p10);
           orderCountMap.set(p10, (orderCountMap.get(p10) || 0) + 1);
+          orderRevenueMap.set(p10, (orderRevenueMap.get(p10) || 0) + revInr);
         }
       }
+    }
+
+    const territoryClusterBuckets = new Map();
+    for (const clu of geoResolver.franchiseeClusters || []) {
+      const cluKey = clu.cluster_code || String(clu._id);
+      territoryClusterBuckets.set(cluKey, {
+        cluster: clu.cluster_name,
+        cluster_code: clu.cluster_code,
+        state: clu.state_name,
+        warehouse: `${clu.cluster_name} (${(clu.district_names || []).slice(0, 3).join(', ')})`,
+        totalEpcs: 0,
+        buyerEpcs: 0,
+        verifiedEpcs: 0,
+        registeredEpcs: 0,
+        ordersPlaced: 0,
+        revenueInr: 0
+      });
     }
 
     const seenPartners = new Map();
@@ -334,13 +401,20 @@ const getDashboardAnalytics = async (req, res) => {
       const em = String(epc.email || '').toLowerCase().trim();
       const key = p10 || em || String(epc._id);
       if (seenPartners.has(key)) continue;
-      const ordCount = orderCountMap.get(String(epc._id)) || orderCountMap.get(p10) || 0;
-      const isBuyer = buyerIdSet.has(String(epc._id)) || (p10 && buyerPhoneSet.has(p10));
+      const eid = String(epc._id);
+      const ordCount = orderCountMap.get(eid) || orderCountMap.get(p10) || 0;
+      const ordRev = orderRevenueMap.get(eid) || orderRevenueMap.get(p10) || 0;
+      const isBuyer = buyerIdSet.has(eid) || (p10 && buyerPhoneSet.has(p10));
       const isVerified = ['verified_automatic', 'verified_admin'].includes(epc.gst_verification_status) || epc.is_gstin_active === true || Boolean(epc.gstin);
+      let dName = epc.district_name || '';
+      let sName = epc.state_name || '';
+      if (!dName && epc.districts?.[0]) dName = geoResolver.districtById.get(String(epc.districts[0]))?.name || '';
+      if (!sName && epc.states?.[0]) sName = geoResolver.stateById.get(String(epc.states[0]))?.name || '';
       seenPartners.set(key, {
-        state: epc.state_name || 'Unassigned',
-        district: epc.district_name || 'Unassigned',
+        state: sName || 'Unassigned',
+        district: dName || 'Unassigned',
         orders: ordCount,
+        revenueInr: ordRev,
         type: classifyEpcPartner({ gstin: epc.gstin, lifetimeOrders: ordCount, is_buyer: isBuyer, is_verified: isVerified })
       });
     }
@@ -350,10 +424,12 @@ const getDashboardAnalytics = async (req, res) => {
       const key = p10 || em || String(lead._id);
       if (seenPartners.has(key)) continue;
       const ordCount = Number(lead.lifetime_orders || 0) || orderCountMap.get(p10) || 0;
+      const ordRev = orderRevenueMap.get(p10) || 0;
       seenPartners.set(key, {
         state: lead.state_name || 'Unassigned',
         district: lead.district_name || 'Unassigned',
         orders: ordCount,
+        revenueInr: ordRev,
         type: classifyEpcPartner({ gstin: lead.gst_number, lifetimeOrders: ordCount })
       });
     }
@@ -363,60 +439,49 @@ const getDashboardAnalytics = async (req, res) => {
     const verifiedEpcs = partners.filter((p) => p.type === 'Verified EPC').length;
     const registeredEpcs = partners.filter((p) => p.type === 'Registered EPC').length;
 
-    // Build territory breakdown from real clusters & partners
-    const districtToCluster = new Map();
-    for (const cl of clusters) {
-      for (const dn of cl.district_names || []) {
-        districtToCluster.set(String(dn).toLowerCase().trim(), { cluster: cl.cluster_name, state: cl.state_name });
-      }
-    }
-
-    const territoryMap = new Map();
-    for (const cl of clusters) {
-      territoryMap.set(cl.cluster_name, {
-        cluster: cl.cluster_name,
-        state: cl.state_name,
-        totalEpcs: 0,
-        buyerEpcs: 0,
-        verifiedEpcs: 0,
-        registeredEpcs: 0,
-        ordersPlaced: 0
-      });
-    }
-
     for (const p of partners) {
-      const mapped = districtToCluster.get(String(p.district || '').toLowerCase().trim());
-      const cKey = mapped?.cluster || (p.state !== 'Unassigned' ? `${p.state} Territory` : 'General Territory');
-      if (!territoryMap.has(cKey)) {
-        territoryMap.set(cKey, {
-          cluster: cKey,
-          state: mapped?.state || p.state,
+      const resolved = geoResolver.resolve({ stateName: p.state === 'Unassigned' ? '' : p.state, districtName: p.district === 'Unassigned' ? '' : p.district });
+      const bKey = resolved.cluster_code || (resolved.state ? `UNCLU::${resolved.state}` : 'UNSPECIFIED');
+      if (!territoryClusterBuckets.has(bKey)) {
+        territoryClusterBuckets.set(bKey, {
+          cluster: resolved.cluster_name || (resolved.state ? `${resolved.state} (Other Districts)` : 'Unspecified'),
+          cluster_code: resolved.cluster_code || '',
+          state: resolved.state || 'Unspecified',
+          warehouse: resolved.state || 'Direct Region',
           totalEpcs: 0,
           buyerEpcs: 0,
           verifiedEpcs: 0,
           registeredEpcs: 0,
-          ordersPlaced: 0
+          ordersPlaced: 0,
+          revenueInr: 0
         });
       }
-      const t = territoryMap.get(cKey);
-      t.totalEpcs++;
-      t.ordersPlaced += p.orders;
-      if (p.type === 'Buyer EPC') t.buyerEpcs++;
-      else if (p.type === 'Verified EPC') t.verifiedEpcs++;
-      else t.registeredEpcs++;
+      const b = territoryClusterBuckets.get(bKey);
+      b.totalEpcs += 1;
+      if (p.type === 'Buyer EPC') b.buyerEpcs += 1;
+      else if (p.type === 'Verified EPC') b.verifiedEpcs += 1;
+      else b.registeredEpcs += 1;
+      b.ordersPlaced += p.orders;
+      b.revenueInr += p.revenueInr || 0;
     }
 
-    const epcTerritoryPerformance = Array.from(territoryMap.values())
-      .map((t) => {
-        const conversionRatio = t.totalEpcs > 0 ? `${((t.buyerEpcs / t.totalEpcs) * 100).toFixed(1)}%` : '0.0%';
+    const epcTerritoryPerformance = Array.from(territoryClusterBuckets.values())
+      .filter((b) => b.totalEpcs > 0 || b.ordersPlaced > 0)
+      .map((b) => {
+        const convPct = b.totalEpcs > 0 ? ((b.buyerEpcs / b.totalEpcs) * 100).toFixed(1) : '0.0';
         let dominantType = 'Registered EPC';
-        if (t.buyerEpcs >= t.verifiedEpcs && t.buyerEpcs >= t.registeredEpcs) dominantType = 'Buyer EPC';
-        else if (t.verifiedEpcs >= t.registeredEpcs) dominantType = 'Verified EPC';
-        return { ...t, conversionRatio, dominantType };
+        if (b.buyerEpcs >= b.verifiedEpcs && b.buyerEpcs >= b.registeredEpcs && b.buyerEpcs > 0) dominantType = 'Buyer EPC';
+        else if (b.verifiedEpcs >= b.registeredEpcs && b.verifiedEpcs > 0) dominantType = 'Verified EPC';
+        return {
+          ...b,
+          revenueInr: Math.round(b.revenueInr),
+          conversionRatio: `${convPct}%`,
+          dominantType
+        };
       })
-      .sort((a, b) => b.totalEpcs - a.totalEpcs);
+      .sort((a, b) => b.totalEpcs - a.totalEpcs || b.ordersPlaced - a.ordersPlaced);
 
-    const activeStatesCount = new Set(partners.map((p) => p.state).filter((s) => s && s !== 'Unassigned')).size;
+    const activeStatesSet = new Set(partners.map((p) => p.state).filter((s) => s && s !== 'Unassigned' && s !== 'Unspecified'));
 
     res.json({
       success: true,
@@ -434,8 +499,8 @@ const getDashboardAnalytics = async (req, res) => {
           totalLeads,
           totalQualified,
           totalConversions,
-          totalRevenue,
-          totalCost,
+          totalRevenue: Math.round(totalRevenue),
+          totalCost: Math.round(totalCost),
           deliveryRate,
           clickRate,
           leadConversionRate,
@@ -448,8 +513,14 @@ const getDashboardAnalytics = async (req, res) => {
           registeredEpcs,
           activeCouponsCount: couponsList.filter((c) => c.status === 'Active').length,
           totalCouponsCount: couponsList.length,
-          activeClustersCount: clusters.length || epcTerritoryPerformance.length,
-          activeStatesCount
+          activeClustersCount: (geoResolver.franchiseeClusters || []).length || epcTerritoryPerformance.length,
+          activeStatesCount: activeStatesSet.size,
+          segmentGroupsCount: segmentAnalytics?.summary?.total_segments || 0,
+          segmentLeadsUploaded: segmentAnalytics?.summary?.total_leads_uploaded || 0,
+          segmentRegistered: segmentAnalytics?.summary?.total_registered || 0,
+          segmentVerified: segmentAnalytics?.summary?.total_verified || 0,
+          segmentBuyers: segmentAnalytics?.summary?.total_buyers || 0,
+          segmentRevenueInr: segmentAnalytics?.summary?.total_revenue_inr || 0
         },
         channels: {
           email: emailMetrics,
@@ -465,107 +536,226 @@ const getDashboardAnalytics = async (req, res) => {
         ],
         campaignsRanking,
         couponsList,
-        epcTerritoryPerformance
+        epcTerritoryPerformance,
+        segmentAnalytics
       }
     });
   } catch (error) {
+    console.error('❌ [Marketing] getDashboardAnalytics error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ── 1B. Live India Territory Map Analytics (100% Real DB) ──────────────────
+// ── 1B. Live India Territory Map Analytics (100% Dynamic from MongoDB) ───
 const getTerritoryMapAnalytics = async (req, res) => {
   try {
-    const { type, objective, state } = req.query;
+    const { type, objective, state: filterState, segment_id } = req.query;
 
-    const campFilter = {};
-    if (type && type !== 'ALL' && type !== 'all') campFilter.campaign_type = type;
-    if (objective && objective !== 'ALL' && objective !== 'all') campFilter.campaign_objective = objective;
+    const campQuery = {};
+    if (type && type !== 'ALL' && type !== 'all') campQuery.campaign_type = type;
+    if (objective && objective !== 'ALL' && objective !== 'all') {
+      campQuery.$or = [{ campaign_objective: objective }, { purpose: objective }];
+    }
 
-    const [states, clusters, campaigns, epcs] = await Promise.all([
-      getIndiaStates(),
-      FranchiseeCluster.find({ deleted_at: null, is_active: true }).select('cluster_name state_id state_name status').lean().catch(() => []),
-      MarketingCampaign.find(campFilter)
-        .select('campaign_name campaign_type campaign_objective status area_type state_ids state_names cluster_names stats total_recipients')
+    const [geoResolver, campaigns, segmentAnalytics, epcs] = await Promise.all([
+      buildGeoAndClusterResolver(),
+      MarketingCampaign.find(campQuery)
+        .select('_id campaign_name campaign_code campaign_type campaign_objective purpose status area_type state_ids state_names cluster_ids cluster_names district_ids segment_ids segment_state_filter stats created_at')
+        .sort({ created_at: -1 })
         .lean(),
-      EpcAccount.find({ deleted_at: null }).select('state_name').lean().catch(() => [])
+      computeDynamicSegmentAnalytics({ state: filterState || '', segment_id: segment_id || '' }),
+      EpcAccount.find({ deleted_at: null }).select('state_name states').lean().catch(() => [])
     ]);
 
     const stateCampaignData = {};
+    const ensureState = (stateName, stateId = null) => {
+      const clean = String(stateName || '').trim();
+      if (!clean || clean === 'Unspecified') return null;
+      const keyTok = cleanStateToken(clean);
+      let existingKey = Object.keys(stateCampaignData).find((k) => cleanStateToken(k) === keyTok);
+      if (!existingKey) {
+        existingKey = clean;
+        stateCampaignData[existingKey] = {
+          state_name: existingKey,
+          state_id: stateId || null,
+          state_code: STATE_CODE_MAP[existingKey] || existingKey.slice(0, 2).toUpperCase(),
+          epc_count: 0,
+          has_active: false,
+          campaign_count: 0,
+          campaign_type: 'none',
+          channels: [],
+          delivered: 0,
+          leads: 0,
+          conversions: 0,
+          revenue: 0,
+          clusters: [],
+          cluster_details: [],
+          running_campaigns: [],
+          segment_leads_uploaded: 0,
+          segment_registered: 0,
+          segment_verified: 0,
+          segment_buyers: 0,
+          segment_orders: 0,
+          segment_revenue_inr: 0,
+          segment_conversion_rate_pct: 0,
+          post_campaign_conversions: 0,
+          post_campaign_revenue_inr: 0,
+          segments: []
+        };
+      } else if (stateId && !stateCampaignData[existingKey].state_id) {
+        stateCampaignData[existingKey].state_id = stateId;
+      }
+      return stateCampaignData[existingKey];
+    };
 
-    for (const st of states) {
-      if (state && state !== 'ALL' && st.name.toLowerCase() !== state.toLowerCase()) continue;
-      stateCampaignData[st.name] = {
-        state_id: st._id,
-        state_name: st.name,
-        state_code: STATE_CODE_MAP[st.name] || st.name.slice(0, 2).toUpperCase(),
-        has_active: false,
-        campaign_count: 0,
-        campaign_type: 'none',
-        channels: [],
-        delivered: 0,
-        leads: 0,
-        conversions: 0,
-        revenue: 0,
-        epc_count: 0,
-        clusters: [],
-        running_campaigns: []
-      };
-    }
-
-    for (const cl of clusters) {
-      const stName = cl.state_name;
-      if (!stName || !stateCampaignData[stName]) continue;
-      stateCampaignData[stName].clusters.push(cl.cluster_name);
+    for (const s of geoResolver.states || []) {
+      if (filterState && filterState !== 'ALL' && cleanStateToken(s.name) !== cleanStateToken(filterState)) continue;
+      ensureState(s.name, s._id);
     }
 
     for (const epc of epcs) {
-      if (epc.state_name && stateCampaignData[epc.state_name]) {
-        stateCampaignData[epc.state_name].epc_count++;
+      let sName = epc.state_name || '';
+      if (!sName && epc.states?.[0]) {
+        sName = geoResolver.stateById.get(String(epc.states[0]))?.name || '';
       }
+      if (!sName) continue;
+      const stObj = ensureState(sName);
+      if (stObj) stObj.epc_count += 1;
     }
 
-    const stateNameById = new Map(states.map((s) => [String(s._id), s.name]));
+    for (const clu of geoResolver.franchiseeClusters || []) {
+      const stObj = ensureState(clu.state_name, clu.state_id);
+      if (!stObj) continue;
+      if (!stObj.clusters.includes(clu.cluster_name)) {
+        stObj.clusters.push(clu.cluster_name);
+      }
+      stObj.cluster_details.push({
+        cluster_id: clu._id,
+        cluster_name: clu.cluster_name,
+        cluster_code: clu.cluster_code,
+        color_code: clu.color_code || '#2563eb',
+        status: clu.status || 'available',
+        districts: clu.district_names || [],
+        leads_uploaded: 0,
+        registered_count: 0,
+        verified_count: 0,
+        buyers_count: 0,
+        post_campaign_conversions: 0
+      });
+    }
 
-    for (const camp of campaigns) {
-      let targetStateNames = [];
-      if (camp.area_type === 'all_india') {
-        targetStateNames = Object.keys(stateCampaignData);
-      } else {
-        const namesFromIds = (camp.state_ids || []).map((id) => stateNameById.get(String(id))).filter(Boolean);
-        targetStateNames = Array.from(new Set([...(camp.state_names || []), ...namesFromIds]));
+    const segByStateToken = new Map(
+      (segmentAnalytics.map_territory?.states || []).map((st) => [cleanStateToken(st.state_name), st])
+    );
+
+    Object.values(stateCampaignData).forEach((stObj) => {
+      const segSt = segByStateToken.get(cleanStateToken(stObj.state_name));
+      if (!segSt) return;
+      stObj.segment_leads_uploaded = segSt.leads_uploaded;
+      stObj.segment_registered = segSt.registered_count;
+      stObj.segment_verified = segSt.verified_count;
+      stObj.segment_buyers = segSt.buyers_count;
+      stObj.segment_orders = segSt.orders_count;
+      stObj.segment_revenue_inr = segSt.revenue_inr;
+      stObj.segment_conversion_rate_pct = segSt.registration_rate_pct;
+      stObj.post_campaign_conversions = segSt.post_campaign_conversions;
+      stObj.post_campaign_revenue_inr = segSt.post_campaign_revenue_inr;
+      stObj.segments = segSt.segments || [];
+
+      if (segSt.leads_uploaded > 0 || segSt.post_campaign_conversions > 0) {
+        stObj.has_active = true;
       }
 
-      const isActiveStatus = ['running', 'scheduled', 'completed'].includes(camp.status);
-      for (const stName of targetStateNames) {
-        const bucket = stateCampaignData[stName];
-        if (!bucket) continue;
+      const segCluMap = new Map((segSt.clusters || []).map((c) => [c.cluster_code || c.cluster_name, c]));
+      stObj.cluster_details = stObj.cluster_details.map((cd) => {
+        const sc = segCluMap.get(cd.cluster_code) || segCluMap.get(cd.cluster_name);
+        if (!sc) return cd;
+        return {
+          ...cd,
+          leads_uploaded: sc.leads_uploaded,
+          registered_count: sc.registered_count,
+          verified_count: sc.verified_count,
+          buyers_count: sc.buyers_count,
+          orders_count: sc.orders_count,
+          revenue_inr: sc.revenue_inr,
+          post_campaign_conversions: sc.post_campaign_conversions,
+          district_breakdown: sc.districts || []
+        };
+      });
+    });
 
-        bucket.campaign_count++;
-        if (isActiveStatus) bucket.has_active = true;
-        const ch = camp.campaign_type || 'email';
-        if (ch === 'both') {
-          if (!bucket.channels.includes('email')) bucket.channels.push('email');
-          if (!bucket.channels.includes('whatsapp')) bucket.channels.push('whatsapp');
-        } else if (!bucket.channels.includes(ch)) {
-          bucket.channels.push(ch);
+    const segStatesLookup = new Map();
+    for (const seg of segmentAnalytics.segments || []) {
+      const stNames = (seg.state_breakdown || []).map((sb) => sb.state).filter((s) => s && s !== 'Unspecified');
+      segStatesLookup.set(String(seg._id), stNames);
+    }
+
+    const chanSets = new Map();
+    for (const c of campaigns) {
+      const targetStateNames = new Set();
+      for (const sid of c.state_ids || []) {
+        const sDoc = geoResolver.stateById.get(String(sid));
+        if (sDoc?.name) targetStateNames.add(sDoc.name);
+      }
+      for (const sn of c.state_names || []) {
+        const resSt = geoResolver.resolve({ stateName: sn });
+        if (resSt.state) targetStateNames.add(resSt.state);
+      }
+      for (const did of c.district_ids || []) {
+        const dDoc = geoResolver.districtById.get(String(did));
+        const sDoc = dDoc ? geoResolver.stateById.get(String(dDoc.level_1)) : null;
+        if (sDoc?.name) targetStateNames.add(sDoc.name);
+      }
+      if (c.segment_state_filter) {
+        const resSt = geoResolver.resolve({ stateName: c.segment_state_filter });
+        if (resSt.state) targetStateNames.add(resSt.state);
+      }
+      for (const segId of c.segment_ids || []) {
+        const stList = segStatesLookup.get(String(segId)) || [];
+        for (const sName of stList) targetStateNames.add(sName);
+      }
+      if (targetStateNames.size === 0 && c.area_type === 'all_india' && ['running', 'scheduled', 'completed'].includes(c.status)) {
+        Object.keys(stateCampaignData).forEach((sName) => {
+          if (stateCampaignData[sName].cluster_details.length > 0 || stateCampaignData[sName].segment_leads_uploaded > 0) {
+            targetStateNames.add(sName);
+          }
+        });
+      }
+
+      const s = c.stats || {};
+      const divisor = Math.max(1, targetStateNames.size);
+      for (const sName of targetStateNames) {
+        const stObj = ensureState(sName);
+        if (!stObj) continue;
+        if (['running', 'scheduled', 'completed'].includes(c.status)) {
+          stObj.has_active = true;
+        }
+        stObj.campaign_count += 1;
+        stObj.delivered += Math.round(Number(s.delivered || s.messages_sent || 0) / divisor);
+        stObj.leads += Math.round(Number(s.form_submissions || 0) / divisor);
+        stObj.conversions += Math.round(Number(s.conversions || 0) / divisor);
+        stObj.revenue += Math.round(Number(s.revenue_generated || 0) / divisor);
+
+        if (!chanSets.has(stObj.state_name)) chanSets.set(stObj.state_name, new Set());
+        const cs = chanSets.get(stObj.state_name);
+        if (c.campaign_type === 'both') {
+          cs.add('whatsapp');
+          cs.add('email');
+        } else if (c.campaign_type) {
+          cs.add(c.campaign_type);
         }
 
-        const divisor = Math.max(1, targetStateNames.length);
-        bucket.delivered += Math.round((camp.stats?.messages_sent || 0) / divisor);
-        bucket.leads += Math.round((camp.stats?.form_submissions || 0) / divisor);
-        bucket.conversions += Math.round((camp.stats?.conversions || 0) / divisor);
-        bucket.revenue += Math.round((camp.stats?.revenue_generated || 0) / divisor);
-
-        bucket.running_campaigns.push({
-          _id: camp._id,
-          name: camp.campaign_name,
-          type: camp.campaign_type,
-          objective: camp.campaign_objective,
-          status: camp.status,
-          leads: camp.stats?.form_submissions || 0,
-          conversions: camp.stats?.conversions || 0,
-          revenue: camp.stats?.revenue_generated || 0
+        stObj.running_campaigns.push({
+          _id: c._id,
+          name: c.campaign_name,
+          code: c.campaign_code,
+          type: c.campaign_type,
+          objective: c.campaign_objective || c.purpose,
+          status: c.status,
+          delivered: Number(s.delivered || s.messages_sent || 0),
+          leads: Number(s.form_submissions || 0),
+          conversions: Number(s.conversions || 0),
+          revenue: Number(s.revenue_generated || 0)
         });
       }
     }
@@ -578,12 +768,15 @@ const getTerritoryMapAnalytics = async (req, res) => {
     let totalTerritoryRevenue = 0;
 
     Object.values(stateCampaignData).forEach((st) => {
-      if (st.channels.length >= 2) st.campaign_type = 'both';
-      else if (st.channels.length === 1) st.campaign_type = st.channels[0];
+      const ch = Array.from(chanSets.get(st.state_name) || []);
+      st.channels = ch;
+      if (ch.includes('whatsapp') && ch.includes('email')) st.campaign_type = 'both';
+      else if (ch.length === 1) st.campaign_type = ch[0];
+      else st.campaign_type = st.has_active ? 'segment_only' : 'none';
 
-      if (st.has_active) {
-        totalLiveStates += 1;
-        totalLiveClusters += (st.clusters || []).length;
+      if (st.has_active || st.clusters.length > 0) {
+        if (st.has_active) totalLiveStates += 1;
+        totalLiveClusters += st.clusters.length;
         totalTerritoryDelivered += st.delivered;
         totalTerritoryLeads += st.leads;
         totalTerritoryConversions += st.conversions;
@@ -600,12 +793,22 @@ const getTerritoryMapAnalytics = async (req, res) => {
           total_territory_delivered: totalTerritoryDelivered,
           total_territory_leads: totalTerritoryLeads,
           total_territory_conversions: totalTerritoryConversions,
-          total_territory_revenue: totalTerritoryRevenue
+          total_territory_revenue: Math.round(totalTerritoryRevenue),
+          total_segment_leads: segmentAnalytics.summary.total_leads_uploaded,
+          total_segment_registered: segmentAnalytics.summary.total_registered,
+          total_segment_verified: segmentAnalytics.summary.total_verified,
+          total_segment_buyers: segmentAnalytics.summary.total_buyers,
+          total_segment_orders: segmentAnalytics.summary.total_orders,
+          total_segment_revenue_inr: segmentAnalytics.summary.total_revenue_inr,
+          total_post_campaign_conversions: segmentAnalytics.summary.post_campaign_registered + segmentAnalytics.summary.post_campaign_buyers
         },
-        states: stateCampaignData
+        states: stateCampaignData,
+        districts_lookup: segmentAnalytics.map_territory?.districts || [],
+        segment_analytics_summary: segmentAnalytics.summary
       }
     });
   } catch (error) {
+    console.error('❌ [Marketing] getTerritoryMapAnalytics error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -661,6 +864,10 @@ const createCampaign = async (req, res) => {
       data.created_by = req.user.id;
     }
 
+    if (data.campaign_type) {
+      data.campaign_type = String(data.campaign_type).toLowerCase();
+    }
+
     // Check custom short code uniqueness if provided
     if (data.tracking_short_code) {
       const conflict = await MarketingCampaign.findOne({ tracking_short_code: data.tracking_short_code }).lean();
@@ -669,6 +876,7 @@ const createCampaign = async (req, res) => {
       }
     }
 
+    // Auto-resolve EPC + Leads + isolated Segment Group audience with channel consent & industry preferences
     const audience = await audienceService.resolveAudience({
       segment_id: data.segment_id || null,
       epc_groups: data.epc_groups,
@@ -683,6 +891,9 @@ const createCampaign = async (req, res) => {
       warehouse_ids: data.warehouse_ids,
       purchase_activity: data.purchase_activity,
       last_order_days: data.last_order_days,
+      segment_ids: data.segment_ids || [],
+      segment_state_filter: data.segment_state_filter || '',
+      segment_district_filter: data.segment_district_filter || '',
       channel: data.campaign_type || null,
       industry_ids: data.industry_ids || [],
       kit_ids: data.kit_ids || [],
@@ -695,6 +906,9 @@ const createCampaign = async (req, res) => {
     data.recipients = audience.recipients.map((r) => ({
       epc_id: r.epc_id || null,
       lead_id: r.lead_id || null,
+      segment_id: r.segment_id || null,
+      segment_contact_id: r.segment_contact_id || null,
+      custom_fields: r.custom_fields || {},
       source_type: r.source_type || 'epc_account',
       name: r.name,
       phone: r.phone,
@@ -1468,23 +1682,24 @@ const getAudienceList = async (req, res) => {
   try {
     const { search, epc_type, state, cluster, warehouse, include_unsubscribed } = req.query;
 
-    const [orders, dbEpcs, dbLeads, clusters, unsubs] = await Promise.all([
+    const [orders, dbEpcs, dbLeads, clusters, unsubs, geoResolver] = await Promise.all([
       EpcOrder.find({ order_status: { $nin: ['cancelled', 'rejected'] } })
         .select('epc_id customer_phone customer_email created_at')
         .lean()
         .catch(() => []),
       EpcAccount.find({ deleted_at: null })
-        .select('name email whatsapp state_name district_name gstin gst_verification_status is_gstin_active is_marketing_unsubscribed created_at updated_at')
+        .select('name company_name email whatsapp phone state_name district_name gstin gst_verification_status is_gstin_active is_marketing_unsubscribed created_at updated_at')
         .sort({ created_at: -1 })
         .lean()
         .catch(() => []),
       WebsiteEpcLead.find({ deleted_at: null })
-        .select('lead_id name company_name contact_person phone mobile_number email state_name district_name gst_number lead_source warehouse_name lifetime_orders marketing_consent created_at')
+        .select('lead_id name company_name contact_person phone mobile_number email state_name district_id district_name cluster_id cluster_name cluster_code gst_number lead_source custom_attributes warehouse_name lifetime_orders marketing_consent created_at')
         .sort({ created_at: -1 })
         .lean()
         .catch(() => []),
       FranchiseeCluster.find({ deleted_at: null, is_active: true }).select('cluster_name state_name district_names').lean().catch(() => []),
-      MarketingUnsubscribe.find({ is_active: true }).select('email phone').lean().catch(() => [])
+      MarketingUnsubscribe.find({ is_active: true }).select('email phone').lean().catch(() => []),
+      buildGeoAndClusterResolver().catch(() => null)
     ]);
 
     const epcIds = dbEpcs.map((e) => e._id);
@@ -1523,26 +1738,30 @@ const getAudienceList = async (req, res) => {
     const combined = [];
 
     for (const acc of dbEpcs) {
-      const ph = (acc.whatsapp || '').replace(/\D/g, '').slice(-10);
+      const ph = String(acc.whatsapp || acc.phone || '').replace(/\D/g, '').slice(-10);
       const em = (acc.email || '').toLowerCase().trim();
       const ordersCount = orderCountMap.get(String(acc._id)) || orderCountMap.get(ph) || 0;
       const isUnsub = Boolean(acc.is_marketing_unsubscribed || (em && unsubEmailSet.has(em)) || (ph && unsubPhoneSet.has(ph)));
       const consent = consentMap.get(String(acc._id));
       const pref = prefMap.get(String(acc._id));
-      const clusterName = districtToCluster.get(String(acc.district_name || '').toLowerCase().trim()) || acc.district_name || 'Unmapped';
+      const resolved = geoResolver
+        ? geoResolver.resolve({ stateName: acc.state_name || '', districtName: acc.district_name || '' })
+        : { state: acc.state_name || '', district: acc.district_name || '', cluster_name: '' };
+      const clusterName = resolved.cluster_name || districtToCluster.get(String(acc.district_name || '').toLowerCase().trim()) || acc.district_name || 'Unmapped';
 
       combined.push({
         _id: String(acc._id),
         epc_id: acc._id,
         source: 'epc_account',
-        name: acc.name || 'Solar Partner',
+        recordSource: 'epc_account',
+        name: acc.company_name || acc.name || 'Solar Partner',
         contactPerson: acc.name || 'Contractor',
-        phone: acc.whatsapp || '',
+        phone: acc.whatsapp || acc.phone || '',
         email: em,
-        state: acc.state_name || 'Not Specified',
-        district: acc.district_name || '',
+        state: resolved.state || acc.state_name || 'Not Specified',
+        district: resolved.district || acc.district_name || '',
         cluster: clusterName,
-        warehouse: '',
+        warehouse: resolved.cluster_name ? `${resolved.cluster_name} Depot` : '',
         gstin: acc.gstin || null,
         lifetimeOrders: ordersCount,
         lastActive: acc.updated_at ? new Date(acc.updated_at).toLocaleDateString('en-IN') : 'Registered',
@@ -1559,26 +1778,32 @@ const getAudienceList = async (req, res) => {
       const em = (lead.email || '').toLowerCase().trim();
       const ordersCount = Number(lead.lifetime_orders || 0) || orderCountMap.get(ph) || 0;
       const isUnsub = Boolean((em && unsubEmailSet.has(em)) || (ph && unsubPhoneSet.has(ph)) || lead.marketing_consent === false);
-      const clusterName = districtToCluster.get(String(lead.district_name || '').toLowerCase().trim()) || lead.district_name || 'Unmapped';
+      const resolved = geoResolver
+        ? geoResolver.resolve({ stateName: lead.state_name || '', districtName: lead.district_name || '' })
+        : { state: lead.state_name || '', district: lead.district_name || '', cluster_name: '' };
+      const clusterName = lead.cluster_name || resolved.cluster_name || districtToCluster.get(String(lead.district_name || '').toLowerCase().trim()) || lead.district_name || 'Unmapped';
 
       combined.push({
         _id: String(lead._id),
         lead_id: lead._id,
         source: lead.lead_source === 'csv_dynamic_import' ? 'csv_import' : 'website_lead',
+        recordSource: 'website_epc_lead',
         name: lead.company_name || lead.name || 'Lead Contractor',
         contactPerson: lead.contact_person || lead.name || 'Lead Contact',
         phone: rawPh,
         email: em,
-        state: lead.state_name || 'Not Specified',
-        district: lead.district_name || '',
+        state: resolved.state || lead.state_name || 'Not Specified',
+        district: resolved.district || lead.district_name || '',
         cluster: clusterName,
-        warehouse: lead.warehouse_name || '',
+        cluster_code: lead.cluster_code || resolved.cluster_code || '',
+        warehouse: lead.warehouse_name || (clusterName && clusterName !== 'Unmapped' ? `${clusterName} Depot` : ''),
         gstin: lead.gst_number || null,
         lifetimeOrders: ordersCount,
         lastActive: lead.lead_source === 'csv_dynamic_import' ? 'CSV Imported' : 'Lead Captured',
         whatsappOptIn: Boolean(ph.length >= 10 && !isUnsub),
         emailVerified: Boolean(em && !isUnsub),
-        isUnsubscribed: isUnsub
+        isUnsubscribed: isUnsub,
+        customFields: lead.custom_attributes || {}
       });
     }
 
@@ -1617,10 +1842,16 @@ const getAudienceList = async (req, res) => {
       filteredList = filteredList.filter((item) => item.type === epc_type);
     }
     if (state && state !== 'ALL') {
-      filteredList = filteredList.filter((item) => (item.state || '').toLowerCase() === state.toLowerCase());
+      const stTok = cleanStateToken(state);
+      filteredList = filteredList.filter(
+        (item) => (item.state || '').toLowerCase() === state.toLowerCase() || (stTok && cleanStateToken(item.state) === stTok)
+      );
     }
     if (cluster && cluster !== 'ALL') {
-      filteredList = filteredList.filter((item) => (item.cluster || '').toLowerCase().includes(cluster.toLowerCase()));
+      const cTok = cleanGeoToken(cluster);
+      filteredList = filteredList.filter(
+        (item) => (item.cluster || '').toLowerCase().includes(cluster.toLowerCase()) || (cTok && cleanGeoToken(item.cluster) === cTok)
+      );
     }
     if (warehouse && warehouse !== 'ALL') {
       filteredList = filteredList.filter((item) => (item.warehouse || '').toLowerCase().includes(warehouse.toLowerCase()));
@@ -1638,13 +1869,13 @@ const getAudienceList = async (req, res) => {
       if (!clusterMap.has(cName)) {
         clusterMap.set(cName, {
           name: cName,
-          state: item.state,
+          state: item.state || '',
           warehouse: item.warehouse || '',
           buyer_epcs: 0,
           verified_epcs: 0,
           registered_epcs: 0,
           total_epcs: 0,
-          total_orders: 0
+          total_orders: 0,
         });
       }
       const cObj = clusterMap.get(cName);
@@ -1683,133 +1914,243 @@ const getAudienceList = async (req, res) => {
   }
 };
 
-// ── 10. Dynamic CSV Lead Import (100% Persisted in MongoDB WebsiteEpcLead) ─
+// ── 10. Dynamic Bulk Lead Import to MongoDB (Zero In-Memory Dummy Data + Option B Duplicates) ──
 const importDynamicCsvLeads = async (req, res) => {
   try {
-    const { leads = [], customFieldMappings = {} } = req.body;
+    const { leads = [], default_settings = {} } = req.body;
     if (!Array.isArray(leads) || leads.length === 0) {
       return res.status(400).json({ success: false, message: 'No lead rows provided for import.' });
     }
+    if (!WebsiteEpcLead) {
+      return res.status(500).json({ success: false, message: 'WebsiteEpcLead database model unavailable.' });
+    }
 
-    let importedCount = 0;
-    let updatedCount = 0;
-    let buyerCount = 0;
-    let verifiedCount = 0;
-    let registeredCount = 0;
-    const errors = [];
+    const batchPhones = [];
+    const batchEmails = [];
+    for (const raw of leads) {
+      const p10 = String(raw.mobile_number || raw.phone || raw.mobile || raw.whatsapp || raw.whatsapp_number || '').replace(/\D/g, '').slice(-10);
+      const em = raw.email ? String(raw.email).trim().toLowerCase() : '';
+      if (p10.length === 10) batchPhones.push(p10);
+      if (em && em.includes('@')) batchEmails.push(em);
+    }
 
-    for (let idx = 0; idx < leads.length; idx++) {
-      const raw = leads[idx];
-      try {
-        const name = raw.company_name || raw.name || raw.firm_name || 'Solar EPC Contractor';
-        const contactPerson = raw.contact_person || raw.contactPerson || raw.person || name;
-        const rawPhone = String(raw.whatsapp || raw.phone || raw.mobile || raw.mobile_number || '').trim();
-        const phone10 = rawPhone.replace(/\D/g, '').slice(-10);
-        const email = raw.email ? String(raw.email).trim().toLowerCase() : null;
-        const state = raw.state_name || raw.state || 'Not Specified';
-        const cluster = raw.district_name || raw.cluster || raw.district || '';
-        const gstin = raw.gstin || raw.gst_number || raw.gst || null;
-        const lifetimeOrders = Number(raw.lifetime_orders || raw.lifetimeOrders || raw.orders || 0);
+    const existingLeadPhoneSet = new Set();
+    const existingLeadEmailSet = new Set();
+    const existingAccPhoneSet = new Set();
+    const existingAccEmailSet = new Set();
 
-        if (!phone10 && !email) {
-          errors.push(`Row ${idx + 1}: Skipped because both phone and email are empty.`);
-          continue;
-        }
+    if (batchPhones.length > 0 || batchEmails.length > 0) {
+      const leadOr = [];
+      if (batchPhones.length > 0) leadOr.push({ phone: { $in: batchPhones } }, { mobile_number: { $in: batchPhones } });
+      if (batchEmails.length > 0) leadOr.push({ email: { $in: batchEmails } });
 
-        const type = classifyEpcPartner({ gstin, lifetimeOrders });
-        if (type === 'Buyer EPC') buyerCount++;
-        else if (type === 'Verified EPC') verifiedCount++;
-        else registeredCount++;
+      const [existingLeads, existingEpcs] = await Promise.all([
+        leadOr.length > 0 ? WebsiteEpcLead.find({ deleted_at: null, $or: leadOr }).select('phone mobile_number email').lean() : [],
+        EpcAccount
+          ? EpcAccount.find({
+              deleted_at: null,
+              $or: [
+                ...(batchPhones.length > 0 ? [{ whatsapp: { $in: batchPhones } }, { phone: { $in: batchPhones } }] : []),
+                ...(batchEmails.length > 0 ? [{ email: { $in: batchEmails } }] : []),
+              ]
+            }).select('whatsapp phone email').lean()
+          : [],
+      ]);
 
-        const matchOr = [];
-        if (phone10) matchOr.push({ phone: phone10 }, { mobile_number: phone10 });
-        if (email) matchOr.push({ email });
-
-        const existing = matchOr.length > 0 ? await WebsiteEpcLead.findOne({ $or: matchOr, deleted_at: null }) : null;
-        if (existing) {
-          await WebsiteEpcLead.updateOne(
-            { _id: existing._id },
-            {
-              $set: {
-                name,
-                company_name: name,
-                contact_person: contactPerson,
-                ...(phone10 ? { phone: phone10, mobile_number: phone10 } : {}),
-                ...(email ? { email } : {}),
-                state_name: state,
-                district_name: cluster || existing.district_name,
-                gst_number: gstin ? String(gstin).toUpperCase().trim() : existing.gst_number,
-                warehouse_name: raw.warehouse || existing.warehouse_name,
-                lifetime_orders: lifetimeOrders || existing.lifetime_orders || 0,
-                custom_fields: raw.customFields || customFieldMappings,
-                lead_source: 'csv_dynamic_import'
-              }
-            }
-          );
-          updatedCount++;
-        } else {
-          await WebsiteEpcLead.create({
-            lead_id: `IMP-${Date.now().toString().slice(-6)}-${idx}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
-            name,
-            company_name: name,
-            contact_person: contactPerson,
-            phone: phone10 || rawPhone || '0000000000',
-            mobile_number: phone10 || rawPhone || null,
-            email,
-            state_name: state,
-            district_name: cluster || null,
-            gst_number: gstin ? String(gstin).toUpperCase().trim() : null,
-            warehouse_name: raw.warehouse || null,
-            lifetime_orders: lifetimeOrders,
-            custom_fields: raw.customFields || {},
-            status: 'new',
-            lead_status: 'New',
-            lead_source: 'csv_dynamic_import',
-            marketing_consent: raw.marketing_consent !== false
-          });
-          importedCount++;
-        }
-      } catch (rowErr) {
-        errors.push(`Row ${idx + 1}: ${rowErr.message}`);
+      for (const l of existingLeads) {
+        const p10 = String(l.mobile_number || l.phone || '').replace(/\D/g, '').slice(-10);
+        if (p10.length === 10) existingLeadPhoneSet.add(p10);
+        if (l.email) existingLeadEmailSet.add(String(l.email).toLowerCase());
+      }
+      for (const a of existingEpcs) {
+        const p10 = String(a.whatsapp || a.phone || '').replace(/\D/g, '').slice(-10);
+        if (p10.length === 10) existingAccPhoneSet.add(p10);
+        if (a.email) existingAccEmailSet.add(String(a.email).toLowerCase());
       }
     }
 
+    const geoResolver = await buildGeoAndClusterResolver().catch(() => null);
+    const reqFieldsArr = Array.isArray(default_settings.required_fields) && default_settings.required_fields.length > 0
+      ? default_settings.required_fields
+      : ['company_name', 'mobile_number', 'state_name'];
+    const reqSet = new Set(reqFieldsArr);
+
+    let importedCount = 0;
+    let duplicatesSkipped = 0;
+    let skippedInvalid = 0;
+    let buyerCount = 0;
+    let verifiedCount = 0;
+    let registeredCount = 0;
+    const skippedDetails = [];
+    const seenPhones = new Set();
+    const seenEmails = new Set();
+    const clusterSummary = {};
+    const stateSummary = {};
+    const year = new Date().getFullYear();
+
+    for (let idx = 0; idx < leads.length; idx++) {
+      const raw = leads[idx] || {};
+      const name = String(raw.company_name || raw.name || raw.firm_name || '').trim();
+      const contactPerson = String(raw.contact_person || raw.contactPerson || raw.person || name).trim();
+      const phoneDigits = String(raw.mobile_number || raw.phone || raw.mobile || raw.whatsapp || raw.whatsapp_number || '').replace(/\D/g, '');
+      const phone10 = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : '';
+      const rawEmail = raw.email ? String(raw.email).trim().toLowerCase() : '';
+      const email = rawEmail && rawEmail.includes('@') ? rawEmail : '';
+
+      const rawState = String(raw.state_name || raw.state || default_settings.default_state || '').trim();
+      const rawDistrict = String(raw.district_name || raw.district || raw.cluster || default_settings.default_district || default_settings.default_cluster || '').trim();
+      const rawCluster = String(raw.cluster_name || raw.cluster || default_settings.default_cluster || '').trim();
+
+      const resolvedGeo = geoResolver
+        ? geoResolver.resolve({ stateName: rawState, districtName: rawDistrict, clusterName: rawCluster })
+        : { state_id: null, state: rawState, district_id: null, district: rawDistrict, cluster_id: null, cluster_name: rawCluster, cluster_code: '' };
+      const finalState = resolvedGeo.state || rawState;
+      const finalDistrict = resolvedGeo.district || rawDistrict;
+      const finalClusterName = resolvedGeo.cluster_name || rawCluster || null;
+
+      let invalidReason = '';
+      if (!name && !phone10 && !email) {
+        invalidReason = 'Empty row (missing Name, Phone & Email)';
+      } else if (reqSet.has('company_name') && !name) {
+        invalidReason = 'Missing required Company / Firm Name';
+      } else if (reqSet.has('mobile_number') && !phone10) {
+        invalidReason = 'Missing required 10-digit Mobile Number';
+      } else if (reqSet.has('email') && !email) {
+        invalidReason = 'Missing required Email Address';
+      } else if (reqSet.has('state_name') && !finalState) {
+        invalidReason = 'Missing required State (no state/district match or Default State)';
+      } else if (reqSet.has('district_name') && !finalDistrict) {
+        invalidReason = 'Missing required District / City';
+      }
+
+      if (invalidReason) {
+        skippedInvalid++;
+        if (skippedDetails.length < 300) {
+          skippedDetails.push({
+            row_number: idx + 1,
+            name: name || `Row ${idx + 1}`,
+            phone: phone10,
+            email,
+            reason: invalidReason,
+          });
+        }
+        continue;
+      }
+
+      if ((phone10 && existingAccPhoneSet.has(phone10)) || (email && existingAccEmailSet.has(email))) {
+        duplicatesSkipped++;
+        if (skippedDetails.length < 300) {
+          skippedDetails.push({ row_number: idx + 1, name, phone: phone10, email, reason: 'Already registered Platform EPC' });
+        }
+        continue;
+      }
+      if ((phone10 && existingLeadPhoneSet.has(phone10)) || (email && existingLeadEmailSet.has(email))) {
+        duplicatesSkipped++;
+        if (skippedDetails.length < 300) {
+          skippedDetails.push({ row_number: idx + 1, name, phone: phone10, email, reason: 'Already exists in Website / Audience Leads' });
+        }
+        continue;
+      }
+      if ((phone10 && seenPhones.has(phone10)) || (email && seenEmails.has(email))) {
+        duplicatesSkipped++;
+        if (skippedDetails.length < 300) {
+          skippedDetails.push({ row_number: idx + 1, name, phone: phone10, email, reason: 'Duplicate entry in same uploaded file' });
+        }
+        continue;
+      }
+
+      if (phone10) seenPhones.add(phone10);
+      if (email) seenEmails.add(email);
+
+      const gstin = raw.gst_number || raw.gstin || raw.gst ? String(raw.gst_number || raw.gstin || raw.gst).trim().toUpperCase() : null;
+      const lifetimeOrders = Number(raw.lifetime_orders || raw.lifetimeOrders || raw.orders || 0);
+      const explicitType = String(raw.epc_type || default_settings.default_epc_type || '').trim();
+      const type = explicitType || classifyEpcPartner({ gstin, lifetimeOrders });
+
+      if (type === 'Buyer EPC') buyerCount++;
+      else if (type === 'Verified EPC') verifiedCount++;
+      else registeredCount++;
+
+      const leadSource = String(raw.lead_source || raw.source || default_settings.default_lead_source || 'audience_dynamic_import').trim();
+
+      await WebsiteEpcLead.create({
+        lead_id: `IMP-${year}-${Date.now().toString().slice(-4)}${Math.floor(1000 + Math.random() * 9000)}`,
+        name: name || email || phone10,
+        company_name: name || email || phone10,
+        contact_person: contactPerson || name || email || phone10,
+        phone: phone10 || null,
+        mobile_number: phone10 || null,
+        email: email || null,
+        state_id: resolvedGeo.state_id || null,
+        state_name: finalState || '',
+        district_id: resolvedGeo.district_id || null,
+        district_name: finalDistrict || null,
+        cluster_id: resolvedGeo.cluster_id || null,
+        cluster_name: finalClusterName,
+        cluster_code: resolvedGeo.cluster_code || null,
+        pincode: raw.pincode ? String(raw.pincode).replace(/\D/g, '').slice(0, 6) || null : null,
+        address_line: raw.address_line ? String(raw.address_line).trim() : null,
+        project_type: raw.interested_products || 'Bulk Solar Combo Kits',
+        interested_products: raw.interested_products || null,
+        follow_up_date: raw.follow_up_date || null,
+        remarks: raw.remarks || default_settings.default_remarks || null,
+        gst_number: gstin,
+        gst_verification_status: gstin ? 'verified_admin' : 'unverified',
+        epc_type: type,
+        lifetime_orders: lifetimeOrders,
+        status: 'new',
+        lead_status: 'New',
+        lead_source: leadSource,
+        source: leadSource,
+        marketing_consent: raw.marketing_consent !== false,
+        custom_attributes: raw.custom_attributes || raw.customFields || raw.custom_fields || {},
+      });
+
+      if (finalState) stateSummary[finalState] = (stateSummary[finalState] || 0) + 1;
+      if (finalClusterName) clusterSummary[finalClusterName] = (clusterSummary[finalClusterName] || 0) + 1;
+      importedCount++;
+    }
+
     res.json({
-      success: importedCount + updatedCount > 0,
-      message: `Persisted ${importedCount} new leads and updated ${updatedCount} existing records in MongoDB.`,
-      count: importedCount + updatedCount,
-      inserted: importedCount,
-      updated: updatedCount,
-      errors,
+      success: importedCount > 0 || duplicatesSkipped > 0,
+      message: `Imported ${importedCount} lead(s) to MongoDB across States & Clusters. Skipped ${duplicatesSkipped} duplicate(s) and ${skippedInvalid} invalid row(s).`,
+      count: importedCount,
+      imported_count: importedCount,
+      importedCount,
+      duplicates_skipped: duplicatesSkipped,
+      skipped_invalid: skippedInvalid,
+      cluster_summary: clusterSummary,
+      state_summary: stateSummary,
+      skipped_details: skippedDetails,
       breakdown: {
         buyer_epcs: buyerCount,
         verified_epcs: verifiedCount,
-        registered_epcs: registeredCount
-      }
+        registered_epcs: registeredCount,
+      },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ── 10B. Audience Custom Segments CRUD ─────────────────────────────────────
-const getSegments = async (req, res) => {
+// ── 10B. Audience Custom Filter Segments CRUD (MarketingAudienceSegment) ──
+const getAudienceSegments = async (req, res) => {
   try {
-    const segments = await MarketingSegment.find({ is_active: true }).sort({ created_at: -1 }).lean();
+    const segments = await MarketingAudienceSegment.find({ is_active: true }).sort({ created_at: -1 }).lean();
     res.json({ success: true, data: segments });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-const createSegment = async (req, res) => {
+const createAudienceSegment = async (req, res) => {
   try {
     const { name, description = '', filters = {} } = req.body;
     if (!name || !String(name).trim()) {
       return res.status(400).json({ success: false, message: 'Segment name is required.' });
     }
     const preview = await audienceService.resolveAudience({ ...filters, require_consent: Boolean(filters.require_consent) });
-    const segment = await MarketingSegment.create({
+    const segment = await MarketingAudienceSegment.create({
       name: String(name).trim(),
       description,
       filters,
@@ -1823,7 +2164,7 @@ const createSegment = async (req, res) => {
   }
 };
 
-const updateSegment = async (req, res) => {
+const updateAudienceSegment = async (req, res) => {
   try {
     const { name, description, filters } = req.body;
     const updateSet = {};
@@ -1835,7 +2176,7 @@ const updateSegment = async (req, res) => {
       updateSet.cached_count = preview.total_eligible;
       updateSet.last_computed_at = new Date();
     }
-    const segment = await MarketingSegment.findByIdAndUpdate(req.params.id, { $set: updateSet }, { new: true });
+    const segment = await MarketingAudienceSegment.findByIdAndUpdate(req.params.id, { $set: updateSet }, { new: true });
     if (!segment) return res.status(404).json({ success: false, message: 'Segment not found' });
     res.json({ success: true, data: segment });
   } catch (error) {
@@ -1843,9 +2184,9 @@ const updateSegment = async (req, res) => {
   }
 };
 
-const deleteSegment = async (req, res) => {
+const deleteAudienceSegment = async (req, res) => {
   try {
-    const deleted = await MarketingSegment.findByIdAndDelete(req.params.id);
+    const deleted = await MarketingAudienceSegment.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ success: false, message: 'Segment not found' });
     res.json({ success: true, message: 'Segment deleted successfully' });
   } catch (error) {
@@ -2256,10 +2597,10 @@ module.exports = {
   getReports,
   getAudienceList,
   importDynamicCsvLeads,
-  getSegments,
-  createSegment,
-  updateSegment,
-  deleteSegment,
+  getAudienceSegments,
+  createAudienceSegment,
+  updateAudienceSegment,
+  deleteAudienceSegment,
   getAudienceClustersSummary,
   classifyEpcPartner,
   getCoupons,
@@ -2273,5 +2614,6 @@ module.exports = {
   handleUnsubscribe,
   getUnsubscribedList,
   suppressContact,
-  resubscribeContact
+  resubscribeContact,
+  ...segmentGroupsController
 };

@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { authHeaderObj } from '@/app/authHeader';
+import { getAdminApiBaseUrl } from '@/utils/resolveApiUrl';
 
-const rawApiUrl = import.meta.env.VITE_ADMIN_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/admin-api';
-const API_BASE = rawApiUrl.replace(/\/+$/, '');
+const API_BASE = getAdminApiBaseUrl();
 
 /**
  * Fetch solarshop connected pipeline status (checks Combo Kits pending Margin & Warehouse Activation)

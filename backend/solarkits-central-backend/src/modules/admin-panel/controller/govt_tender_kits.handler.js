@@ -98,8 +98,9 @@ const get_govt_tender_configs = async (req, res) => {
     }
 
     // Stats
+    const totalCount = await GovtTenderKit.countDocuments({ deleted_at: null });
     const totalActive = await GovtTenderKit.countDocuments({ deleted_at: null, is_active: true });
-    const distinctStates = await GovtTenderKit.distinct('state_id', { deleted_at: null });
+    const distinctStates = await GovtTenderKit.distinct('state_id', { deleted_at: null, is_active: true });
 
     return res.status(200).json({
       status: 'success',
@@ -112,7 +113,7 @@ const get_govt_tender_configs = async (req, res) => {
         stats: {
           totalActive,
           distinctStatesCount: distinctStates.length,
-          totalCount: total
+          totalCount
         }
       }
     });
@@ -131,6 +132,7 @@ const create_govt_tender_config = async (req, res) => {
     const {
       state_id,
       combo_kit_id,
+      combo_kit_ids,
       display_name,
       tagline,
       tender_description,
@@ -147,8 +149,16 @@ const create_govt_tender_config = async (req, res) => {
     if (!state_id || !mongoose.Types.ObjectId.isValid(state_id)) {
       return res.status(400).json({ status: 'error', message: 'Valid State ID is required.' });
     }
-    if (!combo_kit_id || !mongoose.Types.ObjectId.isValid(combo_kit_id)) {
-      return res.status(400).json({ status: 'error', message: 'Valid Combo Kit ID is required.' });
+
+    // Support both single combo_kit_id and multiple combo_kit_ids
+    const rawKitIds = Array.isArray(combo_kit_ids) && combo_kit_ids.length > 0
+      ? combo_kit_ids
+      : (combo_kit_id ? [combo_kit_id] : []);
+
+    const validKitIds = rawKitIds.filter(id => id && mongoose.Types.ObjectId.isValid(id));
+
+    if (validKitIds.length === 0) {
+      return res.status(400).json({ status: 'error', message: 'At least one valid Combo Kit ID is required.' });
     }
 
     // 1. Resolve State name
@@ -162,70 +172,65 @@ const create_govt_tender_config = async (req, res) => {
       }
     } catch (e) {}
 
-    // 2. Resolve Combo Kit name
-    const kitDoc = await WarehouseComboKit.findById(combo_kit_id).lean();
-    if (!kitDoc) {
-      return res.status(404).json({ status: 'error', message: 'Combo Kit not found in catalog.' });
-    }
+    const savedConfigs = [];
 
-    const defaultDisplayName = `${kitDoc.capacity || kitDoc.capacityKW || ''} kW ${stateName} Govt Tender Kit`.trim();
+    // 2. Loop through each kit ID and create or update configuration
+    for (const kitId of validKitIds) {
+      const kitDoc = await WarehouseComboKit.findById(kitId).lean();
+      if (!kitDoc) continue;
 
-    // 3. Check for existing active or soft-deleted config for this state + kit
-    const existing = await GovtTenderKit.findOne({
-      state_id: new mongoose.Types.ObjectId(state_id),
-      combo_kit_id: new mongoose.Types.ObjectId(combo_kit_id)
-    });
+      const defaultDisplayName = `${kitDoc.capacity || kitDoc.capacityKW || ''} kW ${stateName} Govt Tender Kit`.trim();
 
-    if (existing) {
-      existing.display_name = (display_name && display_name.trim()) || defaultDisplayName;
-      existing.tagline = (tagline && tagline.trim()) || 'Specially Configured for Government Projects';
-      existing.tender_description = tender_description || existing.tender_description;
-      existing.product_image = product_image || existing.product_image || kitDoc.product_image || kitDoc.kit_image || kitDoc.image_url;
-      existing.product_video = product_video !== undefined ? product_video : existing.product_video;
-      existing.display_tag = (display_tag || 'Govt. Tender').trim();
-      existing.secondary_tag = (secondary_tag || 'Bulk Supply').trim();
-      existing.has_dcr_option = has_dcr_option !== undefined ? Boolean(has_dcr_option) : true;
-      existing.priority = Math.max(1, parseInt(priority, 10) || 1);
-      existing.is_active = is_active === true || is_active === 'true';
-      existing.notes = notes || existing.notes;
-      existing.state_name = stateName;
-      existing.deleted_at = null; // Un-delete if soft-deleted
-      existing.updated_at = new Date();
-      await existing.save();
-
-      return res.status(200).json({
-        status: 'success',
-        message: 'Government Tender Kit configuration updated successfully.',
-        data: existing
+      const existing = await GovtTenderKit.findOne({
+        state_id: new mongoose.Types.ObjectId(state_id),
+        combo_kit_id: new mongoose.Types.ObjectId(kitId)
       });
+
+      if (existing) {
+        existing.display_name = (display_name && validKitIds.length === 1) ? display_name.trim() : defaultDisplayName;
+        existing.tagline = (tagline && tagline.trim()) || 'Specially Configured for Government Projects';
+        existing.tender_description = tender_description || existing.tender_description;
+        existing.product_image = product_image || existing.product_image || kitDoc.product_image || kitDoc.kit_image || kitDoc.image_url;
+        existing.product_video = product_video !== undefined ? product_video : existing.product_video;
+        existing.display_tag = (display_tag || 'Govt. Tender').trim();
+        existing.secondary_tag = (secondary_tag || 'Bulk Supply').trim();
+        existing.has_dcr_option = has_dcr_option !== undefined ? Boolean(has_dcr_option) : true;
+        existing.priority = Math.max(1, parseInt(priority, 10) || 1);
+        existing.is_active = is_active === true || is_active === 'true';
+        existing.notes = notes || existing.notes;
+        existing.state_name = stateName;
+        existing.deleted_at = null; // Un-delete if soft-deleted
+        existing.updated_at = new Date();
+        await existing.save();
+        savedConfigs.push(existing);
+      } else {
+        const newConfig = new GovtTenderKit({
+          state_id: new mongoose.Types.ObjectId(state_id),
+          state_name: stateName,
+          combo_kit_id: new mongoose.Types.ObjectId(kitId),
+          display_name: (display_name && validKitIds.length === 1) ? display_name.trim() : defaultDisplayName,
+          tagline: (tagline && tagline.trim()) || 'Specially Configured for Government Projects',
+          tender_description: tender_description || null,
+          product_image: product_image || kitDoc.product_image || kitDoc.kit_image || kitDoc.image_url || null,
+          product_video: product_video || null,
+          display_tag: (display_tag || 'Govt. Tender').trim(),
+          secondary_tag: (secondary_tag || 'Bulk Supply').trim(),
+          has_dcr_option: has_dcr_option !== undefined ? Boolean(has_dcr_option) : true,
+          priority: Math.max(1, parseInt(priority, 10) || 1),
+          is_active: is_active === true || is_active === 'true',
+          notes: notes || null,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+        await newConfig.save();
+        savedConfigs.push(newConfig);
+      }
     }
-
-    // 4. Create new config
-    const newConfig = new GovtTenderKit({
-      state_id: new mongoose.Types.ObjectId(state_id),
-      state_name: stateName,
-      combo_kit_id: new mongoose.Types.ObjectId(combo_kit_id),
-      display_name: (display_name && display_name.trim()) || defaultDisplayName,
-      tagline: (tagline && tagline.trim()) || 'Specially Configured for Government Projects',
-      tender_description: tender_description || null,
-      product_image: product_image || kitDoc.product_image || kitDoc.kit_image || kitDoc.image_url || null,
-      product_video: product_video || null,
-      display_tag: (display_tag || 'Govt. Tender').trim(),
-      secondary_tag: (secondary_tag || 'Bulk Supply').trim(),
-      has_dcr_option: has_dcr_option !== undefined ? Boolean(has_dcr_option) : true,
-      priority: Math.max(1, parseInt(priority, 10) || 1),
-      is_active: is_active === true || is_active === 'true',
-      notes: notes || null,
-      created_at: new Date(),
-      updated_at: new Date()
-    });
-
-    await newConfig.save();
 
     return res.status(201).json({
       status: 'success',
-      message: 'Government Tender Kit configured successfully for ' + stateName,
-      data: newConfig
+      message: `${savedConfigs.length} Government Tender Kit(s) configured successfully for ${stateName}.`,
+      data: savedConfigs.length === 1 ? savedConfigs[0] : savedConfigs
     });
   } catch (error) {
     console.error('[govt_tender_kits.create_govt_tender_config error]:', error);

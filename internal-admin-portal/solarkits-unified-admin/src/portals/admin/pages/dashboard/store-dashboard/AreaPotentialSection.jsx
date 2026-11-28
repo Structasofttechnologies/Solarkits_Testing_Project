@@ -73,7 +73,9 @@ export default function AreaPotentialSection({ areaPotentialData = {}, onSelectA
       <div className="bg-surface rounded-2xl border border-border shadow-xs overflow-hidden">
         <div className="p-3.5 border-b border-border flex items-center justify-between">
           <h3 className="text-xs font-bold text-text">Territorial Opportunity Analysis: Actual Sales vs Potential</h3>
-          <span className="text-[11px] font-semibold text-text-muted">5 Key Regional Clusters</span>
+          <span className="text-[11px] font-semibold text-text-muted">
+            {areas.length} Regional Cluster{areas.length === 1 ? '' : 's'}
+          </span>
         </div>
 
         <div className="overflow-x-auto">

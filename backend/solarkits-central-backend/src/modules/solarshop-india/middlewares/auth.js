@@ -2,9 +2,12 @@ const { decode_token } = require("../utils/jsonwebtoken");
 
 const verify_auth = (req, res, next) => {
     try {
-        let token = req.cookies?.access_token;
+        let token = req.cookies?.access_token || req.cookies?.token || req.cookies?.epc_token;
         if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
             token = req.headers.authorization.split(' ')[1];
+        }
+        if (!token && req.headers['x-access-token']) {
+            token = req.headers['x-access-token'];
         }
 
         if (!token) {
@@ -30,9 +33,12 @@ const verify_auth = (req, res, next) => {
 
 const optional_auth = (req, res, next) => {
     try {
-        let token = req.cookies?.token || req.cookies?.access_token;
+        let token = req.cookies?.access_token || req.cookies?.token || req.cookies?.epc_token;
         if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
             token = req.headers.authorization.split(' ')[1];
+        }
+        if (!token && req.headers['x-access-token']) {
+            token = req.headers['x-access-token'];
         }
         if (token) {
             req.user = decode_token(token);

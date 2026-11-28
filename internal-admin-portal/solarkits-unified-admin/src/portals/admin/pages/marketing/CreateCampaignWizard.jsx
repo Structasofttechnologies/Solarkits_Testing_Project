@@ -38,7 +38,8 @@ import {
   FaImage,
   FaPlay,
   FaListUl,
-  FaBan
+  FaBan,
+  FaLandmark
 } from 'react-icons/fa';
 import IndiaTargetingMap from './components/IndiaTargetingMap';
 import WhatsAppStudio from './components/WhatsAppStudio';
@@ -49,7 +50,11 @@ import {
   CAMPAIGN_OBJECTIVES,
   fetchAreaKits,
   fetchMarketingMasterResources,
-  fetchLiveQueueStatus
+  fetchLiveQueueStatus,
+  fetchLiveGovtTenderConfigs,
+  fetchMarketingStates,
+  fetchMarketingDistricts,
+  fetchSegments
 } from './services/marketingDataService';
 
 const WIZARD_STEPS = [
@@ -67,7 +72,7 @@ export default function CreateCampaignWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [creativeChannelTab, setCreativeChannelTab] = useState('WHATSAPP');
 
-  // Live master resources from MongoDB
+  // Live master resources, segment groups & govt tender configs from MongoDB
   const [clustersList, setClustersList] = useState([]);
   const [warehousesList, setWarehousesList] = useState([]);
   const [activeStatesList, setActiveStatesList] = useState([]);
@@ -78,6 +83,11 @@ export default function CreateCampaignWizard() {
   const [sendersList, setSendersList] = useState([]);
   const [dbTemplates, setDbTemplates] = useState([]);
   const [segmentsList, setSegmentsList] = useState([]);
+  const [segmentGroupsList, setSegmentGroupsList] = useState([]);
+  const [marketingStates, setMarketingStates] = useState([]);
+  const [segmentDistricts, setSegmentDistricts] = useState([]);
+  const [selectedSegmentStateId, setSelectedSegmentStateId] = useState('');
+  const [govtTenderConfigsList, setGovtTenderConfigsList] = useState([]);
   const [queueStatus, setQueueStatus] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
 
@@ -127,6 +137,9 @@ export default function CreateCampaignWizard() {
       verified: true,
       buyer: true
     },
+    selectedSegmentIds: [],
+    segmentStateFilter: '',
+    segmentDistrictFilter: '',
 
     // Step 3: Purpose, Kits & Coupon Engine
     objective: 'seasonal_coupon',
@@ -201,18 +214,20 @@ export default function CreateCampaignWizard() {
     followUpDelayUnit: 'days', // 'hours' | 'days'
   });
 
-  // Load all live master resources, senders, templates, segments & queue status from MongoDB
+  // Load all live master resources, senders, templates, segments, segment groups, tenders & queue status
   useEffect(() => {
     let mounted = true;
     async function loadResources() {
       setLoadingData(true);
       try {
-        const [resources, sendersRes, templatesRes, segmentsRes, qStatus] = await Promise.all([
+        const [resources, sendersRes, templatesRes, segmentsRes, qStatus, mktStatesRes, tList] = await Promise.all([
           fetchMarketingMasterResources(true),
           marketingHttp.get('/senders').catch(() => null),
           marketingHttp.get('/templates').catch(() => null),
-          marketingHttp.get('/segments').catch(() => null),
-          fetchLiveQueueStatus()
+          marketingHttp.get('/audience/segments').catch(() => null),
+          fetchLiveQueueStatus(),
+          fetchMarketingStates().catch(() => []),
+          fetchLiveGovtTenderConfigs().catch(() => [])
         ]);
         if (!mounted) return;
 
@@ -258,6 +273,8 @@ export default function CreateCampaignWizard() {
         setOwnersList(resources.owners || []);
         setIndustriesList(resources.industries || []);
         setCouponsList(resources.coupons || []);
+        if (Array.isArray(mktStatesRes)) setMarketingStates(mktStatesRes);
+        if (Array.isArray(tList)) setGovtTenderConfigsList(tList);
 
         const allSenders = sendersRes?.data?.data || sendersRes?.data?.senders || [];
         setSendersList(allSenders);
@@ -289,6 +306,30 @@ export default function CreateCampaignWizard() {
     loadResources();
     return () => { mounted = false; };
   }, []);
+
+  // Load cascading GeoLevel2 districts when Segment State filter changes
+  useEffect(() => {
+    if (!selectedSegmentStateId && !formData.segmentStateFilter) {
+      setSegmentDistricts([]);
+      return;
+    }
+    fetchMarketingDistricts({
+      stateId: selectedSegmentStateId,
+      stateName: formData.segmentStateFilter
+    })
+      .then((list) => setSegmentDistricts(list))
+      .catch(() => setSegmentDistricts([]));
+  }, [selectedSegmentStateId, formData.segmentStateFilter]);
+
+  // Reload live Segment Groups whenever State/District segment filters change
+  useEffect(() => {
+    fetchSegments({
+      state: formData.segmentStateFilter || undefined,
+      district: formData.segmentDistrictFilter || undefined
+    })
+      .then(({ segments }) => setSegmentGroupsList(segments || []))
+      .catch((err) => console.error('Failed loading segment groups in wizard:', err));
+  }, [formData.segmentStateFilter, formData.segmentDistrictFilter]);
 
   // Distinct available states strictly from MongoDB active states or clusters
   const availableStates = useMemo(() => {
@@ -367,6 +408,71 @@ export default function CreateCampaignWizard() {
     return fetchAreaKits(formData.servingWarehouses, liveKitsCatalog);
   }, [formData.servingWarehouses, liveKitsCatalog]);
 
+  // Detect if any EPC group is selected vs Segment-only mode
+  const hasAnyEpcGroup = useMemo(() => {
+    return Boolean(formData.audienceGroups.registered || formData.audienceGroups.verified || formData.audienceGroups.buyer);
+  }, [formData.audienceGroups]);
+
+  // Dynamically fetched and state-filtered Government Tender Kits
+  const govtTenderFilteredKits = useMemo(() => {
+    if (!govtTenderConfigsList || govtTenderConfigsList.length === 0) return [];
+
+    const activeSelectedStates = formData.selectedStates || [];
+    const matchingConfigs = govtTenderConfigsList.filter(cfg => {
+      if (cfg.is_active === false) return false;
+      if (activeSelectedStates.length === 0) return true;
+      const cfgState = (cfg.target_state_name || cfg.state_name || cfg.state || '').trim().toLowerCase();
+      return activeSelectedStates.some(st => (st || '').trim().toLowerCase() === cfgState);
+    });
+
+    const result = [];
+    const seenMap = new Set();
+
+    matchingConfigs.forEach(cfg => {
+      const cfgKitId = (cfg.combo_kit_id?._id || cfg.combo_kit_id || '').toString();
+      const baseKit = dynamicAreaKits.find(k => (k.id === cfgKitId || k._id === cfgKitId)) ||
+                      liveKitsCatalog.find(k => (k.id === cfgKitId || k._id === cfgKitId)) ||
+                      (cfg.combo_kit_details ? {
+                        id: cfgKitId,
+                        name: cfg.combo_kit_details.kit_title || cfg.store_display_name,
+                        base_price: cfg.combo_kit_details.price_with_tax || 89317,
+                        stockQty: 50,
+                        moq: 25,
+                        warranty: '12 Years',
+                        components_summary: 'Inverter + Panels + BOS Structure'
+                      } : null);
+
+      if (!baseKit) return;
+
+      const uniqueKey = `${cfgKitId}-${cfg.target_state_name || ''}`;
+      if (seenMap.has(uniqueKey)) return;
+      seenMap.add(uniqueKey);
+
+      result.push({
+        ...baseKit,
+        id: baseKit.id || cfgKitId,
+        combo_kit_id: cfgKitId,
+        tender_config_id: cfg._id || cfg.id,
+        target_state: cfg.target_state_name || cfg.state_name || 'All India',
+        tender_name: cfg.store_display_name || baseKit.name,
+        tender_tagline: cfg.tagline || 'Specially Configured for Government Projects',
+        tender_description: cfg.tender_description || 'State-specific tender configuration with bulk procurement support and DCR compliant solar modules.',
+        primary_badge: cfg.primary_badge_text || 'GOVT. TENDER',
+        secondary_badge: cfg.secondary_badge_text || 'Bulk Supply',
+        dcr_module_available: cfg.dcr_module_available !== false,
+        tender_image_url: cfg.product_image_url || baseKit.image || baseKit.display_image,
+        explainer_video_url: cfg.explainer_video_url,
+        is_govt_tender: true
+      });
+    });
+
+    return result;
+  }, [govtTenderConfigsList, formData.selectedStates, dynamicAreaKits, liveKitsCatalog]);
+
+  const displayedStep3Kits = useMemo(() => {
+    return formData.objective === 'govt_tender_promotion' ? govtTenderFilteredKits : dynamicAreaKits;
+  }, [formData.objective, govtTenderFilteredKits, dynamicAreaKits]);
+
   // Detect if ONLY Registered EPC is selected (Registered EPCs haven't logged in yet and have no preferences)
   const isOnlyRegistered = useMemo(() => {
     return Boolean(formData.audienceGroups.registered && !formData.audienceGroups.verified && !formData.audienceGroups.buyer);
@@ -374,10 +480,17 @@ export default function CreateCampaignWizard() {
 
   // Resolve selected ObjectIds & names cleanly for API requests
   const resolvedTargeting = useMemo(() => {
-    const stateIds = activeStatesList
-      .filter((s) => formData.selectedStates.some((st) => st.toLowerCase() === (s.name || '').toLowerCase()))
-      .map((s) => String(s._id || s.id))
-      .filter((id) => /^[a-f\d]{24}$/i.test(id));
+    const combinedStates = [...marketingStates, ...activeStatesList];
+    const stateIds = Array.from(
+      new Set(
+        formData.selectedStates
+          .map((stName) => {
+            const match = combinedStates.find((s) => String(s?.name || s || '').trim().toLowerCase() === String(stName || '').trim().toLowerCase());
+            return match ? String(match._id || match.id) : null;
+          })
+          .filter((id) => id && /^[a-f\d]{24}$/i.test(id))
+      )
+    );
 
     const matchedClusters = clustersList.filter((c) =>
       formData.selectedClusterIds.includes(c.cluster_code) ||
@@ -414,6 +527,9 @@ export default function CreateCampaignWizard() {
       cluster_names: clusterNames,
       warehouse_ids: warehouseIds,
       warehouse_names: formData.servingWarehouses,
+      segment_ids: formData.selectedSegmentIds || [],
+      segment_state_filter: formData.segmentStateFilter || '',
+      segment_district_filter: formData.segmentDistrictFilter || '',
       industry_ids: formData.industryPreference && formData.industryPreference !== 'ALL' && /^[a-f\d]{24}$/i.test(formData.industryPreference)
         ? [formData.industryPreference]
         : [],
@@ -423,6 +539,7 @@ export default function CreateCampaignWizard() {
       require_consent: Boolean(formData.require_consent)
     };
   }, [
+    marketingStates,
     activeStatesList,
     clustersList,
     warehousesList,
@@ -431,10 +548,27 @@ export default function CreateCampaignWizard() {
     formData.selectedClusterIds,
     formData.servingWarehouses,
     formData.audienceGroups,
+    formData.selectedSegmentIds,
+    formData.segmentStateFilter,
+    formData.segmentDistrictFilter,
     formData.industryPreference,
     formData.selectedKitIds,
-    formData.channel
+    formData.channel,
+    formData.include_imported_leads,
+    formData.require_consent
   ]);
+
+  // Toggle isolated Segment Group selection
+  const handleToggleSegment = (segId) => {
+    if (!segId) return;
+    setFormData((prev) => {
+      const exists = prev.selectedSegmentIds.includes(segId);
+      const next = exists
+        ? prev.selectedSegmentIds.filter((id) => id !== segId)
+        : [...prev.selectedSegmentIds, segId];
+      return { ...prev, selectedSegmentIds: next };
+    });
+  };
 
   // Live MongoDB Audience Preview (Zero fake multipliers)
   useEffect(() => {
@@ -459,10 +593,14 @@ export default function CreateCampaignWizard() {
   }, [resolvedTargeting]);
 
   const audienceCalculation = useMemo(() => {
-    const eligible = Number(audiencePreview?.total_eligible || 0);
+    const eligible = Number(audiencePreview?.total_eligible ?? audiencePreview?.deduplicatedTotal ?? 0);
+    const epcCount = Number(audiencePreview?.epcCount ?? audiencePreview?.source_breakdown?.epc_accounts ?? eligible);
+    const segmentCount = Number(audiencePreview?.segmentCount ?? audiencePreview?.source_breakdown?.segment_groups ?? 0);
     return {
       rawTotal: eligible + Number(audiencePreview?.total_excluded || 0),
-      deduplicatedTotal: eligible
+      deduplicatedTotal: eligible,
+      epcCount,
+      segmentCount
     };
   }, [audiencePreview]);
 
@@ -476,12 +614,12 @@ export default function CreateCampaignWizard() {
   // Projected campaign revenue based on selected kits and individual kit targets
   const selectedKitsRevenue = useMemo(() => {
     return formData.selectedKitIds.reduce((sum, kid) => {
-      const kit = dynamicAreaKits.find(k => k.id === kid) || liveKitsCatalog.find(k => k.id === kid) || { base_price: 0 };
+      const kit = (displayedStep3Kits || dynamicAreaKits).find(k => k.id === kid) || liveKitsCatalog.find(k => k.id === kid) || { base_price: 0 };
       const price = Number(kit.base_price || kit.defaultPrice || kit.price || 0);
       const qty = Number(formData.kitTargets?.[kid] ?? 20);
       return sum + (price * qty);
     }, 0);
-  }, [formData.selectedKitIds, formData.kitTargets, dynamicAreaKits, liveKitsCatalog]);
+  }, [formData.selectedKitIds, formData.kitTargets, displayedStep3Kits, dynamicAreaKits, liveKitsCatalog]);
 
   // Helper to toggle state selection
   const handleToggleState = (stateName) => {
@@ -549,6 +687,9 @@ export default function CreateCampaignWizard() {
     } else if (newObjective === 'epc_activation') {
       nextCta = 'Reactivate Account & Explore Combos';
       nextUrl = 'https://solarkits.in/portal/dashboard?utm_source=solarkits_marketing&utm_campaign=epc_activation';
+    } else if (newObjective === 'govt_tender_promotion') {
+      nextCta = 'Explore Govt Tender Solar Kits';
+      nextUrl = 'https://solarkits.in/govt-tenders?utm_source=solarkits_marketing&utm_campaign=govt_tender_promotion';
     }
 
     setFormData(prev => ({
@@ -576,7 +717,7 @@ export default function CreateCampaignWizard() {
       }
       const newTotal = nextKits.reduce((acc, id) => acc + (updatedTargets[id] || 0), 0);
 
-      const selKits = liveKitsCatalog.filter(k => nextKits.includes(k.id));
+      const selKits = displayedStep3Kits.filter(k => nextKits.includes(k.id));
       const autoMoq = selKits.length > 0
         ? Math.min(...selKits.map(k => prev.kitMoqs?.[k.id] ?? k.moq ?? 1))
         : 1;
@@ -591,10 +732,10 @@ export default function CreateCampaignWizard() {
     });
   };
 
-  // Selected kit objects from live catalog
+  // Selected kit objects from live catalog (or tender filtered kits when objective is govt_tender_promotion)
   const selectedKitObjects = useMemo(() => {
-    return dynamicAreaKits.filter(k => formData.selectedKitIds.includes(k.id));
-  }, [dynamicAreaKits, formData.selectedKitIds]);
+    return displayedStep3Kits.filter(k => formData.selectedKitIds.includes(k.id));
+  }, [displayedStep3Kits, formData.selectedKitIds]);
 
   // Minimum required store loose batch MOQ among selected kits
   const minimumRequiredMoq = useMemo(() => {
@@ -725,7 +866,6 @@ export default function CreateCampaignWizard() {
           });
           couponOfferId = cRes.data?.data?._id || null;
         } catch (couponErr) {
-          // If code already exists, let campaign store coupon_code directly
           console.warn('Coupon creation note:', couponErr.message);
         }
       }
@@ -734,6 +874,9 @@ export default function CreateCampaignWizard() {
         mode === 'scheduled' && formData.scheduledDate
           ? new Date(`${formData.scheduledDate}T${formData.scheduledTime || '10:00'}:00`).toISOString()
           : new Date().toISOString();
+
+      const resolvedEmailSubject = formData.emailSubject || formData.customCreative?.headline || null;
+      const resolvedEmailHtml = formData.selectedEmailTemplateId ? null : generatedEmailHtml;
 
       const payload = {
         campaign_name: formData.campaignName.trim(),
@@ -754,8 +897,10 @@ export default function CreateCampaignWizard() {
         whatsapp_sender_id: /^[a-f\d]{24}$/i.test(String(formData.whatsapp_sender_id)) ? formData.whatsapp_sender_id : null,
         email_template_id: /^[a-f\d]{24}$/i.test(String(formData.selectedEmailTemplateId)) ? formData.selectedEmailTemplateId : null,
         whatsapp_template_id: /^[a-f\d]{24}$/i.test(String(formData.selectedWhatsAppTemplateId)) ? formData.selectedWhatsAppTemplateId : null,
-        email_subject_override: formData.emailSubject || formData.customCreative?.headline || null,
-        email_html_override: formData.selectedEmailTemplateId ? null : generatedEmailHtml,
+        email_subject: resolvedEmailSubject,
+        email_html_content: resolvedEmailHtml,
+        email_subject_override: resolvedEmailSubject,
+        email_html_override: resolvedEmailHtml,
         whatsapp_body_override: formData.selectedWhatsAppTemplateId ? null : (formData.customCreative?.whatsapp?.body || null),
         coupon_offer_id: couponOfferId,
         coupon_code: formData.hasCoupon && formData.couponCode ? formData.couponCode.trim().toUpperCase() : null,
@@ -1301,11 +1446,17 @@ export default function CreateCampaignWizard() {
                 </div>
               )}
 
-              {/* TARGET EPC AUDIENCE GROUPS & DEDUPLICATED COUNTER */}
+              {/* TARGET EPC AUDIENCE GROUPS & ISOLATED SEGMENT GROUPS */}
               <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block">
-                  Target EPC Audience Groups (Deduplicated) *
-                </label>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block">
+                    Target EPC Audience Groups (Deduplicated)
+                  </label>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    Uncheck all 3 for Segment-Only Campaigns • Active EPCs:{' '}
+                    <strong className="text-indigo-600 dark:text-indigo-400">{audienceCalculation.epcCount.toLocaleString('en-IN')}</strong>
+                  </span>
+                </div>
 
                 <div className="grid grid-cols-3 gap-3">
                   {[
@@ -1345,7 +1496,7 @@ export default function CreateCampaignWizard() {
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block mb-1">
-                      Saved Dynamic Segment (Optional)
+                      Saved Dynamic Filter Segment (Optional)
                     </label>
                     <select
                       value={formData.segment_id}
@@ -1380,20 +1531,127 @@ export default function CreateCampaignWizard() {
                   </div>
                 </div>
 
+                {/* ISOLATED SEGMENT GROUPS (NON-EPC LEADS) */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-700/60 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                        <FaLayerGroup className="text-amber-500" /> Target Isolated Segment Groups (Non-EPC Leads)
+                      </label>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Select non-EPC Segment Groups (auto-excludes leads who already verified a GSTIN).
+                      </p>
+                    </div>
+                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                      Segment Leads: {audienceCalculation.segmentCount.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+
+                  {/* Live MongoDB State & District Filters for Segment Groups */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <select
+                      value={selectedSegmentStateId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        const st = marketingStates.find((s) => String(s._id) === id);
+                        setSelectedSegmentStateId(id);
+                        setFormData((prev) => ({
+                          ...prev,
+                          segmentStateFilter: st?.name || '',
+                          segmentDistrictFilter: ''
+                        }));
+                      }}
+                      className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200"
+                    >
+                      <option value="">All Segment States (Live DB)</option>
+                      {marketingStates.map((st) => (
+                        <option key={st._id} value={st._id}>{st.name}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={formData.segmentDistrictFilter}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, segmentDistrictFilter: e.target.value }))}
+                      disabled={!selectedSegmentStateId}
+                      className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-50"
+                    >
+                      <option value="">{selectedSegmentStateId ? 'All Districts in State' : 'Select Segment State First'}</option>
+                      {segmentDistricts.map((dist) => (
+                        <option key={dist._id} value={dist.name}>{dist.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {segmentGroupsList.length === 0 ? (
+                    <div className="p-3.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-400 text-center">
+                      No isolated Segment Groups found yet. Create groups under <strong>Marketing Portal → Segment Groups</strong>.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                      {segmentGroupsList.map((seg) => {
+                        const isChecked = formData.selectedSegmentIds.includes(seg._id);
+                        const filteredCnt = seg.filtered_contact_count ?? seg.contact_count ?? 0;
+                        return (
+                          <label
+                            key={seg._id}
+                            className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2 ${
+                              isChecked
+                                ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30'
+                                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white truncate">{seg.name}</span>
+                                <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+                                  {seg.segment_type}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                {filteredCnt.toLocaleString('en-IN')} active leads
+                                {(formData.segmentStateFilter || formData.segmentDistrictFilter) && ` (filtered)`}
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleSegment(seg._id)}
+                              className="mt-0.5 rounded-sm text-amber-600"
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 {/* Live Industry Preference Segment Filter (DB Industries) */}
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block">
                       Filter by EPC Industry Interest (Buyer Preferences)
                     </label>
-                    {isOnlyRegistered && (
+                    {!hasAnyEpcGroup ? (
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                        Segment-Only Mode Active
+                      </span>
+                    ) : isOnlyRegistered ? (
                       <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
                         Disabled for Registered-Only EPCs
                       </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400">
+                        Live EPC audience filter
+                      </span>
+                    )}
                     )}
                   </div>
 
-                  {isOnlyRegistered ? (
+                  {!hasAnyEpcGroup ? (
+                    <div className="p-3 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs text-amber-800 dark:text-amber-300">
+                      Targeting Selected Isolated Segment Groups only (all 3 EPC checkboxes unchecked).
+                    </div>
+                  ) : isOnlyRegistered ? (
                     <div className="p-3.5 bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
                       <FaInfoCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                       <div>
@@ -1439,8 +1697,8 @@ export default function CreateCampaignWizard() {
                 </div>
 
                 {/* Live Audience Resolution Summary from MongoDB */}
-                <div className="p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
+                <div className="p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1.5">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
                       Live MongoDB Eligible Audience Count
                     </span>
@@ -1451,9 +1709,17 @@ export default function CreateCampaignWizard() {
                     <p className="text-[10px] text-slate-400 mt-0.5">
                       Unsubscribed skipped: {audiencePreview?.unsubscribed_skipped ?? 0} • Consent skipped: {audiencePreview?.consent_skipped ?? 0}
                     </p>
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-500/25 border border-indigo-400/40 text-[11px] font-bold text-indigo-200">
+                        Target EPCs: {audienceCalculation.epcCount.toLocaleString('en-IN')}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500/25 border border-amber-400/40 text-[11px] font-bold text-amber-200">
+                        Segment Leads (Non-EPC): {audienceCalculation.segmentCount.toLocaleString('en-IN')}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="text-right text-[11px]">
+                  <div className="text-left sm:text-right text-[11px]">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
                       Database Breakdown
                     </span>
@@ -1519,6 +1785,7 @@ export default function CreateCampaignWizard() {
                 <option value="Explore TopCon Bifacial Kits & Specs">Explore TopCon Bifacial Kits & Specs</option>
                 <option value="Resume Order & Apply ₹5,000 Discount">Resume Order & Apply ₹5,000 Discount</option>
                 <option value="Reactivate Account & Claim ₹7,500 Credit">Reactivate Account & Claim ₹7,500 Credit</option>
+                <option value="Explore Govt Tender Solar Kits">Explore Govt Tender Solar Kits</option>
               </select>
             </div>
           </div>
@@ -2054,6 +2321,259 @@ export default function CreateCampaignWizard() {
                 </div>
               </div>
             </>
+          )}
+
+          {/* DEDICATED PURPOSE: GOVERNMENT & PSU TENDER KITS PROMOTION */}
+          {formData.objective === 'govt_tender_promotion' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-900/10 via-indigo-900/10 to-slate-900/10 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-slate-950/40 border-2 border-blue-500/30 dark:border-blue-700/40 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 rounded-xl bg-blue-600 text-white shadow-xs">
+                      <FaLandmark className="w-5 h-5 text-amber-300" />
+                    </span>
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                        Government & PSU Tender Solar Kits Promotion
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Promoting state-approved tender combo kits with DCR compliance, wholesale bulk supply tags, and state specifications.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase">Step 2 Target States:</span>
+                    {formData.selectedStates && formData.selectedStates.length > 0 ? (
+                      formData.selectedStates.map(st => (
+                        <span key={st} className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-300">
+                          🏛️ {st}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                        No states selected in Step 2
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Kit Selection Header */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <FaBoxes className="text-blue-600" /> Select Government Tender Kits Mapped for Selected States *
+                    </label>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Showing only combo kits configured under Govt Tender Kits Configuration that actively match your Step 2 state selection.
+                    </p>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {govtTenderFilteredKits.length} Available in Selected States
+                  </span>
+                </div>
+
+                {govtTenderFilteredKits.length === 0 ? (
+                  <div className="p-8 rounded-2xl border-2 border-dashed border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/20 text-center space-y-2">
+                    <FaExclamationTriangle className="w-8 h-8 text-amber-500 mx-auto" />
+                    <h5 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                      No Government Tender Kits Configured for Selected States ({formData.selectedStates.join(', ') || 'None'})
+                    </h5>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      There are currently no active Government Tender Kit configurations matching the states selected in Step 2.
+                      Please map combo kits to these states in <strong>Product Configurations &gt; Govt Tender Kits</strong> or select different states in Step 2.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {govtTenderFilteredKits.map(kit => {
+                      const isSelected = formData.selectedKitIds.includes(kit.id);
+                      const kitPrice = Number(kit.base_price || kit.defaultPrice || kit.price || 89317);
+                      const kitStock = Number(kit.stockQty ?? kit.stock_in_selected_warehouses ?? 0);
+                      const kitMoqVal = formData.kitMoqs?.[kit.id] ?? kit.moq ?? 25;
+
+                      return (
+                        <div
+                          key={kit.id}
+                          onClick={() => handleToggleKit(kit.id)}
+                          className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                            isSelected
+                              ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/30 shadow-xs'
+                              : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                {/* Tender State & Badge Row */}
+                                <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-700 text-white shadow-xs uppercase tracking-wider flex items-center gap-1">
+                                    <FaLandmark className="text-[9px] text-amber-300" />
+                                    {kit.primary_badge || 'GOVT. TENDER'}
+                                  </span>
+                                  {kit.target_state && (
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                      📍 {kit.target_state}
+                                    </span>
+                                  )}
+                                  {kit.secondary_badge && (
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500 text-white shadow-2xs uppercase">
+                                      {kit.secondary_badge}
+                                    </span>
+                                  )}
+                                  {kit.dcr_module_available && (
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200">
+                                      ✓ DCR Modules
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-bold text-slate-900 dark:text-white">
+                                    {kit.tender_name || kit.name}
+                                  </span>
+                                </div>
+
+                                {/* Tender Tagline */}
+                                {kit.tender_tagline && (
+                                  <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 italic mb-1">
+                                    "{kit.tender_tagline}"
+                                  </p>
+                                )}
+
+                                {/* Tender Specifications & Eligibility Box */}
+                                {kit.tender_description && (
+                                  <div className="my-1.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300">
+                                    <p className="font-bold text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">
+                                      🏛️ Tender Specifications & Eligibility:
+                                    </p>
+                                    <p className="line-clamp-2 leading-relaxed">
+                                      {kit.tender_description}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Base Catalog Kit components */}
+                                <div className="flex items-center gap-1.5 flex-wrap my-1">
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
+                                    ⚡ Base: {kit.name}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
+                                    🛡️ {kit.warranty || '12 Years'}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200">
+                                    GST 5% Included
+                                  </span>
+                                </div>
+
+                                <p className="text-[11px] text-slate-500 font-medium line-clamp-1">
+                                  {kit.components_summary || kit.sub_title}
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                                  isSelected
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
+                                }`}
+                              >
+                                {isSelected ? '✓ Included' : '+ Add Kit'}
+                              </button>
+                            </div>
+
+                            {/* Pricing Display */}
+                            <div className="mt-2 flex items-baseline gap-2 flex-wrap">
+                              <span className="text-base font-black text-slate-900 dark:text-white">
+                                ₹{kitPrice.toLocaleString('en-IN')}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-semibold">/ kit</span>
+                              {kit.batch_total && (
+                                <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
+                                  • Batch: ₹{Number(kit.batch_total).toLocaleString('en-IN')} ({kit.moq} kits)
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
+                              ✓ {kitStock} Units Live in Serving Warehouses
+                              {formData.servingWarehouses.length > 1 && (
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal ml-1">
+                                  ({formData.servingWarehouses.map(w => `${w}: ${kit.warehouse_stock?.[w] || 0}`).join(' • ')})
+                                </span>
+                              )}
+                            </p>
+                          </div>
+
+                          {/* Solar Shop MOQ Requirement with Quick Batch Selector */}
+                          <div
+                            className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                  <FaBoxes className="text-blue-600 w-3.5 h-3.5" /> Solar Shop Wholesale MOQ:
+                                </span>
+                                <span className="text-[10px] text-slate-400 block">
+                                  Loose order batch requirement in store
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={kitMoqVal}
+                                  onChange={(e) => {
+                                    const val = Math.max(1, parseInt(e.target.value) || 1);
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      kitMoqs: { ...prev.kitMoqs, [kit.id]: val },
+                                      minOrderQty: val
+                                    }));
+                                  }}
+                                  className="w-16 px-2 py-0.5 text-center font-bold text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-hidden focus:border-blue-500"
+                                />
+                                <span className="text-[11px] font-bold text-slate-500">Kits</span>
+                              </div>
+                            </div>
+
+                            {/* Quick Store Batch Quantity Pills */}
+                            {kit.loose_order_quantities && kit.loose_order_quantities.length > 0 && (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">Store Batches:</span>
+                                {kit.loose_order_quantities.map(qty => (
+                                  <button
+                                    key={qty}
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        kitMoqs: { ...prev.kitMoqs, [kit.id]: qty },
+                                        minOrderQty: qty
+                                      }));
+                                    }}
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                      kitMoqVal === qty
+                                        ? 'bg-blue-600 text-white shadow-2xs'
+                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    {qty} Kits
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {/* 2. DEDICATED PURPOSE: DIRECT KIT SALES & REPEAT ORDERS */}
@@ -3072,11 +3592,11 @@ export default function CreateCampaignWizard() {
               </p>
             </div>
 
-            {/* Card 2: 2. Territory Area & Serving Warehouses */}
+            {/* Card 2: 2. Territory Area, Segments & Audience Breakdown */}
             <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2 bg-slate-50/50 dark:bg-slate-900/20">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1.5">
-                  <FaMapMarkerAlt className="text-indigo-600" /> 2. Area & Warehouses
+                  <FaMapMarkerAlt className="text-indigo-600" /> 2. Area, Segments & Audience
                 </span>
                 <button
                   onClick={() => setCurrentStep(2)}
@@ -3088,12 +3608,34 @@ export default function CreateCampaignWizard() {
               <p className="text-sm font-black text-slate-900 dark:text-white">
                 {formData.selectedStates.join(', ')} ({formData.selectedClusterIds.length} Clusters)
               </p>
-              <p className="text-xs text-emerald-600 font-semibold truncate">
-                Serving: {formData.servingWarehouses.join(', ')}
+              <p className="text-xs text-slate-600 dark:text-slate-300">
+                Total Sending Count: <strong>{audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')}</strong>
               </p>
-              <p className="text-xs text-slate-500">
-                Audience: <strong>{audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')} Target EPCs</strong>
-              </p>
+              <div className="flex flex-wrap gap-1.5 text-[11px]">
+                <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800">
+                  Target EPCs: {audienceCalculation.epcCount.toLocaleString('en-IN')}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-800">
+                  Segment Leads: {audienceCalculation.segmentCount.toLocaleString('en-IN')}
+                </span>
+              </div>
+              {formData.selectedSegmentIds.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {formData.selectedSegmentIds.map((segId) => {
+                    const segObj = segmentsList.find((s) => s._id === segId);
+                    return (
+                      <span key={segId} className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-[10px] font-semibold text-slate-700 dark:text-slate-200">
+                        {segObj?.name || segId}
+                      </span>
+                    );
+                  })}
+                  {(formData.segmentStateFilter || formData.segmentDistrictFilter) && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                      Filter: {[formData.segmentStateFilter, formData.segmentDistrictFilter].filter(Boolean).join(' / ')}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Card 3: 3. Strategic Purpose, Kits & Coupon Voucher */}
@@ -3179,9 +3721,17 @@ export default function CreateCampaignWizard() {
                   : `Quarterly Target: ${formData.quarterlyKitGoal} Kits • Proj. Revenue: ₹${selectedKitsRevenue.toLocaleString('en-IN')}`}
               </p>
               <p className="text-[11px] text-amber-600 font-semibold">
+<<<<<<< HEAD
                 Required Conversion: ~{audienceCalculation.deduplicatedTotal > 0 ? (formData.objective === 'epc_onboarding'
                   ? (((formData.targetEpcSignups || 50) / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)
                   : ((formData.targetKitCount / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)) : '0.00'}%
+=======
+                Required Conversion: ~{audienceCalculation.deduplicatedTotal > 0
+                  ? (formData.objective === 'epc_signup'
+                      ? (((formData.targetEpcSignups || 150) / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)
+                      : ((formData.targetKitCount / audienceCalculation.deduplicatedTotal) * 100).toFixed(2))
+                  : '0.00'}%
+>>>>>>> 1be01239219aba6043c1ae0b8eb9296b9aa57074
               </p>
             </div>
 
@@ -3294,12 +3844,20 @@ export default function CreateCampaignWizard() {
             )}
 
             <button
+<<<<<<< HEAD
               type="button"
               disabled={savingCampaign}
               onClick={() => handleLaunchCampaign('launch')}
               className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
             >
               <FaRocket className="w-4 h-4" /> {savingCampaign ? 'Saving & Queuing...' : 'Launch & Dispatch Immediately'}
+=======
+              onClick={handleLaunchCampaign}
+              disabled={launchingCampaign}
+              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer disabled:opacity-60"
+            >
+              <FaRocket className="w-4 h-4" /> {launchingCampaign ? 'Launching Campaign...' : 'Launch & Activate Campaign Now'}
+>>>>>>> 1be01239219aba6043c1ae0b8eb9296b9aa57074
             </button>
           </div>
         </div>
@@ -3331,11 +3889,19 @@ export default function CreateCampaignWizard() {
         ) : (
           <button
             type="button"
+<<<<<<< HEAD
             disabled={savingCampaign}
             onClick={() => handleLaunchCampaign('launch')}
             className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition-all"
           >
             {savingCampaign ? 'Dispatching...' : 'Launch Campaign'} <FaCheck className="w-3 h-3" />
+=======
+            onClick={handleLaunchCampaign}
+            disabled={launchingCampaign}
+            className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition-all disabled:opacity-60"
+          >
+            <FaCheck className="w-3 h-3" /> {launchingCampaign ? 'Launching...' : 'Launch Campaign'}
+>>>>>>> 1be01239219aba6043c1ae0b8eb9296b9aa57074
           </button>
         )}
       </div>

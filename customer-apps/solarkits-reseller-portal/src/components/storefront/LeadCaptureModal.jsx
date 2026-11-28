@@ -23,6 +23,7 @@ import {
 import { INDIAN_STATES_DISTRICTS, getClustersForState } from "../../data/territoryData";
 import api from "../../services/api";
 import ClusterTerritoryMap from "./ClusterTerritoryMap";
+import { getTelemetryContext, trackFormSubmission } from "../../utils/websiteTelemetry";
 
 export default function LeadCaptureModal({
   isOpen,
@@ -475,11 +476,13 @@ export default function LeadCaptureModal({
       notes: isFieldActive('notes') ? (formData.notes || null) : null,
       consent: isFieldActive('consent') ? formData.consent : true,
       source: "storefront_modal",
+      tracking: getTelemetryContext(actionType || "franchise_modal"),
     };
 
     try {
       // 1. Submit to Backend API
       await api.post("/india/v1/reseller/leads/submit", payload);
+      trackFormSubmission(actionType || "franchise_modal");
     } catch (err) {
       console.warn("Backend lead submit note, trying fallback:", err);
       try {

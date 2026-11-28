@@ -163,27 +163,27 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
 
   // Raw Inward Materials Inventory in Warehouse (Required components for BOS Kit assembly)
   const DEFAULT_RAW_STOCK = [
-    { name: 'Black AC Cable – 2.5 sq. mm', sku: 'CAB-POLYC-BLAC-ACCA-2.5MM', category: 'Cables', rack: 'Bay 2 / Cable Rack', qty: 250, unit: 'Mtr' },
-    { name: 'Red AC Cable – 2.5 sq. mm', sku: 'CAB-POLYC-REDA-ACCA-2.5MM', category: 'Cables', rack: 'Bay 2 / Cable Rack', qty: 250, unit: 'Mtr' },
-    { name: 'BLACK DC CABLE - 2.5 SQ MM', sku: 'CAB-POLYC-BLAC-DCCA-2.5MM', category: 'Cables', rack: 'Bay 2 / Cable Rack', qty: 50, unit: 'Roll' },
-    { name: 'RED DC CABLE - 2.5 SQMM', sku: 'CAB-POLYC-REDD-DCCA-2.5MM', category: 'Cables', rack: 'Bay 2 / Cable Rack', qty: 50, unit: 'Roll' },
-    { name: 'Lightning Arrestor Cable 16 sq.mm Aluminium', sku: 'CAB-SUNNO-LIGH-LIGH-16SQMM', category: 'Cables', rack: 'Bay 2 / Rack 3', qty: 150, unit: 'Mtr' },
-    { name: 'Green Copper Earthing Cable – 2.5 sq. mm', sku: 'CAB-SUNNO-GREE-EART-2.5MM', category: 'Cables', rack: 'Bay 2 / Cable Rack', qty: 180, unit: 'Mtr' },
-    { name: 'L T ACDB Single Phase', sku: 'AC-LT-LTAC-SING-16A', category: 'Switchgear', rack: 'Bay 3 / Shelf A', qty: 25, unit: 'Box' },
-    { name: 'DCDB', sku: 'DCD-LARSE-DCDB-1STR-1A', category: 'Switchgear', rack: 'Bay 3 / Shelf C', qty: 30, unit: 'Box' },
-    { name: 'MC4 CONNECTOR', sku: 'MC4-SIBAS-MC4C-STAN-30A', category: 'Connectors', rack: 'Bay 1 / Bin 05', qty: 120, unit: 'Pairs' },
-    { name: 'Earthing Rod', sku: 'EAR-REPUT-EART-COPP-1M', category: 'Earthing', rack: 'Yard / Pallet 4', qty: 40, unit: 'Pcs' },
-    { name: 'Earthing Compound', sku: 'EAR-REPUT-EART-CHEM-10KG', category: 'Earthing', rack: 'Bay 1 / Pallet 02', qty: 50, unit: 'Bag (10Kg)' },
-    { name: 'Earthing Lugs', sku: 'EAR-REPUT-EART-EART-1', category: 'Earthing', rack: 'Bay 1 / Bin 08', qty: 80, unit: 'Pcs' },
-    { name: 'Lightning Arrestor - SIngle Spike', sku: 'LIG-REPUT-LIGH-FRP-1METER', category: 'Protection', rack: 'Bay 3 / Bin 10', qty: 30, unit: 'Pcs' },
-    { name: 'UV Resistant Cable Tie', sku: 'UVR-CRETO-UVRE-CABL-1', category: 'Hardware', rack: 'Bay 1 / Bin 02', qty: 400, unit: 'Pcs' },
-    { name: 'Single Nail Cable Clamp', sku: 'CLA-REPUT-SING-CABL-1', category: 'Fasteners', rack: 'Bay 1 / Bin 12', qty: 250, unit: 'Pcs' },
-    { name: 'PVC Bend (L-Bow)', sku: 'PVC-REPUT-PVCB-PVCB-1', category: 'Conduits', rack: 'Bay 1 / Bin 14', qty: 90, unit: 'Pcs' },
-    { name: 'PVC Tee', sku: 'PVC-REPUT-PVCT-PVCT-1', category: 'Conduits', rack: 'Bay 1 / Bin 15', qty: 60, unit: 'Pcs' },
-    { name: 'Wire Tap', sku: 'WIR-REPUT-WIRE-WIRE-1', category: 'Hardware', rack: 'Bay 1 / Bin 03', qty: 40, unit: 'Pcs' },
-    { name: 'Wall Grip', sku: 'WAL-REPUT-WALL-1235-1235', category: 'Hardware', rack: 'Bay 1 / Bin 04', qty: 100, unit: 'Pcs' },
-    { name: 'Screw', sku: 'SCR-REPUT-SCRE-NUTB-1038', category: 'Hardware', rack: 'Bay 1 / Bin 06', qty: 150, unit: 'Pcs' },
-    { name: 'LA Clamp', sku: 'CLA-REPUT-LACL-LACL-1', category: 'Protection', rack: 'Bay 3 / Bin 11', qty: 30, unit: 'Pcs' }
+    { name: 'Black AC Cable – 2.5 sq. mm', sku: 'CAB-POLYC-BLAC-ACCA-2.5MM', category: 'Cables', rack: 'Bay 2 / Cable Rack', qty: 0, unit: 'Mtr' },
+    { name: 'Red AC Cable – 2.5 sq. mm', sku: 'CAB-POLYC-REDA-ACCA-2.5MM', category: 'Cables', rack: 'Bay 2 / Cable Rack', qty: 0, unit: 'Mtr' },
+    { name: 'BLACK DC CABLE - 2.5 SQ MM', sku: 'CAB-POLYC-BLAC-DCCA-2.5MM', category: 'Cables', rack: 'Bay 2 / Cable Rack', qty: 0, unit: 'Roll' },
+    { name: 'RED DC CABLE - 2.5 SQMM', sku: 'CAB-POLYC-REDD-DCCA-2.5MM', category: 'Cables', rack: 'Bay 2 / Cable Rack', qty: 0, unit: 'Roll' },
+    { name: 'Lightning Arrestor Cable 16 sq.mm Aluminium', sku: 'CAB-SUNNO-LIGH-LIGH-16SQMM', category: 'Cables', rack: 'Bay 2 / Rack 3', qty: 0, unit: 'Mtr' },
+    { name: 'Green Copper Earthing Cable – 2.5 sq. mm', sku: 'CAB-SUNNO-GREE-EART-2.5MM', category: 'Cables', rack: 'Bay 2 / Cable Rack', qty: 0, unit: 'Mtr' },
+    { name: 'L T ACDB Single Phase', sku: 'AC-LT-LTAC-SING-16A', category: 'Switchgear', rack: 'Bay 3 / Shelf A', qty: 0, unit: 'Box' },
+    { name: 'DCDB', sku: 'DCD-LARSE-DCDB-1STR-1A', category: 'Switchgear', rack: 'Bay 3 / Shelf C', qty: 0, unit: 'Box' },
+    { name: 'MC4 CONNECTOR', sku: 'MC4-SIBAS-MC4C-STAN-30A', category: 'Connectors', rack: 'Bay 1 / Bin 05', qty: 0, unit: 'Pairs' },
+    { name: 'Earthing Rod', sku: 'EAR-REPUT-EART-COPP-1M', category: 'Earthing', rack: 'Yard / Pallet 4', qty: 0, unit: 'Pcs' },
+    { name: 'Earthing Compound', sku: 'EAR-REPUT-EART-CHEM-10KG', category: 'Earthing', rack: 'Bay 1 / Pallet 02', qty: 0, unit: 'Bag (10Kg)' },
+    { name: 'Earthing Lugs', sku: 'EAR-REPUT-EART-EART-1', category: 'Earthing', rack: 'Bay 1 / Bin 08', qty: 0, unit: 'Pcs' },
+    { name: 'Lightning Arrestor - SIngle Spike', sku: 'LIG-REPUT-LIGH-FRP-1METER', category: 'Protection', rack: 'Bay 3 / Bin 10', qty: 0, unit: 'Pcs' },
+    { name: 'UV Resistant Cable Tie', sku: 'UVR-CRETO-UVRE-CABL-1', category: 'Hardware', rack: 'Bay 1 / Bin 02', qty: 0, unit: 'Pcs' },
+    { name: 'Single Nail Cable Clamp', sku: 'CLA-REPUT-SING-CABL-1', category: 'Fasteners', rack: 'Bay 1 / Bin 12', qty: 0, unit: 'Pcs' },
+    { name: 'PVC Bend (L-Bow)', sku: 'PVC-REPUT-PVCB-PVCB-1', category: 'Conduits', rack: 'Bay 1 / Bin 14', qty: 0, unit: 'Pcs' },
+    { name: 'PVC Tee', sku: 'PVC-REPUT-PVCT-PVCT-1', category: 'Conduits', rack: 'Bay 1 / Bin 15', qty: 0, unit: 'Pcs' },
+    { name: 'Wire Tap', sku: 'WIR-REPUT-WIRE-WIRE-1', category: 'Hardware', rack: 'Bay 1 / Bin 03', qty: 0, unit: 'Pcs' },
+    { name: 'Wall Grip', sku: 'WAL-REPUT-WALL-1235-1235', category: 'Hardware', rack: 'Bay 1 / Bin 04', qty: 0, unit: 'Pcs' },
+    { name: 'Screw', sku: 'SCR-REPUT-SCRE-NUTB-1038', category: 'Hardware', rack: 'Bay 1 / Bin 06', qty: 0, unit: 'Pcs' },
+    { name: 'LA Clamp', sku: 'CLA-REPUT-LACL-LACL-1', category: 'Protection', rack: 'Bay 3 / Bin 11', qty: 0, unit: 'Pcs' }
   ];
 
   // Pre-Assembled Warehouse Stock Models (Balance of System Packages ONLY - Panels & Inverters are inwarded separately)
@@ -195,8 +195,8 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
       category: 'Residential BOS Kit',
       capacity: '1 kW',
       storage_location: 'Bay 1 / Pallet A-01',
-      ready_stock: 4,
-      batch_codes: ['WH-BOS-1KW-2026-D101', 'WH-BOS-1KW-2026-D102', 'WH-BOS-1KW-2026-D103', 'WH-BOS-1KW-2026-D104'],
+      ready_stock: 0,
+      batch_codes: [],
       bom_components: [
         { name: 'Black AC Cable – 2.5 sq. mm', sku: 'CAB-POLYC-BLAC-ACCA-2.5MM', qty: 15, unit: 'Mtr' },
         { name: 'Red AC Cable – 2.5 sq. mm', sku: 'CAB-POLYC-REDA-ACCA-2.5MM', qty: 15, unit: 'Mtr' },
@@ -223,8 +223,8 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
       category: 'Residential BOS Kit',
       capacity: '2 kW',
       storage_location: 'Bay 1 / Pallet B-02',
-      ready_stock: 3,
-      batch_codes: ['WH-BOS-2KW-2026-D201', 'WH-BOS-2KW-2026-D202', 'WH-BOS-2KW-2026-D203'],
+      ready_stock: 0,
+      batch_codes: [],
       bom_components: [
         { name: 'Black AC Cable – 2.5 sq. mm', sku: 'CAB-POLYC-BLAC-ACCA-2.5MM', qty: 10, unit: 'Mtr' },
         { name: 'Red AC Cable – 2.5 sq. mm', sku: 'CAB-POLYC-REDA-ACCA-2.5MM', qty: 10, unit: 'Mtr' },
@@ -256,8 +256,8 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
       category: 'Residential BOS Kit',
       capacity: '3 kW',
       storage_location: 'Bay 2 / Pallet C-03',
-      ready_stock: 2,
-      batch_codes: ['WH-BOS-3KW-2026-D301', 'WH-BOS-3KW-2026-D302'],
+      ready_stock: 0,
+      batch_codes: [],
       bom_components: [
         { name: 'Black AC Cable – 2.5 sq. mm', sku: 'CAB-POLYC-BLAC-ACCA-2.5MM', qty: 10, unit: 'Mtr' },
         { name: 'Red AC Cable – 2.5 sq. mm', sku: 'CAB-POLYC-REDA-ACCA-2.5MM', qty: 10, unit: 'Mtr' },
@@ -289,8 +289,11 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
       const saved = localStorage.getItem('solarkits_preassembled_stock');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Purge old dummy 8-component cache so live database products load
-        const hasLegacyDummy = parsed.some(p => (p.bom_components || []).length <= 8);
+        // Purge old dummy batch cache or dummy stock
+        const hasLegacyDummy = parsed.some(
+          p => (p.bom_components || []).length <= 8 ||
+               (p.batch_codes || []).some(b => String(b).includes('WH-BOS-') || String(b).includes('BATCH-20261121'))
+        );
         if (!hasLegacyDummy && parsed.some(p => p.id === '1kw-dcr' || p.id === '2kw-dcr')) {
           return parsed;
         }
@@ -306,31 +309,20 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
       const saved = localStorage.getItem('solarkits_stock_assembly_history');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.some(h => (h.model_name || '').includes('DCR'))) return parsed;
+        // Purge dummy seed history
+        const cleanHistory = parsed.filter(
+          h => !['hist-1', 'hist-2'].includes(h.id) &&
+               !String(h.batch_code || '').includes('WH-BOS-1KW-2026-D101') &&
+               !String(h.batch_code || '').includes('BATCH-20261121') &&
+               !String(h.assembled_by || '').includes('Warehouse Technician (Ramesh)') &&
+               !String(h.assembled_by || '').includes('Warehouse Buffer Stock (Barnala)')
+        );
+        return cleanHistory;
       }
     } catch {
       // ignore localStorage parse error
     }
-    return [
-      {
-        id: 'hist-1',
-        model_name: '1 K.W. Solarkits DCR Kit (BOS & Wiring Package)',
-        batch_code: 'WH-BOS-1KW-2026-D101, WH-BOS-1KW-2026-D102',
-        qty: 2,
-        assembled_by: 'Warehouse Technician (Ramesh)',
-        storage_location: 'Bay 1 / Pallet A-01',
-        timestamp: new Date(Date.now() - 86400000).toISOString()
-      },
-      {
-        id: 'hist-2',
-        model_name: '2 K.W. Solarkits DCR Kit (BOS & Wiring Package)',
-        batch_code: 'WH-BOS-2KW-2026-D201',
-        qty: 1,
-        assembled_by: 'QC Specialist (Mukesh)',
-        storage_location: 'Bay 1 / Pallet B-02',
-        timestamp: new Date(Date.now() - 172800000).toISOString()
-      }
-    ];
+    return [];
   });
 
   const totalPreassembledKitsInStock = useMemo(() => {
@@ -341,7 +333,11 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
   const [warehouseRawStock, setWarehouseRawStock] = useState(() => {
     try {
       const saved = localStorage.getItem('solarkits_warehouse_raw_stock');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const isDummyStock = parsed.some(p => p.qty === 250 && p.sku === 'CAB-POLYC-BLAC-ACCA-2.5MM');
+        if (!isDummyStock) return parsed;
+      }
     } catch (_) {}
     return DEFAULT_RAW_STOCK;
   });
@@ -386,8 +382,23 @@ export default function NewOrdersDeliveryManager({ onNavigateToOutward, onNaviga
   const [manualStepToggle, setManualStepToggle] = useState({});
   const [step1RequisitionQty, setStep1RequisitionQty] = useState(5);
 
-  // Auto-sync requisitions & raw stock when returning from other tabs/portals
+  // Auto-sync requisitions & raw stock when returning from other tabs/portals + Purge legacy mock data
   useEffect(() => {
+    try {
+      const savedHist = localStorage.getItem('solarkits_stock_assembly_history');
+      if (savedHist && (savedHist.includes('WH-BOS-1KW-2026-D101') || savedHist.includes('BATCH-20261121') || savedHist.includes('hist-1'))) {
+        localStorage.removeItem('solarkits_stock_assembly_history');
+      }
+      const savedStock = localStorage.getItem('solarkits_preassembled_stock');
+      if (savedStock && (savedStock.includes('WH-BOS-1KW-2026-D101') || savedStock.includes('WH-BOS-2KW-2026-D201'))) {
+        localStorage.removeItem('solarkits_preassembled_stock');
+      }
+      const savedRaw = localStorage.getItem('solarkits_warehouse_raw_stock');
+      if (savedRaw && savedRaw.includes('"qty":250')) {
+        localStorage.removeItem('solarkits_warehouse_raw_stock');
+      }
+    } catch (_) {}
+
     const syncLocalStorage = () => {
       try {
         const savedReqs = localStorage.getItem('solarkits_buffer_requisitions');

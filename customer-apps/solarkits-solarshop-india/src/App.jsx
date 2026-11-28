@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import './App.css';
+import WebsiteTelemetryTracker from "./components/WebsiteTelemetryTracker";
 import LandingPage from "./pages/LandingPage";
 import IndustriesPage from "./pages/IndustriesPage";
 import PrivacyPolicy from "./pages/policies/PrivacyPolicy";
@@ -10,6 +11,7 @@ import ShippingPolicy from "./pages/policies/ShippingPolicy";
 function App() {
   return (
     <BrowserRouter>
+      <WebsiteTelemetryTracker />
       <Routes>
         {/* Public landing page */}
         <Route path="/" element={<LandingPage />} />

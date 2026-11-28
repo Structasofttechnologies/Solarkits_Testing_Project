@@ -96,6 +96,49 @@ const sendAdminNotification = async ({
 };
 
 /**
+ * Send deduplicated admin alert to prevent duplicate notifications for the same condition.
+ */
+const sendDeduplicatedAdminAlert = async ({
+  title,
+  message,
+  category = 'epc',
+  priority = 'normal',
+  action_url = null,
+  metadata = {},
+}) => {
+  try {
+    if (!title || !message) return null;
+    const alertType = metadata?.alert_type;
+    const clusterId = metadata?.cluster_id;
+
+    if (alertType && clusterId) {
+      const existing = await AdminNotification.findOne({
+        'metadata.alert_type': alertType,
+        'metadata.cluster_id': clusterId,
+        is_read: false,
+        deleted_at: null,
+      }).lean();
+
+      if (existing) {
+        return existing;
+      }
+    }
+
+    return await sendAdminNotification({
+      title,
+      message,
+      category,
+      priority,
+      action_url,
+      metadata,
+    });
+  } catch (err) {
+    console.error('[sendDeduplicatedAdminAlert Error]:', err.message);
+    return null;
+  }
+};
+
+/**
  * Broadcast updated unread count (e.g. after mark read or delete)
  */
 const broadcastCountUpdate = async () => {
@@ -107,6 +150,7 @@ module.exports = {
   addSseClient,
   removeSseClient,
   sendAdminNotification,
+  sendDeduplicatedAdminAlert,
   getUnreadCount,
   broadcastCountUpdate,
   broadcastToClients,

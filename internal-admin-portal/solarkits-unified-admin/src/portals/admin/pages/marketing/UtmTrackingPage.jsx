@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { FaLink, FaCopy, FaTrash, FaPlus, FaExternalLinkAlt, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
 import { marketingHttp, buildShortTrackingUrl, extractApiError } from './services/marketingApi';
 
+const PUBLIC_SITE_URL = (import.meta.env.VITE_PUBLIC_SITE_URL || 'https://solarkits.in').replace(/\/+$/, '');
+
 export default function UtmTrackingPage() {
   const [title, setTitle] = useState('Franchisee Growth Campaign');
-  const [baseUrl, setBaseUrl] = useState('https://solarkits.in/franchisee');
+  const [baseUrl, setBaseUrl] = useState(`${PUBLIC_SITE_URL}/franchisee`);
   const [source, setSource] = useState('whatsapp');
   const [medium, setMedium] = useState('campaign');
   const [campaign, setCampaign] = useState('franchisee_growth_2026');

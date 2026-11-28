@@ -377,6 +377,7 @@ export function generateResponsiveEmailHtml(formData = {}) {
               </p>
             </td>
           </tr>
+
           <tr>
             <td class="pad-mob" align="center" style="padding: 14px 20px 10px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; text-align: center;">
               <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto;">

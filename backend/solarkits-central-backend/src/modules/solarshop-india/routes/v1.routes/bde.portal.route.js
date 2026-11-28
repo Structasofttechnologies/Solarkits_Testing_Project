@@ -67,6 +67,7 @@ router.get('/pipeline', verify_bde_auth, handler.get_bde_pipeline);
 router.get('/epc-types/active', epcTypesHandler.list_active_epc_types);
 router.post('/epc-leads/create', verify_bde_auth, handler.create_epc_lead);
 router.post('/epc-leads/bulk-create', verify_bde_auth, handler.bulk_create_epc_leads);
+router.get('/epc-leads/clusters', verify_bde_auth, handler.get_epc_lead_clusters);
 router.get('/epc-leads/list', verify_bde_auth, handler.list_epc_leads);
 router.get('/epc-leads/detail/:id', verify_bde_auth, handler.get_epc_lead_detail);
 router.put('/epc-leads/update/:id', verify_bde_auth, handler.update_epc_lead);

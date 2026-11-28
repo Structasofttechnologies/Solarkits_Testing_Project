@@ -27,6 +27,7 @@ const { GeoLevel0, GeoLevel1, GeoLevel2 } = require('../models/geolocation_db');
 const { logAudit } = require('../utils/audit.service');
 const { sendFranchisePartnerCredentialsEmail } = require('../utils/nodemailer');
 const { DEFAULT_FRANCHISE_FORM_FIELDS } = require('../constants/franchiseFormFields.default');
+const { linkLeadToVisit } = require('../marketing/services/webTelemetry.service');
 
 // ─── 0. QUICKEKYC GST-LINKED MOBILE OTP VERIFICATION ────────────────────────
 /**
@@ -292,6 +293,7 @@ const submit_lead = async (req, res) => {
       gst_trade_name,
       quickekyc_request_id,
       source,
+      tracking,
     } = req.body;
 
     // Load dynamic form field configuration from Admin Settings
@@ -426,6 +428,17 @@ const submit_lead = async (req, res) => {
       source: leadSource,
       ip_address: req.ip || req.headers['x-forwarded-for'] || null,
     });
+
+    await linkLeadToVisit(
+      tracking,
+      {
+        lead_id: newLead._id,
+        lead_model: 'franchise_leads',
+        form_key: tracking?.form_key || (isCallbackReq ? 'franchisee_callback' : 'franchisee_enquiry'),
+        website_key_fallback: 'franchise_portal',
+      },
+      req
+    );
 
     return res.status(201).json({
       status: 'success',

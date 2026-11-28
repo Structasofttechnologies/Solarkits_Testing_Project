@@ -43,6 +43,18 @@ const schema = new mongoose.Schema({
     trim: true,
     index: true,
   },
+  quote_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'epc_quotes',
+    default: null,
+    index: true,
+  },
+  quote_number: {
+    type: String,
+    default: null,
+    trim: true,
+    index: true,
+  },
   is_official_order_generated: {
     type: Boolean,
     default: false,

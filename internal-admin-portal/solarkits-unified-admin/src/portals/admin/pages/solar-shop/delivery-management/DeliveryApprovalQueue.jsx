@@ -22,126 +22,14 @@ import { authHeaderObj } from "@/app/authHeader";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-// Sample Mock Batches requiring Admin Cost Approval
-const MOCK_APPROVAL_BATCHES = [
-  {
-    id: "batch-101",
-    batch_number: "DISP-BTCH-2026-081",
-    orders_count: 3,
-    destination_cluster: "North Cluster (NCR)",
-    destination_state: "Haryana & Punjab",
-    vehicle_type: "Tata 407 (3.5 Ton Closed)",
-    vehicle_number: "HR 55 AH 7821",
-    service_provider: "Mahalaxmi Logistics Express",
-    benchmark_cost: 14500,
-    proposed_cost: 18200,
-    difference_amount: 3700,
-    difference_pct: 25.5,
-    max_overdue_days: 14,
-    submitted_by: "Vikas Sharma (Dispatch Officer)",
-    submitted_at: "2026-09-28 09:30",
-    status: "Pending Approval",
-    override_reason: "Heavy monsoon road closure on NH-44 requiring 75km detour through state highway; urgent delivery needed for overdue customer.",
-    load_weight_kg: 2450,
-    vehicle_capacity_kg: 3500,
-    orders: [
-      { order_no: "ORD-2026-9041", customer: "Aarav Solar Enterprises", kit: "5kW Combo", weight: 850, overdue: 14 },
-      { order_no: "ORD-2026-9088", customer: "SunPower Dealers", kit: "3kW Combo", weight: 600, overdue: 10 },
-      { order_no: "ORD-2026-9110", customer: "EcoTech Agro Systems", kit: "5kW Hybrid", weight: 1000, overdue: 7 },
-    ],
-  },
-  {
-    id: "batch-102",
-    batch_number: "DISP-BTCH-2026-082",
-    orders_count: 5,
-    destination_cluster: "West Cluster (Gujarat)",
-    destination_state: "Gujarat",
-    vehicle_type: "Eicher Pro 2049 (2.5 Ton)",
-    vehicle_number: "GJ 01 XX 4120",
-    service_provider: "Western Cargo Carriers",
-    benchmark_cost: 9800,
-    proposed_cost: 11000,
-    difference_amount: 1200,
-    difference_pct: 12.2,
-    max_overdue_days: 8,
-    submitted_by: "Nilesh Patel (Ahmedabad Depot)",
-    submitted_at: "2026-09-28 10:45",
-    status: "Pending Approval",
-    override_reason: "Sunday premium delivery rate requested by client for immediate industrial site installation.",
-    load_weight_kg: 2100,
-    vehicle_capacity_kg: 2500,
-    orders: [
-      { order_no: "ORD-2026-8812", customer: "Mahavir Green Energy", kit: "25kW Bulk", weight: 1200, overdue: 8 },
-      { order_no: "ORD-2026-8819", customer: "Kutch Solar Corp", kit: "3kW Combo", weight: 900, overdue: 5 },
-    ],
-  },
-  {
-    id: "batch-103",
-    batch_number: "DISP-BTCH-2026-079",
-    orders_count: 2,
-    destination_cluster: "South Cluster (Karnataka)",
-    destination_state: "Karnataka",
-    vehicle_type: "Mahindra Bolero Maxi Truck (1.5 Ton)",
-    vehicle_number: "KA 04 MM 9988",
-    service_provider: "FastTrack Freight Hub",
-    benchmark_cost: 6500,
-    proposed_cost: 6400,
-    difference_amount: -100,
-    difference_pct: -1.5,
-    max_overdue_days: 2,
-    submitted_by: "Girish K (Bengaluru Hub)",
-    submitted_at: "2026-09-27 16:00",
-    status: "Approved",
-    override_reason: "Standard rates within benchmark limits.",
-    load_weight_kg: 1100,
-    vehicle_capacity_kg: 1500,
-    orders: [
-      { order_no: "ORD-2026-9150", customer: "Surya Shakti EPC", kit: "10kW Customize", weight: 1100, overdue: 2 },
-    ],
-  },
-];
-
-const MOCK_AUDIT_LOGS = [
-  {
-    id: "aud-1",
-    date: "2026-09-25 14:20",
-    route_name: "Bhiwandi → Pune Hub",
-    changed_by: "Sanjay Singhania (Ops Lead)",
-    field: "Base Benchmark Rate / km",
-    old_val: "₹ 38.00 / km",
-    new_val: "₹ 42.00 / km",
-    reason: "Diesel price hike revision per Q3 vendor contracts",
-  },
-  {
-    id: "aud-2",
-    date: "2026-09-18 11:05",
-    route_name: "Gurgaon → Ludhiana Depot",
-    changed_by: "Vikram Mehta (Admin)",
-    field: "Max Vehicle Tolerance Limit",
-    old_val: "10 %",
-    new_val: "15 %",
-    reason: "Seasonal monsoon toll surge allowance",
-  },
-  {
-    id: "aud-3",
-    date: "2026-09-10 16:50",
-    route_name: "Ahmedabad → Rajkot Cluster",
-    changed_by: "Nilesh Patel",
-    field: "Unloading Charge per Kit",
-    old_val: "₹ 350",
-    new_val: "₹ 450",
-    reason: "Heavy palletized inverter offloading charges",
-  },
-];
-
 export default function DeliveryApprovalQueue() {
   const dispatch = useDispatch();
   const token = useSelector((state) => state.auth.token);
 
   const [activeTab, setActiveTab] = useState("queue"); // "queue" | "audit"
   const [loading, setLoading] = useState(false);
-  const [batches, setBatches] = useState(MOCK_APPROVAL_BATCHES);
-  const [auditLogs, setAuditLogs] = useState(MOCK_AUDIT_LOGS);
+  const [batches, setBatches] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
 
   // Modals
   const [selectedBatch, setSelectedBatch] = useState(null);
@@ -154,7 +42,7 @@ export default function DeliveryApprovalQueue() {
       const res = await axios.get(`${API_URL}/delivery-management/approval-queue`, {
         headers: authHeaderObj(),
       });
-      if (res.data?.status === "success" && res.data.data?.records?.length > 0) {
+      if (res.data?.status === "success" && Array.isArray(res.data.data?.records)) {
         const liveRecords = res.data.data.records.map((d) => ({
           id: d._id,
           batch_number: d.delivery_number,
@@ -172,7 +60,7 @@ export default function DeliveryApprovalQueue() {
             : 0,
           max_overdue_days: Math.round((d.hours_waiting || 0) / 24),
           submitted_by: d.delivery_approval?.requested_by?.first_name ? `${d.delivery_approval.requested_by.first_name} ${d.delivery_approval.requested_by.last_name || ''}` : "Dispatch Manager",
-          submitted_at: new Date(d.createdAt).toLocaleString("en-IN"),
+          submitted_at: d.createdAt ? new Date(d.createdAt).toLocaleString("en-IN") : "—",
           status: d.delivery_approval?.status === "approved" || d.status === "cost_approved"
             ? "Approved"
             : d.delivery_approval?.status === "rejected" || d.status === "cost_rejected"
@@ -190,9 +78,12 @@ export default function DeliveryApprovalQueue() {
           })),
         }));
         setBatches(liveRecords);
+      } else {
+        setBatches([]);
       }
     } catch (err) {
-      console.warn("Notice loading live delivery queue, falling back to mock:", err.message);
+      console.warn("Notice loading live delivery queue:", err.message);
+      setBatches([]);
     } finally {
       setLoading(false);
     }
@@ -223,7 +114,7 @@ export default function DeliveryApprovalQueue() {
 
   const handleApprove = async (batch) => {
     try {
-      if (batch.id && !batch.id.startsWith("batch-")) {
+      if (batch.id) {
         await axios.post(
           `${API_URL}/delivery-management/approval-queue/${batch.id}/decision`,
           { decision: "approve", remarks: "Approved by Admin" },
@@ -260,7 +151,7 @@ export default function DeliveryApprovalQueue() {
     }
 
     try {
-      if (rejectModalBatch.id && !rejectModalBatch.id.startsWith("batch-")) {
+      if (rejectModalBatch.id) {
         await axios.post(
           `${API_URL}/delivery-management/approval-queue/${rejectModalBatch.id}/decision`,
           { decision: "reject", remarks: rejectionReason },
@@ -356,134 +247,150 @@ export default function DeliveryApprovalQueue() {
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === "queue" && (
         <div className="bg-surface rounded-xl border border-border overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-bg border-b border-border text-xs uppercase font-semibold text-text-secondary">
-                  <th className="p-4">Batch # & Submitted</th>
-                  <th className="p-4">Destination & Vehicle</th>
-                  <th className="p-4">Orders & Load</th>
-                  <th className="p-4">Benchmark Cost</th>
-                  <th className="p-4">Proposed Cost</th>
-                  <th className="p-4">Cost Variance</th>
-                  <th className="p-4">Overdue Days</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border text-sm">
-                {sortedBatches.map((b) => {
-                  const isPending = b.status === "Pending Approval";
-                  const isOver = b.difference_amount > 0;
+          {loading ? (
+            <div className="p-12 flex justify-center items-center">
+              <Loader />
+            </div>
+          ) : sortedBatches.length === 0 ? (
+            <div className="p-12 text-center space-y-3">
+              <div className="w-14 h-14 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center mx-auto text-2xl">
+                <FaCheck />
+              </div>
+              <h3 className="font-bold text-text-primary text-base">No Batches Requiring Approval</h3>
+              <p className="text-xs text-text-secondary max-w-md mx-auto">
+                All vehicle dispatch batches are operating within standard benchmark rates and SLA limits.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-bg border-b border-border text-xs uppercase font-semibold text-text-secondary">
+                    <th className="p-4">Batch # & Submitted</th>
+                    <th className="p-4">Destination & Vehicle</th>
+                    <th className="p-4">Orders & Load</th>
+                    <th className="p-4">Benchmark Cost</th>
+                    <th className="p-4">Proposed Cost</th>
+                    <th className="p-4">Cost Variance</th>
+                    <th className="p-4">Overdue Days</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-sm">
+                  {sortedBatches.map((b) => {
+                    const isPending = b.status === "Pending Approval";
+                    const isOver = b.difference_amount > 0;
 
-                  return (
-                    <tr
-                      key={b.id}
-                      className={`hover:bg-bg/50 transition-colors ${
-                        b.max_overdue_days > 10 && isPending ? "bg-red-500/5" : ""
-                      }`}
-                    >
-                      <td className="p-4">
-                        <div className="font-semibold text-text-primary">{b.batch_number}</div>
-                        <div className="text-xs text-text-secondary">{b.submitted_by}</div>
-                        <div className="text-[11px] text-text-secondary font-mono">{b.submitted_at}</div>
-                      </td>
+                    return (
+                      <tr
+                        key={b.id}
+                        className={`hover:bg-bg/50 transition-colors ${
+                          b.max_overdue_days > 10 && isPending ? "bg-red-500/5" : ""
+                        }`}
+                      >
+                        <td className="p-4">
+                          <div className="font-semibold text-text-primary">{b.batch_number}</div>
+                          <div className="text-xs text-text-secondary">{b.submitted_by}</div>
+                          <div className="text-[11px] text-text-secondary font-mono">{b.submitted_at}</div>
+                        </td>
 
-                      <td className="p-4">
-                        <div className="font-medium text-text-primary text-xs">{b.destination_cluster}</div>
-                        <div className="text-xs text-text-secondary">{b.destination_state}</div>
-                        <div className="text-[11px] font-mono text-primary mt-0.5">{b.vehicle_type}</div>
-                      </td>
+                        <td className="p-4">
+                          <div className="font-medium text-text-primary text-xs">{b.destination_cluster}</div>
+                          <div className="text-xs text-text-secondary">{b.destination_state}</div>
+                          <div className="text-[11px] font-mono text-primary mt-0.5">{b.vehicle_type}</div>
+                        </td>
 
-                      <td className="p-4">
-                        <div className="font-bold text-text-primary">{b.orders_count} Orders</div>
-                        <div className="text-xs text-text-secondary">
-                          {b.load_weight_kg} kg / {b.vehicle_capacity_kg} kg
-                        </div>
-                      </td>
+                        <td className="p-4">
+                          <div className="font-bold text-text-primary">{b.orders_count} Orders</div>
+                          <div className="text-xs text-text-secondary">
+                            {b.load_weight_kg} kg / {b.vehicle_capacity_kg} kg
+                          </div>
+                        </td>
 
-                      <td className="p-4 font-mono font-medium text-text-secondary">
-                        ₹ {b.benchmark_cost.toLocaleString("en-IN")}
-                      </td>
+                        <td className="p-4 font-mono font-medium text-text-secondary">
+                          ₹ {b.benchmark_cost.toLocaleString("en-IN")}
+                        </td>
 
-                      <td className="p-4 font-mono font-bold text-text-primary">
-                        ₹ {b.proposed_cost.toLocaleString("en-IN")}
-                      </td>
+                        <td className="p-4 font-mono font-bold text-text-primary">
+                          ₹ {b.proposed_cost.toLocaleString("en-IN")}
+                        </td>
 
-                      <td className="p-4">
-                        <span
-                          className={`px-2 py-0.5 rounded text-xs font-semibold font-mono ${
-                            isOver
-                              ? "bg-red-500/10 text-red-600 border border-red-500/20"
-                              : "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-                          }`}
-                        >
-                          {isOver ? `+ ₹${b.difference_amount} (+${b.difference_pct}%)` : "Within SLA"}
-                        </span>
-                      </td>
-
-                      <td className="p-4">
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                            b.max_overdue_days > 10
-                              ? "bg-red-500/10 text-red-600 border border-red-500/20"
-                              : b.max_overdue_days > 5
-                              ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
-                              : "bg-bg text-text-secondary border border-border"
-                          }`}
-                        >
-                          {b.max_overdue_days} Days Overdue
-                        </span>
-                      </td>
-
-                      <td className="p-4">
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                            b.status === "Approved"
-                              ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-                              : b.status === "Rejected"
-                              ? "bg-red-500/10 text-red-600 border border-red-500/20"
-                              : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
-                          }`}
-                        >
-                          {b.status}
-                        </span>
-                      </td>
-
-                      <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => setSelectedBatch(b)}
-                            className="p-1.5 text-xs rounded bg-bg hover:bg-border text-primary transition-colors"
-                            title="Inspect Batch Details"
+                        <td className="p-4">
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-semibold font-mono ${
+                              isOver
+                                ? "bg-red-500/10 text-red-600 border border-red-500/20"
+                                : "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                            }`}
                           >
-                            <FaEye />
-                          </button>
+                            {isOver ? `+ ₹${b.difference_amount} (+${b.difference_pct}%)` : "Within SLA"}
+                          </span>
+                        </td>
 
-                          {isPending && (
-                            <>
-                              <button
-                                onClick={() => handleApprove(b)}
-                                className="px-2.5 py-1 text-xs rounded bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-colors flex items-center gap-1"
-                              >
-                                <FaCheck /> Approve
-                              </button>
-                              <button
-                                onClick={() => handleOpenReject(b)}
-                                className="px-2.5 py-1 text-xs rounded bg-red-500 hover:bg-red-600 text-white font-medium transition-colors flex items-center gap-1"
-                              >
-                                <FaTimes /> Reject
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <td className="p-4">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                              b.max_overdue_days > 10
+                                ? "bg-red-500/10 text-red-600 border border-red-500/20"
+                                : b.max_overdue_days > 5
+                                ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                                : "bg-bg text-text-secondary border border-border"
+                            }`}
+                          >
+                            {b.max_overdue_days} Days Overdue
+                          </span>
+                        </td>
+
+                        <td className="p-4">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                              b.status === "Approved"
+                                ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                                : b.status === "Rejected"
+                                ? "bg-red-500/10 text-red-600 border border-red-500/20"
+                                : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                            }`}
+                          >
+                            {b.status}
+                          </span>
+                        </td>
+
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => setSelectedBatch(b)}
+                              className="p-1.5 text-xs rounded bg-bg hover:bg-border text-primary transition-colors"
+                              title="Inspect Batch Details"
+                            >
+                              <FaEye />
+                            </button>
+
+                            {isPending && (
+                              <>
+                                <button
+                                  onClick={() => handleApprove(b)}
+                                  className="px-2.5 py-1 text-xs rounded bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-colors flex items-center gap-1"
+                                >
+                                  <FaCheck /> Approve
+                                </button>
+                                <button
+                                  onClick={() => handleOpenReject(b)}
+                                  className="px-2.5 py-1 text-xs rounded bg-red-500 hover:bg-red-600 text-white font-medium transition-colors flex items-center gap-1"
+                                >
+                                  <FaTimes /> Reject
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -501,34 +408,43 @@ export default function DeliveryApprovalQueue() {
             </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="bg-bg border-b border-border text-xs uppercase font-semibold text-text-secondary">
-                  <th className="p-4">Timestamp</th>
-                  <th className="p-4">Route / Sector</th>
-                  <th className="p-4">Changed By</th>
-                  <th className="p-4">Rate Parameter</th>
-                  <th className="p-4">Old Baseline</th>
-                  <th className="p-4">New Revised Baseline</th>
-                  <th className="p-4">Reason for Change</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {auditLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-bg/50 transition-colors">
-                    <td className="p-4 text-xs font-mono text-text-secondary">{log.date}</td>
-                    <td className="p-4 font-semibold text-text-primary">{log.route_name}</td>
-                    <td className="p-4 text-xs text-text-primary">{log.changed_by}</td>
-                    <td className="p-4 text-xs font-medium text-text-secondary">{log.field}</td>
-                    <td className="p-4 text-xs font-mono text-red-500">{log.old_val}</td>
-                    <td className="p-4 text-xs font-mono font-bold text-emerald-600">{log.new_val}</td>
-                    <td className="p-4 text-xs text-text-secondary">{log.reason}</td>
+          {auditLogs.length === 0 ? (
+            <div className="p-12 text-center space-y-2">
+              <p className="text-sm font-medium text-text-primary">No Audit Logs Recorded</p>
+              <p className="text-xs text-text-secondary max-w-md mx-auto">
+                No benchmark rate modifications or route tolerance adjustments have been recorded yet.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="bg-bg border-b border-border text-xs uppercase font-semibold text-text-secondary">
+                    <th className="p-4">Timestamp</th>
+                    <th className="p-4">Route / Sector</th>
+                    <th className="p-4">Changed By</th>
+                    <th className="p-4">Rate Parameter</th>
+                    <th className="p-4">Old Baseline</th>
+                    <th className="p-4">New Revised Baseline</th>
+                    <th className="p-4">Reason for Change</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {auditLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-bg/50 transition-colors">
+                      <td className="p-4 text-xs font-mono text-text-secondary">{log.date}</td>
+                      <td className="p-4 font-semibold text-text-primary">{log.route_name}</td>
+                      <td className="p-4 text-xs text-text-primary">{log.changed_by}</td>
+                      <td className="p-4 text-xs font-medium text-text-secondary">{log.field}</td>
+                      <td className="p-4 text-xs font-mono text-red-500">{log.old_val}</td>
+                      <td className="p-4 text-xs font-mono font-bold text-emerald-600">{log.new_val}</td>
+                      <td className="p-4 text-xs text-text-secondary">{log.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

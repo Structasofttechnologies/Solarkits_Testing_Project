@@ -13,6 +13,7 @@ export default function AuthInitializer() {
             // If already on choose-panel or a deep portal route, don't interfere with AuthInitializer
             if (currentPath === '/choose-panel' || 
                 currentPath.startsWith('/admin-panel') || 
+                currentPath.startsWith('/marketing-panel') || 
                 currentPath.startsWith('/account-panel') || 
                 currentPath.startsWith('/operation-management-panel') || 
                 currentPath.startsWith('/warehouse') || 

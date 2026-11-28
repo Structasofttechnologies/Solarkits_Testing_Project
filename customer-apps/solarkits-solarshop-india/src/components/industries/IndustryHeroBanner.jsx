@@ -41,7 +41,7 @@ export default function IndustryHeroBanner({
     primaryMedia?.poster_url ||
     primaryMedia?.url ||
     featuredContent?.thumbnail ||
-    "https://images.unsplash.com/photo-1509391365360-2e959784a276?w=1800&auto=format&fit=crop&q=80";
+    null;
 
   const isVideo =
     featuredContent?.content_type === "VIDEO" ||
@@ -74,11 +74,15 @@ export default function IndustryHeroBanner({
     <div className="relative w-full rounded-3xl overflow-hidden bg-slate-950 text-white shadow-2xl border border-slate-800/80 mb-10 group">
       {/* Background Image / Gradient with Overlay */}
       <div className="absolute inset-0 z-0">
-        <img
-          src={bgImage}
-          alt={title}
-          className="w-full h-full object-cover object-center transform transition-transform duration-700 group-hover:scale-105 filter brightness-75 contrast-110"
-        />
+        {bgImage ? (
+          <img
+            src={bgImage}
+            alt={title}
+            className="w-full h-full object-cover object-center transform transition-transform duration-700 group-hover:scale-105 filter brightness-75 contrast-110"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-slate-900 via-blue-950/40 to-slate-950" />
+        )}
         <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent z-10" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-black/30 z-10" />
       </div>

@@ -76,10 +76,10 @@ router.get('/audience/unsubscribed', controller.getUnsubscribedList);
 router.post('/audience/unsubscribed/suppress', controller.suppressContact);
 router.post('/audience/unsubscribed/resubscribe', controller.resubscribeContact);
 
-router.get('/segments', controller.getSegments);
-router.post('/segments', controller.createSegment);
-router.put('/segments/:id', controller.updateSegment);
-router.delete('/segments/:id', controller.deleteSegment);
+router.get('/audience/segments', controller.getAudienceSegments);
+router.post('/audience/segments', controller.createAudienceSegment);
+router.put('/audience/segments/:id', controller.updateAudienceSegment);
+router.delete('/audience/segments/:id', controller.deleteAudienceSegment);
 
 // Email & WhatsApp Senders
 router.get('/senders', controller.getSenders);
@@ -112,5 +112,25 @@ router.delete('/coupons/:id', controller.deleteCoupon);
 router.get('/form-mappings', controller.getFormMappings);
 router.put('/form-mappings/bulk-update', controller.bulkUpdateFormMappings);
 router.put('/form-mappings/:id', controller.updateFormMapping);
+
+// Live MongoDB GeoLocation & Kit Configuration Masters for Marketing
+router.get('/lead-sources', controller.getLeadSources);
+router.get('/locations/states', controller.getLocationStates);
+router.get('/locations/districts', controller.getLocationDistricts);
+router.get('/locations/clusters', controller.getLocationClusters);
+router.get('/kits', controller.getConfiguredKits);
+
+// Isolated Segment Groups & Dynamic CSV Leads
+router.get('/segments', controller.getSegments);
+router.get('/segments/territory-summary', controller.getSegmentTerritorySummary);
+router.get('/segments/analytics', controller.getSegmentAnalytics);
+router.post('/segments', controller.createSegment);
+router.post('/segments/sync-verified-epcs', controller.syncVerifiedEpcsWithSegments);
+router.put('/segments/:id', controller.updateSegment);
+router.delete('/segments/:id', controller.deleteSegment);
+router.get('/segments/:id/contacts', controller.getSegmentContacts);
+router.post('/segments/:id/upload-csv', controller.uploadSegmentCsv);
+router.delete('/segments/:id/contacts', controller.clearSegmentContacts);
+router.delete('/segments/:id/contacts/:contactId', controller.deleteSegmentContact);
 
 module.exports = router;

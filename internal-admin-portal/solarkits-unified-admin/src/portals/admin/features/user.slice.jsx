@@ -3,7 +3,7 @@ import axios from "axios";
 import { setAlert } from "./alert.slice";
 import { refreshAccessToken, logout as authLogout } from "./auth.slice";
 import { fetchUserModules } from "./modules.slice";
-import { resolveApiUrl, getAuthPortalUrl } from "@/utils/resolveApiUrl";
+import { getAdminApiBaseUrl, getAuthApiBaseUrl, getAuthPortalUrl } from "@/utils/resolveApiUrl";
 
 const safeParse = (key, fallback = null) => {
   try {
@@ -40,9 +40,9 @@ export const getUserData = createAsyncThunk(
       }
 
       const authHeader = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-      const res = await axios.get(`${resolveApiUrl(import.meta.env.VITE_API_URL, 'http://localhost:5000/admin-api')}/user-data`, {
+      const res = await axios.get(`${getAdminApiBaseUrl()}/user-data`, {
         headers: { Authorization: authHeader },
-        timeout: 10000,
+        timeout: 30000,
       });
 
       // Dispatch fetchUserModules asynchronously without blocking user data
@@ -61,7 +61,7 @@ export const getUserData = createAsyncThunk(
       // If backend explicitly says auth:false or returns 401, treat as unauthenticated
       if (status === 401 || resp?.auth === false || /Unauthorized/i.test(msg)) {
         try {
-          await axios.post(`${resolveApiUrl(import.meta.env.VITE_AUTH_API_URL, 'http://localhost:5000/auth-api')}/logout`, {}, { withCredentials: true, timeout: 4000 });
+          await axios.post(`${getAuthApiBaseUrl()}/logout`, {}, { withCredentials: true, timeout: 4000 });
         } catch (logoutErr) {
           console.warn('logout cleanup failed', logoutErr?.message || logoutErr);
         }

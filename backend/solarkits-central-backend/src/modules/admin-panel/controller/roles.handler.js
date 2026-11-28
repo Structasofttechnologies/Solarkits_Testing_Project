@@ -213,16 +213,24 @@ const get_role = async (req, res) => {
             panels: mappedPanels,
             panel_ids_csv: mappedPanels.map(p => p.id).join(','),
             allowed_panels: allowedPanels,
-            assigned_modules: assigned_modules.map(rwm => ({
-                id: rwm._id,
-                role_id: rwm.role_id,
-                module_id: rwm.module_id ? rwm.module_id._id : null,
-                module_name: rwm.module_id ? rwm.module_id.name : null,
-                can_view: rwm.can_view,
-                can_add: rwm.can_add,
-                can_edit: rwm.can_edit,
-                can_delete: rwm.can_delete
-            }))
+            assigned_modules: assigned_modules
+                .filter(rwm => rwm.module_id)
+                .map(rwm => {
+                    const mod = rwm.module_id;
+                    const mName = (typeof mod === 'object' && mod !== null)
+                        ? (mod.name || mod.title || mod.module_name || mod.label)
+                        : null;
+                    return {
+                        id: rwm._id,
+                        role_id: rwm.role_id,
+                        module_id: (typeof mod === 'object' && mod !== null) ? mod._id : mod,
+                        module_name: mName || 'Module',
+                        can_view: rwm.can_view !== false,
+                        can_add: !!rwm.can_add,
+                        can_edit: !!rwm.can_edit,
+                        can_delete: !!rwm.can_delete
+                    };
+                })
         };
 
         return res.status(200).json({ status: 'success', message: 'Role fetched successfully', data: formattedRole });
@@ -356,7 +364,7 @@ const add_role = async (req, res) => {
             });
         }
 
-        return res.status(201).json({ status: 'success', message: 'Role created successfully' });
+        return res.status(201).json({ status: 'success', message: 'Role created successfully', data: newRole });
     } catch (error) {
         return res.status(500).json({ status: 'error', message: error.message || 'Internal Server Error' });
     }

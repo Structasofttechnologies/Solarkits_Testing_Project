@@ -1,102 +1,10 @@
 const KnowledgeCenterVideo = require('../models/india_solarshop_db/knowledge_center_videos.schema');
 
-// Initial seed tutorials for EPC & Franchisee
-const DEFAULT_TUTORIAL_VIDEOS = [
-  {
-    title: "How to Place EPC Solar Combo Kit Orders",
-    description: "Complete walkthrough on selecting 1kW, 2kW, 3kW residential and 10kW commercial solar combo kits with wholesale pricing.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "combo_kits",
-    category_name: "Pre-Configured Combo Kits",
-    target_audience: "epc",
-    kit_type: "All Kits",
-    state_name: "All States",
-    district_name: "All Districts",
-    tags: ["HowToUse", "ComboKits", "EPCStore"],
-    duration_label: "4:15 mins",
-    display_order: 1,
-    is_published: true
-  },
-  {
-    title: "How to Set Up & Use 4-Digit Unique Security PIN",
-    description: "Learn how to choose your globally unique 4-digit PIN for 1-click passwordless login to the SolarKits EPC Business Portal.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "how_to_use",
-    category_name: "Portal Login & Security",
-    target_audience: "all",
-    kit_type: "All Kits",
-    state_name: "All States",
-    district_name: "All Districts",
-    tags: ["SecurityPIN", "LoginGuide", "QuickAccess"],
-    duration_label: "2:30 mins",
-    display_order: 2,
-    is_published: true
-  },
-  {
-    title: "Franchisee PO Creation & District EPC Allocations",
-    description: "Step-by-step video guide for Franchise Partners on creating Purchase Orders, token deposits, and allocating kits to onboarded EPC contractors.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "purchase_orders",
-    category_name: "Purchase Orders & Allocations",
-    target_audience: "franchisee",
-    kit_type: "All Kits",
-    state_name: "All States",
-    district_name: "All Districts",
-    tags: ["FranchiseePO", "Allocations", "KitQuota"],
-    duration_label: "5:45 mins",
-    display_order: 3,
-    is_published: true
-  },
-  {
-    title: "Checking Wholesale Wallet, Margin Settlement & Invoices",
-    description: "How franchisee partners and EPC contractors can review their active ledger, commission payouts, and download GST tax invoices.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "wallet_commission",
-    category_name: "Wallet & Commission",
-    target_audience: "all",
-    kit_type: "All Kits",
-    state_name: "All States",
-    district_name: "All Districts",
-    tags: ["Wallet", "Margin", "GSTInvoice"],
-    duration_label: "3:50 mins",
-    display_order: 4,
-    is_published: true
-  },
-  {
-    title: "Live Order Delivery Tracking & Material Inward Scan",
-    description: "Learn how to track real-time dispatch from the nearest regional warehouse hub and verify delivered solar panels, inverters, and BOS packages.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "deliveries",
-    category_name: "Deliveries & Tracking",
-    target_audience: "all",
-    kit_type: "All Kits",
-    state_name: "All States",
-    district_name: "All Districts",
-    tags: ["DeliveryTracking", "Warehouse", "InwardScan"],
-    duration_label: "3:20 mins",
-    display_order: 5,
-    is_published: true
-  }
-];
-
-// Auto-seed helper
-const ensureSeedVideos = async () => {
-  try {
-    const count = await KnowledgeCenterVideo.countDocuments({ deleted_at: null });
-    if (count === 0) {
-      await KnowledgeCenterVideo.insertMany(DEFAULT_TUTORIAL_VIDEOS);
-    }
-  } catch (err) {
-    console.warn("[KnowledgeCenter] Seed error:", err.message);
-  }
-};
-
 /**
  * GET /admin-api/knowledge-center/list or /api/india/v1/knowledge-center/list
  */
 exports.list_videos = async (req, res) => {
   try {
-    await ensureSeedVideos();
 
     const {
       audience,

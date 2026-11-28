@@ -72,6 +72,7 @@ export default function GovtTenderKits({ moduleUniqueId = MODULE_UID }) {
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
+  const [selectedKitIds, setSelectedKitIds] = useState([]);
   const [formData, setFormData] = useState({
     state_id: "",
     state_name: "",
@@ -208,6 +209,7 @@ export default function GovtTenderKits({ moduleUniqueId = MODULE_UID }) {
   // Open Add Modal
   const openAddModal = () => {
     setEditingItem(null);
+    setSelectedKitIds([]);
     setFormData({
       state_id: filterState || "",
       state_name: states.find((s) => String(s._id || s.id) === String(filterState))?.name || "",
@@ -230,10 +232,12 @@ export default function GovtTenderKits({ moduleUniqueId = MODULE_UID }) {
   // Open Edit Modal
   const openEditModal = (item) => {
     setEditingItem(item);
+    const kId = String(item.combo_kit_id?._id || item.combo_kit_id || "");
+    setSelectedKitIds(kId ? [kId] : []);
     setFormData({
       state_id: item.state_id?._id || item.state_id || "",
       state_name: item.state_name || "",
-      combo_kit_id: item.combo_kit_id?._id || item.combo_kit_id || "",
+      combo_kit_id: kId,
       display_name: item.display_name || "",
       tagline: item.tagline || "Specially Configured for Government Projects",
       tender_description: item.tender_description || "",
@@ -256,27 +260,37 @@ export default function GovtTenderKits({ moduleUniqueId = MODULE_UID }) {
       dispatch(setAlert({ type: "warning", message: "Please select a target State." }));
       return;
     }
-    if (!formData.combo_kit_id) {
+    if (!editingItem && selectedKitIds.length === 0) {
+      dispatch(setAlert({ type: "warning", message: "Please select at least one applicable Combo Kit." }));
+      return;
+    }
+    if (editingItem && !formData.combo_kit_id) {
       dispatch(setAlert({ type: "warning", message: "Please select an applicable Combo Kit." }));
       return;
     }
 
     setModalLoading(true);
     try {
+      const payload = {
+        ...formData,
+        combo_kit_ids: !editingItem ? selectedKitIds : [formData.combo_kit_id],
+        combo_kit_id: (!editingItem ? selectedKitIds[0] : formData.combo_kit_id) || formData.combo_kit_id
+      };
+
       if (editingItem) {
         await axios.put(
           `${API_URL}/govt-tender-configs/${editingItem._id || editingItem.id}?unique_id=${moduleUniqueId}&req_for=edit`,
-          formData,
+          payload,
           { headers: authHeaderObj() }
         );
         dispatch(setAlert({ type: "success", message: "Tender configuration updated successfully." }));
       } else {
         await axios.post(
           `${API_URL}/govt-tender-configs?unique_id=${moduleUniqueId}&req_for=add`,
-          formData,
+          payload,
           { headers: authHeaderObj() }
         );
-        dispatch(setAlert({ type: "success", message: "Govt Tender Kit configured successfully." }));
+        dispatch(setAlert({ type: "success", message: `${selectedKitIds.length} Govt Tender Kit(s) configured successfully.` }));
       }
       setShowModal(false);
       fetchConfigs();
@@ -651,31 +665,113 @@ export default function GovtTenderKits({ moduleUniqueId = MODULE_UID }) {
               </p>
             </div>
 
-            {/* Applicable Combo Kit */}
-            <div>
-              <label className="block text-xs font-bold text-text-primary mb-1">
-                Applicable Combo Kit <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.combo_kit_id}
-                onChange={(e) => handleKitSelect(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-primary/40"
-                required
-              >
-                <option value="">-- Select Base Kit --</option>
-                {comboKits.map((kit) => (
-                  <option key={kit._id || kit.id} value={kit._id || kit.id}>
-                    {kit.capacity || kit.system_capacity || kit.capacityKW} kW - {kit.name || kit.title}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Applicable Combo Kit when editing */}
+            {editingItem && (
+              <div>
+                <label className="block text-xs font-bold text-text-primary mb-1">
+                  Applicable Combo Kit <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.combo_kit_id}
+                  onChange={(e) => handleKitSelect(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-primary/40"
+                  required
+                >
+                  <option value="">-- Select Base Kit --</option>
+                  {comboKits.map((kit) => (
+                    <option key={kit._id || kit.id} value={kit._id || kit.id}>
+                      {kit.capacity || kit.system_capacity || kit.capacityKW} kW - {kit.name || kit.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
+
+          {/* Multi-Kit Selector when adding new */}
+          {!editingItem && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-text-primary flex items-center gap-1.5">
+                  <span>Select Applicable Combo Kits for {formData.state_name || "State"}</span>
+                  <span className="text-red-500">*</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                    {selectedKitIds.length} of {comboKits.length} Selected
+                  </span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allIds = comboKits.map(k => String(k._id || k.id));
+                      setSelectedKitIds(allIds);
+                      if (allIds.length > 0) handleKitSelect(allIds[0]);
+                    }}
+                    className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                  >
+                    Select All
+                  </button>
+                  <span className="text-border">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedKitIds([])}
+                    className="text-[11px] font-semibold text-text-muted hover:text-text-primary cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-52 overflow-y-auto p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-border">
+                {comboKits.map((kit) => {
+                  const kId = String(kit._id || kit.id);
+                  const isChecked = selectedKitIds.includes(kId);
+                  const cap = kit.capacity || kit.system_capacity || kit.capacityKW || 0;
+                  return (
+                    <label
+                      key={kId}
+                      className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition-all cursor-pointer select-none ${
+                        isChecked
+                          ? "bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 ring-1 ring-blue-500/30 text-blue-950 dark:text-blue-100 font-bold"
+                          : "bg-surface border-border hover:border-primary/40 text-text-primary"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          let next;
+                          if (isChecked) {
+                            next = selectedKitIds.filter(id => id !== kId);
+                          } else {
+                            next = [...selectedKitIds, kId];
+                          }
+                          setSelectedKitIds(next);
+                          if (next.length > 0) handleKitSelect(next[0]);
+                        }}
+                        className="mt-0.5 w-4 h-4 rounded text-primary focus:ring-primary/30"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+                            {cap} kW
+                          </span>
+                          <span className="text-xs font-bold truncate block">{kit.name || kit.title}</span>
+                        </div>
+                        <p className="text-[10px] text-text-secondary truncate mt-0.5">
+                          Base Kit: {kit.sku || "DCR Combo Kit"}
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Display Name */}
           <div>
             <label className="block text-xs font-bold text-text-primary mb-1">
-              Store Display Name (Tender Title)
+              Store Display Name (Tender Title) {!editingItem && selectedKitIds.length > 1 ? "(Auto-generated per kit capacity)" : ""}
             </label>
             <input
               type="text"
@@ -683,7 +779,7 @@ export default function GovtTenderKits({ moduleUniqueId = MODULE_UID }) {
               onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
               placeholder="e.g. 3 kW Gujarat Govt Tender Kit"
               className="w-full px-3 py-2 rounded-xl border border-border bg-surface text-text-primary text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-primary/40"
-              required
+              required={Boolean(editingItem || selectedKitIds.length <= 1)}
             />
           </div>
 

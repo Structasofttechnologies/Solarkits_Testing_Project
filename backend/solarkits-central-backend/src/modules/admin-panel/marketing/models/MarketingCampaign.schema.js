@@ -5,6 +5,10 @@ const recipientSchema = new mongoose.Schema(
   {
     epc_id: { type: mongoose.Schema.Types.ObjectId, ref: 'epc_accounts', default: null },
     lead_id: { type: mongoose.Schema.Types.ObjectId, ref: 'website_epc_leads', default: null },
+    source_type: { type: String, enum: ['epc', 'lead', 'segment'], default: 'epc' },
+    segment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_segments', default: null },
+    segment_contact_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_segment_contacts', default: null },
+    custom_fields: { type: mongoose.Schema.Types.Mixed, default: {} },
     name: { type: String, trim: true },
     phone: { type: String, trim: true },
     email: { type: String, trim: true, lowercase: true },
@@ -57,6 +61,8 @@ const campaignSchema = new mongoose.Schema(
         'lead_generation',
         'sales',
         'epc_onboarding',
+        'epc_signup',
+        'coupon_discount',
         'franchisee_onboarding',
         'product_promotion',
         'awareness',
@@ -69,7 +75,8 @@ const campaignSchema = new mongoose.Schema(
         'festive_offer',
         'new_kit_launch',
         'reactivation',
-        'brand_awareness'
+        'brand_awareness',
+        'govt_tender_promotion'
       ],
       default: 'lead_generation'
     },
@@ -107,6 +114,9 @@ const campaignSchema = new mongoose.Schema(
       verified_epc:   { type: Boolean, default: false },
       buyer_epc:      { type: Boolean, default: false }
     },
+    segment_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: 'marketing_segments' }],
+    segment_state_filter: { type: String, trim: true, default: '' },
+    segment_district_filter: { type: String, trim: true, default: '' },
     audience_matching: { type: String, enum: ['any', 'all'], default: 'any' },
     exclude_groups: [{ type: String, enum: ['registered_epc', 'verified_epc', 'buyer_epc'] }],
     epc_types: [{ type: mongoose.Schema.Types.ObjectId, ref: 'epc_types' }],
@@ -139,6 +149,7 @@ const campaignSchema = new mongoose.Schema(
         'offer_announcement',
         'sample_to_bulk',
         'inactive_reactivation',
+        'govt_tender_promotion',
         'custom'
       ],
       default: 'kit_sales'
@@ -174,6 +185,8 @@ const campaignSchema = new mongoose.Schema(
     // Senders & Templates
     email_sender_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_senders', default: null },
     email_template_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_templates', default: null },
+    email_subject: { type: String, trim: true, default: '' },
+    email_html_content: { type: String, default: '' },
     whatsapp_sender_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_senders', default: null },
     whatsapp_template_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_templates', default: null },
     email_subject_override: { type: String, default: null },

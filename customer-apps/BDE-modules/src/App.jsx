@@ -17,6 +17,7 @@ import BdeNotifications from './pages/BdeNotifications';
 import BdeProfile from './pages/BdeProfile';
 import BdeEpcQuotes from './pages/BdeEpcQuotes';
 import BdeCreateEpcQuote from './pages/BdeCreateEpcQuote';
+import BdeCreateTrialKitQuote from './pages/BdeCreateTrialKitQuote';
 import BdeEpcQuoteDetail from './pages/BdeEpcQuoteDetail';
 import BdeEpcQuoteFollowupList from './pages/BdeEpcQuoteFollowupList';
 import BdePoOrders from './pages/BdePoOrders';
@@ -44,6 +45,8 @@ export default function App() {
               <Route path="/epc-analytics" element={<BdeEpcAnalytics />} />
               <Route path="/epc-quotes" element={<BdeEpcQuotes />} />
               <Route path="/epc-quotes/create" element={<BdeCreateEpcQuote />} />
+              <Route path="/trial-kit-quotes/create" element={<BdeCreateTrialKitQuote />} />
+              <Route path="/trial-kit-funnel/create-quote" element={<BdeCreateTrialKitQuote />} />
               <Route path="/epc-quotes/:id" element={<BdeEpcQuoteDetail />} />
               <Route path="/epc-quote-followups" element={<BdeEpcQuoteFollowupList />} />
               <Route path="/franchisees" element={<Navigate to="/#franchisee-goals-section" replace />} />

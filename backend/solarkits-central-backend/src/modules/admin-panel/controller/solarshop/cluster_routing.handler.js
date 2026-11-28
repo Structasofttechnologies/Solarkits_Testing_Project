@@ -762,19 +762,125 @@ exports.get_available_warehouses = async (req, res) => {
       warehouses = [];
     }
 
+    let mappings = [];
+    try {
+      mappings = await WarehouseClusterMapping.find({ deleted_at: null }).lean();
+    } catch (mErr) {}
+
+    const clusterMapByWh = {};
+    const clusterObjectsByWh = {};
+    const statesMapByWh = {};
+
+    (mappings || []).forEach(m => {
+      const whId = m.warehouse_id ? m.warehouse_id.toString() : null;
+      const whCode = m.warehouse_code ? m.warehouse_code.trim() : null;
+      const whName = (m.warehouse_name || '').trim().toLowerCase();
+
+      // Collect all mapped cluster IDs and objects from WarehouseClusterMapping
+      const cIds = [];
+      if (m.cluster_id) cIds.push(m.cluster_id.toString());
+      if (Array.isArray(m.franchise_cluster_ids)) {
+        m.franchise_cluster_ids.forEach(fcId => {
+          if (fcId) cIds.push(fcId.toString());
+        });
+      }
+      if (Array.isArray(m.franchise_clusters)) {
+        m.franchise_clusters.forEach(fc => {
+          const cid = fc?.cluster_id || fc?._id || fc?.id;
+          if (cid) cIds.push(cid.toString());
+        });
+      }
+
+      const fcObjs = Array.isArray(m.franchise_clusters) ? m.franchise_clusters : [];
+      const mStates = Array.isArray(m.states) ? m.states : [];
+
+      [whId, whCode, whName].filter(Boolean).forEach(key => {
+        if (!clusterMapByWh[key]) clusterMapByWh[key] = [];
+        clusterMapByWh[key].push(...cIds);
+
+        if (!clusterObjectsByWh[key]) clusterObjectsByWh[key] = [];
+        clusterObjectsByWh[key].push(...fcObjs);
+
+        if (!statesMapByWh[key]) statesMapByWh[key] = [];
+        statesMapByWh[key].push(...mStates);
+      });
+    });
+
     const liveList = (warehouses || []).map((w) => {
       const cleanName = (w.warehouse_name || w.name || '').trim();
       const fallbackName = `${w.level_2?.name || 'Warehouse'} (${(w.warehouse_type || 'wh').toUpperCase()})`;
       const resolvedName = cleanName || fallbackName;
+      const stateName = w.level_1?.name || '';
+      const wId = w._id.toString();
+      const wCode = w.warehouse_code ? w.warehouse_code.trim() : '';
+      const wKeyName = resolvedName.toLowerCase();
+
+      const mappedClusters = [
+        ...new Set([
+          ...(clusterMapByWh[wId] || []),
+          ...(clusterMapByWh[wCode] || []),
+          ...(clusterMapByWh[wKeyName] || [])
+        ])
+      ];
+
+      const mappedStates = [
+        ...new Set([
+          ...(stateName ? [stateName] : []),
+          ...(statesMapByWh[wId] || []),
+          ...(statesMapByWh[wCode] || []),
+          ...(statesMapByWh[wKeyName] || [])
+        ])
+      ];
+
+      const allFcObjs = [
+        ...(clusterObjectsByWh[wId] || []),
+        ...(clusterObjectsByWh[wCode] || []),
+        ...(clusterObjectsByWh[wKeyName] || [])
+      ];
+      const uniqueFcObjs = [];
+      const seenFcIds = new Set();
+      allFcObjs.forEach(fc => {
+        const fcId = String(fc.cluster_id || fc._id || fc.id || '');
+        if (fcId && !seenFcIds.has(fcId)) {
+          seenFcIds.add(fcId);
+          uniqueFcObjs.push(fc);
+        }
+      });
+
+      const isStaffed = Boolean(
+        (w.assigned_staff?.manager_id || (w.manager && w.manager.name)) &&
+        w.assigned_staff?.accountant_id
+      );
 
       return {
-        id: w._id.toString(),
+        id: wId,
+        _id: wId,
+        name: resolvedName,
         warehouse_code: w.warehouse_code,
         warehouse_name: resolvedName,
         display_label: `${resolvedName} [${w.warehouse_code}]`,
-        location: `${w.level_2?.name || ''}, ${w.level_1?.name || ''}`.trim().replace(/^,|,$/g, ''),
+        location: `${w.level_2?.name || ''}, ${stateName}`.trim().replace(/^,|,$/g, ''),
+        state_name: stateName,
+        state: stateName,
+        district_name: w.level_2?.name || '',
         address: w.address || '',
         warehouse_type: w.warehouse_type,
+        serviced_cluster_ids: mappedClusters,
+        serviced_clusters: uniqueFcObjs,
+        fulfillment_states: mappedStates,
+        mapped_clusters_count: mappedClusters.length || uniqueFcObjs.length,
+        assigned_staff: {
+          manager_id: w.assigned_staff?.manager_id 
+            ? String(w.assigned_staff.manager_id._id || w.assigned_staff.manager_id) 
+            : (w.manager?.user_id ? String(w.manager.user_id._id || w.manager.user_id) : null),
+          accountant_id: w.assigned_staff?.accountant_id 
+            ? String(w.assigned_staff.accountant_id._id || w.assigned_staff.accountant_id) 
+            : null
+        },
+        assigned_staff_users: w.assigned_staff_users || [],
+        manager: w.manager || null,
+        is_staffed: isStaffed,
+        staffing_status: isStaffed ? 'staffed' : 'unassigned'
       };
     });
 

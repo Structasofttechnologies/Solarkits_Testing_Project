@@ -65,6 +65,16 @@ export default function ActiveStates({ moduleUniqueId }) {
   // Bulk Upload Modal state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
+  const [detectedFileHeaders, setDetectedFileHeaders] = useState([]);
+  const [rawFileRows, setRawFileRows] = useState([]);
+  const [columnMapping, setColumnMapping] = useState({
+    state: '',
+    district: '',
+    pincode: '',
+    locality: '',
+    lat: '',
+    lng: ''
+  });
   const [parsedData, setParsedData] = useState([]);
   const [uploadStats, setUploadStats] = useState({ total: 0, states: 0, districts: 0, pincodes: 0 });
   const [isUploading, setIsUploading] = useState(false);
@@ -270,6 +280,71 @@ export default function ActiveStates({ moduleUniqueId }) {
     document.body.removeChild(link);
   };
 
+  // Intelligent fuzzy auto-detector for column headers
+  const autoDetectColumnMapping = (headers) => {
+    const findHeader = (patterns) => {
+      for (const pat of patterns) {
+        const found = headers.find(h => {
+          const cleanH = (h || '').toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+          const cleanPat = pat.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return cleanH === cleanPat || cleanH.includes(cleanPat);
+        });
+        if (found) return found;
+      }
+      return '';
+    };
+
+    return {
+      state: findHeader(['state', 'statename', 'state_name', 'st_name', 'state_ut', 'state / ut', 'province', 'region']) || '',
+      district: findHeader(['district', 'districtname', 'district_name', 'dist_name', 'dist', 'district name', 'county']) || '',
+      pincode: findHeader(['pincode', 'pin_code', 'pin code', 'pin', 'postal_code', 'postalcode', 'zip', 'zipcode', 'postcode']) || '',
+      locality: findHeader(['office_name', 'officename', 'locality', 'area', 'city', 'taluk', 'tehsil', 'subdistrict', 'village', 'place', 'location']) || '',
+      lat: findHeader(['latitude', 'lat', 'latitude_deg', 'lat_deg', 'y', 'gps_lat']) || '',
+      lng: findHeader(['longitude', 'long', 'lng', 'lon', 'longitude_deg', 'lng_deg', 'x', 'gps_lng']) || ''
+    };
+  };
+
+  // Normalizes rows using active mapping
+  const normalizeRowsWithMapping = (rows, mapping) => {
+    if (!rows || rows.length === 0) return [];
+    return rows.map(r => {
+      const state = (mapping.state && r[mapping.state] !== undefined ? r[mapping.state] : '').toString().trim();
+      const district = (mapping.district && r[mapping.district] !== undefined ? r[mapping.district] : '').toString().trim();
+      const pincode = (mapping.pincode && r[mapping.pincode] !== undefined ? r[mapping.pincode] : '').toString().trim();
+      const locality = (mapping.locality && r[mapping.locality] !== undefined ? r[mapping.locality] : '').toString().trim();
+      const rawLat = mapping.lat && r[mapping.lat] !== undefined ? r[mapping.lat] : '';
+      const rawLng = mapping.lng && r[mapping.lng] !== undefined ? r[mapping.lng] : '';
+
+      return {
+        state,
+        district,
+        pincode,
+        locality,
+        lat: rawLat !== '' && !isNaN(Number(rawLat)) ? Number(rawLat) : 0,
+        lng: rawLng !== '' && !isNaN(Number(rawLng)) ? Number(rawLng) : 0
+      };
+    }).filter(r => r.state && r.district);
+  };
+
+  // Handles manual change of column mapping dropdown
+  const handleMappingChange = (field, selectedHeader) => {
+    const updated = { ...columnMapping, [field]: selectedHeader };
+    setColumnMapping(updated);
+    if (rawFileRows.length > 0) {
+      const normalized = normalizeRowsWithMapping(rawFileRows, updated);
+      setParsedData(normalized);
+      const uniqueStates = new Set(normalized.map(r => r.state.toLowerCase())).size;
+      const uniqueDistricts = new Set(normalized.map(r => `${r.state.toLowerCase()}-${r.district.toLowerCase()}`)).size;
+      const uniquePincodes = new Set(normalized.filter(r => r.pincode).map(r => r.pincode)).size;
+      setUploadStats({
+        total: normalized.length,
+        states: uniqueStates,
+        districts: uniqueDistricts,
+        pincodes: uniquePincodes
+      });
+    }
+  };
+
   // ✅ Parse uploaded Excel / CSV
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
@@ -281,13 +356,14 @@ export default function ActiveStates({ moduleUniqueId }) {
 
       const fileName = file.name.toLowerCase();
       let rawRows = [];
+      let headers = [];
 
       if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
         const rows = await readXlsxFile(file);
         if (!rows || rows.length < 2) {
           throw new Error("Excel file is empty or does not contain data rows.");
         }
-        const headers = rows[0].map(h => (h || '').toString().trim());
+        headers = rows[0].map(h => (h || '').toString().trim());
         rawRows = rows.slice(1).map(r => {
           const obj = {};
           headers.forEach((h, idx) => {
@@ -317,7 +393,7 @@ export default function ActiveStates({ moduleUniqueId }) {
           return values;
         };
 
-        const headers = parseCSVLine(lines[0]);
+        headers = parseCSVLine(lines[0]);
         rawRows = lines.slice(1).map(line => {
           const vals = parseCSVLine(line);
           const obj = {};
@@ -330,39 +406,14 @@ export default function ActiveStates({ moduleUniqueId }) {
         throw new Error("Unsupported file type. Please upload a .csv, .xlsx, or .xls file.");
       }
 
-      // Flexible column detection & normalization
-      const normalized = rawRows.map(row => {
-        const keys = Object.keys(row);
-        const findVal = (patterns) => {
-          for (const pat of patterns) {
-            const matchKey = keys.find(k => k.trim().toLowerCase() === pat.toLowerCase() || k.trim().toLowerCase().replace(/[^a-z0-9]/g, '') === pat.toLowerCase().replace(/[^a-z0-9]/g, ''));
-            if (matchKey && row[matchKey] !== undefined && row[matchKey] !== null && row[matchKey] !== '') {
-              return row[matchKey];
-            }
-          }
-          return '';
-        };
+      setDetectedFileHeaders(headers);
+      setRawFileRows(rawRows);
 
-        const state = (findVal(['state', 'state_name', 'statename', 'st_name', 'state / ut', 'state name']) || '').toString().trim();
-        const district = (findVal(['district', 'district_name', 'districtname', 'dist_name', 'dist', 'district name']) || '').toString().trim();
-        const pincode = (findVal(['pincode', 'pin_code', 'pin code', 'pin', 'postal_code', 'postalcode', 'zip', 'zipcode']) || '').toString().trim();
-        const lat = findVal(['latitude', 'lat', 'latitude_deg', 'lat_deg', 'y']);
-        const lng = findVal(['longitude', 'lng', 'long', 'lon', 'longitude_deg', 'lng_deg', 'x']);
-        const locality = (findVal(['locality', 'area', 'city', 'taluk', 'tehsil', 'subdistrict', 'village', 'office_name', 'officename']) || '').toString().trim();
+      // Auto-detect mappings from headers
+      const initialMapping = autoDetectColumnMapping(headers);
+      setColumnMapping(initialMapping);
 
-        return {
-          state,
-          district,
-          pincode,
-          lat: lat !== '' && !isNaN(Number(lat)) ? Number(lat) : 0,
-          lng: lng !== '' && !isNaN(Number(lng)) ? Number(lng) : 0,
-          locality
-        };
-      }).filter(r => r.state && r.district);
-
-      if (normalized.length === 0) {
-        throw new Error("No valid State and District rows found. Please check column headers (State, District, Pincode, Lat, Lng).");
-      }
+      const normalized = normalizeRowsWithMapping(rawRows, initialMapping);
 
       const uniqueStates = new Set(normalized.map(r => r.state.toLowerCase())).size;
       const uniqueDistricts = new Set(normalized.map(r => `${r.state.toLowerCase()}-${r.district.toLowerCase()}`)).size;
@@ -379,6 +430,8 @@ export default function ActiveStates({ moduleUniqueId }) {
       console.error("File parse error:", err);
       setUploadError(err.message || "Failed to parse file.");
       setParsedData([]);
+      setDetectedFileHeaders([]);
+      setRawFileRows([]);
       setUploadStats({ total: 0, states: 0, districts: 0, pincodes: 0 });
     }
   };
@@ -731,19 +784,19 @@ export default function ActiveStates({ moduleUniqueId }) {
         )}
       </RenderIfPermission>
 
-      {/* ✅ Bulk Upload Modal */}
+      {/* ✅ Bulk Upload Modal with Dynamic Column Header Mapping */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
             {/* Modal Header */}
-            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-white">
+                <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-white shadow-sm">
                   <FaUpload className="text-sm" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base">Bulk Upload Locations (CSV / Excel)</h3>
-                  <p className="text-slate-400 text-xs">Import States, Districts, Pincodes & Coordinates</p>
+                  <h3 className="font-bold text-base">Bulk Upload Locations & Pincodes</h3>
+                  <p className="text-slate-400 text-xs">Dynamic Header Detection • CSV & Excel (.xlsx, .xls) Supported</p>
                 </div>
               </div>
               <button
@@ -756,13 +809,13 @@ export default function ActiveStates({ moduleUniqueId }) {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-5">
+            <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
               {/* Instructions banner */}
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5 text-xs text-blue-900 flex items-start justify-between gap-3">
+              <div className="bg-blue-50/90 border border-blue-200 rounded-xl p-3.5 text-xs text-blue-900 flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-bold mb-1">Supported File Formats: .xlsx, .xls, .csv</p>
-                  <p className="text-blue-700 leading-relaxed">
-                    Columns required: <strong>State</strong>, <strong>District</strong>. Optional: <strong>Pincode</strong>, <strong>Latitude</strong>, <strong>Longitude</strong>, <strong>Locality</strong>.
+                  <p className="font-bold mb-1">Flexible Column Matching Supported</p>
+                  <p className="text-blue-700 leading-relaxed text-[11px]">
+                    Upload any CSV or Excel sheet. System automatically detects your column headers (such as <strong>State</strong>, <strong>District</strong>, <strong>PIN / Pincode</strong>, <strong>Office / Locality</strong>, <strong>Latitude</strong>, <strong>Longitude</strong>). You can also adjust mappings below.
                   </p>
                 </div>
                 <button
@@ -770,31 +823,31 @@ export default function ActiveStates({ moduleUniqueId }) {
                   onClick={downloadSampleTemplate}
                   className="shrink-0 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[11px] font-semibold flex items-center gap-1 shadow-xs transition-colors"
                 >
-                  <FaDownload className="text-[10px]" /> Sample CSV
+                  <FaDownload className="text-[10px]" /> Sample Template
                 </button>
               </div>
 
               {/* File Dropzone */}
-              <div className="border-2 border-dashed border-slate-300 hover:border-primary rounded-xl p-6 text-center bg-slate-50/50 hover:bg-primary/5 transition-colors cursor-pointer relative">
+              <div className="border-2 border-dashed border-slate-300 hover:border-primary rounded-xl p-5 text-center bg-slate-50/50 hover:bg-primary/5 transition-colors cursor-pointer relative">
                 <input
                   type="file"
                   accept=".csv, .xlsx, .xls"
                   onChange={handleFileChange}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
-                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-md border border-slate-200 text-primary">
+                <div className="w-11 h-11 bg-white rounded-full flex items-center justify-center mx-auto mb-2 shadow-md border border-slate-200 text-primary">
                   {uploadFile?.name?.endsWith('.csv') ? (
                     <FaFileCsv className="text-2xl text-emerald-600" />
                   ) : uploadFile ? (
                     <FaFileExcel className="text-2xl text-green-600" />
                   ) : (
-                    <FaUpload className="text-xl" />
+                    <FaUpload className="text-lg" />
                   )}
                 </div>
                 <p className="font-bold text-sm text-slate-800">
                   {uploadFile ? uploadFile.name : "Click to select or drag and drop your file here"}
                 </p>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 mt-0.5">
                   {uploadFile ? `${(uploadFile.size / 1024).toFixed(1)} KB` : "Excel (.xlsx, .xls) or CSV files up to 10MB"}
                 </p>
               </div>
@@ -807,23 +860,190 @@ export default function ActiveStates({ moduleUniqueId }) {
                 </div>
               )}
 
-              {/* Parsed Stats Preview */}
+              {/* Step 2: Dynamic Column Mapping Review */}
+              {detectedFileHeaders.length > 0 && (
+                <div className="p-4 bg-slate-50/90 border border-slate-200 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                    <div className="flex items-center gap-2">
+                      <FaChartLine className="text-primary text-xs" />
+                      <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                        Dynamic Column Header Mapping
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded shadow-2xs">
+                      {detectedFileHeaders.length} Columns Detected in File
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-600">
+                    Verify or adjust how columns in your uploaded file map to system fields. Required: <strong>State</strong> and <strong>District</strong>.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
+                    {/* 1. State */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700">
+                          State Column <span className="text-red-500">*</span>
+                        </label>
+                        {columnMapping.state && (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            ✓ Mapped
+                          </span>
+                        )}
+                      </div>
+                      <select
+                        value={columnMapping.state}
+                        onChange={(e) => handleMappingChange('state', e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 font-semibold focus:outline-none focus:border-primary"
+                      >
+                        <option value="">-- Select State Column --</option>
+                        {detectedFileHeaders.map((h, idx) => (
+                          <option key={idx} value={h}>{h}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 2. District */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700">
+                          District Column <span className="text-red-500">*</span>
+                        </label>
+                        {columnMapping.district && (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            ✓ Mapped
+                          </span>
+                        )}
+                      </div>
+                      <select
+                        value={columnMapping.district}
+                        onChange={(e) => handleMappingChange('district', e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 font-semibold focus:outline-none focus:border-primary"
+                      >
+                        <option value="">-- Select District Column --</option>
+                        {detectedFileHeaders.map((h, idx) => (
+                          <option key={idx} value={h}>{h}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 3. Pincode / PIN */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700">
+                          Pincode / PIN Column
+                        </label>
+                        {columnMapping.pincode && (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            ✓ Mapped
+                          </span>
+                        )}
+                      </div>
+                      <select
+                        value={columnMapping.pincode}
+                        onChange={(e) => handleMappingChange('pincode', e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 font-semibold focus:outline-none focus:border-primary"
+                      >
+                        <option value="">-- None / Skip Pincode --</option>
+                        {detectedFileHeaders.map((h, idx) => (
+                          <option key={idx} value={h}>{h}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 4. Locality / Office */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700">
+                          Office / Locality Column
+                        </label>
+                        {columnMapping.locality && (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            ✓ Mapped
+                          </span>
+                        )}
+                      </div>
+                      <select
+                        value={columnMapping.locality}
+                        onChange={(e) => handleMappingChange('locality', e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 font-semibold focus:outline-none focus:border-primary"
+                      >
+                        <option value="">-- None / Skip Locality --</option>
+                        {detectedFileHeaders.map((h, idx) => (
+                          <option key={idx} value={h}>{h}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 5. Latitude */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700">
+                          Latitude Column
+                        </label>
+                        {columnMapping.lat && (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            ✓ Mapped
+                          </span>
+                        )}
+                      </div>
+                      <select
+                        value={columnMapping.lat}
+                        onChange={(e) => handleMappingChange('lat', e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 font-semibold focus:outline-none focus:border-primary"
+                      >
+                        <option value="">-- None / Skip Latitude --</option>
+                        {detectedFileHeaders.map((h, idx) => (
+                          <option key={idx} value={h}>{h}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 6. Longitude */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700">
+                          Longitude Column
+                        </label>
+                        {columnMapping.lng && (
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            ✓ Mapped
+                          </span>
+                        )}
+                      </div>
+                      <select
+                        value={columnMapping.lng}
+                        onChange={(e) => handleMappingChange('lng', e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 font-semibold focus:outline-none focus:border-primary"
+                      >
+                        <option value="">-- None / Skip Longitude --</option>
+                        {detectedFileHeaders.map((h, idx) => (
+                          <option key={idx} value={h}>{h}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Parsed Stats & Preview */}
               {parsedData.length > 0 && (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="grid grid-cols-4 gap-2">
-                    <div className="bg-slate-100 rounded-lg p-2.5 text-center">
-                      <p className="text-[10px] uppercase font-bold text-slate-500">Total Rows</p>
+                    <div className="bg-slate-100 rounded-lg p-2 text-center">
+                      <p className="text-[10px] uppercase font-bold text-slate-500">Valid Rows</p>
                       <p className="text-base font-black text-slate-800">{uploadStats.total}</p>
                     </div>
-                    <div className="bg-blue-50 rounded-lg p-2.5 text-center border border-blue-100">
+                    <div className="bg-blue-50 rounded-lg p-2 text-center border border-blue-100">
                       <p className="text-[10px] uppercase font-bold text-blue-600">States</p>
                       <p className="text-base font-black text-blue-900">{uploadStats.states}</p>
                     </div>
-                    <div className="bg-purple-50 rounded-lg p-2.5 text-center border border-purple-100">
+                    <div className="bg-purple-50 rounded-lg p-2 text-center border border-purple-100">
                       <p className="text-[10px] uppercase font-bold text-purple-600">Districts</p>
                       <p className="text-base font-black text-purple-900">{uploadStats.districts}</p>
                     </div>
-                    <div className="bg-emerald-50 rounded-lg p-2.5 text-center border border-emerald-100">
+                    <div className="bg-emerald-50 rounded-lg p-2 text-center border border-emerald-100">
                       <p className="text-[10px] uppercase font-bold text-emerald-600">Pincodes</p>
                       <p className="text-base font-black text-emerald-900">{uploadStats.pincodes}</p>
                     </div>
@@ -832,8 +1052,8 @@ export default function ActiveStates({ moduleUniqueId }) {
                   {/* Sample rows table */}
                   <div className="border border-slate-200 rounded-lg overflow-hidden">
                     <div className="bg-slate-100 px-3 py-1.5 text-[11px] font-bold text-slate-700 border-b border-slate-200 flex justify-between items-center">
-                      <span>Preview (First 5 Rows)</span>
-                      <span className="text-[10px] text-slate-500">{parsedData.length} records ready</span>
+                      <span>Live Data Preview (First 5 Rows with Applied Mapping)</span>
+                      <span className="text-[10px] text-slate-500">{parsedData.length} total rows verified</span>
                     </div>
                     <div className="max-h-40 overflow-y-auto">
                       <table className="w-full text-left text-xs">
@@ -842,6 +1062,7 @@ export default function ActiveStates({ moduleUniqueId }) {
                             <th className="px-3 py-2">State</th>
                             <th className="px-3 py-2">District</th>
                             <th className="px-3 py-2">Pincode</th>
+                            <th className="px-3 py-2">Locality / Office</th>
                             <th className="px-3 py-2">Lat</th>
                             <th className="px-3 py-2">Lng</th>
                           </tr>
@@ -851,7 +1072,8 @@ export default function ActiveStates({ moduleUniqueId }) {
                             <tr key={idx} className="hover:bg-slate-50/80">
                               <td className="px-3 py-1.5 font-medium">{row.state}</td>
                               <td className="px-3 py-1.5">{row.district}</td>
-                              <td className="px-3 py-1.5 font-mono text-[11px]">{row.pincode || "-"}</td>
+                              <td className="px-3 py-1.5 font-mono text-[11px] font-bold text-emerald-700">{row.pincode || "-"}</td>
+                              <td className="px-3 py-1.5 text-slate-600">{row.locality || "-"}</td>
                               <td className="px-3 py-1.5 font-mono text-[11px]">{row.lat ? Number(row.lat).toFixed(4) : "-"}</td>
                               <td className="px-3 py-1.5 font-mono text-[11px]">{row.lng ? Number(row.lng).toFixed(4) : "-"}</td>
                             </tr>
@@ -865,7 +1087,7 @@ export default function ActiveStates({ moduleUniqueId }) {
             </div>
 
             {/* Modal Footer */}
-            <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
+            <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsUploadModalOpen(false)}
@@ -877,7 +1099,7 @@ export default function ActiveStates({ moduleUniqueId }) {
               <button
                 type="button"
                 onClick={handleConfirmUpload}
-                disabled={parsedData.length === 0 || isUploading}
+                disabled={!columnMapping.state || !columnMapping.district || parsedData.length === 0 || isUploading}
                 className="px-5 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-lg transition-all shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isUploading ? (

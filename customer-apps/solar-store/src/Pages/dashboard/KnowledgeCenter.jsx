@@ -19,79 +19,6 @@ import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-const FALLBACK_VIDEOS = [
-  {
-    _id: "demo_1",
-    title: "How to Configure & Buy Solar Combo Kits",
-    headline: "How to Configure & Buy Solar Combo Kits",
-    description: "Step-by-step walkthrough on how to choose Solar Combo Kits according to system capacity (1kW to 50kW), select panels, inverters, and BOS accessories.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "combo_kits",
-    category_name: "Combo Kits",
-    kit_type: "All Kits",
-    duration_label: "5 mins",
-    duration: "5 mins",
-    tags: ["Combo Kits", "Ordering", "BOS", "Inverter", "Panels"],
-    target_audience: "epc"
-  },
-  {
-    _id: "demo_2",
-    title: "Know My Margin Calculator - Maximizing EPC Profit",
-    headline: "Know My Margin Calculator - Maximizing EPC Profit",
-    description: "Learn how to use the margin calculator to project customer quotes, calculate project margins, freight costs, and net earnings per kW.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "how_to_use",
-    category_name: "Margin Calculator",
-    kit_type: "Commercial",
-    duration_label: "4 mins",
-    duration: "4 mins",
-    tags: ["Margin", "Profit", "ROI", "Quotation"],
-    target_audience: "epc"
-  },
-  {
-    _id: "demo_3",
-    title: "Purchase Order (PO) Lifecycle & Cluster Delivery Tracking",
-    headline: "Purchase Order (PO) Lifecycle & Cluster Delivery Tracking",
-    description: "Understand how your PO is approved by franchise partners and how warehouse cluster routing dispatches kits directly to your project site.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "purchase_orders",
-    category_name: "POs & Approvals",
-    kit_type: "Residential",
-    duration_label: "6 mins",
-    duration: "6 mins",
-    tags: ["PO", "Dispatch", "Warehouse", "Tracking"],
-    target_audience: "epc"
-  },
-  {
-    _id: "demo_4",
-    title: "EPC Fast PIN Login & Account Security Setup",
-    headline: "EPC Fast PIN Login & Account Security Setup",
-    description: "How to set up your unique 4-digit security PIN for instant 1-click login without needing your password every time.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "how_to_use",
-    category_name: "Account & Security",
-    kit_type: "All Kits",
-    duration_label: "3 mins",
-    duration: "3 mins",
-    tags: ["PIN", "Security", "Login", "Profile"],
-    target_audience: "epc"
-  },
-  {
-    _id: "demo_5",
-    title: "Industrial & Agricultural High-Capacity Solutions",
-    headline: "Industrial & Agricultural High-Capacity Solutions",
-    description: "Complete guide for ground-mount, solar water pumping, and heavy industrial solar kits with custom structure configurations.",
-    video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    category: "combo_kits",
-    category_name: "Combo Kits",
-    kit_type: "Industrial",
-    duration_label: "8 mins",
-    duration: "8 mins",
-    tags: ["Industrial", "Agriculture", "High Capacity", "HT Lines"],
-    target_audience: "epc"
-  }
-];
-
 export default function KnowledgeCenter() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -109,14 +36,13 @@ export default function KnowledgeCenter() {
         params: { audience: "epc" },
         timeout: 8000
       });
-      if (res.data?.success && Array.isArray(res.data?.data) && res.data.data.length > 0) {
+      if (res.data?.success && Array.isArray(res.data?.data)) {
         setVideos(res.data.data);
       } else {
-        setVideos(FALLBACK_VIDEOS);
+        setVideos([]);
       }
     } catch {
-      // Fallback
-      setVideos(FALLBACK_VIDEOS);
+      setVideos([]);
     } finally {
       setLoading(false);
     }

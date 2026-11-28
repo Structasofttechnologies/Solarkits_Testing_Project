@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import WebsiteTelemetryTracker from "./components/WebsiteTelemetryTracker";
 import FranchiseLanding from "./pages/FranchiseLanding";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -32,6 +33,7 @@ import KnowledgeCenter from "./pages/KnowledgeCenter";
 export default function App() {
   return (
     <BrowserRouter>
+      <WebsiteTelemetryTracker />
       <Routes>
         {/* Solarkits B2B Platform & Franchisee Storefront Routes */}
         <Route path="/" element={<FranchiseLanding />} />

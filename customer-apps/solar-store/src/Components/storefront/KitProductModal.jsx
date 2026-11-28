@@ -340,11 +340,28 @@ export default function KitProductModal({
                   {kit.usageType || kit.category || "Residential Solar Power System"}
                 </span>
                 <h2 className="text-xl sm:text-2xl font-black text-text-primary mt-1 leading-snug">
-                  {kit.kitName}
+                  {kit.is_govt_tender && (kit.govt_tender_name || kit.govt_tender_display_name)
+                    ? (kit.govt_tender_name || kit.govt_tender_display_name)
+                    : kit.kitName}
                 </h2>
+                {kit.is_govt_tender && kit.govt_tender_tagline && (
+                  <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 italic mt-1 flex items-center gap-1.5">
+                    <span>🏛️</span> {kit.govt_tender_tagline}
+                  </p>
+                )}
                 <p className="text-xs text-text-secondary mt-2 leading-relaxed">
                   {kit.description || "A complete, pre-engineered solar power kit designed for effortless rooftop installation, maximum power harvest, and zero-compromise safety."}
                 </p>
+                {kit.is_govt_tender && kit.govt_tender_description && (
+                  <div className="mt-3 p-3 rounded-xl bg-blue-50/80 dark:bg-slate-800/80 border border-blue-200 dark:border-blue-700/60 text-xs">
+                    <p className="font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1.5 mb-1">
+                      <span>🏛️</span> Tender Specifications & Eligibility
+                    </p>
+                    <p className="text-text-secondary text-[11px] leading-relaxed">
+                      {kit.govt_tender_description}
+                    </p>
+                  </div>
+                )}
 
                 {/* Price block */}
                 <div className="mt-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-border">

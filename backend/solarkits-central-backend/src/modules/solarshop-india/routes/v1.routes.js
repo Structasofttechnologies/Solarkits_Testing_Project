@@ -13,5 +13,6 @@ router.use("/knowledge-center", require("./v1.routes/knowledge_center.route"));
 router.use("/franchise-clusters", require("../../admin-panel/routes/franchisee.cluster.route"));
 router.use("/epc/preferences", require("./v1.routes/epc_preferences.route"));
 router.use("/epc-preferences", require("./v1.routes/epc_preferences.route"));
+router.use("/telemetry", require("../../admin-panel/marketing/routes/webTelemetry.route"));
 
 module.exports = router;

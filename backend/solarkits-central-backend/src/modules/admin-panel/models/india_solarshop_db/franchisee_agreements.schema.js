@@ -53,6 +53,27 @@ const schema = new mongoose.Schema({
     default: 'SolarKits Authorized Franchise Partner Agreement',
     trim: true,
   },
+  agreement_type: {
+    type: String,
+    default: 'District Franchise Agreement',
+    trim: true,
+    index: true,
+  },
+  agreement_type_key: {
+    type: String,
+    default: 'district_franchise_agreement',
+    trim: true,
+  },
+  franchise_type: {
+    type: String,
+    default: null,
+    trim: true,
+  },
+  store_type_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'reseller_plans',
+    default: null,
+  },
   agreement_duration_type: {
     type: String,
     enum: ['1_year', '2_years', '3_years', 'custom'],
