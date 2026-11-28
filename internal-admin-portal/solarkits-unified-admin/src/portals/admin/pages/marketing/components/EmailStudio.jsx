@@ -201,15 +201,16 @@ export default function EmailStudio({
       );
       if (found) return found.name || found.warehouse_name || found.warehouse_code;
     }
-    return formData.servingWarehouses?.[0] || 'IND_GUJ_001';
+    return formData.servingWarehouses?.[0] || 'Pan-India Regional Depots';
   }, [formData.servingWarehouses, warehousesList]);
 
   // Derive dynamic discount string
   const dynamicDiscountStr = useMemo(() => {
-    if (!formData.discountValue) return '₹5,000 OFF';
+    const val = Number(formData.discountValue || 0);
+    if (!val || val <= 0) return 'Special Partner Offer';
     return formData.discountType === 'percent'
-      ? `${formData.discountValue}% OFF`
-      : `₹${Number(formData.discountValue).toLocaleString('en-IN')} OFF`;
+      ? `${val}% OFF`
+      : `₹${val.toLocaleString('en-IN')} OFF`;
   }, [formData.discountValue, formData.discountType]);
 
   // Derive dynamic primary kit names from Step 3
@@ -217,17 +218,18 @@ export default function EmailStudio({
     if (selectedKitObjects.length > 0) {
       return selectedKitObjects.map(k => k.name).join(' & ');
     }
-    return '3 K.W. & 5 K.W. Commercial Solar Kits';
+    return 'B2B Solar Combo Kits';
   }, [selectedKitObjects]);
 
-  // Form creative state with fallback to Step 3 values and official Cloudinary logo
+  // Form creative state merging defaults cleanly with campaign customCreative
   const creative = {
     ...DEFAULT_EXECUTIVE_CREATIVE,
-    logoUrl: 'https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png',
-    subheading: `Flat ${dynamicDiscountStr} per Kit with Zero Delay Dispatches`,
-    customBodyText: `Exclusive wholesale allocation for verified EPC contractors on ${dynamicKitNames}. Claim pre-booked subsidy approved kits directly from certified ${activeWarehouseName} with guaranteed zero dispatch delay.`,
-    sectionsOrder: DEFAULT_SECTIONS_ORDER,
-    ...(formData.customCreative || {})
+    ...(formData.customCreative || {}),
+    logoUrl: (formData.customCreative && formData.customCreative.logoUrl) || DEFAULT_EXECUTIVE_CREATIVE.logoUrl,
+    sectionsOrder:
+      Array.isArray(formData.customCreative?.sectionsOrder) && formData.customCreative.sectionsOrder.length > 0
+        ? formData.customCreative.sectionsOrder
+        : DEFAULT_SECTIONS_ORDER
   };
 
   // Active dynamic section ordering
@@ -385,14 +387,15 @@ export default function EmailStudio({
     if (formData.customCreative?.ctaButtons?.length > 0) {
       return formData.customCreative.ctaButtons;
     }
-    const baseCta = formData.ctaText || 'Claim Kit Offer & Apply Coupon';
-    const baseUrl = formData.destinationUrl
-      ? `${formData.destinationUrl}${formData.destinationUrl.includes('?') ? '&' : '?'}coupon=${formData.couponCode || 'SOLARDIWALI5000'}`
-      : 'https://solarkits.in/solar-kits/3kw-dcr?coupon=SOLARDIWALI5000';
+    const baseCta = formData.ctaText || 'Get SolarKits Pricing Today →';
+    const rawDest = formData.destinationUrl || 'https://solarkits.in/solar-kits';
+    const baseUrl = formData.couponCode
+      ? `${rawDest}${rawDest.includes('?') ? '&' : '?'}coupon=${formData.couponCode}`
+      : rawDest;
 
     return [
       { id: 'cta_1', text: baseCta, url: baseUrl, variant: 'primary' },
-      { id: 'cta_2', text: '📥 Download Technical Datasheet', url: 'https://solarkits.in/datasheets/commercial-kits.pdf', variant: 'secondary' }
+      { id: 'cta_2', text: '📥 Explore Solar Kits Catalog', url: 'https://solarkits.in/solar-kits', variant: 'secondary' }
     ];
   });
 
@@ -412,7 +415,7 @@ export default function EmailStudio({
     const newBtn = {
       id: `cta_${Date.now()}`,
       text: '📞 Call Regional Sales Manager',
-      url: 'tel:+919913421453',
+      url: creative.contactPhone ? `tel:${String(creative.contactPhone).replace(/\s+/g, '')}` : 'https://solarkits.in/contact',
       variant: 'secondary'
     };
     const updated = [...ctaButtons, newBtn];
@@ -421,9 +424,20 @@ export default function EmailStudio({
   };
 
   const handleUpdateCta = (id, field, value) => {
-    const updated = ctaButtons.map(b => b.id === id ? { ...b, [field]: value } : b);
+    const btnIndex = ctaButtons.findIndex((b) => b.id === id);
+    const updated = ctaButtons.map((b) => (b.id === id ? { ...b, [field]: value } : b));
     setCtaButtons(updated);
-    updateCreative({ ctaButtons: updated });
+    setFormData((prev) => ({
+      ...prev,
+      ...(btnIndex === 0 && field === 'text' ? { ctaText: value } : {}),
+      ...(btnIndex === 0 && field === 'url' ? { destinationUrl: value } : {}),
+      customCreative: {
+        ...prev.customCreative,
+        ...(btnIndex === 0 && field === 'text' ? { primaryCtaText: value } : {}),
+        ...(btnIndex === 0 && field === 'url' ? { destinationUrl: value } : {}),
+        ctaButtons: updated
+      }
+    }));
   };
 
   const handleRemoveCta = (id) => {
@@ -525,13 +539,13 @@ export default function EmailStudio({
     setActiveTab('custom');
   };
 
-  // Toggle products in multi-product modal
+  // Toggle products in multi-product modal (and sync into customCreative for HTML generation)
   const handleToggleProduct = (kitId) => {
-    if (selectedProductIds.includes(kitId)) {
-      setSelectedProductIds(selectedProductIds.filter(id => id !== kitId));
-    } else {
-      setSelectedProductIds([...selectedProductIds, kitId]);
-    }
+    const nextIds = selectedProductIds.includes(kitId)
+      ? selectedProductIds.filter((id) => id !== kitId)
+      : [...selectedProductIds, kitId];
+    setSelectedProductIds(nextIds);
+    updateCreative({ selectedProductIds: nextIds });
   };
 
   // Filter products for preview
@@ -549,7 +563,9 @@ export default function EmailStudio({
     { label: 'Video', icon: Video, action: () => updateCreative({ mediaType: 'video' }) },
     { label: 'Product', icon: ShoppingBag, action: () => setShowProductModal(true) },
     { label: 'Catalog', icon: LayoutGrid, action: () => {
-      setSelectedProductIds(allKitsCatalog.map(k => k.id));
+      const allIds = allKitsCatalog.map(k => k.id);
+      setSelectedProductIds(allIds);
+      updateCreative({ selectedProductIds: allIds });
     }},
     { label: 'Coupon', icon: Tag, action: () => {
       setFormData(prev => ({ ...prev, hasCoupon: !prev.hasCoupon }));
@@ -567,16 +583,17 @@ export default function EmailStudio({
   const getSubstitutedText = (text) => {
     if (!text) return '';
     let result = text;
+    const rawDest = formData.destinationUrl || 'https://solarkits.in/solar-kits';
     const lookup = {
-      name: 'Aarav Patel',
-      company_name: 'SunVolt Solar Solutions',
-      coupon_code: formData.couponCode || 'SOLARDIWALI5000',
+      name: 'EPC Partner',
+      company_name: 'Partner Solar Company',
+      coupon_code: formData.couponCode || '{{coupon_code}}',
       discount_value: dynamicDiscountStr,
       kit_name: dynamicKitNames,
       warehouse_name: activeWarehouseName,
-      tracking_url: formData.destinationUrl
-        ? `${formData.destinationUrl}${formData.destinationUrl.includes('?') ? '&' : '?'}coupon=${formData.couponCode || 'SOLARDIWALI5000'}`
-        : 'https://solarkits.in/solar-kits/3kw-dcr?coupon=SOLARDIWALI5000'
+      tracking_url: formData.couponCode
+        ? `${rawDest}${rawDest.includes('?') ? '&' : '?'}coupon=${formData.couponCode}`
+        : rawDest
     };
 
     DYNAMIC_VARS.forEach((v) => {
@@ -603,7 +620,7 @@ export default function EmailStudio({
               <Play className="w-5 h-5 text-white ml-0.5 fill-white" />
             </div>
             <span className="absolute bottom-2 left-3 text-[10px] font-bold bg-black/70 px-2 py-0.5 rounded-md">
-              45s Explainer Video
+              {creative.videoUrl ? 'Explainer Video Linked' : 'Add Video URL Above'}
             </span>
           </div>
         ) : (
@@ -616,7 +633,7 @@ export default function EmailStudio({
           >
             <div className="inline-block bg-white px-3 py-1 rounded-full mb-2.5 shadow-xs border-l-4" style={{ borderColor: creative.accentColor || '#f59e0b' }}>
               <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: creative.themeColor || '#263880' }}>
-                ⚡ SolarKits Hybrid & On-Grid Combos
+                ⚡ {creative.headerTagline || 'SOLARKITS B2B NETWORK'}
               </span>
             </div>
             <h3 className="text-lg font-black leading-tight tracking-tight text-white mb-1.5">
@@ -644,7 +661,7 @@ export default function EmailStudio({
             <h4 className="text-base font-black leading-snug" style={{ color: creative.themeColor || '#263880' }}>
               {creative.h1Title || 'Solar EPCs, this one is for you.'}
             </h4>
-            <p className="text-xs text-slate-600 mt-2 leading-relaxed text-center">
+            <p className="text-xs text-slate-600 mt-2 leading-relaxed text-center whitespace-pre-line">
               {getSubstitutedText(creative.customBodyText)}
             </p>
           </div>
@@ -674,12 +691,14 @@ export default function EmailStudio({
                 {activeWarehouseName}
               </span>
             </div>
-            {previewProducts.map((k) => (
+            {previewProducts.map((k) => {
+              const livePrice = Number(k.base_price || k.selling_price_cached || k.defaultPrice || k.price || 0);
+              return (
               <div key={k.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
                 <div className="flex items-center justify-between font-bold text-slate-900">
                   <span>{k.name}</span>
                   <span className="text-blue-600 font-extrabold">
-                    ₹{Number(k.base_price || 89317).toLocaleString('en-IN')} / kit
+                    {livePrice > 0 ? `₹${livePrice.toLocaleString('en-IN')} / kit` : 'Quote on Request'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 line-clamp-2">
@@ -690,7 +709,8 @@ export default function EmailStudio({
                   <span className="text-emerald-600 font-bold">Fast Dispatch</span>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         );
 
@@ -702,10 +722,10 @@ export default function EmailStudio({
               <div>
                 <span className="text-[9px] uppercase font-bold text-amber-700">Promo Voucher</span>
                 <p className="text-sm font-black font-mono text-amber-900">
-                  {formData.couponCode || 'SOLARDIWALI5000'}
+                  {formData.couponCode || 'COUPON_CODE'}
                 </p>
                 <span className="text-[10px] text-amber-800 block">
-                  Valid on Orders ≥ {formData.minOrderQty || 25} Kits in Solar Shop
+                  Valid on Orders ≥ {formData.minOrderQty || 1} Kits in Solar Shop
                 </span>
               </div>
               <span className="text-xs font-bold text-amber-800 bg-amber-200/80 px-2.5 py-1 rounded-lg">
@@ -2036,9 +2056,10 @@ export default function EmailStudio({
                         <span className="text-[10px] text-amber-800 dark:text-amber-300 font-bold block">Coupon Code:</span>
                         <input
                           type="text"
-                          value={formData.couponCode || 'SOLARDIWALI5000'}
-                          onChange={(e) => setFormData(prev => ({ ...prev, couponCode: e.target.value }))}
-                          className="w-full mt-1 px-2.5 py-1 text-xs font-mono font-bold rounded-lg border border-amber-300 bg-white dark:bg-slate-800 text-amber-950 dark:text-amber-200"
+                          value={formData.couponCode || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, couponCode: e.target.value.toUpperCase() }))}
+                          placeholder="e.g. WELCOME2026"
+                          className="w-full mt-1 px-2.5 py-1 text-xs font-mono font-bold rounded-lg border border-amber-300 bg-white dark:bg-slate-800 text-amber-950 dark:text-amber-200 uppercase"
                         />
                       </div>
                       <div>
@@ -2199,8 +2220,8 @@ export default function EmailStudio({
                 {/* Inbox Toolbar Mockup */}
                 <div className="bg-slate-800 px-3 py-2 rounded-t-xl border-b border-slate-700 text-[11px] text-slate-300 space-y-1">
                   <div className="flex items-center justify-between text-[10px] text-slate-400">
-                    <span className="truncate">From: SolarKits B2B Wholesale &lt;orders@solarkits.in&gt;</span>
-                    <span>Today, 10:30 AM</span>
+                    <span className="truncate">From: SolarKits Marketing &lt;marketing@solarkits.in&gt;</span>
+                    <span>Live Preview</span>
                   </div>
                   <div className="font-bold text-white truncate text-xs">
                     {formData.emailSubject || `Special Wholesale Offer: ${dynamicKitNames}`}

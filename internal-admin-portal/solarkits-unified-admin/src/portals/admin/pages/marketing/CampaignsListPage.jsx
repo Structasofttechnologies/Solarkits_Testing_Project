@@ -41,6 +41,15 @@ export default function CampaignsListPage() {
     fetchCampaigns();
   }, []);
 
+  useEffect(() => {
+    const hasRunning = campaigns.some((c) => c.status === 'running');
+    if (!hasRunning) return undefined;
+    const timer = setInterval(() => {
+      fetchCampaigns();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [campaigns]);
+
   const handleLifecycleAction = async (id, action) => {
     setBanner(null);
     try {
@@ -185,8 +194,13 @@ export default function CampaignsListPage() {
             <option value="all">All Objectives</option>
             <option value="lead_generation">Lead Generation</option>
             <option value="sales">Sales & Orders</option>
+            <option value="seasonal_coupon">Seasonal Coupon Offer</option>
+            <option value="add_to_cart">Add to Cart Push</option>
             <option value="epc_onboarding">EPC Onboarding</option>
+            <option value="epc_activation">EPC Activation</option>
             <option value="product_promotion">Product Promotion</option>
+            <option value="govt_tender_promotion">Govt Tender Promotion</option>
+            <option value="store_visits">Store Visits</option>
           </select>
         </div>
       </div>

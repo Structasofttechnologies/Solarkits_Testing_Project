@@ -130,7 +130,7 @@ export default function CreateCampaignWizard() {
     locationBasis: 'registered',
     inactivityWindow: 'all',
     industryPreference: 'ALL',
-    require_consent: true,
+    require_consent: false,
     include_imported_leads: true,
     audienceGroups: {
       registered: true,
@@ -431,16 +431,16 @@ export default function CreateCampaignWizard() {
     matchingConfigs.forEach(cfg => {
       const cfgKitId = (cfg.combo_kit_id?._id || cfg.combo_kit_id || '').toString();
       const baseKit = dynamicAreaKits.find(k => (k.id === cfgKitId || k._id === cfgKitId)) ||
-                      liveKitsCatalog.find(k => (k.id === cfgKitId || k._id === cfgKitId)) ||
-                      (cfg.combo_kit_details ? {
-                        id: cfgKitId,
-                        name: cfg.combo_kit_details.kit_title || cfg.store_display_name,
-                        base_price: cfg.combo_kit_details.price_with_tax || 89317,
-                        stockQty: 50,
-                        moq: 25,
-                        warranty: '12 Years',
-                        components_summary: 'Inverter + Panels + BOS Structure'
-                      } : null);
+        liveKitsCatalog.find(k => (k.id === cfgKitId || k._id === cfgKitId)) ||
+        (cfg.combo_kit_details ? {
+          id: cfgKitId,
+          name: cfg.combo_kit_details.kit_title || cfg.store_display_name,
+          base_price: cfg.combo_kit_details.price_with_tax || 0,
+          stockQty: 50,
+          moq: 25,
+          warranty: '12 Years',
+          components_summary: 'Inverter + Panels + BOS Structure'
+        } : null);
 
       if (!baseKit) return;
 
@@ -497,8 +497,27 @@ export default function CreateCampaignWizard() {
       formData.selectedClusterIds.includes(c.id) ||
       formData.selectedClusterIds.includes(String(c._id))
     );
-    const clusterIds = matchedClusters.map((c) => String(c._id || c.id)).filter((id) => /^[a-f\d]{24}$/i.test(id));
-    const clusterNames = matchedClusters.map((c) => c.cluster_name || c.name).filter(Boolean);
+    const stateClustersTotal = clustersList.filter((c) =>
+      formData.selectedStates.some((st) => (c.state_name || c.state || '').toLowerCase() === st.toLowerCase())
+    );
+    const isAllStateClustersSelected =
+      formData.selectedStates.length > 0 &&
+      stateClustersTotal.length > 0 &&
+      matchedClusters.length >= stateClustersTotal.length;
+
+    const useStateLevel =
+      formData.selectedStates.length > 0 &&
+      (matchedClusters.length === 0 || isAllStateClustersSelected);
+
+    const clusterIds = useStateLevel
+      ? []
+      : matchedClusters.map((c) => String(c._id || c.id)).filter((id) => /^[a-f\d]{24}$/i.test(id));
+    const clusterNames = useStateLevel
+      ? []
+      : matchedClusters.map((c) => c.cluster_name || c.name).filter(Boolean);
+    const clusterCodes = useStateLevel
+      ? []
+      : matchedClusters.map((c) => c.cluster_code).filter(Boolean);
 
     const matchedWhs = warehousesList.filter((w) =>
       formData.servingWarehouses.includes(w.warehouse_code) ||
@@ -507,11 +526,13 @@ export default function CreateCampaignWizard() {
     );
     const warehouseIds = matchedWhs.map((w) => String(w._id || w.id)).filter((id) => /^[a-f\d]{24}$/i.test(id));
 
-    const areaType = clusterIds.length > 0 || clusterNames.length > 0
-      ? 'cluster'
-      : formData.selectedStates.length > 0
+    const areaType = useStateLevel
       ? 'state'
-      : 'all_india';
+      : clusterIds.length > 0 || clusterNames.length > 0 || clusterCodes.length > 0
+        ? 'cluster'
+        : formData.selectedStates.length > 0
+          ? 'state'
+          : 'all_india';
 
     return {
       segment_id: formData.segment_id || null,
@@ -525,15 +546,17 @@ export default function CreateCampaignWizard() {
       state_names: formData.selectedStates,
       cluster_ids: clusterIds,
       cluster_names: clusterNames,
+      cluster_codes: clusterCodes,
       warehouse_ids: warehouseIds,
       warehouse_names: formData.servingWarehouses,
+      location_basis: formData.locationBasis || 'registered',
+      purchase_activity: formData.inactivityWindow || 'all',
       segment_ids: formData.selectedSegmentIds || [],
       segment_state_filter: formData.segmentStateFilter || '',
       segment_district_filter: formData.segmentDistrictFilter || '',
       industry_ids: formData.industryPreference && formData.industryPreference !== 'ALL' && /^[a-f\d]{24}$/i.test(formData.industryPreference)
         ? [formData.industryPreference]
         : [],
-      kit_ids: formData.selectedKitIds.filter((id) => /^[a-f\d]{24}$/i.test(String(id))),
       channel: String(formData.channel || 'both').toLowerCase(),
       include_imported_leads: Boolean(formData.include_imported_leads),
       require_consent: Boolean(formData.require_consent)
@@ -547,12 +570,13 @@ export default function CreateCampaignWizard() {
     formData.selectedStates,
     formData.selectedClusterIds,
     formData.servingWarehouses,
+    formData.locationBasis,
+    formData.inactivityWindow,
     formData.audienceGroups,
     formData.selectedSegmentIds,
     formData.segmentStateFilter,
     formData.segmentDistrictFilter,
     formData.industryPreference,
-    formData.selectedKitIds,
     formData.channel,
     formData.include_imported_leads,
     formData.require_consent
@@ -787,14 +811,27 @@ export default function CreateCampaignWizard() {
     });
   };
 
-  // Build final email HTML dynamically from EmailStudio designer state
+  // Resolve products included in the email HTML (respecting EmailStudio product picker overrides)
+  const emailPreviewKits = useMemo(() => {
+    const customIds = formData.customCreative?.selectedProductIds;
+    if (Array.isArray(customIds) && customIds.length > 0) {
+      const pool = dynamicAreaKits.length > 0 ? dynamicAreaKits : liveKitsCatalog;
+      return pool.filter((k) => customIds.includes(k.id));
+    }
+    return selectedKitObjects;
+  }, [formData.customCreative?.selectedProductIds, dynamicAreaKits, liveKitsCatalog, selectedKitObjects]);
+
+  // Build final email HTML dynamically from full campaign & EmailStudio designer state
   const generatedEmailHtml = useMemo(() => {
     try {
-      return generateResponsiveEmailHtml(formData.customCreative || {}, selectedKitObjects, warehousesList);
+      return generateResponsiveEmailHtml({
+        ...formData,
+        previewProducts: emailPreviewKits
+      });
     } catch {
       return `<p>${formData.customCreative?.customBodyText || formData.campaignName}</p>`;
     }
-  }, [formData.customCreative, formData.campaignName, selectedKitObjects, warehousesList]);
+  }, [formData, emailPreviewKits]);
 
   // Real test send via backend SMTP/Resend/SES and Meta WhatsApp Cloud API
   const handleTestSend = async () => {
@@ -829,6 +866,9 @@ export default function CreateCampaignWizard() {
       });
       setTestResult(res.data);
     } catch (err) {
+      if (err?.response?.data) {
+        setTestResult(err.response.data);
+      }
       setSubmitError(extractApiError(err, 'Test message dispatch failed'));
     } finally {
       setTestSending(false);
@@ -850,6 +890,7 @@ export default function CreateCampaignWizard() {
 
     setSavingCampaign(true);
     setSubmitError(null);
+    const offeredKitIds = formData.selectedKitIds.filter((id) => /^[a-f\d]{24}$/i.test(String(id)));
     try {
       // If custom coupon configured and not yet saved as OfferMaster, persist it to OfferMaster first
       let couponOfferId = formData.coupon_offer_id || null;
@@ -861,7 +902,7 @@ export default function CreateCampaignWizard() {
             discount_type: formData.discountType === 'percent' ? 'percentage' : 'flat',
             discount_value: Number(formData.discountValue || 0),
             end_date: formData.couponExpiry || null,
-            products_applicable: resolvedTargeting.kit_ids,
+            products_applicable: offeredKitIds,
             is_active: true
           });
           couponOfferId = cRes.data?.data?._id || null;
@@ -908,12 +949,14 @@ export default function CreateCampaignWizard() {
         target_conversions: formData.objective === 'epc_onboarding' ? Number(formData.targetEpcSignups || 0) : Number(formData.targetKitCount || 0),
         target_revenue: Number(selectedKitsRevenue || 0),
         target_messages: audienceCalculation.deduplicatedTotal,
+        kit_ids: offeredKitIds,
         ...resolvedTargeting
       };
 
       const res = await marketingHttp.post('/campaigns', payload);
       if (res.data?.success) {
-        navigate('/marketing-panel/campaigns');
+        const prefix = window.location.pathname.startsWith('/admin-panel') ? '/admin-panel/marketing' : '/marketing-panel';
+        navigate(`${prefix}/campaigns`);
       } else {
         setSubmitError(res.data?.message || 'Failed to save campaign.');
       }
@@ -949,11 +992,11 @@ export default function CreateCampaignWizard() {
       const cr = formData.customCreative;
       const kitDetails = (formData.includeKitDetailsInCreative && selectedKitObjects.length > 0)
         ? '\n\n' + selectedKitObjects.map(k =>
-            `📦 *${k.name}*\n` +
-            `⚡ Special Price: ₹${Number(k.base_price).toLocaleString('en-IN')} / kit\n` +
-            `📊 Batch Order: ${formData.kitMoqs?.[k.id] ?? k.moq ?? 25} Kits (${k.components_summary || k.sub_title})\n` +
-            `🛡️ ${k.warranty || '12 Years'} Warranty • Advance: ${k.advance_percent || 50}% / Balance: ${k.balance_percent || 50}%`
-          ).join('\n\n')
+          `📦 *${k.name}*\n` +
+          `⚡ Special Price: ₹${Number(k.base_price).toLocaleString('en-IN')} / kit\n` +
+          `📊 Batch Order: ${formData.kitMoqs?.[k.id] ?? k.moq ?? 25} Kits (${k.components_summary || k.sub_title})\n` +
+          `🛡️ ${k.warranty || '12 Years'} Warranty • Advance: ${k.advance_percent || 50}% / Balance: ${k.balance_percent || 50}%`
+        ).join('\n\n')
         : '';
       const bullets = Array.isArray(cr.bulletPoints) && cr.bulletPoints.length > 0
         ? '\n\n' + cr.bulletPoints.map(b => `✓ ${b}`).join('\n')
@@ -1049,22 +1092,20 @@ export default function CreateCampaignWizard() {
               <button
                 key={step.id}
                 onClick={() => setCurrentStep(step.id)}
-                className={`flex-1 py-2.5 px-2 rounded-xl text-left transition-all flex items-center gap-2.5 cursor-pointer ${
-                  isActive
+                className={`flex-1 py-2.5 px-2 rounded-xl text-left transition-all flex items-center gap-2.5 cursor-pointer ${isActive
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : isDone
-                    ? 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
-                    : 'text-slate-400 opacity-60 hover:opacity-100'
-                }`}
+                      ? 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                      : 'text-slate-400 opacity-60 hover:opacity-100'
+                  }`}
               >
                 <div
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black ${
-                    isActive
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black ${isActive
                       ? 'bg-white text-indigo-600'
                       : isDone
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
-                  }`}
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                    }`}
                 >
                   {isDone ? <FaCheck className="w-3 h-3" /> : step.id}
                 </div>
@@ -1155,11 +1196,10 @@ export default function CreateCampaignWizard() {
                 <div
                   key={ch.id}
                   onClick={() => setFormData({ ...formData, channel: ch.id })}
-                  className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                    formData.channel === ch.id
+                  className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${formData.channel === ch.id
                       ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/30'
                       : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <ch.icon className={`w-5 h-5 ${ch.color}`} />
@@ -1202,7 +1242,7 @@ export default function CreateCampaignWizard() {
                     <option value="">-- Auto (Default Active / .env Provider) --</option>
                     {sendersList.filter((s) => s.type === 'email').map((s) => (
                       <option key={s._id} value={String(s._id)}>
-                        {s.name} ({s.email_provider?.toUpperCase()} • {s.from_email}) [{s.status}]
+                        {s.sender_name || s.name} ({s.email_provider?.toUpperCase()} • {s.sender_email || s.from_email}) [{s.status}]
                       </option>
                     ))}
                   </select>
@@ -1274,11 +1314,10 @@ export default function CreateCampaignWizard() {
                       key={st}
                       type="button"
                       onClick={() => handleToggleState(st)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        isSel
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${isSel
                           ? 'bg-indigo-600 text-white shadow-2xs'
                           : 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                      }`}
+                        }`}
                     >
                       {isSel && '✓ '} {st}
                     </button>
@@ -1364,17 +1403,16 @@ export default function CreateCampaignWizard() {
                         <div
                           key={cid}
                           onClick={() => handleToggleCluster(cid)}
-                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                            checked
+                          className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${checked
                               ? 'bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-500 text-indigo-900 dark:text-indigo-100 shadow-2xs'
                               : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center gap-3">
                             <input
                               type="checkbox"
                               checked={checked}
-                              onChange={() => {}}
+                              onChange={() => { }}
                               className="rounded-sm text-indigo-600 cursor-pointer"
                             />
                             <div>
@@ -1466,11 +1504,10 @@ export default function CreateCampaignWizard() {
                   ].map(grp => (
                     <label
                       key={grp.key}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
-                        formData.audienceGroups[grp.key]
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${formData.audienceGroups[grp.key]
                           ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/30'
                           : 'border-slate-200 dark:border-slate-700'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-slate-900 dark:text-white">{grp.title}</span>
@@ -1594,11 +1631,10 @@ export default function CreateCampaignWizard() {
                         return (
                           <label
                             key={seg._id}
-                            className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2 ${
-                              isChecked
+                            className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-2 ${isChecked
                                 ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30'
                                 : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                            }`}
+                              }`}
                           >
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -1644,7 +1680,6 @@ export default function CreateCampaignWizard() {
                         Live EPC audience filter
                       </span>
                     )}
-                    )}
                   </div>
 
                   {!hasAnyEpcGroup ? (
@@ -1666,11 +1701,10 @@ export default function CreateCampaignWizard() {
                       <button
                         type="button"
                         onClick={() => setFormData({ ...formData, industryPreference: 'ALL' })}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          (formData.industryPreference || 'ALL') === 'ALL'
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${(formData.industryPreference || 'ALL') === 'ALL'
                             ? 'bg-indigo-600 text-white shadow-xs'
                             : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200'
-                        }`}
+                          }`}
                       >
                         All Industries
                       </button>
@@ -1682,11 +1716,10 @@ export default function CreateCampaignWizard() {
                             key={indId}
                             type="button"
                             onClick={() => setFormData({ ...formData, industryPreference: indId })}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                              isSelected
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${isSelected
                                 ? 'bg-indigo-600 text-white shadow-xs'
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200'
-                            }`}
+                              }`}
                           >
                             {ind.name}
                           </button>
@@ -1696,39 +1729,131 @@ export default function CreateCampaignWizard() {
                   )}
                 </div>
 
+                {/* Location Basis & Purchase Activity Filters */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block mb-1">
+                      Location Address Basis
+                    </label>
+                    <select
+                      value={formData.locationBasis || 'registered'}
+                      onChange={(e) => setFormData({ ...formData, locationBasis: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 font-semibold"
+                    >
+                      <option value="registered">Registered Office State / District</option>
+                      <option value="delivery">Order Delivery Address (With Registered Fallback)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block mb-1">
+                      Purchase Activity Window
+                    </label>
+                    <select
+                      value={formData.inactivityWindow || 'all'}
+                      onChange={(e) => setFormData({ ...formData, inactivityWindow: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 font-semibold"
+                    >
+                      <option value="all">All Purchase Histories</option>
+                      <option value="never_purchased">Never Purchased Yet (0 Orders)</option>
+                      <option value="active_buyer">Active Buyers (Ordered Within 90 Days)</option>
+                      <option value="inactive_buyer">Inactive Buyers (No Order in 90+ Days)</option>
+                    </select>
+                  </div>
+                </div>
+
                 {/* Live Audience Resolution Summary from MongoDB */}
-                <div className="p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                      Live MongoDB Eligible Audience Count
-                    </span>
-                    <p className="text-xl font-black text-white">
-                      {previewLoading ? 'Calculating...' : audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')}{' '}
-                      <span className="text-xs font-normal text-slate-300">Target Recipients</span>
-                    </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      Unsubscribed skipped: {audiencePreview?.unsubscribed_skipped ?? 0} • Consent skipped: {audiencePreview?.consent_skipped ?? 0}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                      <span className="px-2 py-0.5 rounded-md bg-indigo-500/25 border border-indigo-400/40 text-[11px] font-bold text-indigo-200">
-                        Target EPCs: {audienceCalculation.epcCount.toLocaleString('en-IN')}
+                <div className="p-4 rounded-xl bg-slate-900 text-white space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                        Live MongoDB Eligible Audience Count
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-amber-500/25 border border-amber-400/40 text-[11px] font-bold text-amber-200">
-                        Segment Leads (Non-EPC): {audienceCalculation.segmentCount.toLocaleString('en-IN')}
+                      <p className="text-xl font-black text-white">
+                        {previewLoading ? 'Calculating...' : audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')}{' '}
+                        <span className="text-xs font-normal text-slate-300">Target Recipients</span>
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Excluded: {audiencePreview?.total_excluded ?? 0} • Unsubscribed skipped: {audiencePreview?.unsubscribed_skipped ?? 0} • Consent skipped: {audiencePreview?.consent_skipped ?? 0}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                        <span className="px-2 py-0.5 rounded-md bg-indigo-500/25 border border-indigo-400/40 text-[11px] font-bold text-indigo-200">
+                          Registered: {(audiencePreview?.tier_breakdown?.registered_epc ?? 0).toLocaleString('en-IN')}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/25 border border-emerald-400/40 text-[11px] font-bold text-emerald-200">
+                          Verified: {(audiencePreview?.tier_breakdown?.verified_epc ?? 0).toLocaleString('en-IN')}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-cyan-500/25 border border-cyan-400/40 text-[11px] font-bold text-cyan-200">
+                          Buyer: {(audiencePreview?.tier_breakdown?.buyer_epc ?? 0).toLocaleString('en-IN')}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/25 border border-amber-400/40 text-[11px] font-bold text-amber-200">
+                          Segment Leads: {audienceCalculation.segmentCount.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-left sm:text-right text-[11px]">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                        Database Breakdown
                       </span>
+                      <p className="font-bold text-emerald-400">
+                        {audiencePreview?.consent_breakdown?.email_consented ?? 0} Email • {audiencePreview?.consent_breakdown?.whatsapp_consented ?? 0} WhatsApp
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        {formData.selectedStates.length || 'All'} States • {formData.selectedClusterIds.length || 'All'} Clusters • Leads: {audiencePreview?.source_breakdown?.leads_and_imports ?? 0}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="text-left sm:text-right text-[11px]">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
-                      Database Breakdown
-                    </span>
-                    <p className="font-bold text-emerald-400">
-                      {audiencePreview?.consent_breakdown?.email_consented ?? 0} Email • {audiencePreview?.consent_breakdown?.whatsapp_consented ?? 0} WhatsApp
-                    </p>
-                    <p className="text-[10px] text-slate-400">
-                      {formData.selectedStates.length || 'All'} States • {formData.selectedClusterIds.length || 'All'} Clusters
-                    </p>
+                  {/* Live Matching EPCs Preview Table */}
+                  <div className="rounded-lg bg-slate-800/80 border border-slate-700 overflow-hidden">
+                    <div className="px-3 py-2 border-b border-slate-700 flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-slate-200">
+                        Live Matching EPCs & Leads Preview (First {Math.min((audiencePreview?.sample_preview || []).length, 50)} of {audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')})
+                      </span>
+                      <span className="text-slate-400">Live MongoDB Query</span>
+                    </div>
+                    {previewLoading ? (
+                      <div className="p-3 text-center text-[11px] text-slate-400">Querying live MongoDB audience...</div>
+                    ) : (audiencePreview?.sample_preview || []).length === 0 ? (
+                      <div className="p-3 text-center text-[11px] text-amber-300">
+                        No EPCs or leads matched the current filter combination.
+                      </div>
+                    ) : (
+                      <div className="max-h-52 overflow-y-auto">
+                        <table className="w-full text-left text-[11px]">
+                          <thead className="bg-slate-900/70 text-slate-400 uppercase text-[10px] sticky top-0">
+                            <tr>
+                              <th className="py-1.5 px-2.5">#</th>
+                              <th className="py-1.5 px-2.5">Name</th>
+                              <th className="py-1.5 px-2.5">Email</th>
+                              <th className="py-1.5 px-2.5">Phone</th>
+                              <th className="py-1.5 px-2.5">Tier</th>
+                              <th className="py-1.5 px-2.5">State / District</th>
+                              <th className="py-1.5 px-2.5">Source</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-700/70 text-slate-200">
+                            {(audiencePreview?.sample_preview || []).map((rec, idx) => (
+                              <tr key={`${rec.epc_id || rec.lead_id || rec.segment_contact_id || rec.email || idx}`} className="hover:bg-slate-700/40">
+                                <td className="py-1.5 px-2.5 text-slate-400">{idx + 1}</td>
+                                <td className="py-1.5 px-2.5 font-semibold truncate max-w-[140px]">{rec.name || 'Solar Partner'}</td>
+                                <td className="py-1.5 px-2.5 font-mono text-[10px] truncate max-w-[150px]">{rec.email || '—'}</td>
+                                <td className="py-1.5 px-2.5 font-mono text-[10px]">{rec.phone || '—'}</td>
+                                <td className="py-1.5 px-2.5">
+                                  <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-200 text-[10px] font-semibold">
+                                    {rec.epc_tier || (rec.is_buyer ? 'Buyer EPC' : rec.is_verified ? 'Verified EPC' : 'Registered EPC')}
+                                  </span>
+                                </td>
+                                <td className="py-1.5 px-2.5 truncate max-w-[130px]">
+                                  {[rec.district_name, rec.state_name].filter(Boolean).join(', ') || '—'}
+                                </td>
+                                <td className="py-1.5 px-2.5 text-slate-400 text-[10px]">{rec.source_type || 'epc_account'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1834,7 +1959,7 @@ export default function CreateCampaignWizard() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {dynamicAreaKits.map(kit => {
                     const isSelected = formData.selectedKitIds.includes(kit.id);
-                    const kitPrice = Number(kit.base_price || kit.defaultPrice || kit.price || 89317);
+                    const kitPrice = Number(kit.base_price || kit.selling_price_cached || kit.defaultPrice || kit.price || 0);
                     const kitStock = Number(kit.stockQty ?? kit.stock_in_selected_warehouses ?? 0);
                     const kitMoqVal = formData.kitMoqs?.[kit.id] ?? kit.moq ?? 25;
 
@@ -1842,11 +1967,10 @@ export default function CreateCampaignWizard() {
                       <div
                         key={kit.id}
                         onClick={() => handleToggleKit(kit.id)}
-                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                          isSelected
+                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${isSelected
                             ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 shadow-xs'
                             : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                        }`}
+                          }`}
                       >
                         <div>
                           <div className="flex items-start justify-between gap-2">
@@ -1880,11 +2004,10 @@ export default function CreateCampaignWizard() {
 
                             <button
                               type="button"
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
-                                isSelected
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${isSelected
                                   ? 'bg-amber-600 text-white'
                                   : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
-                              }`}
+                                }`}
                             >
                               {isSelected ? '✓ Included' : '+ Add Kit'}
                             </button>
@@ -1961,11 +2084,10 @@ export default function CreateCampaignWizard() {
                                       minOrderQty: qty
                                     }));
                                   }}
-                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                                    kitMoqVal === qty
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${kitMoqVal === qty
                                       ? 'bg-amber-600 text-white shadow-2xs'
                                       : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                                  }`}
+                                    }`}
                                 >
                                   {qty} Kits
                                 </button>
@@ -2083,11 +2205,10 @@ export default function CreateCampaignWizard() {
                               kitMoqs: kId ? { ...prev.kitMoqs, [kId]: val } : prev.kitMoqs
                             }));
                           }}
-                          className={`w-full px-3 py-2 rounded-xl border text-sm font-bold focus:outline-hidden ${
-                            isMoqInvalid
+                          className={`w-full px-3 py-2 rounded-xl border text-sm font-bold focus:outline-hidden ${isMoqInvalid
                               ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20 text-red-900 dark:text-red-200'
                               : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:border-amber-500'
-                          }`}
+                            }`}
                           placeholder="25"
                         />
                         <p className="text-[10px] text-slate-400 mt-1">
@@ -2110,11 +2231,10 @@ export default function CreateCampaignWizard() {
                             return (
                               <span
                                 key={k.id}
-                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-1 ${
-                                  isBelow
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-1 ${isBelow
                                     ? 'bg-red-50 text-red-700 border-red-300 dark:bg-red-950/60 dark:text-red-300'
                                     : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-200'
-                                }`}
+                                  }`}
                               >
                                 {k.name.split(' ')[0]} {k.name.split(' ')[1]}: <strong>{kMoq}</strong>
                               </span>
@@ -2152,11 +2272,10 @@ export default function CreateCampaignWizard() {
                         return (
                           <div
                             key={kit.id}
-                            className={`p-3.5 rounded-xl border-2 transition-all space-y-2.5 ${
-                              isKitInvalid
+                            className={`p-3.5 rounded-xl border-2 transition-all space-y-2.5 ${isKitInvalid
                                 ? 'border-red-400 bg-red-50/50 dark:bg-red-950/20'
                                 : 'border-amber-200 dark:border-slate-700 bg-amber-50/20 dark:bg-slate-800/50'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
@@ -2167,11 +2286,10 @@ export default function CreateCampaignWizard() {
                                   <span className="text-[10px] font-semibold text-slate-500">
                                     ₹{Number(kit.base_price).toLocaleString('en-IN')} / kit
                                   </span>
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-                                    isKitInvalid
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isKitInvalid
                                       ? 'text-red-700 bg-red-100 dark:bg-red-900/50'
                                       : 'text-emerald-700 bg-emerald-100 dark:bg-emerald-900/50'
-                                  }`}>
+                                    }`}>
                                     Store MOQ: ≥ {storeReqMoq} Kits
                                   </span>
                                 </div>
@@ -2202,11 +2320,10 @@ export default function CreateCampaignWizard() {
                                       };
                                     });
                                   }}
-                                  className={`w-16 px-2 py-1 text-center font-bold text-xs rounded-lg border focus:outline-hidden ${
-                                    isKitInvalid
+                                  className={`w-16 px-2 py-1 text-center font-bold text-xs rounded-lg border focus:outline-hidden ${isKitInvalid
                                       ? 'border-red-500 bg-white text-red-900 focus:border-red-600'
                                       : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:border-amber-500'
-                                  }`}
+                                    }`}
                                 />
                                 <span className="text-[11px] font-bold text-slate-500">Kits</span>
                               </div>
@@ -2231,11 +2348,10 @@ export default function CreateCampaignWizard() {
                                         };
                                       });
                                     }}
-                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
-                                      kitMoqVal === qty
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${kitMoqVal === qty
                                         ? 'bg-amber-600 text-white shadow-2xs'
                                         : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                                    }`}
+                                      }`}
                                   >
                                     {qty} Kits
                                   </button>
@@ -2389,7 +2505,7 @@ export default function CreateCampaignWizard() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {govtTenderFilteredKits.map(kit => {
                       const isSelected = formData.selectedKitIds.includes(kit.id);
-                      const kitPrice = Number(kit.base_price || kit.defaultPrice || kit.price || 89317);
+                      const kitPrice = Number(kit.base_price || kit.selling_price_cached || kit.defaultPrice || kit.price || 0);
                       const kitStock = Number(kit.stockQty ?? kit.stock_in_selected_warehouses ?? 0);
                       const kitMoqVal = formData.kitMoqs?.[kit.id] ?? kit.moq ?? 25;
 
@@ -2397,11 +2513,10 @@ export default function CreateCampaignWizard() {
                         <div
                           key={kit.id}
                           onClick={() => handleToggleKit(kit.id)}
-                          className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                            isSelected
+                          className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${isSelected
                               ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/30 shadow-xs'
                               : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                          }`}
+                            }`}
                         >
                           <div>
                             <div className="flex items-start justify-between gap-2">
@@ -2474,11 +2589,10 @@ export default function CreateCampaignWizard() {
 
                               <button
                                 type="button"
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
-                                  isSelected
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${isSelected
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
-                                }`}
+                                  }`}
                               >
                                 {isSelected ? '✓ Included' : '+ Add Kit'}
                               </button>
@@ -2555,11 +2669,10 @@ export default function CreateCampaignWizard() {
                                         minOrderQty: qty
                                       }));
                                     }}
-                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                                      kitMoqVal === qty
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${kitMoqVal === qty
                                         ? 'bg-blue-600 text-white shadow-2xs'
                                         : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                                    }`}
+                                      }`}
                                   >
                                     {qty} Kits
                                   </button>
@@ -2597,7 +2710,7 @@ export default function CreateCampaignWizard() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {dynamicAreaKits.map(kit => {
                     const isSelected = formData.selectedKitIds.includes(kit.id);
-                    const kitPrice = Number(kit.base_price || kit.defaultPrice || kit.price || 89317);
+                    const kitPrice = Number(kit.base_price || kit.selling_price_cached || kit.defaultPrice || kit.price || 0);
                     const kitStock = Number(kit.stockQty ?? kit.stock_in_selected_warehouses ?? 0);
                     const kitMoqVal = formData.kitMoqs?.[kit.id] ?? kit.moq ?? 25;
 
@@ -2605,11 +2718,10 @@ export default function CreateCampaignWizard() {
                       <div
                         key={kit.id}
                         onClick={() => handleToggleKit(kit.id)}
-                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                          isSelected
+                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${isSelected
                             ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/30 shadow-xs'
                             : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                        }`}
+                          }`}
                       >
                         <div>
                           <div className="flex items-start justify-between gap-2">
@@ -2640,11 +2752,10 @@ export default function CreateCampaignWizard() {
 
                             <button
                               type="button"
-                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
-                                isSelected
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${isSelected
                                   ? 'bg-indigo-600 text-white'
                                   : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
-                              }`}
+                                }`}
                             >
                               {isSelected ? '✓ Added' : '+ Allocate Kit'}
                             </button>
@@ -2690,11 +2801,10 @@ export default function CreateCampaignWizard() {
                                     minOrderQty: qty
                                   }));
                                 }}
-                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                                  kitMoqVal === qty
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${kitMoqVal === qty
                                     ? 'bg-indigo-600 text-white shadow-2xs'
                                     : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                                }`}
+                                  }`}
                               >
                                 {qty} Kits
                               </button>
@@ -3062,22 +3172,20 @@ export default function CreateCampaignWizard() {
                 <button
                   type="button"
                   onClick={() => setCreativeChannelTab('WHATSAPP')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                    creativeChannelTab === 'WHATSAPP'
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${creativeChannelTab === 'WHATSAPP'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                  }`}
+                    }`}
                 >
                   <FaWhatsapp className="w-3.5 h-3.5" /> WhatsApp Studio
                 </button>
                 <button
                   type="button"
                   onClick={() => setCreativeChannelTab('EMAIL')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                    creativeChannelTab === 'EMAIL'
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${creativeChannelTab === 'EMAIL'
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                  }`}
+                    }`}
                 >
                   <FaEnvelope className="w-3.5 h-3.5" /> Email Studio
                 </button>
@@ -3477,8 +3585,9 @@ export default function CreateCampaignWizard() {
               <div className="flex gap-2">
                 <select
                   value={formData.repeatDay}
+                  disabled={formData.repeatFrequency === 'once'}
                   onChange={(e) => setFormData({ ...formData, repeatDay: e.target.value })}
-                  className="w-1/2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold"
+                  className="w-1/2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold disabled:opacity-45 disabled:cursor-not-allowed"
                 >
                   {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(d => (
                     <option key={d} value={d}>{d}</option>
@@ -3487,12 +3596,40 @@ export default function CreateCampaignWizard() {
                 <input
                   type="time"
                   value={formData.repeatTime}
+                  disabled={formData.repeatFrequency === 'once'}
                   onChange={(e) => setFormData({ ...formData, repeatTime: e.target.value })}
-                  className="w-1/2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold"
+                  className="w-1/2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold disabled:opacity-45 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
           </div>
+
+          {formData.launchMode === 'scheduled' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+              <div>
+                <label className="block text-xs font-bold text-amber-900 dark:text-amber-200 mb-1 uppercase tracking-wider">
+                  Scheduled Launch Date *
+                </label>
+                <input
+                  type="date"
+                  value={formData.scheduledDate || ''}
+                  onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-xs font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-amber-900 dark:text-amber-200 mb-1 uppercase tracking-wider">
+                  Scheduled Launch Time (IST)
+                </label>
+                <input
+                  type="time"
+                  value={formData.scheduledTime || '10:00'}
+                  onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-xs font-bold"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Smart Goal Suppression Guard Box (Boss Requirement) */}
           <div className="p-5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border-2 border-emerald-300 dark:border-emerald-800 space-y-3">
@@ -3569,7 +3706,7 @@ export default function CreateCampaignWizard() {
 
           {/* 6 Comprehensive Summary Audit Cards (One for each previous step) */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            
+
             {/* Card 1: 1. Campaign Identity & Wallet */}
             <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2 bg-slate-50/50 dark:bg-slate-900/20">
               <div className="flex items-center justify-between">
@@ -3721,17 +3858,9 @@ export default function CreateCampaignWizard() {
                   : `Quarterly Target: ${formData.quarterlyKitGoal} Kits • Proj. Revenue: ₹${selectedKitsRevenue.toLocaleString('en-IN')}`}
               </p>
               <p className="text-[11px] text-amber-600 font-semibold">
-<<<<<<< HEAD
                 Required Conversion: ~{audienceCalculation.deduplicatedTotal > 0 ? (formData.objective === 'epc_onboarding'
                   ? (((formData.targetEpcSignups || 50) / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)
                   : ((formData.targetKitCount / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)) : '0.00'}%
-=======
-                Required Conversion: ~{audienceCalculation.deduplicatedTotal > 0
-                  ? (formData.objective === 'epc_signup'
-                      ? (((formData.targetEpcSignups || 150) / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)
-                      : ((formData.targetKitCount / audienceCalculation.deduplicatedTotal) * 100).toFixed(2))
-                  : '0.00'}%
->>>>>>> 1be01239219aba6043c1ae0b8eb9296b9aa57074
               </p>
             </div>
 
@@ -3844,20 +3973,12 @@ export default function CreateCampaignWizard() {
             )}
 
             <button
-<<<<<<< HEAD
               type="button"
-              disabled={savingCampaign}
+              disabled={savingCampaign || previewLoading}
               onClick={() => handleLaunchCampaign('launch')}
               className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
             >
-              <FaRocket className="w-4 h-4" /> {savingCampaign ? 'Saving & Queuing...' : 'Launch & Dispatch Immediately'}
-=======
-              onClick={handleLaunchCampaign}
-              disabled={launchingCampaign}
-              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer disabled:opacity-60"
-            >
-              <FaRocket className="w-4 h-4" /> {launchingCampaign ? 'Launching Campaign...' : 'Launch & Activate Campaign Now'}
->>>>>>> 1be01239219aba6043c1ae0b8eb9296b9aa57074
+              <FaRocket className="w-4 h-4" /> {previewLoading ? 'Resolving Audience...' : savingCampaign ? 'Saving & Queuing...' : 'Launch & Dispatch Immediately'}
             </button>
           </div>
         </div>
@@ -3869,11 +3990,10 @@ export default function CreateCampaignWizard() {
           type="button"
           onClick={() => setCurrentStep(prev => Math.max(prev - 1, 1))}
           disabled={currentStep === 1}
-          className={`px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-2 transition-all ${
-            currentStep === 1
+          className={`px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-2 transition-all ${currentStep === 1
               ? 'opacity-40 cursor-not-allowed'
               : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer'
-          }`}
+            }`}
         >
           <FaArrowLeft className="w-3 h-3" /> Previous Step
         </button>
@@ -3889,19 +4009,11 @@ export default function CreateCampaignWizard() {
         ) : (
           <button
             type="button"
-<<<<<<< HEAD
-            disabled={savingCampaign}
+            disabled={savingCampaign || previewLoading}
             onClick={() => handleLaunchCampaign('launch')}
             className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition-all"
           >
-            {savingCampaign ? 'Dispatching...' : 'Launch Campaign'} <FaCheck className="w-3 h-3" />
-=======
-            onClick={handleLaunchCampaign}
-            disabled={launchingCampaign}
-            className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition-all disabled:opacity-60"
-          >
-            <FaCheck className="w-3 h-3" /> {launchingCampaign ? 'Launching...' : 'Launch Campaign'}
->>>>>>> 1be01239219aba6043c1ae0b8eb9296b9aa57074
+            {previewLoading ? 'Resolving Audience...' : savingCampaign ? 'Dispatching...' : 'Launch Campaign'} <FaCheck className="w-3 h-3" />
           </button>
         )}
       </div>

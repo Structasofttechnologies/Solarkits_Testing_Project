@@ -10,7 +10,7 @@ class EmailQueueService {
     this.recentHistory = [];
     this.isProcessing = false;
     this.concurrency = parseInt(process.env.EMAIL_QUEUE_CONCURRENCY || '1', 10);
-    this.rateLimitDelayMs = parseInt(process.env.EMAIL_RATE_LIMIT_DELAY_MS || '350', 10);
+    this.rateLimitDelayMs = parseInt(process.env.EMAIL_RATE_LIMIT_DELAY_MS || '600', 10);
     this.stats = {
       totalQueued: 0,
       totalSent: 0,
@@ -123,7 +123,7 @@ class EmailQueueService {
       } else if (result && result.skipped) {
         currentJob.status = 'skipped';
         if (typeof currentJob.task.onComplete === 'function') {
-          try { await currentJob.task.onComplete(result, currentJob); } catch (_) {}
+          try { await currentJob.task.onComplete(result, currentJob); } catch (_) { }
         }
       } else if (result && result.success) {
         currentJob.status = 'completed';
@@ -139,10 +139,10 @@ class EmailQueueService {
         });
 
         if (typeof currentJob.task.onSuccess === 'function') {
-          try { await currentJob.task.onSuccess(result, currentJob); } catch (_) {}
+          try { await currentJob.task.onSuccess(result, currentJob); } catch (_) { }
         }
         if (typeof currentJob.task.onComplete === 'function') {
-          try { await currentJob.task.onComplete(result, currentJob); } catch (_) {}
+          try { await currentJob.task.onComplete(result, currentJob); } catch (_) { }
         }
       } else {
         const err = new Error(result?.error || 'Dispatch failed');
@@ -178,10 +178,10 @@ class EmailQueueService {
         });
 
         if (typeof currentJob.task.onFailure === 'function') {
-          try { await currentJob.task.onFailure(error, currentJob); } catch (_) {}
+          try { await currentJob.task.onFailure(error, currentJob); } catch (_) { }
         }
         if (typeof currentJob.task.onComplete === 'function') {
-          try { await currentJob.task.onComplete(error.result || { success: false, error: error.message }, currentJob); } catch (_) {}
+          try { await currentJob.task.onComplete(error.result || { success: false, error: error.message }, currentJob); } catch (_) { }
         }
       }
     } finally {

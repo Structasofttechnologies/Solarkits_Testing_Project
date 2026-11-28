@@ -388,12 +388,12 @@ const sendEmail = async ({
     if (sender) {
       const provider = sender.email_provider || 'smtp';
       const fromEmail = sender.sender_email || process.env.FROM_EMAIL || process.env.RESEND_FROM_EMAIL || sender.smtp_user;
-      const fromName = sender.sender_name || process.env.FROM_NAME || 'SolarKits India';
-      const replyTo = sender.reply_to_email || fromEmail;
+      const fromName = sender.sender_name || process.env.FROM_NAME || process.env.RESEND_FROM_NAME || 'SolarKits India';
+      const replyTo = sender.reply_to_email || process.env.RESEND_REPLY_TO || fromEmail;
 
       if (provider === 'resend') {
         const res = await sendViaResend({
-          apiKey: sender.resend_api_key || process.env.RESEND_API_KEY,
+          apiKey: process.env.RESEND_API_KEY || sender.resend_api_key,
           fromEmail: fromEmail || process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
           fromName,
           to: cleanTo,
@@ -446,11 +446,11 @@ const sendEmail = async ({
       const res = await sendViaResend({
         apiKey: process.env.RESEND_API_KEY,
         fromEmail: process.env.RESEND_FROM_EMAIL || process.env.FROM_EMAIL || 'onboarding@resend.dev',
-        fromName: process.env.FROM_NAME || 'SolarKits India',
+        fromName: process.env.RESEND_FROM_NAME || process.env.FROM_NAME || 'SolarKits India',
         to: cleanTo,
         subject: finalSubject,
         htmlContent: finalHtml,
-        replyTo: process.env.REPLY_TO_EMAIL || process.env.RESEND_FROM_EMAIL,
+        replyTo: process.env.RESEND_REPLY_TO || process.env.REPLY_TO_EMAIL || process.env.RESEND_FROM_EMAIL,
         unsubscribeUrl: resolvedUnsub
       });
       return finalizeResult(res);
@@ -536,7 +536,7 @@ const verifyEmailSenderConnection = async (sender) => {
   const provider = sender.email_provider || 'smtp';
 
   if (provider === 'resend') {
-    const key = safeDecrypt(sender.resend_api_key || process.env.RESEND_API_KEY);
+    const key = (process.env.RESEND_API_KEY && String(process.env.RESEND_API_KEY).trim()) || safeDecrypt(sender.resend_api_key);
     if (!key) {
       return { success: false, provider: 'resend', simulated: false, errorCode: 'MISSING_RESEND_KEY', error: 'Resend API key missing' };
     }
@@ -547,12 +547,18 @@ const verifyEmailSenderConnection = async (sender) => {
       });
       return { success: true, provider: 'resend', simulated: false, domains: res.data?.data || [] };
     } catch (error) {
+      const errName = error.response?.data?.name || '';
+      const errMsg = error.response?.data?.message || error.message;
+      // Resend returns 401/restricted_api_key on GET /domains for valid "Sending access" API keys
+      if (errName === 'restricted_api_key') {
+        return { success: true, provider: 'resend', simulated: false, sendingOnlyKey: true, domains: [] };
+      }
       return {
         success: false,
         provider: 'resend',
         simulated: false,
-        errorCode: error.response?.data?.name || 'RESEND_AUTH_ERROR',
-        error: error.response?.data?.message || error.message
+        errorCode: errName || 'RESEND_AUTH_ERROR',
+        error: errMsg
       };
     }
   }

@@ -33,6 +33,7 @@ export default function EmailSettingsPage() {
   const [testEmail, setTestEmail] = useState('');
   const [testingId, setTestingId] = useState(null);
   const [statusBanner, setStatusBanner] = useState(null);
+  const [resendEnvConfigured, setResendEnvConfigured] = useState(null);
 
   const loadSenders = async () => {
     setLoading(true);
@@ -40,6 +41,9 @@ export default function EmailSettingsPage() {
       const res = await marketingHttp.get('/senders?type=email');
       if (res.data?.success) {
         setSenders(res.data.data || []);
+        if (res.data?.meta && typeof res.data.meta.resend_env_configured === 'boolean') {
+          setResendEnvConfigured(res.data.meta.resend_env_configured);
+        }
       }
     } catch (err) {
       setStatusBanner({ type: 'error', text: extractApiError(err, 'Failed to fetch email senders') });
@@ -78,6 +82,9 @@ export default function EmailSettingsPage() {
         email_provider: activeProviderTab,
         status: 'verification_pending'
       };
+      if (activeProviderTab === 'resend') {
+        delete payload.resend_api_key;
+      }
       if (editingId) {
         await marketingHttp.put(`/senders/${editingId}`, payload);
         setStatusBanner({ type: 'success', text: `Updated ${activeProviderTab.toUpperCase()} sender "${formData.sender_name}". Run Test Send to verify.` });
@@ -88,6 +95,7 @@ export default function EmailSettingsPage() {
       }
       setFormData(EMPTY_EMAIL_FORM(activeProviderTab));
       await loadSenders();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setStatusBanner({ type: 'error', text: extractApiError(err, 'Failed to save sender') });
     } finally {
@@ -143,15 +151,15 @@ export default function EmailSettingsPage() {
         test_target: target
       });
       const data = res.data || {};
-      if (data.success) {
+      if (data.success && !data.simulated) {
         setStatusBanner({
           type: 'success',
-          text: `Verified & sent via ${data.provider?.toUpperCase()} (simulated: ${Boolean(data.simulated)}, MessageId: ${data.messageId})`
+          text: `Verified & sent via ${data.provider?.toUpperCase()} (MessageId: ${data.messageId})`
         });
       } else {
         setStatusBanner({
           type: 'error',
-          text: `Test FAILED via ${(data.provider || sender.email_provider || 'unknown').toUpperCase()} [${data.errorCode || 'ERROR'}]: ${data.error || 'Unknown error'}`
+          text: `Test FAILED via ${(data.provider || sender.email_provider || 'unknown').toUpperCase()} [${data.errorCode || (data.simulated ? 'SIMULATED' : 'ERROR')}]: ${data.error || 'Simulated fallback rejected — verify backend .env credentials'}`
         });
       }
       await loadSenders();
@@ -213,13 +221,12 @@ export default function EmailSettingsPage() {
 
       {statusBanner && (
         <div
-          className={`p-4 rounded-2xl border text-sm font-semibold flex items-center gap-2 ${
-            statusBanner.type === 'error'
+          className={`p-4 rounded-2xl border text-sm font-semibold flex items-center gap-2 ${statusBanner.type === 'error'
               ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
               : statusBanner.type === 'info'
-              ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200'
-              : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
-          }`}
+                ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200'
+                : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+            }`}
         >
           {statusBanner.type === 'error' ? <FaExclamationTriangle className="shrink-0" /> : <FaCheckCircle className="shrink-0" />}
           <span>{statusBanner.text}</span>
@@ -327,27 +334,24 @@ export default function EmailSettingsPage() {
           <button
             type="button"
             onClick={() => handleProviderChange('resend')}
-            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${
-              activeProviderTab === 'resend' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500'
-            }`}
+            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${activeProviderTab === 'resend' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500'
+              }`}
           >
             Resend API
           </button>
           <button
             type="button"
             onClick={() => handleProviderChange('aws_ses')}
-            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${
-              activeProviderTab === 'aws_ses' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-xs' : 'text-slate-500'
-            }`}
+            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${activeProviderTab === 'aws_ses' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-xs' : 'text-slate-500'
+              }`}
           >
             <FaAws className="w-4 h-4 text-amber-500" /> AWS SES
           </button>
           <button
             type="button"
             onClick={() => handleProviderChange('smtp')}
-            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${
-              activeProviderTab === 'smtp' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs' : 'text-slate-500'
-            }`}
+            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${activeProviderTab === 'smtp' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs' : 'text-slate-500'
+              }`}
           >
             <FaServer className="w-3.5 h-3.5" /> Custom SMTP
           </button>
@@ -407,18 +411,28 @@ export default function EmailSettingsPage() {
             </div>
 
             {activeProviderTab === 'resend' && (
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1.5">
-                  <FaKey className="text-amber-500" /> Resend API Key *
-                </label>
-                <input
-                  type="password"
-                  placeholder={editingId ? 'Leave masked to keep unchanged, or paste new key' : 're_123456789...'}
-                  value={formData.resend_api_key}
-                  onChange={(e) => setFormData({ ...formData, resend_api_key: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-mono"
-                  required={!editingId}
-                />
+              <div className="md:col-span-2 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-start gap-2.5">
+                  <FaKey className="text-indigo-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">
+                      Resend API Key is managed securely in Backend <code className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">.env</code> (<code className="font-mono">RESEND_API_KEY</code>)
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      No API key entry is needed in the UI. Save your verified <code className="font-mono">@solarkits.in</code> sender email above, then click <strong>Test Send</strong> to verify delivery.
+                    </p>
+                  </div>
+                </div>
+                {resendEnvConfigured !== null && (
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold shrink-0 ${resendEnvConfigured
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                        : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                      }`}
+                  >
+                    {resendEnvConfigured ? '.env Key Ready' : '.env Key Missing'}
+                  </span>
+                )}
               </div>
             )}
 
