@@ -5,7 +5,11 @@ const recipientSchema = new mongoose.Schema(
   {
     epc_id: { type: mongoose.Schema.Types.ObjectId, ref: 'epc_accounts', default: null },
     lead_id: { type: mongoose.Schema.Types.ObjectId, ref: 'website_epc_leads', default: null },
-    source_type: { type: String, enum: ['epc', 'lead', 'segment'], default: 'epc' },
+    source_type: {
+      type: String,
+      enum: ['epc', 'epc_account', 'lead', 'website_lead', 'csv_import', 'segment', 'segment_contact'],
+      default: 'epc_account'
+    },
     segment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_segments', default: null },
     segment_contact_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_segment_contacts', default: null },
     custom_fields: { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -18,7 +22,6 @@ const recipientSchema = new mongoose.Schema(
       enum: ['queued', 'sent', 'delivered', 'read', 'opened', 'clicked', 'visited', 'submitted_form', 'converted', 'failed', 'unsubscribed', 'skipped_unsubscribed'],
       default: 'queued'
     },
-    source_type: { type: String, enum: ['epc_account', 'website_lead', 'csv_import'], default: 'epc_account' },
     email_provider: { type: String, default: null },
     wa_provider: { type: String, default: null },
     wa_message_id: { type: String, default: null },
@@ -128,10 +131,11 @@ const campaignSchema = new mongoose.Schema(
     purchase_qty_max: { type: Number, default: 0 },
 
     // Step 3: Campaign Area
-    area_type: { type: String, enum: ['all_india', 'state', 'cluster', 'warehouse', 'store'], default: 'all_india' },
+    area_type: { type: String, enum: ['all_india', 'state', 'cluster', 'warehouse', 'store', 'imported_batch', 'custom_selection'], default: 'all_india' },
     warehouse_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: 'company_warehouses' }],
     state_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: 'geolocation_level_1' }],
     cluster_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: 'geolocation_clusters' }],
+    cluster_codes: [{ type: String, trim: true }],
     district_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: 'geolocation_level_2' }],
     store_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: 'franchisee_stores' }],
     location_basis: { type: String, enum: ['registered', 'delivery'], default: 'registered' },
@@ -150,7 +154,17 @@ const campaignSchema = new mongoose.Schema(
         'sample_to_bulk',
         'inactive_reactivation',
         'govt_tender_promotion',
-        'custom'
+        'custom',
+        'marketing',
+        'onboarding',
+        'product_launch',
+        'festive_offer',
+        'price_drop',
+        'wholesale',
+        'transactional',
+        'system_alerts',
+        'support',
+        'all'
       ],
       default: 'kit_sales'
     },
@@ -198,6 +212,8 @@ const campaignSchema = new mongoose.Schema(
     cluster_names: [{ type: String, trim: true }],
     district_names: [{ type: String, trim: true }],
     warehouse_names: [{ type: String, trim: true }],
+    selected_recipient_emails: [{ type: String, trim: true, lowercase: true }],
+    import_batch_id: { type: String, trim: true, default: null },
     industry_ids: [{ type: mongoose.Schema.Types.ObjectId }],
     subcategory_ids: [{ type: mongoose.Schema.Types.ObjectId }],
     kit_ids: [{ type: mongoose.Schema.Types.ObjectId }],

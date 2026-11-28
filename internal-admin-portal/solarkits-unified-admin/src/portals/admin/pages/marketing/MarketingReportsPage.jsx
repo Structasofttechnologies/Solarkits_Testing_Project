@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
-import { FaFileExcel, FaDownload, FaFilter, FaChartBar, FaTable } from 'react-icons/fa';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FaDownload, FaTable, FaSync, FaExclamationTriangle } from 'react-icons/fa';
+import { marketingHttp, extractApiError } from './services/marketingApi';
 
 export default function MarketingReportsPage() {
   const [selectedReport, setSelectedReport] = useState('performance');
   const [dateFilter, setDateFilter] = useState('last_30_days');
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   const reportTypes = [
     { id: 'performance', name: '1. Campaign Performance Report' },
@@ -18,81 +22,75 @@ export default function MarketingReportsPage() {
     { id: 'delivery_errors', name: '10. Failed Messages & Delivery Error Report' }
   ];
 
-  const demoRows = [
-    {
-      campaign: 'Maharashtra Cluster — 3 kW Repeat Orders',
-      channel: 'Both',
-      manager: 'Rahul Sharma',
-      sent: 4200,
-      delivered: 3950,
-      delivery_rate: '94.0%',
-      clicks: 680,
-      visits: 620,
-      leads: 95,
-      qualified: 52,
-      orders: 28,
-      revenue: '₹37,80,000',
-      budget: '₹45,000',
-      roi: '+8300%'
-    },
-    {
-      campaign: 'Gujarat Commercial EPC Onboarding & Reward Trip',
-      channel: 'WhatsApp',
-      manager: 'Priya Patel',
-      sent: 3500,
-      delivered: 3350,
-      delivery_rate: '95.7%',
-      clicks: 810,
-      visits: 760,
-      leads: 120,
-      qualified: 68,
-      orders: 18,
-      revenue: '₹24,30,000',
-      budget: '₹30,000',
-      roi: '+8000%'
-    },
-    {
-      campaign: 'BOS Kit & Inverter Flash Coupon Clearance',
-      channel: 'Email',
-      manager: 'Amit Verma',
-      sent: 5800,
-      delivered: 5500,
-      delivery_rate: '94.8%',
-      clicks: 920,
-      visits: 850,
-      leads: 110,
-      qualified: 48,
-      orders: 34,
-      revenue: '₹18,50,000',
-      budget: '₹20,000',
-      roi: '+9150%'
+  const fetchReport = useCallback(async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const res = await marketingHttp.get('/reports', {
+        params: { report_type: selectedReport, period: dateFilter }
+      });
+      if (res.data?.success) {
+        setRows(res.data.data || []);
+      } else {
+        setRows([]);
+      }
+    } catch (err) {
+      setErrorMsg(extractApiError(err, 'Failed to load campaign report from database'));
+      setRows([]);
+    } finally {
+      setLoading(false);
     }
-  ];
+  }, [selectedReport, dateFilter]);
+
+  useEffect(() => {
+    fetchReport();
+  }, [fetchReport]);
 
   const handleExportCsv = () => {
-    const headers = ['Campaign', 'Channel', 'Manager', 'Sent', 'Delivered', 'Delivery Rate', 'Clicks', 'Visits', 'Leads', 'Qualified', 'Orders', 'Revenue', 'Budget', 'ROI'];
-    const rows = demoRows.map(r => [
-      `"${r.campaign}"`,
-      r.channel,
-      r.manager,
-      r.sent,
-      r.delivered,
-      r.delivery_rate,
-      r.clicks,
-      r.visits,
-      r.leads,
-      r.qualified,
-      r.orders,
-      `"${r.revenue}"`,
-      `"${r.budget}"`,
-      r.roi
+    const headers = [
+      'Campaign Name',
+      'Code',
+      'Channel',
+      'Status',
+      'Manager',
+      'Sent',
+      'Delivered',
+      'Failed',
+      'Delivery Rate',
+      'Opened/Read',
+      'Clicks',
+      'Visits',
+      'Leads',
+      'Conversions',
+      'Revenue (INR)',
+      'Budget (INR)',
+      'ROI'
+    ];
+    const csvRows = rows.map((r) => [
+      `"${String(r.campaign_name || '').replace(/"/g, '""')}"`,
+      `"${r.campaign_code || ''}"`,
+      r.channel || '',
+      r.status || '',
+      `"${String(r.manager || 'Unassigned').replace(/"/g, '""')}"`,
+      Number(r.messages_sent || 0),
+      Number(r.delivered || 0),
+      Number(r.failed || 0),
+      r.delivery_rate || '0.0%',
+      Number(r.opened_or_read || 0),
+      Number(r.clicks || 0),
+      Number(r.website_visits || 0),
+      Number(r.leads_generated || 0),
+      Number(r.conversions || 0),
+      Number(r.revenue || 0),
+      Number(r.budget || 0),
+      r.roi || '0.0%'
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...csvRows.map((e) => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `solarkits_${selectedReport}_report.csv`);
+    link.setAttribute('download', `solarkits_${selectedReport}_${dateFilter}_report.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -104,21 +102,35 @@ export default function MarketingReportsPage() {
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider mb-2">
             <FaTable className="w-3.5 h-3.5" />
-            <span>Consolidated Marketing Intelligence</span>
+            <span>Live MongoDB Marketing Intelligence</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">Campaign Reports & Export</h1>
           <p className="text-sm text-slate-500">
-            Generate 10 specialized marketing reports with full channel attribution and download CSV/Excel exports.
+            Live database reports with real dispatch telemetry, attribution, and CSV export.
           </p>
         </div>
 
-        <button
-          onClick={handleExportCsv}
-          className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20"
-        >
-          <FaDownload />
-          <span>Export Excel / CSV</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={fetchReport}
+            disabled={loading}
+            className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            <FaSync className={loading ? 'animate-spin' : ''} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={rows.length === 0}
+            className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20"
+          >
+            <FaDownload />
+            <span>Export Excel / CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* Select Report Type & Date Filter */}
@@ -130,7 +142,7 @@ export default function MarketingReportsPage() {
             onChange={(e) => setSelectedReport(e.target.value)}
             className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-bold cursor-pointer"
           >
-            {reportTypes.map(r => (
+            {reportTypes.map((r) => (
               <option key={r.id} value={r.id}>{r.name}</option>
             ))}
           </select>
@@ -152,48 +164,66 @@ export default function MarketingReportsPage() {
         </div>
       </div>
 
-      {/* Data Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs md:text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700 text-slate-500 uppercase font-bold text-[11px] tracking-wider">
-              <tr>
-                <th className="py-3.5 px-4">Campaign Name</th>
-                <th className="py-3.5 px-4">Channel</th>
-                <th className="py-3.5 px-4">Manager</th>
-                <th className="py-3.5 px-4">Sent</th>
-                <th className="py-3.5 px-4">Delivered</th>
-                <th className="py-3.5 px-4">Delivery Rate</th>
-                <th className="py-3.5 px-4">Clicks</th>
-                <th className="py-3.5 px-4">Leads</th>
-                <th className="py-3.5 px-4">Qualified</th>
-                <th className="py-3.5 px-4">Orders</th>
-                <th className="py-3.5 px-4">Revenue</th>
-                <th className="py-3.5 px-4">Budget</th>
-                <th className="py-3.5 px-4 text-right">ROI</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-medium">
-              {demoRows.map((r, i) => (
-                <tr key={i} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/30">
-                  <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white max-w-[220px]">{r.campaign}</td>
-                  <td className="py-3.5 px-4">{r.channel}</td>
-                  <td className="py-3.5 px-4 text-slate-500">{r.manager}</td>
-                  <td className="py-3.5 px-4">{r.sent.toLocaleString('en-IN')}</td>
-                  <td className="py-3.5 px-4">{r.delivered.toLocaleString('en-IN')}</td>
-                  <td className="py-3.5 px-4 font-bold text-indigo-600">{r.delivery_rate}</td>
-                  <td className="py-3.5 px-4">{r.clicks}</td>
-                  <td className="py-3.5 px-4 font-bold">{r.leads}</td>
-                  <td className="py-3.5 px-4 text-blue-600">{r.qualified}</td>
-                  <td className="py-3.5 px-4 font-bold text-emerald-600">{r.orders}</td>
-                  <td className="py-3.5 px-4 font-bold">{r.revenue}</td>
-                  <td className="py-3.5 px-4 text-slate-500">{r.budget}</td>
-                  <td className="py-3.5 px-4 text-right font-extrabold text-emerald-600">{r.roi}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {errorMsg && (
+        <div className="p-4 rounded-2xl border border-rose-200 bg-rose-50 dark:bg-rose-950/40 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+          <FaExclamationTriangle className="shrink-0" />
+          <span>{errorMsg}</span>
         </div>
+      )}
+
+      {/* Live Database Table */}
+      <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xs overflow-hidden">
+        {loading ? (
+          <div className="py-12 text-center text-xs text-slate-400 font-semibold">Loading live campaign metrics from MongoDB...</div>
+        ) : rows.length === 0 ? (
+          <div className="py-12 text-center text-xs text-slate-500 font-semibold">
+            No campaigns found in database for the selected report type and period.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs md:text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700 text-slate-500 uppercase font-bold text-[11px] tracking-wider">
+                <tr>
+                  <th className="py-3.5 px-4">Campaign Name</th>
+                  <th className="py-3.5 px-4">Channel</th>
+                  <th className="py-3.5 px-4">Manager</th>
+                  <th className="py-3.5 px-4">Sent</th>
+                  <th className="py-3.5 px-4">Delivered</th>
+                  <th className="py-3.5 px-4">Failed</th>
+                  <th className="py-3.5 px-4">Delivery Rate</th>
+                  <th className="py-3.5 px-4">Clicks</th>
+                  <th className="py-3.5 px-4">Leads</th>
+                  <th className="py-3.5 px-4">Orders</th>
+                  <th className="py-3.5 px-4">Revenue</th>
+                  <th className="py-3.5 px-4">Budget</th>
+                  <th className="py-3.5 px-4 text-right">ROI</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-medium">
+                {rows.map((r, i) => (
+                  <tr key={r.campaign_code || i} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/30">
+                    <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white max-w-[220px]">
+                      <div>{r.campaign_name}</div>
+                      <div className="text-[10px] font-mono text-slate-400">{r.campaign_code} • {r.status}</div>
+                    </td>
+                    <td className="py-3.5 px-4 uppercase text-xs font-bold">{r.channel}</td>
+                    <td className="py-3.5 px-4 text-slate-500">{r.manager || 'Unassigned'}</td>
+                    <td className="py-3.5 px-4">{Number(r.messages_sent || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4">{Number(r.delivered || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 text-rose-600">{Number(r.failed || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 font-bold text-indigo-600">{r.delivery_rate || '0.0%'}</td>
+                    <td className="py-3.5 px-4">{Number(r.clicks || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 font-bold">{Number(r.leads_generated || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 font-bold text-emerald-600">{Number(r.conversions || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 font-bold">₹{Number(r.revenue || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 text-slate-500">₹{Number(r.budget || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4 text-right font-extrabold text-emerald-600">{r.roi || '0.0%'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -19,7 +19,10 @@ const resolveBackendBaseUrl = () => {
   if (rawUnsub) {
     return rawUnsub.replace(/\/api\/(admin\/)?marketing\/unsubscribe.*$/i, '').replace(/\/+$/, '');
   }
-  const pub = process.env.BACKEND_PUBLIC_URL || process.env.IPV4 || `http://localhost:${process.env.PORT || 5000}`;
+  const fallbackPort = process.env.PORT || 5000;
+  const rawIpv4 = process.env.IPV4 ? String(process.env.IPV4).replace(/\/+$/, '') : '';
+  const ipv4WithPort = rawIpv4 && !/:\d+$/.test(rawIpv4) ? `${rawIpv4}:${fallbackPort}` : rawIpv4;
+  const pub = process.env.BACKEND_PUBLIC_URL || ipv4WithPort || `http://localhost:${fallbackPort}`;
   return String(pub).replace(/\/+$/, '');
 };
 
@@ -116,16 +119,22 @@ const launchCampaign = async (campaignId) => {
       state_names: campaign.state_names,
       cluster_ids: campaign.cluster_ids,
       cluster_names: campaign.cluster_names,
+      cluster_codes: campaign.cluster_codes,
       district_ids: campaign.district_ids,
+      district_names: campaign.district_names,
       warehouse_ids: campaign.warehouse_ids,
+      warehouse_names: campaign.warehouse_names,
+      location_basis: campaign.location_basis,
       purchase_activity: campaign.purchase_activity,
+      last_order_days_condition: campaign.last_order_days_condition,
       last_order_days: campaign.last_order_days,
       channel: campaign.campaign_type,
       industry_ids: campaign.industry_ids || [],
-      kit_ids: campaign.kit_ids || [],
+      kit_ids: Array.isArray(campaign.audience_kit_ids) ? campaign.audience_kit_ids : [],
       subcategory_ids: campaign.subcategory_ids || [],
       include_imported_leads: campaign.include_imported_leads !== false,
       require_consent: campaign.require_consent !== false,
+      selected_recipient_emails: campaign.selected_recipient_emails || [],
       segment_ids: campaign.segment_ids || [],
       segment_state_filter: campaign.segment_state_filter || '',
       segment_district_filter: campaign.segment_district_filter || ''
@@ -194,9 +203,9 @@ const enqueueCampaignDispatch = async (campaign, pendingIndices) => {
   const emailTemplate = campaign.email_template_id || (
     (campaign.email_html_content || campaign.email_subject)
       ? {
-          subject: campaign.email_subject || campaign.campaign_name,
-          html_content: campaign.email_html_content || ''
-        }
+        subject: campaign.email_subject || campaign.campaign_name,
+        html_content: campaign.email_html_content || ''
+      }
       : null
   );
   const waTemplate = campaign.whatsapp_template_id;

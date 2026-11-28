@@ -887,20 +887,31 @@ const createCampaign = async (req, res) => {
       state_names: data.state_names,
       cluster_ids: data.cluster_ids,
       cluster_names: data.cluster_names,
+      cluster_codes: data.cluster_codes,
       district_ids: data.district_ids,
+      district_names: data.district_names,
       warehouse_ids: data.warehouse_ids,
+      warehouse_names: data.warehouse_names,
+      location_basis: data.location_basis,
       purchase_activity: data.purchase_activity,
+      last_order_days_condition: data.last_order_days_condition,
       last_order_days: data.last_order_days,
       segment_ids: data.segment_ids || [],
       segment_state_filter: data.segment_state_filter || '',
       segment_district_filter: data.segment_district_filter || '',
       channel: data.campaign_type || null,
       industry_ids: data.industry_ids || [],
-      kit_ids: data.kit_ids || [],
+      kit_ids: Array.isArray(data.audience_kit_ids) ? data.audience_kit_ids : [],
       subcategory_ids: data.subcategory_ids || [],
       include_imported_leads: data.include_imported_leads !== false,
-      require_consent: data.require_consent !== false
+      import_batch_id: data.import_batch_id || null,
+      require_consent: data.require_consent !== false,
+      selected_recipient_emails: data.selected_recipient_emails || []
     });
+
+    if (Array.isArray(data.selected_recipient_emails) && data.selected_recipient_emails.length > 0) {
+      data.audience_refresh_on_send = false;
+    }
 
     data.total_recipients = audience.total_eligible;
     data.recipients = audience.recipients.map((r) => ({
@@ -970,16 +981,26 @@ const updateCampaign = async (req, res) => {
         state_names: campaign.state_names,
         cluster_ids: campaign.cluster_ids,
         cluster_names: campaign.cluster_names,
+        cluster_codes: campaign.cluster_codes,
         district_ids: campaign.district_ids,
+        district_names: campaign.district_names,
         warehouse_ids: campaign.warehouse_ids,
+        warehouse_names: campaign.warehouse_names,
+        location_basis: campaign.location_basis,
         purchase_activity: campaign.purchase_activity,
+        last_order_days_condition: campaign.last_order_days_condition,
         last_order_days: campaign.last_order_days,
+        segment_ids: campaign.segment_ids || [],
+        segment_state_filter: campaign.segment_state_filter || '',
+        segment_district_filter: campaign.segment_district_filter || '',
         channel: campaign.campaign_type,
         industry_ids: campaign.industry_ids || [],
-        kit_ids: campaign.kit_ids || [],
+        kit_ids: Array.isArray(campaign.audience_kit_ids) ? campaign.audience_kit_ids : [],
         subcategory_ids: campaign.subcategory_ids || [],
         include_imported_leads: campaign.include_imported_leads !== false,
-        require_consent: campaign.require_consent !== false
+        import_batch_id: campaign.import_batch_id || null,
+        require_consent: campaign.require_consent !== false,
+        selected_recipient_emails: campaign.selected_recipient_emails || []
       });
 
       campaign.total_recipients = audience.total_eligible;
@@ -1136,10 +1157,14 @@ const testCampaignSend = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Provide test_email or test_phone for the selected channel.' });
     }
 
-    const emailOk = !results.email || results.email.success;
-    const waOk = !results.whatsapp || results.whatsapp.success;
-    res.json({
+    const emailOk = !results.email || (results.email.success && !results.email.simulated);
+    const waOk = !results.whatsapp || (results.whatsapp.success && !results.whatsapp.simulated);
+    res.status(emailOk && waOk ? 200 : 400).json({
       success: emailOk && waOk,
+      message:
+        emailOk && waOk
+          ? 'Test campaign dispatch completed successfully.'
+          : results.email?.error || results.whatsapp?.error || 'Test send did not complete via live provider.',
       results
     });
   } catch (error) {
@@ -1228,7 +1253,7 @@ const prepareSenderPayload = (rawBody, isUpdate = false) => {
       continue;
     }
     if (val === '' || val === null || val === undefined) {
-      if (isUpdate) delete data[field];
+      delete data[field];
       continue;
     }
     data[field] = encryptSecret(val);
@@ -1242,7 +1267,14 @@ const getSenders = async (req, res) => {
     const filter = {};
     if (type) filter.type = type;
     const senders = await MarketingSender.find(filter).sort({ is_default: -1, created_at: -1 }).lean();
-    res.json({ success: true, data: senders.map(sanitizeSenderForClient) });
+    res.json({
+      success: true,
+      data: senders.map(sanitizeSenderForClient),
+      meta: {
+        resend_env_configured: Boolean(process.env.RESEND_API_KEY),
+        resend_from_email: process.env.RESEND_FROM_EMAIL || null
+      }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -1251,6 +1283,9 @@ const getSenders = async (req, res) => {
 const createSender = async (req, res) => {
   try {
     const data = prepareSenderPayload(req.body, false);
+    if (data.type === 'email' && (data.email_provider === 'resend' || data.provider === 'resend')) {
+      data.status = (process.env.RESEND_API_KEY || data.resend_api_key) ? 'active' : 'verification_pending';
+    }
     if (req.user?.id && mongoose.Types.ObjectId.isValid(String(req.user.id))) {
       data.created_by = req.user.id;
     }
@@ -1311,8 +1346,8 @@ const testSender = async (req, res) => {
         });
       }
       sender.last_tested_at = new Date();
-      sender.status = result.success ? 'active' : 'verification_pending';
-      sender.last_error = result.success ? null : (result.error || 'Verification failed');
+      sender.status = (result.success && !result.simulated) ? 'active' : 'verification_pending';
+      sender.last_error = (result.success && !result.simulated) ? null : (result.error || (result.simulated ? 'Only simulated; live credentials missing' : 'Verification failed'));
       await sender.save();
     } else {
       const targetPhone = test_target ? String(test_target).trim() : '';
@@ -1328,8 +1363,8 @@ const testSender = async (req, res) => {
         result = await whatsappService.verifyWhatsAppConnection({ senderId: sender._id, allowInactive: true });
       }
       sender.last_tested_at = new Date();
-      sender.status = result.success ? 'connected' : 'disconnected';
-      sender.last_error = result.success ? null : (result.error || 'Meta Cloud API connection failed');
+      sender.status = (result.success && !result.simulated) ? 'connected' : 'disconnected';
+      sender.last_error = (result.success && !result.simulated) ? null : (result.error || 'Meta Cloud API connection failed');
       await sender.save();
     }
 
@@ -1635,14 +1670,39 @@ const deleteTrackingLink = async (req, res) => {
 // ── 8. Reports Generation ──────────────────────────────────────────────────
 const getReports = async (req, res) => {
   try {
-    const campaigns = await MarketingCampaign.find({})
+    const { report_type = 'performance', period = 'all_time' } = req.query;
+    const query = {};
+    const now = Date.now();
+    if (period === 'today') {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      query.created_at = { $gte: start };
+    } else if (period === 'last_7_days') {
+      query.created_at = { $gte: new Date(now - 7 * 24 * 60 * 60 * 1000) };
+    } else if (period === 'last_30_days') {
+      query.created_at = { $gte: new Date(now - 30 * 24 * 60 * 60 * 1000) };
+    } else if (period === 'this_quarter') {
+      query.created_at = { $gte: new Date(now - 90 * 24 * 60 * 60 * 1000) };
+    }
+
+    if (report_type === 'email_delivery') {
+      query.campaign_type = { $in: ['email', 'both'] };
+    } else if (report_type === 'wa_delivery') {
+      query.campaign_type = { $in: ['whatsapp', 'both'] };
+    } else if (report_type === 'delivery_errors') {
+      query['stats.failed'] = { $gt: 0 };
+    }
+
+    const campaigns = await MarketingCampaign.find(query)
       .populate('assigned_manager', 'name')
+      .sort({ created_at: -1 })
       .lean();
 
     const reportRows = campaigns.map((c) => {
       const s = c.stats || {};
       const sent = s.messages_sent || 0;
-      const delRate = sent > 0 ? (((sent - (s.failed || 0)) / sent) * 100).toFixed(1) : '0.0';
+      const delivered = s.delivered || Math.max(0, sent - (s.failed || 0));
+      const delRate = sent > 0 ? ((delivered / sent) * 100).toFixed(1) : '0.0';
       const clickRate = sent > 0 ? ((s.link_clicks / sent) * 100).toFixed(1) : '0.0';
       const convRate = s.website_visits > 0 ? ((s.conversions / s.website_visits) * 100).toFixed(1) : '0.0';
       const roi = c.budget > 0 ? (((s.revenue_generated - c.budget) / c.budget) * 100).toFixed(1) : '0.0';
@@ -1656,7 +1716,7 @@ const getReports = async (req, res) => {
         manager: c.assigned_manager?.name || 'Unassigned',
         budget: c.budget || 0,
         messages_sent: sent,
-        delivered: s.delivered || sent,
+        delivered,
         failed: s.failed || 0,
         delivery_rate: `${delRate}%`,
         opened_or_read: s.opened_or_read || 0,
@@ -1684,7 +1744,7 @@ const getAudienceList = async (req, res) => {
 
     const [orders, dbEpcs, dbLeads, clusters, unsubs, geoResolver] = await Promise.all([
       EpcOrder.find({ order_status: { $nin: ['cancelled', 'rejected'] } })
-        .select('epc_id customer_phone customer_email created_at')
+        .select('epc_id delivery_address customer_phone customer_email created_at')
         .lean()
         .catch(() => []),
       EpcAccount.find({ deleted_at: null })
@@ -1705,9 +1765,9 @@ const getAudienceList = async (req, res) => {
     const epcIds = dbEpcs.map((e) => e._id);
     const [prefs, consents] = epcIds.length > 0
       ? await Promise.all([
-          EpcPreference.find({ epc_id: { $in: epcIds }, deleted_at: null }).lean().catch(() => []),
-          EpcMarketingConsent.find({ epc_id: { $in: epcIds }, is_active: true, withdrawn_at: null }).lean().catch(() => [])
-        ])
+        EpcPreference.find({ epc_id: { $in: epcIds }, deleted_at: null }).lean().catch(() => []),
+        EpcMarketingConsent.find({ epc_id: { $in: epcIds }, is_active: true, withdrawn_at: null }).lean().catch(() => [])
+      ])
       : [[], []];
 
     const prefMap = new Map(prefs.map((p) => [String(p.epc_id), p]));
@@ -1729,9 +1789,10 @@ const getAudienceList = async (req, res) => {
         const idStr = String(ord.epc_id);
         orderCountMap.set(idStr, (orderCountMap.get(idStr) || 0) + 1);
       }
-      if (ord.customer_phone) {
-        const ph = String(ord.customer_phone).replace(/\D/g, '').slice(-10);
-        if (ph) orderCountMap.set(ph, (orderCountMap.get(ph) || 0) + 1);
+      const orderPhone = ord.delivery_address?.contact_phone || ord.customer_phone;
+      if (orderPhone) {
+        const ph = String(orderPhone).replace(/\D/g, '').slice(-10);
+        if (ph.length >= 10) orderCountMap.set(ph, (orderCountMap.get(ph) || 0) + 1);
       }
     }
 
@@ -1948,12 +2009,12 @@ const importDynamicCsvLeads = async (req, res) => {
         leadOr.length > 0 ? WebsiteEpcLead.find({ deleted_at: null, $or: leadOr }).select('phone mobile_number email').lean() : [],
         EpcAccount
           ? EpcAccount.find({
-              deleted_at: null,
-              $or: [
-                ...(batchPhones.length > 0 ? [{ whatsapp: { $in: batchPhones } }, { phone: { $in: batchPhones } }] : []),
-                ...(batchEmails.length > 0 ? [{ email: { $in: batchEmails } }] : []),
-              ]
-            }).select('whatsapp phone email').lean()
+            deleted_at: null,
+            $or: [
+              ...(batchPhones.length > 0 ? [{ whatsapp: { $in: batchPhones } }, { phone: { $in: batchPhones } }] : []),
+              ...(batchEmails.length > 0 ? [{ email: { $in: batchEmails } }] : []),
+            ]
+          }).select('whatsapp phone email').lean()
           : [],
       ]);
 

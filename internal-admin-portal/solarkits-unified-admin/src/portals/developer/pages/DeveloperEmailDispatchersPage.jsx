@@ -49,6 +49,7 @@ export default function DeveloperEmailDispatchersPage() {
   const [testing, setTesting] = useState(false);
   const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error' | 'info', text: string }
   const [loading, setLoading] = useState(false);
+  const [resendEnvConfigured, setResendEnvConfigured] = useState(null);
 
   const ADMIN_BASE = String(
     import.meta.env.VITE_ADMIN_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/admin-api'
@@ -65,6 +66,9 @@ export default function DeveloperEmailDispatchersPage() {
       const res = await axios.get(`${MARKETING_BASE}/senders?type=email`, { headers: authHeaderObj() });
       if (res.data?.success) {
         setSenders(res.data.data || []);
+        if (res.data?.meta && typeof res.data.meta.resend_env_configured === 'boolean') {
+          setResendEnvConfigured(res.data.meta.resend_env_configured);
+        }
       }
     } catch (err) {
       setFeedback({ type: 'error', text: err.response?.data?.message || `Failed to load email dispatchers: ${err.message}` });
@@ -99,17 +103,21 @@ export default function DeveloperEmailDispatchersPage() {
         email_provider: activeProviderTab,
         provider: activeProviderTab
       };
+      if (activeProviderTab === 'resend') {
+        delete payload.resend_api_key;
+      }
 
       if (editingId) {
         await axios.put(`${MARKETING_BASE}/senders/${editingId}`, payload, { headers: authHeaderObj() });
-        setFeedback({ type: 'success', text: `Updated ${payload.sender_name} (${payload.purpose}) in MongoDB.` });
+        setFeedback({ type: 'success', text: `Updated ${payload.sender_name} (${payload.purpose}) in MongoDB. Run Test Send to verify.` });
         setEditingId(null);
       } else {
         await axios.post(`${MARKETING_BASE}/senders`, payload, { headers: authHeaderObj() });
-        setFeedback({ type: 'success', text: `Saved new ${activeProviderTab.toUpperCase()} dispatcher "${payload.sender_name}".` });
+        setFeedback({ type: 'success', text: `Saved new ${activeProviderTab.toUpperCase()} dispatcher "${payload.sender_name}" (${payload.sender_email}). Click Test Send above to verify.` });
       }
       setFormData(EMPTY_FORM(activeProviderTab));
       await fetchSenders();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setFeedback({
         type: 'error',
@@ -170,15 +178,15 @@ export default function DeveloperEmailDispatchersPage() {
         { headers: authHeaderObj() }
       );
       const data = res.data || {};
-      if (data.success) {
+      if (data.success && !data.simulated) {
         setFeedback({
           type: 'success',
-          text: `Test email sent! Provider: ${data.provider} | Simulated: ${Boolean(data.simulated)} | Message ID: ${data.messageId || 'OK'}`
+          text: `Test email sent! Provider: ${data.provider} | Message ID: ${data.messageId || 'OK'}`
         });
       } else {
         setFeedback({
           type: 'error',
-          text: `Delivery failed (${data.provider || 'config'} / ${data.errorCode || 'ERROR'}): ${data.error || data.message || 'Check provider credentials'}`
+          text: `Delivery failed (${data.provider || 'config'} / ${data.errorCode || (data.simulated ? 'SIMULATED' : 'ERROR')}): ${data.error || data.message || 'Check backend .env RESEND_API_KEY credentials'}`
         });
       }
       await fetchSenders();
@@ -312,7 +320,7 @@ export default function DeveloperEmailDispatchersPage() {
                       <span>From: <strong>{s.sender_email}</strong></span>
                       <span>•</span>
                       <span>Reply-To: <strong>{s.reply_to_email || s.sender_email}</strong></span>
-                      {prov === 'resend' && <span>• Key: {s.resend_api_key || 'From .env'}</span>}
+                      {prov === 'resend' && <span>• Auth: Backend .env</span>}
                       {prov === 'aws_ses' && <span>• Region: {s.aws_region || 'ap-south-1'}</span>}
                       {prov === 'smtp' && <span>• Host: {s.smtp_host}:{s.smtp_port} ({s.smtp_user})</span>}
                     </div>
@@ -463,15 +471,29 @@ export default function DeveloperEmailDispatchersPage() {
             </div>
 
             {activeProviderTab === 'resend' && (
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Resend API Key *</label>
-                <input
-                  type="password"
-                  placeholder={editingId ? 'Leave masked to keep existing key, or paste new key' : 're_xxxxxxxxxxxxxxxxx'}
-                  value={formData.resend_api_key}
-                  onChange={(e) => setFormData({ ...formData, resend_api_key: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-mono"
-                />
+              <div className="md:col-span-2 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-start gap-2">
+                  <FaInfoCircle className="text-indigo-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">
+                      Resend API Key is read directly from Backend <code className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">.env</code> (<code className="font-mono">RESEND_API_KEY</code>)
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Save your verified <code className="font-mono">@solarkits.in</code> sender identity here, then click <strong>Test Send</strong> in the active senders list above.
+                    </p>
+                  </div>
+                </div>
+                {resendEnvConfigured !== null && (
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold shrink-0 ${
+                      resendEnvConfigured
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                        : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                    }`}
+                  >
+                    {resendEnvConfigured ? '.env Key Configured' : '.env Key Missing'}
+                  </span>
+                )}
               </div>
             )}
 
