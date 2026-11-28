@@ -18,15 +18,30 @@ const { signTrackingPayload, verifyTrackingSignature } = require('../utils/crypt
 /**
  * Derive clean public backend origin for tracking & unsubscribe URLs.
  */
-const resolveBackendBaseUrl = () => {
-  const rawUnsub = process.env.UNSUBSCRIBE_BASE_URL || '';
-  if (rawUnsub) {
-    return rawUnsub.replace(/\/api\/(admin\/)?marketing\/unsubscribe.*$/i, '').replace(/\/+$/, '');
-  }
+const isLocalOrigin = (urlStr = '') => /:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(String(urlStr || ''));
+
+const resolveBackendBaseUrl = (req = null) => {
+  const explicitPub = String(process.env.BACKEND_PUBLIC_URL || '').trim().replace(/\/+$/, '');
+  const renderUrl = String(process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/+$/, '');
+  const rawUnsub = String(process.env.UNSUBSCRIBE_BASE_URL || '')
+    .replace(/\/api\/(admin\/)?marketing\/unsubscribe.*$/i, '')
+    .trim()
+    .replace(/\/+$/, '');
+  const reqHost = req && typeof req.get === 'function' ? req.get('host') : '';
+  const reqProto = req?.headers?.['x-forwarded-proto']?.split(',')[0]?.trim() || req?.protocol || 'https';
+  const reqOrigin = reqHost ? `${reqProto}://${reqHost}`.replace(/\/+$/, '') : '';
+
+  if (explicitPub && !isLocalOrigin(explicitPub)) return explicitPub;
+  if (rawUnsub && !isLocalOrigin(rawUnsub)) return rawUnsub;
+  if (renderUrl && !isLocalOrigin(renderUrl)) return renderUrl;
+  if (reqOrigin && !isLocalOrigin(reqOrigin)) return reqOrigin;
+  if (rawUnsub) return rawUnsub;
+  if (explicitPub) return explicitPub;
+
   const fallbackPort = process.env.PORT || 5000;
   const rawIpv4 = process.env.IPV4 ? String(process.env.IPV4).replace(/\/+$/, '') : '';
   const ipv4WithPort = rawIpv4 && !/:\d+$/.test(rawIpv4) ? `${rawIpv4}:${fallbackPort}` : rawIpv4;
-  const pub = process.env.BACKEND_PUBLIC_URL || ipv4WithPort || `http://localhost:${fallbackPort}`;
+  const pub = ipv4WithPort || reqOrigin || `http://localhost:${fallbackPort}`;
   return String(pub).replace(/\/+$/, '');
 };
 
@@ -303,7 +318,7 @@ const buildWhatsAppComponents = (waTemplate, vars) => {
 /**
  * Atomic Campaign Launch Execution (supports initial launch and resume from paused).
  */
-const launchCampaign = async (campaignId) => {
+const launchCampaign = async (campaignId, options = {}) => {
   const campaign = await MarketingCampaign.findOneAndUpdate(
     { _id: campaignId, status: { $in: ['draft', 'scheduled', 'paused'] } },
     {
@@ -411,7 +426,7 @@ const launchCampaign = async (campaignId) => {
     };
   }
 
-  await enqueueCampaignDispatch(campaign, pendingIndices);
+  await enqueueCampaignDispatch(campaign, pendingIndices, options);
 
   sendAdminNotification({
     title: `EPC Campaign Started: ${campaign.campaign_name}`,
@@ -439,7 +454,7 @@ const launchCampaign = async (campaignId) => {
 /**
  * Enqueue per-recipient campaign dispatch tasks into the unified sequential queue.
  */
-const enqueueCampaignDispatch = async (campaign, pendingIndices) => {
+const enqueueCampaignDispatch = async (campaign, pendingIndices, options = {}) => {
   const campaignId = String(campaign._id);
   const emailTemplate = campaign.email_template_id || (
     (campaign.email_html_content || campaign.email_subject)
@@ -451,7 +466,7 @@ const enqueueCampaignDispatch = async (campaign, pendingIndices) => {
   );
   const waTemplate = campaign.whatsapp_template_id;
   const channel = campaign.campaign_type || 'both';
-  const backendBase = resolveBackendBaseUrl();
+  const backendBase = resolveBackendBaseUrl(options.req || null);
   const fullDestinationUrl = buildUtmDestinationUrl(campaign);
   const shortTrackingUrl = campaign.tracking_short_code
     ? `${backendBase}/api/marketing/t/${campaign.tracking_short_code}`

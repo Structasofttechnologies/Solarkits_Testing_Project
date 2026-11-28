@@ -154,7 +154,16 @@ class EmailQueueService {
       const targetLabel = currentJob.task.to || currentJob.task.phone || currentJob.id;
       console.error(`❌ [MARKETING_QUEUE] Job [${currentJob.id}] failed (${error.message})`);
 
-      const nonRetryableCodes = ['INVALID_RECIPIENT', 'NO_EMAIL_PROVIDER_CONFIGURED', 'MISSING_META_CREDENTIALS', 'SENDER_NOT_AVAILABLE', 'SENDER_CONFIG_ERROR'];
+      const nonRetryableCodes = [
+        'INVALID_RECIPIENT',
+        'NO_EMAIL_PROVIDER_CONFIGURED',
+        'MISSING_RESEND_KEY',
+        'RESEND_KEY_DECRYPT_ERROR',
+        'MISSING_SMTP_CREDENTIALS',
+        'MISSING_META_CREDENTIALS',
+        'SENDER_NOT_AVAILABLE',
+        'SENDER_CONFIG_ERROR'
+      ];
       const canRetry = !nonRetryableCodes.includes(error.code) && currentJob.retryCount < currentJob.maxRetries;
 
       if (canRetry) {

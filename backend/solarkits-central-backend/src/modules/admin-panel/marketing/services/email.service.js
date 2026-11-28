@@ -48,11 +48,64 @@ const interpolate = (text, variables = {}) => {
 };
 
 /**
+ * Derive clean plain-text fallback from HTML so Resend / SMTP send multipart emails (reduces spam score).
+ */
+const htmlToPlainText = (html = '') => {
+  if (!html) return '';
+  return String(html)
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) => {
+      const label = String(text || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      return label ? `${label} (${href})` : href;
+    })
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|h[1-6]|li)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+};
+
+const cleanToken = (value) => String(value || '').trim().replace(/^["']|["']$/g, '');
+
+/**
  * Safely decrypt a credential if it is stored in enc:v1 format.
  */
 const safeDecrypt = (value) => {
   if (!value) return value;
   return decryptSecret(value);
+};
+
+/**
+ * Resolve a clean Resend API key from an explicit/DB key with safe fallback to RESEND_API_KEY env var.
+ */
+const resolveResendApiKey = (explicitOrDbKey = '') => {
+  const envKey = cleanToken(process.env.RESEND_API_KEY);
+  if (explicitOrDbKey) {
+    try {
+      const decrypted = cleanToken(decryptSecret(explicitOrDbKey));
+      if (decrypted) return { key: decrypted };
+    } catch (_) {
+      if (envKey) return { key: envKey };
+      return {
+        errorCode: 'RESEND_KEY_DECRYPT_ERROR',
+        error: 'Stored Resend API key could not be decrypted on this server. Re-save it in Email Account Settings or set RESEND_API_KEY in server environment variables.'
+      };
+    }
+  }
+  if (envKey) return { key: envKey };
+  return {
+    errorCode: 'MISSING_RESEND_KEY',
+    error: 'Resend API key is missing. Set RESEND_API_KEY in server environment variables or save it in Email Account Settings.'
+  };
 };
 
 /**
@@ -63,22 +116,25 @@ const sendViaResend = async ({ apiKey, fromEmail, fromName, to, subject, htmlCon
   const url = 'https://api.resend.com/emails';
 
   try {
-    const decryptedKey = safeDecrypt(apiKey);
-    if (!decryptedKey) {
+    const resolvedKey = resolveResendApiKey(apiKey);
+    if (resolvedKey.error) {
       return {
         success: false,
         provider: 'resend',
         simulated: false,
-        errorCode: 'MISSING_RESEND_KEY',
-        error: 'Resend API key is missing.'
+        errorCode: resolvedKey.errorCode,
+        error: resolvedKey.error
       };
     }
+    const decryptedKey = resolvedKey.key;
 
+    const plainText = htmlToPlainText(htmlContent);
     const body = {
       from: cleanFrom,
       to: Array.isArray(to) ? to : [to],
       subject,
       html: htmlContent,
+      ...(plainText ? { text: plainText } : {}),
       reply_to: replyTo || fromEmail
     };
 
@@ -174,12 +230,14 @@ const dispatchNodemailer = async ({
 
     await transporter.verify();
 
+    const plainText = htmlToPlainText(htmlContent);
     const mailOptions = {
       from: fromName ? `"${fromName}" <${fromEmail}>` : fromEmail,
       to,
       replyTo: replyTo || fromEmail,
       subject,
-      html: htmlContent
+      html: htmlContent,
+      ...(plainText ? { text: plainText } : {})
     };
 
     if (unsubscribeUrl) {
@@ -393,8 +451,8 @@ const sendEmail = async ({
 
       if (provider === 'resend') {
         const res = await sendViaResend({
-          apiKey: process.env.RESEND_API_KEY || sender.resend_api_key,
-          fromEmail: fromEmail || process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+          apiKey: sender.resend_api_key,
+          fromEmail: fromEmail || cleanToken(process.env.RESEND_FROM_EMAIL) || 'onboarding@resend.dev',
           fromName,
           to: cleanTo,
           subject: finalSubject,
@@ -442,10 +500,11 @@ const sendEmail = async ({
     }
 
     // No explicit/active DB sender: use env-configured providers in deterministic priority
-    if (process.env.RESEND_API_KEY) {
+    const fallbackResendKey = cleanToken(process.env.RESEND_API_KEY);
+    if (fallbackResendKey) {
       const res = await sendViaResend({
-        apiKey: process.env.RESEND_API_KEY,
-        fromEmail: process.env.RESEND_FROM_EMAIL || process.env.FROM_EMAIL || 'onboarding@resend.dev',
+        apiKey: fallbackResendKey,
+        fromEmail: cleanToken(process.env.RESEND_FROM_EMAIL) || cleanToken(process.env.FROM_EMAIL) || 'onboarding@resend.dev',
         fromName: process.env.RESEND_FROM_NAME || process.env.FROM_NAME || 'SolarKits India',
         to: cleanTo,
         subject: finalSubject,
@@ -536,10 +595,17 @@ const verifyEmailSenderConnection = async (sender) => {
   const provider = sender.email_provider || 'smtp';
 
   if (provider === 'resend') {
-    const key = (process.env.RESEND_API_KEY && String(process.env.RESEND_API_KEY).trim()) || safeDecrypt(sender.resend_api_key);
-    if (!key) {
-      return { success: false, provider: 'resend', simulated: false, errorCode: 'MISSING_RESEND_KEY', error: 'Resend API key missing' };
+    const resolvedKey = resolveResendApiKey(sender.resend_api_key);
+    if (resolvedKey.error) {
+      return {
+        success: false,
+        provider: 'resend',
+        simulated: false,
+        errorCode: resolvedKey.errorCode,
+        error: resolvedKey.error
+      };
     }
+    const key = resolvedKey.key;
     try {
       const res = await axios.get('https://api.resend.com/domains', {
         headers: { Authorization: `Bearer ${key}` },
