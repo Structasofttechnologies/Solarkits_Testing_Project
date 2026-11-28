@@ -1513,7 +1513,7 @@ const createCampaign = async (req, res) => {
 
     let launchResult = null;
     if (launch_immediately === true) {
-      launchResult = await campaignService.launchCampaign(campaign._id);
+      launchResult = await campaignService.launchCampaign(campaign._id, { req });
     }
 
     const fresh = await MarketingCampaign.findById(campaign._id).select('-recipients').lean();
@@ -1618,7 +1618,7 @@ const updateCampaign = async (req, res) => {
 
     let launchResult = null;
     if (launch_immediately === true) {
-      launchResult = await campaignService.launchCampaign(campaign._id);
+      launchResult = await campaignService.launchCampaign(campaign._id, { req });
     }
 
     const fresh = await MarketingCampaign.findById(campaign._id).select('-recipients').lean();
@@ -1656,7 +1656,7 @@ const deleteCampaign = async (req, res) => {
 
 const triggerLaunchCampaign = async (req, res) => {
   try {
-    const result = await campaignService.launchCampaign(req.params.id);
+    const result = await campaignService.launchCampaign(req.params.id, { req });
     res.json(result);
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
@@ -1766,7 +1766,7 @@ const rerunCampaign = async (req, res) => {
         'stats.failed': 0
       }
     });
-    const result = await campaignService.launchCampaign(campaign._id);
+    const result = await campaignService.launchCampaign(campaign._id, { req });
     res.json({ ...result, message: `Campaign "${campaign.campaign_name}" rerun started.` });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
@@ -1796,7 +1796,7 @@ const testCampaignSend = async (req, res) => {
       if (email_template_id && mongoose.Types.ObjectId.isValid(email_template_id)) {
         tmpl = await MarketingTemplate.findById(email_template_id).lean();
       }
-      const backendBase = campaignService.resolveBackendBaseUrl();
+      const backendBase = campaignService.resolveBackendBaseUrl(req);
       const unsubUrl = `${backendBase}/api/marketing/unsubscribe?email=${encodeURIComponent(test_email)}`;
       const testVars = {
         ...variables,
@@ -2057,11 +2057,12 @@ const getSenders = async (req, res) => {
     const filter = {};
     if (type) filter.type = type;
     const senders = await MarketingSender.find(filter).sort({ is_default: -1, created_at: -1 }).lean();
+    const resendEnvReady = Boolean(String(process.env.RESEND_API_KEY || '').trim());
     res.json({
       success: true,
       data: senders.map(sanitizeSenderForClient),
       meta: {
-        resend_env_configured: Boolean(process.env.RESEND_API_KEY),
+        resend_env_configured: resendEnvReady,
         resend_from_email: process.env.RESEND_FROM_EMAIL || null
       }
     });
@@ -2073,8 +2074,9 @@ const getSenders = async (req, res) => {
 const createSender = async (req, res) => {
   try {
     const data = prepareSenderPayload(req.body, false);
+    const resendEnvReady = Boolean(String(process.env.RESEND_API_KEY || '').trim());
     if (data.type === 'email' && (data.email_provider === 'resend' || data.provider === 'resend')) {
-      data.status = (process.env.RESEND_API_KEY || data.resend_api_key) ? 'active' : 'verification_pending';
+      data.status = (resendEnvReady || data.resend_api_key) ? 'active' : 'verification_pending';
     }
     if (req.user?.id && mongoose.Types.ObjectId.isValid(String(req.user.id))) {
       data.created_by = req.user.id;
@@ -2092,9 +2094,19 @@ const createSender = async (req, res) => {
 const updateSender = async (req, res) => {
   try {
     const { id } = req.params;
+    const existing = await MarketingSender.findById(id).lean();
+    if (!existing) return res.status(404).json({ success: false, message: 'Sender not found' });
+
     const data = prepareSenderPayload(req.body, true);
-    if (data.is_default && data.type) {
-      await MarketingSender.updateMany({ type: data.type, _id: { $ne: id } }, { $set: { is_default: false } });
+    const effectiveType = data.type || existing.type;
+    const effectiveProvider = data.email_provider || data.provider || existing.email_provider || existing.provider;
+    const resendEnvReady = Boolean(String(process.env.RESEND_API_KEY || '').trim());
+    if (effectiveType === 'email' && effectiveProvider === 'resend') {
+      const hasResendKey = resendEnvReady || Boolean(data.resend_api_key) || Boolean(existing.resend_api_key);
+      data.status = hasResendKey ? 'active' : 'verification_pending';
+    }
+    if (data.is_default && effectiveType) {
+      await MarketingSender.updateMany({ type: effectiveType, _id: { $ne: id } }, { $set: { is_default: false } });
     }
     const sender = await MarketingSender.findByIdAndUpdate(id, { $set: data }, { new: true });
     if (!sender) return res.status(404).json({ success: false, message: 'Sender not found' });
@@ -2255,7 +2267,7 @@ const testTemplate = async (req, res) => {
       coupon_code: 'SOLAR2026',
       warehouse_name: 'Bhiwandi Super Depot',
       tracking_url: 'https://solarkits.in',
-      unsubscribe_url: `${campaignService.resolveBackendBaseUrl()}/api/marketing/unsubscribe?email=${encodeURIComponent(test_target)}`,
+      unsubscribe_url: `${campaignService.resolveBackendBaseUrl(req)}/api/marketing/unsubscribe?email=${encodeURIComponent(test_target)}`,
       ...variables
     };
 
@@ -2413,7 +2425,7 @@ const getTrackingLinks = async (req, res) => {
         .lean()
     ]);
 
-    const backendBase = campaignService.resolveBackendBaseUrl();
+    const backendBase = campaignService.resolveBackendBaseUrl(req);
     const formattedStandalone = standaloneLinks.map((l) => ({
       ...l,
       source: 'custom_link',
@@ -2463,7 +2475,7 @@ const createTrackingLink = async (req, res) => {
     }
 
     const link = await MarketingTrackingLink.create(payload);
-    const backendBase = campaignService.resolveBackendBaseUrl();
+    const backendBase = campaignService.resolveBackendBaseUrl(req);
     res.status(201).json({
       success: true,
       data: {

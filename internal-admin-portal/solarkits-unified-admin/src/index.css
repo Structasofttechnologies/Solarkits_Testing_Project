@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import "tailwindcss" source(".");
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -69,8 +69,8 @@
   --gradient-info-soft: linear-gradient(135deg, #0ea5e915 0%, #0284c710 100%);
   --gradient-secondary: linear-gradient(135deg, var(--color-secondary), #ffdf5e);
   --gradient-bg-subtle: linear-gradient(145deg, #f8fafc 0%, #eef2ff 50%, #e8ecf8 100%);
-  --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%);
-  --gradient-card-glass: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.85) 100%);
+  --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.4) 100%);
+  --gradient-card-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.85) 100%);
 
   /* ── Button ── */
   --color-button-primary: var(--color-primary);
@@ -105,15 +105,15 @@
   --color-danger-soft: #450a0a;
   --color-info-soft: #0c4a6e;
 
-  --shadow-xs: 0 1px 3px rgba(0,0,0,0.3);
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.35);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
-  --shadow-xl: 0 12px 48px rgba(0,0,0,0.6);
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.6);
 
   --gradient-bg-subtle: linear-gradient(145deg, #0b0f1a 0%, #0f1629 50%, #111d33 100%);
-  --gradient-glass: linear-gradient(135deg, rgba(17,24,39,0.8) 0%, rgba(17,24,39,0.5) 100%);
-  --gradient-card-glass: linear-gradient(135deg, rgba(17,24,39,0.95) 0%, rgba(17,24,39,0.9) 100%);
+  --gradient-glass: linear-gradient(135deg, rgba(17, 24, 39, 0.8) 0%, rgba(17, 24, 39, 0.5) 100%);
+  --gradient-card-glass: linear-gradient(135deg, rgba(17, 24, 39, 0.95) 0%, rgba(17, 24, 39, 0.9) 100%);
   --gradient-primary-soft: linear-gradient(135deg, #4f6ae018 0%, #3a56c912 100%);
 
   --color-button-disabled: #1e293b;
@@ -144,15 +144,18 @@ body {
   width: 6px;
   height: 6px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: 20px;
   border: 1px solid transparent;
   background-clip: content-box;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--color-primary);
   background-clip: content-box;
@@ -163,13 +166,16 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
 }
+
 .scrollbar-hover::-webkit-scrollbar {
   width: 5px;
 }
+
 .scrollbar-hover::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 10px;
 }
+
 .scrollbar-hover:hover::-webkit-scrollbar-thumb {
   background: var(--color-border);
 }
@@ -182,6 +188,7 @@ body {
   box-shadow: var(--shadow-sm);
   transition: box-shadow 0.3s ease, transform 0.3s ease;
 }
+
 .card:hover {
   box-shadow: var(--shadow-md);
 }
@@ -191,31 +198,73 @@ body {
   background: var(--gradient-glass);
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid rgba(255,255,255,0.18);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
+
 .card-glass {
   background: var(--gradient-card-glass);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: var(--shadow-sm);
 }
 
 /* ── Gradient Utilities ── */
-.gradient-primary { background: var(--gradient-primary); }
-.gradient-primary-soft { background: var(--gradient-primary-soft); }
-.gradient-danger { background: var(--gradient-danger); }
-.gradient-danger-soft { background: var(--gradient-danger-soft); }
-.gradient-warning { background: var(--gradient-warning); }
-.gradient-warning-soft { background: var(--gradient-warning-soft); }
-.gradient-success { background: var(--gradient-success); }
-.gradient-success-soft { background: var(--gradient-success-soft); }
-.gradient-info { background: var(--gradient-info); }
-.gradient-info-soft { background: var(--gradient-info-soft); }
-.gradient-secondary { background: var(--gradient-secondary); }
-.gradient-bg-subtle { background: var(--gradient-bg-subtle); }
-.gradient-glass { background: var(--gradient-glass); }
-.gradient-card-glass { background: var(--gradient-card-glass); }
+.gradient-primary {
+  background: var(--gradient-primary);
+}
+
+.gradient-primary-soft {
+  background: var(--gradient-primary-soft);
+}
+
+.gradient-danger {
+  background: var(--gradient-danger);
+}
+
+.gradient-danger-soft {
+  background: var(--gradient-danger-soft);
+}
+
+.gradient-warning {
+  background: var(--gradient-warning);
+}
+
+.gradient-warning-soft {
+  background: var(--gradient-warning-soft);
+}
+
+.gradient-success {
+  background: var(--gradient-success);
+}
+
+.gradient-success-soft {
+  background: var(--gradient-success-soft);
+}
+
+.gradient-info {
+  background: var(--gradient-info);
+}
+
+.gradient-info-soft {
+  background: var(--gradient-info-soft);
+}
+
+.gradient-secondary {
+  background: var(--gradient-secondary);
+}
+
+.gradient-bg-subtle {
+  background: var(--gradient-bg-subtle);
+}
+
+.gradient-glass {
+  background: var(--gradient-glass);
+}
+
+.gradient-card-glass {
+  background: var(--gradient-card-glass);
+}
 
 /* ── Gradient Text ── */
 .gradient-text-primary {
@@ -232,10 +281,12 @@ body {
   box-shadow: var(--shadow-sm), 0 0 0 0 rgba(13, 148, 136, 0);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .btn-primary:hover {
   box-shadow: var(--shadow-md), 0 0 20px rgba(13, 148, 136, 0.2);
   transform: translateY(-1px);
 }
+
 .btn-primary:active {
   transform: translateY(0);
 }
@@ -246,6 +297,7 @@ body {
   box-shadow: var(--shadow-sm);
   transition: all 0.3s ease;
 }
+
 .btn-danger:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
@@ -257,6 +309,7 @@ body {
   box-shadow: var(--shadow-sm);
   transition: all 0.3s ease;
 }
+
 .btn-warning:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
@@ -268,6 +321,7 @@ body {
   box-shadow: var(--shadow-sm);
   transition: all 0.3s ease;
 }
+
 .btn-success:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
@@ -279,6 +333,7 @@ body {
   box-shadow: var(--shadow-sm);
   transition: all 0.3s ease;
 }
+
 .btn-info:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
@@ -302,6 +357,6 @@ body {
 .mesh-grid {
   background-size: 40px 40px;
   background-image:
-    linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }

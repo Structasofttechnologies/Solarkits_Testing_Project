@@ -103,9 +103,6 @@ export default function DeveloperEmailDispatchersPage() {
         email_provider: activeProviderTab,
         provider: activeProviderTab
       };
-      if (activeProviderTab === 'resend') {
-        delete payload.resend_api_key;
-      }
 
       if (editingId) {
         await axios.put(`${MARKETING_BASE}/senders/${editingId}`, payload, { headers: authHeaderObj() });
@@ -249,13 +246,12 @@ export default function DeveloperEmailDispatchersPage() {
 
       {feedback && (
         <div
-          className={`p-4 rounded-2xl border text-sm font-semibold flex items-center gap-2 ${
-            feedback.type === 'error'
+          className={`p-4 rounded-2xl border text-sm font-semibold flex items-center gap-2 ${feedback.type === 'error'
               ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
               : feedback.type === 'info'
-              ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200'
-              : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
-          }`}
+                ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200'
+                : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+            }`}
         >
           {feedback.type === 'error' ? <FaExclamationTriangle className="shrink-0" /> : <FaCheckCircle className="shrink-0" />}
           <span>{feedback.text}</span>
@@ -392,27 +388,24 @@ export default function DeveloperEmailDispatchersPage() {
           <button
             type="button"
             onClick={() => handleProviderChange('resend')}
-            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${
-              activeProviderTab === 'resend' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500'
-            }`}
+            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${activeProviderTab === 'resend' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500'
+              }`}
           >
             <SiResend className="w-3.5 h-3.5" /> Resend API
           </button>
           <button
             type="button"
             onClick={() => handleProviderChange('aws_ses')}
-            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${
-              activeProviderTab === 'aws_ses' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-xs' : 'text-slate-500'
-            }`}
+            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${activeProviderTab === 'aws_ses' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-xs' : 'text-slate-500'
+              }`}
           >
             <FaAws className="w-4 h-4 text-amber-500" /> AWS SES
           </button>
           <button
             type="button"
             onClick={() => handleProviderChange('smtp')}
-            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${
-              activeProviderTab === 'smtp' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs' : 'text-slate-500'
-            }`}
+            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${activeProviderTab === 'smtp' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs' : 'text-slate-500'
+              }`}
           >
             <FaServer className="w-3.5 h-3.5 text-blue-500" /> Custom SMTP
           </button>
@@ -471,29 +464,51 @@ export default function DeveloperEmailDispatchersPage() {
             </div>
 
             {activeProviderTab === 'resend' && (
-              <div className="md:col-span-2 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                <div className="flex items-start gap-2">
-                  <FaInfoCircle className="text-indigo-500 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-bold text-slate-800 dark:text-slate-100">
-                      Resend API Key is read directly from Backend <code className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">.env</code> (<code className="font-mono">RESEND_API_KEY</code>)
-                    </p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      Save your verified <code className="font-mono">@solarkits.in</code> sender identity here, then click <strong>Test Send</strong> in the active senders list above.
-                    </p>
+              <div className="md:col-span-2 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 space-y-3 text-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-start gap-2">
+                    <FaInfoCircle className="text-indigo-500 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-bold text-slate-800 dark:text-slate-100">
+                        Resend API Key (Saved Encrypted in DB or Backend <code className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">.env</code> <code className="font-mono">RESEND_API_KEY</code>)
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        {resendEnvConfigured
+                          ? 'Server .env RESEND_API_KEY is configured. Paste a key below only for a per-sender override.'
+                          : 'Server .env key is missing on this deployment — paste your Resend API key (re_...) below OR set RESEND_API_KEY in Render Environment Variables.'}
+                      </p>
+                    </div>
                   </div>
+                  {resendEnvConfigured !== null && (
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold shrink-0 ${resendEnvConfigured
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                          : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                        }`}
+                    >
+                      {resendEnvConfigured ? '.env Key Configured' : '.env Key Missing'}
+                    </span>
+                  )}
                 </div>
-                {resendEnvConfigured !== null && (
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold shrink-0 ${
-                      resendEnvConfigured
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                        : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
-                    }`}
-                  >
-                    {resendEnvConfigured ? '.env Key Configured' : '.env Key Missing'}
-                  </span>
-                )}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    Resend API Key {resendEnvConfigured ? '(Optional override)' : '*'}
+                  </label>
+                  <input
+                    type="password"
+                    placeholder={
+                      editingId && formData.resend_api_key
+                        ? 'Leave masked to keep saved DB key'
+                        : resendEnvConfigured
+                          ? 'Leave blank to use Backend .env RESEND_API_KEY'
+                          : 're_xxxxxxxxxxxxxxxxxxxxxxxxxx'
+                    }
+                    value={formData.resend_api_key}
+                    onChange={(e) => setFormData({ ...formData, resend_api_key: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono"
+                    required={!resendEnvConfigured && !editingId}
+                  />
+                </div>
               </div>
             )}
 

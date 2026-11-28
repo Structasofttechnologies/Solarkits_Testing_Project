@@ -70,12 +70,12 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
   const isGovtTenderUrl = urlFilter === "govt-tender" || urlFilter === "govt_tender" || urlTender === "true";
 
   const [filters, setFilters] = useState({
- 
+
     capacityKW: "all",
     industryType: urlIndustry || "all",
     category: urlCategory || "all",
     govtTender: isGovtTenderUrl ? "govt_tender_only" : "all",
- 
+
     subCategory: "all",
     systemType: "all",
     subProjectType: "all",
@@ -99,7 +99,7 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
     batteryCapacity: "all",
   });
 
- 
+
   useEffect(() => {
     if (urlIndustry) {
       setFilters((prev) => ({ ...prev, industryType: urlIndustry }));
@@ -122,8 +122,16 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
     }
   }, [urlIndustry, urlCategory, urlCapacity, urlSearch, isGovtTenderUrl]);
 
+  // Track URL params already auto-opened so closing the modal keeps it closed
+  const autoOpenedCapRef = useRef("");
+  const autoOpenedKitRef = useRef("");
+
   useEffect(() => {
-    if (urlCapacity && availableKits.length > 0 && !selected) {
+    if (!urlCapacity) {
+      autoOpenedCapRef.current = "";
+      return;
+    }
+    if (availableKits.length > 0 && autoOpenedCapRef.current !== urlCapacity) {
       const num = parseFloat(urlCapacity);
       const match = availableKits.find((k) => {
         const cap = parseFloat(k.capacityKW || k.system_capacity || k.capacity);
@@ -132,22 +140,28 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
         return name.includes(num + " kw") || name.includes(num + "kw") || name.includes(num + " k.w.");
       });
       if (match) {
+        autoOpenedCapRef.current = urlCapacity;
         setSelected(String(match.id));
       }
     }
-  }, [urlCapacity, availableKits, selected]);
+  }, [urlCapacity, availableKits]);
 
   useEffect(() => {
-    if (urlKitId && availableKits.length > 0) {
+    if (!urlKitId) {
+      autoOpenedKitRef.current = "";
+      return;
+    }
+    if (availableKits.length > 0 && autoOpenedKitRef.current !== urlKitId) {
       const match = availableKits.find(
         (k) => String(k.id) === String(urlKitId) || String(k._id) === String(urlKitId)
       );
       if (match) {
+        autoOpenedKitRef.current = urlKitId;
         setSelected(String(match.id));
       }
     }
   }, [urlKitId, availableKits]);
- 
+
   // Synchronize sidebar capacity dropdown with selectedCapacity state
   useEffect(() => {
     if (filters.capacityKW && filters.capacityKW !== "all") {
@@ -159,7 +173,7 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
       setSelectedCapacity(null);
     }
   }, [filters.capacityKW]);
- 
+
 
   const selectedDistrict = useSelector((state) => state.slice?.selectedDistrict);
   const selectedState = useSelector((state) => state.slice?.selectedState);
@@ -1178,12 +1192,12 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
                           : key === "popularKits"
                             ? "Popular Kits"
                             : key === "govtTender"
-                              ? "Govt Tender" 
-                            : key === "frequencyBuyer"
-                              ? "Frequency Buyer"
-                              : key === "pricePerKw"
-                                ? "Price Per Kw"
-                                : key.replace(/([A-Z])/g, " $1").replace(/^./, str => str.toUpperCase())
+                              ? "Govt Tender"
+                              : key === "frequencyBuyer"
+                                ? "Frequency Buyer"
+                                : key === "pricePerKw"
+                                  ? "Price Per Kw"
+                                  : key.replace(/([A-Z])/g, " $1").replace(/^./, str => str.toUpperCase())
                       }
                       options={key === "comboKitType" ? getDropdownOptions(key) : (options[key] || getDropdownOptions(key))}
                       value={filters[key]}
@@ -1635,12 +1649,12 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
                         : key === "popularKits"
                           ? "Popular Kits"
                           : key === "govtTender"
-                            ? "Govt Tender" 
-                          : key === "frequencyBuyer"
-                            ? "Frequency Buyer"
-                            : key === "pricePerKw"
-                              ? "Price Per Kw"
-                              : key.replace(/([A-Z])/g, " $1").replace(/^./, str => str.toUpperCase())
+                            ? "Govt Tender"
+                            : key === "frequencyBuyer"
+                              ? "Frequency Buyer"
+                              : key === "pricePerKw"
+                                ? "Price Per Kw"
+                                : key.replace(/([A-Z])/g, " $1").replace(/^./, str => str.toUpperCase())
                     }
                     options={key === "comboKitType" ? getDropdownOptions(key) : (options[key] || getDropdownOptions(key))}
                     value={filters[key]}
@@ -1698,11 +1712,10 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
                     setSelectedCapacity(null);
                     setFilters(prev => ({ ...prev, capacityKW: "all" }));
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                    (selectedCapacity === null && (!filters.capacityKW || filters.capacityKW === "all"))
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${(selectedCapacity === null && (!filters.capacityKW || filters.capacityKW === "all"))
                       ? "bg-primary text-white shadow-xs"
                       : "bg-surface-hover text-text-secondary hover:text-text-primary border border-border/60"
-                  }`}
+                    }`}
                 >
                   All Capacities
                 </button>
@@ -1717,11 +1730,10 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
                         setSelectedCapacity(newCap);
                         setFilters(prev => ({ ...prev, capacityKW: newCap !== null ? String(newCap) : "all" }));
                       }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-                        isSelected
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${isSelected
                           ? "bg-primary text-white shadow-xs"
                           : "bg-surface-hover text-text-secondary hover:text-text-primary border border-border/60"
-                      }`}
+                        }`}
                     >
                       <span>{cap.label}</span>
                       {cap.units && (
