@@ -41,10 +41,15 @@ const schema = new mongoose.Schema(
 
     // Dynamic variable tokens: e.g. ['{{name}}', '{{company}}', '{{kit_name}}', '{{price}}']
     dynamic_variables: [{ type: String }],
+    blocks_json: { type: mongoose.Schema.Types.Mixed, default: null },
+    thumbnail_url: { type: String, default: null },
 
     sent_count: { type: Number, default: 0 },
     opened_or_read_count: { type: Number, default: 0 },
     click_count: { type: Number, default: 0 },
+    last_tested_at: { type: Date, default: null },
+    last_test_target: { type: String, default: null },
+    last_error: { type: String, default: null },
 
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'cms_users', default: null }
   },

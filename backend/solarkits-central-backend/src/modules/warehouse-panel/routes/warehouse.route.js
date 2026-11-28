@@ -81,6 +81,8 @@ router.post('/delivery-orders/:id/initiate-dispatch', check_auth, delivery_order
 router.post('/delivery-orders/:id/send-otp', check_auth, delivery_order_handler.send_customer_otp);
 router.post('/delivery-orders/:id/verify-otp', check_auth, delivery_order_handler.verify_customer_otp);
 router.post('/delivery-orders/:id/complete-manual', check_auth, delivery_order_handler.complete_manual_delivery);
+router.get('/delivery-orders/:id/documents', check_auth, delivery_order_handler.get_order_delivery_documents);
+router.post('/delivery-orders/:id/documents', check_auth, delivery_order_handler.save_order_delivery_document);
 router.post('/delivery-orders/:id/claim-incoming-shipment', check_auth, delivery_order_handler.claim_incoming_shipment);
 router.post('/delivery-orders/upload-evidence', check_auth, upload_files('public/uploads/delivery_evidence', 20, 'file', 1), (req, res) => {
   if (req.files && req.files[0]) {

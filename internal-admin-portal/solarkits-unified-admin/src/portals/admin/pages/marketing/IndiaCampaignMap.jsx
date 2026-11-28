@@ -16,9 +16,10 @@ import {
   fetchLiveClusters,
   fetchLiveWarehouses,
   fetchLiveActiveStates,
-  fetchMarketingTerritoryMap,
-  getQuotaState
+  fetchLiveQueueStatus,
+  fetchMarketingTerritoryMap
 } from './services/marketingDataService';
+import { marketingHttp } from './services/marketingApi';
 
 const clean = (s) =>
   String(s || '')
@@ -44,7 +45,7 @@ export default function IndiaCampaignMap() {
   const [clustersList, setClustersList] = useState([]);
   const [warehousesList, setWarehousesList] = useState([]);
   const [activeStatesList, setActiveStatesList] = useState([]);
-  const [quota, setQuota] = useState(() => getQuotaState());
+  const [queueStatus, setQueueStatus] = useState(null);
 
   // Filters
   const [channelFilter, setChannelFilter] = useState('ALL');
@@ -69,16 +70,10 @@ export default function IndiaCampaignMap() {
   const width = 800;
   const height = 750;
 
-  useEffect(() => {
-    const handleQuotaUpdate = () => setQuota(getQuotaState());
-    window.addEventListener('solarkits-quota-updated', handleQuotaUpdate);
-    return () => window.removeEventListener('solarkits-quota-updated', handleQuotaUpdate);
-  }, []);
-
   const loadLiveTerritory = useCallback(async () => {
     setLoadingMapData(true);
     try {
-      const [tData, cList, wList, sList] = await Promise.all([
+      const [tData, cList, wList, sList, qStat] = await Promise.all([
         fetchMarketingTerritoryMap({
           type: channelFilter !== 'ALL' ? channelFilter.toLowerCase() : undefined,
           objective: objectiveFilter !== 'ALL' ? objectiveFilter : undefined,
@@ -86,12 +81,14 @@ export default function IndiaCampaignMap() {
         }),
         fetchLiveClusters().catch(() => []),
         fetchLiveWarehouses().catch(() => []),
-        fetchLiveActiveStates().catch(() => [])
+        fetchLiveActiveStates().catch(() => []),
+        fetchLiveQueueStatus().catch(() => null)
       ]);
       if (tData) setMapPayload(tData);
       if (Array.isArray(cList)) setClustersList(cList);
       if (Array.isArray(wList)) setWarehousesList(wList);
       if (Array.isArray(sList)) setActiveStatesList(sList);
+      if (qStat) setQueueStatus(qStat);
     } catch (err) {
       console.error('Failed loading live India campaign map:', err.message);
     } finally {
@@ -350,9 +347,9 @@ export default function IndiaCampaignMap() {
         <div className="flex items-center gap-3">
           <div className="px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs flex items-center gap-2 border border-slate-700 shadow-xs">
             <FaCoins className="text-amber-400" />
-            <span>Quota Balance:</span>
-            <strong className="text-emerald-400">{(quota?.available ?? 0).toLocaleString()}</strong>
-            <span className="text-slate-400">/ {(quota?.total ?? 0).toLocaleString()}</span>
+            <span>Dispatch Queue:</span>
+            <strong className="text-emerald-400">{queueStatus?.stats?.totalSent || 0} Sent</strong>
+            <span className="text-slate-400">/ {queueStatus?.pendingInQueue || 0} Pending</span>
           </div>
 
           <button
@@ -491,7 +488,7 @@ export default function IndiaCampaignMap() {
               onChange={(e) => setSelectedState(e.target.value)}
               className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-hidden"
             >
-              <option value="">All India</option>
+              <option value="">All India ({dynamicStatesDropdown.length} States)</option>
               {dynamicStatesDropdown.map((stName) => (
                 <option key={stName} value={stName}>{stName}</option>
               ))}

@@ -237,6 +237,33 @@ export const deliveryApi = {
     const res = await axios.post(`${API_BASE}/delivery-management/tracking/${id}/stops/${stopNumber}/pod`, data, getHeaders());
     return res.data;
   },
+  uploadDeliveryDocumentFile: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await axios.post(`${API_BASE}/delivery-management/upload-document`, formData, {
+      headers: {
+        ...authHeaderObj(),
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return res.data;
+  },
+  getDeliveryOrderDocuments: async (orderId, stopIndex = 0) => {
+    const res = await axios.get(`${API_BASE}/delivery-document-settings/order-docs/${orderId}?stop_index=${stopIndex}`, getHeaders());
+    return res.data;
+  },
+  saveDeliveryOrderDocument: async (orderId, data) => {
+    const res = await axios.post(`${API_BASE}/delivery-document-settings/order-docs/${orderId}`, data, getHeaders());
+    return res.data;
+  },
+  sendStopOtp: async (tripId, stopNumber) => {
+    const res = await axios.post(`${API_BASE}/delivery-management/tracking/${tripId}/stops/${stopNumber}/send-otp`, {}, getHeaders());
+    return res.data;
+  },
+  verifyStopDual: async (tripId, stopNumber, data) => {
+    const res = await axios.post(`${API_BASE}/delivery-management/tracking/${tripId}/stops/${stopNumber}/verify-dual`, data, getHeaders());
+    return res.data;
+  },
 
   // ── 12. Dashboard & Analytics ──
   getDashboardAnalytics: async (warehouseId = null) => {

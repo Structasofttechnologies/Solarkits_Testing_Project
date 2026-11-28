@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 
 const check_auth = require('../middlewares/check.auth');
+const { upload_files } = require('../utils/upload.files');
 const handler = require('../controller/delivery.management.handler');
 
 // ─── 1. Vehicle Master Endpoints ─────────────────────────────────────────────
@@ -71,6 +72,14 @@ router.get('/tracking', check_auth, handler.get_tracking_list);
 router.get('/tracking/:id', check_auth, handler.get_trip_details);
 router.post('/tracking/:id/status', check_auth, handler.update_trip_status);
 router.post('/tracking/:id/stops/:stopNumber/pod', check_auth, handler.confirm_stop_pod);
+router.post('/tracking/:id/stops/:stopNumber/send-otp', check_auth, handler.send_stop_otp);
+router.post('/tracking/:id/stops/:stopNumber/verify-dual', check_auth, handler.verify_stop_dual);
+router.post('/upload-document', check_auth, upload_files('public/uploads/delivery_documents', 20, 'file', 1), (req, res) => {
+  if (req.files && req.files[0]) {
+    return res.status(200).json({ status: 'success', url: req.files[0].path });
+  }
+  return res.status(400).json({ status: 'error', message: 'No file uploaded.' });
+});
 
 // ─── 12. Sanitized Public/Customer Tracking ───────────────────────────────────
 router.get('/public/track/:trackingRef', handler.get_public_tracking);

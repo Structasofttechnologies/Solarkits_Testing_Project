@@ -36,13 +36,13 @@ import { MdTrendingUp, MdVisibility } from 'react-icons/md';
 import IndiaCampaignMap from './IndiaCampaignMap';
 import SegmentGroupAnalyticsPage from './SegmentGroupAnalyticsPage';
 import {
-  API_BASE_URL,
-  getQuotaState,
-  rechargeQuota,
   fetchLiveActiveStates,
   fetchLiveClusters,
+  fetchLiveQueueStatus,
+  toggleLiveCoupon,
   fetchMarketingDashboardAnalytics
 } from './services/marketingDataService';
+import { marketingHttp } from './services/marketingApi';
 
 const EMPTY_DASHBOARD_DATA = {
   summary: {
@@ -51,6 +51,7 @@ const EMPTY_DASHBOARD_DATA = {
     successfulCampaignsCount: 0,
     totalSent: 0,
     totalDelivered: 0,
+    totalFailed: 0,
     totalRead: 0,
     totalClicks: 0,
     totalVisits: 0,
@@ -81,8 +82,8 @@ const EMPTY_DASHBOARD_DATA = {
     segmentRevenueInr: 0
   },
   channels: {
-    email: { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0 },
-    whatsapp: { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0 }
+    email: { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0, failed: 0 },
+    whatsapp: { sent: 0, delivered: 0, read: 0, clicks: 0, visits: 0, leads: 0, conversions: 0, failed: 0 }
   },
   funnel: [],
   campaignsRanking: [],
@@ -94,22 +95,21 @@ export default function MarketingDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [dashboardTab, setDashboardTab] = useState('analytics'); // 'analytics' | 'segment-analytics' | 'map'
-  const [quota, setQuota] = useState(() => getQuotaState());
-  const [showRechargeModal, setShowRechargeModal] = useState(false);
-  const [rechargeAmount, setRechargeAmount] = useState(5000);
+  const [queueStatus, setQueueStatus] = useState(null);
   const [copiedCode, setCopiedCode] = useState(null);
 
-  // Live dynamic states & clusters from Admin Panel DB (zero static seed)
+  // Live dynamic states & clusters from MongoDB
   const [liveStates, setLiveStates] = useState([]);
   const [liveClusters, setLiveClusters] = useState([]);
 
   useEffect(() => {
     let isMounted = true;
-    Promise.all([fetchLiveActiveStates(), fetchLiveClusters()]).then(([sList, cList]) => {
+    Promise.all([fetchLiveActiveStates(), fetchLiveClusters(), fetchLiveQueueStatus()]).then(([sList, cList, qStat]) => {
       if (!isMounted) return;
       if (Array.isArray(sList)) setLiveStates(sList);
       if (Array.isArray(cList)) setLiveClusters(cList);
-    }).catch(err => console.warn('Dashboard filters notice:', err.message));
+      if (qStat) setQueueStatus(qStat);
+    }).catch((err) => console.warn('Dashboard metadata notice:', err.message));
     return () => { isMounted = false; };
   }, []);
 
@@ -119,25 +119,21 @@ export default function MarketingDashboard() {
   const [filterEpcType, setFilterEpcType] = useState('ALL');
   const [filterChannel, setFilterChannel] = useState('ALL');
 
-  useEffect(() => {
-    const handleUpdate = () => {
-      setQuota(getQuotaState());
-    };
-    window.addEventListener('solarkits-quota-updated', handleUpdate);
-    return () => window.removeEventListener('solarkits-quota-updated', handleUpdate);
-  }, []);
-
   const [data, setData] = useState(EMPTY_DASHBOARD_DATA);
 
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const liveData = await fetchMarketingDashboardAnalytics();
-      if (liveData) {
-        setData(liveData);
+      const [res, qStat] = await Promise.all([
+        marketingHttp.get('/analytics'),
+        fetchLiveQueueStatus()
+      ]);
+      if (res.data?.success && res.data?.data) {
+        setData(res.data.data);
       }
+      if (qStat) setQueueStatus(qStat);
     } catch (err) {
-      console.error('Failed fetching live marketing analytics:', err.message);
+      console.warn('Analytics load error:', err.message);
     } finally {
       setLoading(false);
     }
@@ -152,11 +148,11 @@ export default function MarketingDashboard() {
   // Rank Sorted Campaigns
   const rankedCampaigns = useMemo(() => {
     const list = [...(data.campaignsRanking || [])];
-    list.sort((a, b) => (b.revenue || 0) - (a.revenue || 0));
+    list.sort((a, b) => (b.revenue || b.sent || 0) - (a.revenue || a.sent || 0));
 
-    return list.filter(item => {
-      const matchesState = filterState === 'ALL' || (item.state || '').toLowerCase() === filterState.toLowerCase();
-      const matchesCluster = filterCluster === 'ALL' || (item.cluster || '').toLowerCase().includes(filterCluster.toLowerCase());
+    return list.filter((item) => {
+      const matchesState = filterState === 'ALL' || !item.state || (item.state || '').toLowerCase() === filterState.toLowerCase();
+      const matchesCluster = filterCluster === 'ALL' || !item.cluster || (item.cluster || '').toLowerCase().includes(filterCluster.toLowerCase());
       const matchesChannel = filterChannel === 'ALL' || item.channel === filterChannel;
       return matchesState && matchesCluster && matchesChannel;
     });
@@ -165,7 +161,7 @@ export default function MarketingDashboard() {
   // Filtered Territory Performance
   const filteredTerritories = useMemo(() => {
     const list = [...(data.epcTerritoryPerformance || [])];
-    return list.filter(item => {
+    return list.filter((item) => {
       const matchesState = filterState === 'ALL' || (item.state || '').toLowerCase() === filterState.toLowerCase();
       const matchesCluster = filterCluster === 'ALL' || (item.cluster || '').toLowerCase().includes(filterCluster.toLowerCase());
       const matchesType = filterEpcType === 'ALL' || item.dominantType === filterEpcType;
@@ -184,10 +180,13 @@ export default function MarketingDashboard() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const handleQuickRecharge = () => {
-    rechargeQuota(Number(rechargeAmount));
-    setQuota(getQuotaState());
-    setShowRechargeModal(false);
+  const handleCouponToggle = async (couponId) => {
+    try {
+      await toggleLiveCoupon(couponId);
+      await fetchAnalytics();
+    } catch (err) {
+      console.warn('Toggle coupon notice:', err.message);
+    }
   };
 
   return (
@@ -207,20 +206,14 @@ export default function MarketingDashboard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Live Quota Pill with Recharge Action */}
-          <div className="flex items-center gap-1.5">
-            <div className="px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs flex items-center gap-2 border border-slate-700 shadow-xs">
-              <FaCoins className="text-amber-400" />
-              <span>Message Wallet:</span>
-              <strong className="text-emerald-400">{(quota?.available ?? 0).toLocaleString('en-IN')} Available</strong>
-              <span className="text-slate-400">/ {(quota?.totalQuota || quota?.total || 15000).toLocaleString('en-IN')}</span>
-            </div>
-            <button
-              onClick={() => setShowRechargeModal(true)}
-              className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer"
-            >
-              <FaPlus className="w-3 h-3" /> Recharge
-            </button>
+          {/* Live Queue Pill */}
+          <div className="px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs flex items-center gap-2 border border-slate-700 shadow-xs">
+            <FaCoins className="text-amber-400" />
+            <span>Dispatch Queue:</span>
+            <strong className="text-emerald-400">{queueStatus?.stats?.totalSent || 0} Sent</strong>
+            <span className="text-slate-400">
+              • {queueStatus?.pendingInQueue || 0} Pending • {queueStatus?.stats?.totalFailed || 0} Failed
+            </span>
           </div>
 
           {/* Dashboard View Switcher */}
@@ -285,7 +278,7 @@ export default function MarketingDashboard() {
       ) : (
         <>
           {/* ── Executive Numbers Cards (100% Dynamic Live DB Metrics) ── */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
             
             {/* 1. Active Campaigns */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700 shadow-xs hover:border-indigo-500/50 transition-all">
@@ -294,10 +287,10 @@ export default function MarketingDashboard() {
                 <FaBullhorn className="text-indigo-500" />
               </div>
               <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                {s.activeCampaigns || 0} <span className="text-xs font-normal text-slate-400">/ {s.totalCampaigns || 0} Total</span>
+                {s.activeCampaigns ?? 0} <span className="text-xs font-normal text-slate-400">/ {s.totalCampaigns ?? 0} Total</span>
               </div>
               <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1 flex items-center gap-1">
-                <MdTrendingUp /> {s.totalDelivered || 0} Messages Delivered
+                <MdTrendingUp /> {s.totalSent ?? 0} Messages Dispatched
               </div>
             </div>
 
@@ -308,12 +301,12 @@ export default function MarketingDashboard() {
                 <FaUsers className="text-blue-500" />
               </div>
               <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                {(s.totalEpcs || 0).toLocaleString('en-IN')}
+                {(s.totalEpcs ?? 0).toLocaleString('en-IN')}
               </div>
               <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
-                <span className="text-emerald-600 font-bold">{(s.buyerEpcs || 0).toLocaleString('en-IN')} B</span> • 
-                <span className="text-blue-600 font-bold">{(s.verifiedEpcs || 0).toLocaleString('en-IN')} V</span> • 
-                <span className="text-amber-500 font-bold">{(s.registeredEpcs || 0).toLocaleString('en-IN')} R</span>
+                <span className="text-emerald-600 font-bold">{(s.buyerEpcs ?? 0).toLocaleString('en-IN')} B</span> • 
+                <span className="text-blue-600 font-bold">{(s.verifiedEpcs ?? 0).toLocaleString('en-IN')} V</span> • 
+                <span className="text-amber-500 font-bold">{(s.registeredEpcs ?? 0).toLocaleString('en-IN')} R</span>
               </div>
             </div>
 
@@ -324,14 +317,28 @@ export default function MarketingDashboard() {
                 <FaGift className="text-amber-500" />
               </div>
               <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                {s.activeCouponsCount || 0} <span className="text-xs font-normal text-slate-400">/ {s.totalCouponsCount || 0}</span>
+                {s.activeCouponsCount ?? 0} <span className="text-xs font-normal text-slate-400">/ {s.totalCouponsCount ?? 0}</span>
               </div>
               <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">
-                {displayCoupons.reduce((acc, c) => acc + (c.redemptionsCount || 0), 0).toLocaleString('en-IN')} Total Redemptions
+                {displayCoupons.reduce((acc, c) => acc + (c.redemptionsCount || 0), 0).toLocaleString('en-IN')} Redemptions
               </div>
             </div>
 
-            {/* 4. Segment Groups Impact */}
+            {/* 4. Completed Campaigns */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700 shadow-xs hover:border-emerald-500/50 transition-all">
+              <div className="flex items-center justify-between text-slate-400 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Completed Campaigns</span>
+                <FaTrophy className="text-emerald-500" />
+              </div>
+              <div className="text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
+                {s.successfulCampaignsCount ?? 0} <span className="text-xs font-normal text-slate-400">Finished</span>
+              </div>
+              <div className="text-xs text-emerald-600 font-semibold mt-1">
+                {s.deliveryRate ?? '0.0'}% Delivery • {s.totalFailed ?? 0} Failed
+              </div>
+            </div>
+
+            {/* 5. Segment Groups Impact */}
             <div
               onClick={() => setDashboardTab('segment-analytics')}
               className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-violet-200/80 dark:border-violet-800 shadow-xs hover:border-violet-500 transition-all cursor-pointer"
@@ -344,35 +351,35 @@ export default function MarketingDashboard() {
                 {(s.segmentLeadsUploaded || 0).toLocaleString('en-IN')} <span className="text-xs font-normal text-slate-400">Leads</span>
               </div>
               <div className="text-[11px] text-violet-600 dark:text-violet-400 font-semibold mt-1">
-                {s.segmentRegistered || 0} Reg • {s.segmentBuyers || 0} Buyers → View Analytics
+                {s.segmentRegistered || 0} Reg • {s.segmentBuyers || 0} Buyers
               </div>
             </div>
 
-            {/* 5. Active States & Clusters */}
+            {/* 6. Active States & Clusters */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700 shadow-xs hover:border-violet-500/50 transition-all">
               <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider">Active Clusters</span>
                 <FaMapMarkedAlt className="text-violet-500" />
               </div>
               <div className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                {s.activeClustersCount ?? liveClusters.length ?? 0} <span className="text-xs font-normal text-slate-400">Clusters</span>
+                {liveClusters.length || s.activeClustersCount || 0} <span className="text-xs font-normal text-slate-400">Clusters</span>
               </div>
               <div className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold mt-1">
-                Across {s.activeStatesCount || liveStates.length || 0} Active States
+                Across {liveStates.length || s.activeStatesCount || 0} States
               </div>
             </div>
 
-            {/* 6. Total Sales Booked */}
+            {/* 7. Total Sales Booked */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-emerald-500/40 dark:border-emerald-600/40 shadow-xs bg-gradient-to-br from-emerald-50/30 to-white dark:from-emerald-950/20 dark:to-slate-800">
               <div className="flex items-center justify-between text-slate-400 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Total Sales Booked</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Attributed Revenue</span>
                 <FaFunnelDollar className="text-emerald-600" />
               </div>
               <div className="text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300">
-                ₹{((s.totalRevenue || 0) / 100000).toFixed(2)}L
+                ₹{((s.totalRevenue ?? 0) / 100000).toFixed(2)}L
               </div>
               <div className="text-xs text-emerald-700 dark:text-emerald-400 font-bold mt-1">
-                {s.totalConversions || 0} Conversions
+                {s.totalConversions ?? 0} Conversions • {s.totalClicks ?? 0} Clicks
               </div>
             </div>
 
@@ -626,69 +633,64 @@ export default function MarketingDashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {displayCoupons.length === 0 ? (
-                <div className="col-span-full py-8 text-center text-xs text-slate-400 font-semibold border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
-                  No active promo coupon codes configured in Offer Master or Campaigns yet.
+                <div className="col-span-full py-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                  No coupon offers in OfferMaster yet. Click "Create New Coupon Code" to add one.
                 </div>
-              ) : displayCoupons.map((coupon) => {
-                const isCopied = copiedCode === coupon.code;
-                return (
-                  <div
-                    key={coupon.code}
-                    className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/80 hover:border-amber-500/50 transition-all flex flex-col justify-between space-y-3"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 font-mono font-black text-xs border border-amber-300 dark:border-amber-800">
-                            {coupon.code}
-                          </span>
+              ) : (
+                displayCoupons.map((coupon) => {
+                  const isCopied = copiedCode === coupon.code;
+                  return (
+                    <div
+                      key={coupon._id || coupon.code}
+                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/80 hover:border-amber-500/50 transition-all flex flex-col justify-between space-y-3"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 font-mono font-black text-xs border border-amber-300 dark:border-amber-800">
+                              {coupon.code}
+                            </span>
+                            <button
+                              onClick={() => handleCopyCode(coupon.code)}
+                              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
+                              title="Copy Promo Code"
+                            >
+                              {isCopied ? <FaCheck className="text-emerald-500 w-3 h-3" /> : <FaCopy className="w-3 h-3" />}
+                            </button>
+                          </div>
                           <button
-                            onClick={() => handleCopyCode(coupon.code)}
-                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
-                            title="Copy Promo Code"
+                            type="button"
+                            onClick={() => coupon._id && handleCouponToggle(coupon._id)}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer ${
+                              coupon.status === 'Active'
+                                ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                                : 'bg-slate-200 text-slate-600'
+                            }`}
                           >
-                            {isCopied ? <FaCheck className="text-emerald-500 w-3 h-3" /> : <FaCopy className="w-3 h-3" />}
+                            {coupon.status}
                           </button>
                         </div>
 
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          coupon.status === 'Active'
-                            ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
-                            : 'bg-slate-200 text-slate-600'
-                        }`}>
-                          {coupon.status}
-                        </span>
-                      </div>
+                        <h4 className="font-extrabold text-sm text-slate-900 dark:text-white mb-0.5">{coupon.title}</h4>
+                        <p className="text-[11px] text-slate-500 mb-2">{coupon.applicableKits}</p>
 
-                      <h4 className="font-extrabold text-sm text-slate-900 dark:text-white mb-0.5">{coupon.title}</h4>
-                      <p className="text-[11px] text-slate-500 mb-2">{coupon.applicableKits}</p>
-
-                      <div className="flex items-center justify-between text-xs py-1.5 border-t border-slate-200 dark:border-slate-800">
-                        <span className="text-slate-500">Discount Benefit:</span>
-                        <strong className="text-indigo-600 dark:text-indigo-400 font-bold">{coupon.discount}</strong>
-                      </div>
-                      <div className="flex items-center justify-between text-xs py-1.5 border-t border-slate-200 dark:border-slate-800">
-                        <span className="text-slate-500">Total Redemptions:</span>
-                        <strong className="text-slate-900 dark:text-white font-bold">{coupon.redemptionsCount || 0} Orders</strong>
-                      </div>
-                      <div className="flex items-center justify-between text-xs py-1.5 border-t border-slate-200 dark:border-slate-800">
-                        <span className="text-slate-500">Revenue Generated:</span>
-                        <strong className="text-emerald-600 font-extrabold">₹{((coupon.revenueGenerated || 0) / 100000).toFixed(2)}L</strong>
+                        <div className="flex items-center justify-between text-xs py-1.5 border-t border-slate-200 dark:border-slate-800">
+                          <span className="text-slate-500">Discount Benefit:</span>
+                          <strong className="text-indigo-600 dark:text-indigo-400 font-bold">{coupon.discount}</strong>
+                        </div>
+                        <div className="flex items-center justify-between text-xs py-1.5 border-t border-slate-200 dark:border-slate-800">
+                          <span className="text-slate-500">Attributed Redemptions:</span>
+                          <strong className="text-slate-900 dark:text-white font-bold">{coupon.redemptionsCount || 0} Orders</strong>
+                        </div>
+                        <div className="flex items-center justify-between text-xs py-1.5 border-t border-slate-200 dark:border-slate-800">
+                          <span className="text-slate-500">Revenue Attributed:</span>
+                          <strong className="text-emerald-600 font-extrabold">₹{((coupon.revenueGenerated || 0) / 100000).toFixed(2)}L</strong>
+                        </div>
                       </div>
                     </div>
-
-                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                      <span className="text-[10px] text-slate-400">1 Voucher per GSTIN</span>
-                      <button
-                        onClick={() => handleCopyCode(coupon.code)}
-                        className="text-xs text-amber-600 hover:underline font-bold cursor-pointer"
-                      >
-                        {isCopied ? '✓ Copied!' : 'Copy Code'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -859,76 +861,6 @@ export default function MarketingDashboard() {
             </div>
           </div>
         </>
-      )}
-
-      {/* Quick Top-up Modal */}
-      {showRechargeModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-700 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FaCoins className="text-amber-500 w-5 h-5" />
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Top-Up Message Wallet</h3>
-              </div>
-              <button
-                onClick={() => setShowRechargeModal(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <FaTimes />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-500">
-              Current Available Balance: <strong>{(quota?.available ?? 0).toLocaleString('en-IN')} Credits</strong>. Select or enter credit package to add immediately.
-            </p>
-
-            <div className="grid grid-cols-3 gap-2">
-              {[2500, 5000, 10000].map(amt => (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => setRechargeAmount(amt)}
-                  className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                    rechargeAmount === amt
-                      ? 'border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60'
-                      : 'border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  +{amt.toLocaleString('en-IN')} Credits
-                </button>
-              ))}
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
-                Custom Credit Amount
-              </label>
-              <input
-                type="number"
-                value={rechargeAmount}
-                onChange={(e) => setRechargeAmount(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowRechargeModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleQuickRecharge}
-                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer"
-              >
-                Confirm & Add Credits
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
     </div>

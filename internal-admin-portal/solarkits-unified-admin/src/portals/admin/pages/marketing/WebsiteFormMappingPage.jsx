@@ -1,129 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { FaMousePointer, FaCheckCircle, FaUsers, FaClock, FaSave, FaSpinner, FaGlobe, FaExclamationCircle } from 'react-icons/fa';
-import axios from 'axios';
-import { authHeaderObj } from '../../app/authHeader';
-import { API_BASE_URL } from './services/marketingDataService';
-
-const DEFAULT_FORMS = [
-  {
-    _id: 'fm1',
-    form_key: 'epc_registration',
-    form_name: 'EPC Registration Form',
-    page_route: 'solarkits.in/epc-registration',
-    target_team: 'BDE Onboarding Team',
-    sla_hours: 4,
-    prevent_duplicate_days: 30,
-    auto_trigger_email: true,
-    auto_trigger_whatsapp: true,
-    total_submissions: 184,
-    total_leads_created: 172,
-    status_label: 'Live (Footer Bulk Banner)'
-  },
-  {
-    _id: 'fm2',
-    form_key: 'franchisee_enquiry',
-    form_name: 'Franchisee Enquiry Form',
-    page_route: 'solarkits.in/franchisee',
-    target_team: 'Franchisee Expansion Team',
-    sla_hours: 2,
-    prevent_duplicate_days: 60,
-    auto_trigger_email: true,
-    auto_trigger_whatsapp: true,
-    total_submissions: 92,
-    total_leads_created: 88,
-    status_label: 'Franchisee Portal'
-  },
-  {
-    _id: 'fm3',
-    form_key: 'product_enquiry',
-    form_name: 'Product Enquiry Form',
-    page_route: 'solarkits.in/products',
-    target_team: 'Sales Desk',
-    sla_hours: 6,
-    prevent_duplicate_days: 15,
-    auto_trigger_email: true,
-    auto_trigger_whatsapp: false,
-    total_submissions: 340,
-    total_leads_created: 310,
-    status_label: 'Shop & Kit Help Modals'
-  },
-  {
-    _id: 'fm4',
-    form_key: 'kit_purchase_enquiry',
-    form_name: 'Kit Purchase Enquiry Form',
-    page_route: 'solarkits.in/solar-kits',
-    target_team: 'Commercial Kit Sales',
-    sla_hours: 2,
-    prevent_duplicate_days: 30,
-    auto_trigger_email: true,
-    auto_trigger_whatsapp: true,
-    total_submissions: 260,
-    total_leads_created: 245,
-    status_label: 'Combo Kits & Margin Page'
-  },
-  {
-    _id: 'fm5',
-    form_key: 'contact_us',
-    form_name: 'Contact Us Form',
-    page_route: 'solarkits.in/contact',
-    target_team: 'General Support Desk',
-    sla_hours: 12,
-    prevent_duplicate_days: 10,
-    auto_trigger_email: true,
-    auto_trigger_whatsapp: false,
-    total_submissions: 110,
-    total_leads_created: 95,
-    status_label: 'Store Footer & WhatsApp'
-  },
-  {
-    _id: 'fm6',
-    form_key: 'dealer_registration',
-    form_name: 'Dealer Registration Form',
-    page_route: 'solarkits.in/dealer',
-    target_team: 'Channel Partner Team',
-    sla_hours: 8,
-    prevent_duplicate_days: 30,
-    auto_trigger_email: true,
-    auto_trigger_whatsapp: true,
-    total_submissions: 78,
-    total_leads_created: 72,
-    status_label: 'Dealer Portal (In Pipeline)'
-  },
-  {
-    _id: 'fm7',
-    form_key: 'demo_request',
-    form_name: 'Demo Request Form',
-    page_route: 'solarkits.in/demo',
-    target_team: 'Technical Pre-Sales',
-    sla_hours: 4,
-    prevent_duplicate_days: 30,
-    auto_trigger_email: true,
-    auto_trigger_whatsapp: true,
-    total_submissions: 45,
-    total_leads_created: 40,
-    status_label: 'Knowledge Center'
-  }
-];
+import { marketingHttp, extractApiError } from './services/marketingApi';
 
 export default function WebsiteFormMappingPage() {
-  const [forms, setForms] = useState(DEFAULT_FORMS);
+  const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState(null);
 
-  // Fetch real form mappings from backend
+  // Fetch real form mappings from backend MongoDB
   const fetchFormMappings = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE_URL}/marketing/form-mappings`, {
-        headers: authHeaderObj(),
-        timeout: 15000
-      });
-      if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+      const res = await marketingHttp.get('/form-mappings');
+      if (res.data?.success && Array.isArray(res.data.data)) {
         setForms(res.data.data);
+      } else {
+        setForms([]);
       }
     } catch (err) {
-      console.warn('Notice loading marketing form mappings from API:', err.message);
+      setSavedNotice({ type: 'error', message: extractApiError(err, 'Failed to load website form mappings from backend') });
     } finally {
       setLoading(false);
     }
@@ -149,22 +45,16 @@ export default function WebsiteFormMappingPage() {
     setSaving(true);
     setSavedNotice(null);
     try {
-      const res = await axios.put(
-        `${API_BASE_URL}/marketing/form-mappings/bulk-update`,
-        { mappings: forms },
-        { headers: authHeaderObj(), timeout: 15000 }
-      );
+      const res = await marketingHttp.put('/form-mappings/bulk-update', { mappings: forms });
       if (res.data?.success) {
-        setSavedNotice({ type: 'success', message: '✓ Website form mappings and SLA routing saved to database!' });
+        setSavedNotice({ type: 'success', message: 'Website form mappings and SLA routing saved to database.' });
       } else {
-        setSavedNotice({ type: 'success', message: '✓ Website form mappings updated successfully!' });
+        setSavedNotice({ type: 'error', message: res.data?.message || 'Save rejected by server.' });
       }
     } catch (err) {
-      console.warn('Fallback save notification:', err.message);
-      setSavedNotice({ type: 'success', message: '✓ Website form mappings and SLA routing saved successfully!' });
+      setSavedNotice({ type: 'error', message: extractApiError(err, 'Failed to save website form mappings') });
     } finally {
       setSaving(false);
-      setTimeout(() => setSavedNotice(null), 4000);
     }
   };
 
@@ -203,8 +93,12 @@ export default function WebsiteFormMappingPage() {
       </div>
 
       {savedNotice && (
-        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 text-emerald-800 dark:text-emerald-200 text-sm font-semibold flex items-center gap-2">
-          <FaCheckCircle className="text-emerald-500" />
+        <div className={`p-4 rounded-2xl border text-sm font-semibold flex items-center gap-2 ${
+          savedNotice.type === 'error'
+            ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 text-rose-800 dark:text-rose-200'
+            : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 text-emerald-800 dark:text-emerald-200'
+        }`}>
+          {savedNotice.type === 'error' ? <FaExclamationCircle className="text-rose-500" /> : <FaCheckCircle className="text-emerald-500" />}
           <span>{savedNotice.message}</span>
         </div>
       )}

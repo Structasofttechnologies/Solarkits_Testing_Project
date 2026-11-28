@@ -83,6 +83,7 @@ const KitDisplayChecklist = lazy(() => import("../pages/solar-shop/order-managem
 const OrderOverdueSettings = lazy(() => import("../pages/solar-shop/order-management-settings/OrderOverdueSettings"));
 const OrderJourneyDashboard = lazy(() => import("../pages/solar-shop/order-management-settings/OrderJourneyDashboard"));
 const InvoiceDoSettings = lazy(() => import("../pages/solar-shop/order-management-settings/InvoiceDoSettings"));
+const DeliveryDocumentsSettings = lazy(() => import("../pages/solar-shop/order-management-settings/DeliveryDocumentsSettings"));
 const AdminOrderApprovalDashboard = lazy(() => import("../pages/solar-shop/order-approvals/AdminOrderApprovalDashboard"));
 const AccountingOverview = lazy(() => import("../pages/accounting/AccountingOverview"));
 const AccountingModule = lazy(() => import("../../accounts/pages/accounting/AccountingModule"));
@@ -305,6 +306,13 @@ const menus = [
                     path: "/admin-panel/solar-shop/delivery-management/approval-queue",
                     unique_id: "ADM_DELIVERY_MGMT",
                     badgeKey: "approval-queue"
+                },
+                {
+                    name: "9. Delivery Documents Settings",
+                    icon: <FiSliders />,
+                    path: "/admin-panel/solar-shop/delivery-management/documents-settings",
+                    unique_id: "ADM_DELIVERY_MGMT",
+                    badgeKey: "delivery-docs"
                 }
             ]
         },
@@ -398,13 +406,24 @@ const menus = [
                     unique_id: "ADM_ORDER_SETTINGS",
                     badgeKey: "overdue-settings"
                 },
-                // {
-                //     name: "Order Journey Dashboard",
-                //     icon: <FiBarChart2 />,
-                //     path: "/admin-panel/solar-shop/order-management-settings/journey-dashboard",
-                //     unique_id: "ADM_ORDER_SETTINGS"
-                // },
-
+                {
+                    name: "Order Journey Dashboard",
+                    icon: <FiBarChart2 />,
+                    path: "/admin-panel/solar-shop/order-management-settings/journey-dashboard",
+                    unique_id: "ADM_ORDER_SETTINGS"
+                },
+                {
+                    name: "Invoice & DO Settings",
+                    icon: <FaFileInvoiceDollar />,
+                    path: "/admin-panel/solar-shop/order-management-settings/invoice-do-settings",
+                    unique_id: "ADM_ORDER_SETTINGS"
+                },
+                {
+                    name: "Delivery Documents Settings",
+                    icon: <FaFileInvoiceDollar />,
+                    path: "/admin-panel/solar-shop/order-management-settings/delivery-documents-settings",
+                    unique_id: "ADM_ORDER_SETTINGS"
+                }
             ]
         },
         // ── Trial Kit Management Module ─────────────────────────────────────
@@ -1404,6 +1423,16 @@ export default function SolarShopDashboard() {
                                         }
                                     />
                                     <Route
+                                        path="/order-management-settings/delivery-documents-settings"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="ADM_ORDER_SETTINGS">
+                                                <Suspense fallback={<Loader text="Loading Delivery Documents Settings..." />}>
+                                                    <DeliveryDocumentsSettings />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
                                         path="/:countryName/order-management-settings"
                                         element={
                                             <PermissionGuard requiredUniqueId="ADM_ORDER_SETTINGS">
@@ -1499,6 +1528,16 @@ export default function SolarShopDashboard() {
                                             <PermissionGuard requiredUniqueId="ADM_ORDER_SETTINGS">
                                                 <Suspense fallback={<Loader text="Loading Invoice & DO Settings..." />}>
                                                     <InvoiceDoSettings />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/order-management-settings/delivery-documents-settings"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="ADM_ORDER_SETTINGS">
+                                                <Suspense fallback={<Loader text="Loading Delivery Documents Settings..." />}>
+                                                    <DeliveryDocumentsSettings />
                                                 </Suspense>
                                             </PermissionGuard>
                                         }
@@ -1870,6 +1909,16 @@ export default function SolarShopDashboard() {
                                             </PermissionGuard>
                                         }
                                     />
+                                    <Route
+                                        path="/delivery-management/documents-settings"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="ADM_DELIVERY_MGMT">
+                                                <Suspense fallback={<Loader text="Loading Delivery Documents Settings..." />}>
+                                                    <DeliveryDocumentsSettings />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
 
                                     {/* Country-prefixed Paths */}
                                     <Route
@@ -1972,6 +2021,16 @@ export default function SolarShopDashboard() {
                                             <PermissionGuard requiredUniqueId="ADM_DELIVERY_MGMT">
                                                 <Suspense fallback={<Loader text="Loading Delivery Approval Queue..." />}>
                                                     <DeliveryApprovalQueue />
+                                                </Suspense>
+                                            </PermissionGuard>
+                                        }
+                                    />
+                                    <Route
+                                        path="/:countryName/delivery-management/documents-settings"
+                                        element={
+                                            <PermissionGuard requiredUniqueId="ADM_DELIVERY_MGMT">
+                                                <Suspense fallback={<Loader text="Loading Delivery Documents Settings..." />}>
+                                                    <DeliveryDocumentsSettings />
                                                 </Suspense>
                                             </PermissionGuard>
                                         }

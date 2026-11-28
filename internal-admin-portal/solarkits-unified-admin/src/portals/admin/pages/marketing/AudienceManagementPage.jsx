@@ -27,11 +27,8 @@ import {
 } from 'react-icons/fa';
 import { FiZoomIn, FiZoomOut, FiRefreshCw, FiMapPin, FiCheck, FiSliders } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { authHeaderObj } from '../../app/authHeader';
+import { marketingHttp, extractApiError } from './services/marketingApi';
 import {
-  API_BASE_URL,
-  ALL_36_INDIAN_STATES,
   fetchLiveActiveStates,
   fetchLiveClusters,
   fetchLiveWarehouses
@@ -82,6 +79,9 @@ const classifyEpc = (item) => {
 export default function AudienceManagementPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [actionBanner, setActionBanner] = useState(null);
+  const [activeTab, setActiveTab] = useState('contacts'); // 'contacts' | 'segments' | 'unsubscribed'
   const [search, setSearch] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('ALL'); // ALL | Buyer EPC | Verified EPC | Registered EPC
   const [selectedState, setSelectedState] = useState('ALL');
@@ -90,9 +90,12 @@ export default function AudienceManagementPage() {
 
   // Modals
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showSegmentModal, setShowSegmentModal] = useState(false);
 
-  // Audience Data (100% live from MongoDB — zero static/dummy baseline)
+  // Audience Data (Strictly live from MongoDB)
   const [audiences, setAudiences] = useState([]);
+  const [segments, setSegments] = useState([]);
+  const [unsubscribedList, setUnsubscribedList] = useState([]);
   const [liveStates, setLiveStates] = useState([]);
   const [liveClusters, setLiveClusters] = useState([]);
   const [liveWarehouses, setLiveWarehouses] = useState([]);
@@ -106,6 +109,28 @@ export default function AudienceManagementPage() {
     active_clusters_count: 0,
     active_states_count: 0
   });
+
+  // Segment Builder Form State
+  const [segmentForm, setSegmentForm] = useState({
+    name: '',
+    description: '',
+    epcGroup: 'ALL',
+    stateName: '',
+    clusterName: '',
+    minOrders: 0,
+    requireConsent: false
+  });
+  const [savingSegment, setSavingSegment] = useState(false);
+
+  // Manual Suppression Form State
+  const [suppressForm, setSuppressForm] = useState({
+    email: '',
+    phone: '',
+    channel: 'all',
+    reason: 'Admin manual suppression'
+  });
+  const [suppressSubmitting, setSuppressSubmitting] = useState(false);
+  const [importErrorMessage, setImportErrorMessage] = useState(null);
 
   // Fetch live active states, clusters, and warehouses from central services
   useEffect(() => {
@@ -141,9 +166,10 @@ export default function AudienceManagementPage() {
 
   const [importFeedback, setImportFeedback] = useState(null);
 
-  // Fetch Audience list from Backend (100% Dynamic from MongoDB)
+  // Fetch Audience list, Segments & Unsubscribed list from Backend
   const fetchAudience = useCallback(async () => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.append('search', search.trim());
@@ -152,27 +178,126 @@ export default function AudienceManagementPage() {
       if (selectedCluster !== 'ALL') params.append('cluster', selectedCluster);
       if (selectedWarehouse !== 'ALL') params.append('warehouse', selectedWarehouse);
 
-      const res = await axios.get(`${API_BASE_URL}/marketing/audience/list?${params.toString()}`, {
-        headers: authHeaderObj(),
-        timeout: 15000
-      });
+      const res = await marketingHttp.get(`/audience/list?${params.toString()}`);
 
-      if (res.data?.success) {
-        setAudiences(Array.isArray(res.data.audiences) ? res.data.audiences : []);
+      if (res.data?.success && Array.isArray(res.data.audiences)) {
+        setAudiences(res.data.audiences);
         if (res.data.stats) setStats(res.data.stats);
         if (res.data.clusters) setClustersData(res.data.clusters);
+      } else {
+        setAudiences([]);
       }
     } catch (err) {
-      console.warn('Backend audience fetch notice:', err.message);
-      setAudiences([]);
+      setErrorMessage(extractApiError(err, 'Failed to load EPC audience database'));
     } finally {
       setLoading(false);
     }
   }, [search, selectedGroup, selectedState, selectedCluster, selectedWarehouse]);
 
+  const fetchSegmentsAndSuppression = useCallback(async () => {
+    try {
+      const [segRes, unsubRes] = await Promise.all([
+        marketingHttp.get('/audience/segments').catch(() => null),
+        marketingHttp.get('/audience/unsubscribed').catch(() => null)
+      ]);
+      if (segRes?.data?.success && Array.isArray(segRes.data.data)) {
+        setSegments(segRes.data.data);
+      }
+      if (unsubRes?.data?.success && Array.isArray(unsubRes.data.unsubscribes)) {
+        setUnsubscribedList(unsubRes.data.unsubscribes);
+      }
+    } catch (err) {
+      console.warn('Segments/suppression fetch error:', err.message);
+    }
+  }, []);
+
   useEffect(() => {
     fetchAudience();
   }, [fetchAudience]);
+
+  useEffect(() => {
+    fetchSegmentsAndSuppression();
+  }, [fetchSegmentsAndSuppression]);
+
+  const handleSaveSegment = async (e) => {
+    e?.preventDefault();
+    if (!segmentForm.name.trim()) {
+      setErrorMessage('Segment name is required.');
+      return;
+    }
+    setSavingSegment(true);
+    setErrorMessage(null);
+    try {
+      const filters = {
+        epc_groups: segmentForm.epcGroup === 'ALL' ? ['all'] : [segmentForm.epcGroup],
+        state_names: segmentForm.stateName ? [segmentForm.stateName] : [],
+        cluster_names: segmentForm.clusterName ? [segmentForm.clusterName] : [],
+        min_orders: Number(segmentForm.minOrders || 0),
+        require_consent: Boolean(segmentForm.requireConsent),
+        include_imported_leads: true
+      };
+      const res = await marketingHttp.post('/audience/segments', {
+        name: segmentForm.name.trim(),
+        description: segmentForm.description.trim(),
+        filters
+      });
+      if (res.data?.success) {
+        setShowSegmentModal(false);
+        setSegmentForm({ name: '', description: '', epcGroup: 'ALL', stateName: '', clusterName: '', minOrders: 0, requireConsent: false });
+        setActionBanner(`Dynamic segment "${res.data.data?.name}" saved to MongoDB (${res.data.data?.cached_count ?? 0} matching contacts).`);
+        fetchSegmentsAndSuppression();
+      }
+    } catch (err) {
+      setErrorMessage(extractApiError(err, 'Failed to create segment'));
+    } finally {
+      setSavingSegment(false);
+    }
+  };
+
+  const handleDeleteSegment = async (segId) => {
+    try {
+      await marketingHttp.delete(`/audience/segments/${segId}`);
+      setActionBanner('Segment removed.');
+      fetchSegmentsAndSuppression();
+    } catch (err) {
+      setErrorMessage(extractApiError(err, 'Failed to delete segment'));
+    }
+  };
+
+  const handleSuppressContact = async ({ email, phone, channel = 'all', reason = 'Admin suppression' }) => {
+    if (!email && !phone) {
+      setErrorMessage('Provide an email address or phone number to suppress.');
+      return;
+    }
+    setSuppressSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await marketingHttp.post('/audience/unsubscribed/suppress', { email, phone, channel, reason });
+      setActionBanner(`Suppressed ${email || phone} from future ${channel} broadcasts.`);
+      setSuppressForm({ email: '', phone: '', channel: 'all', reason: 'Admin manual suppression' });
+      fetchSegmentsAndSuppression();
+      fetchAudience();
+    } catch (err) {
+      setErrorMessage(extractApiError(err, 'Failed to suppress contact'));
+    } finally {
+      setSuppressSubmitting(false);
+    }
+  };
+
+  const handleResubscribeContact = async (record) => {
+    try {
+      await marketingHttp.post('/audience/unsubscribed/resubscribe', {
+        id: record._id,
+        email: record.email,
+        phone: record.phone
+      });
+      setActionBanner(`Restored ${record.email || record.phone} to active audience eligibility.`);
+      fetchSegmentsAndSuppression();
+      fetchAudience();
+    } catch (err) {
+      setErrorMessage(extractApiError(err, 'Failed to resubscribe contact'));
+    }
+  };
 
   // Load India GeoJSON for Map
   useEffect(() => {
@@ -443,7 +568,6 @@ export default function AudienceManagementPage() {
 
   // Dynamic BDE-Style Bulk Import Submit Handler
   const handleBulkAudienceImport = async (validRows, { batchDefaults, requiredFields }) => {
-    const token = getAuthToken();
     const transformedPayload = validRows.map((row) => ({
       name: row.company_name,
       company_name: row.company_name,
@@ -469,11 +593,10 @@ export default function AudienceManagementPage() {
       custom_attributes: row._customFields || {},
     }));
 
-    const res = await axios.post(
-      `${API_BASE}/marketing/audience/import-leads`,
-      { leads: transformedPayload, default_settings: { ...batchDefaults, required_fields: requiredFields } },
-      { headers: token ? { Authorization: token } : {} }
-    );
+    const res = await marketingHttp.post('/audience/import-leads', {
+      leads: transformedPayload,
+      default_settings: { ...batchDefaults, required_fields: requiredFields }
+    });
 
     if (res.data?.success) {
       setImportFeedback(res.data.message || `Successfully imported ${transformedPayload.length} leads!`);
@@ -1008,7 +1131,62 @@ export default function AudienceManagementPage() {
             </div>
           )}
 
+          {/* Banners */}
+          {errorMessage && (
+            <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 font-semibold flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><FaExclamationTriangle /> {errorMessage}</span>
+              <button onClick={() => setErrorMessage(null)} className="cursor-pointer"><FaTimes /></button>
+            </div>
+          )}
+          {actionBanner && (
+            <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-300 font-semibold flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><FaCheckCircle /> {actionBanner}</span>
+              <button onClick={() => setActionBanner(null)} className="cursor-pointer"><FaTimes /></button>
+            </div>
+          )}
+
+          {/* CRM View Tabs: Contacts | Saved Segments | Suppression List */}
+          <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setActiveTab('contacts')}
+              className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'contacts'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              <FaUsers />
+              <span>Active Contacts ({filteredAudiences.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('segments')}
+              className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'segments'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              <FaLayerGroup />
+              <span>Saved Segments ({segments.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('unsubscribed')}
+              className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'unsubscribed'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              <FaShieldAlt />
+              <span>Unsubscribed / Suppressed ({unsubscribedList.length})</span>
+            </button>
+          </div>
+
           {/* Audience Table */}
+          {activeTab === 'contacts' && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs overflow-hidden">
             <div className="p-3.5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
               <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -1133,10 +1311,12 @@ export default function AudienceManagementPage() {
                           </td>
                           <td className="p-3 pr-4 text-right">
                             <button
-                              onClick={() => alert(`Enqueued ${item.name} for Campaign Target Dispatch`)}
-                              className="px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 text-[11px] font-bold cursor-pointer transition-colors"
+                              type="button"
+                              onClick={() => handleSuppressContact({ email: item.email, phone: item.phone, channel: 'all', reason: `Manual suppression for ${item.name}` })}
+                              className="px-3 py-1 rounded-lg bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 text-[11px] font-bold cursor-pointer transition-colors"
+                              title="Add contact to Do-Not-Contact suppression list"
                             >
-                              Target
+                              Suppress
                             </button>
                           </td>
                         </tr>
@@ -1147,10 +1327,279 @@ export default function AudienceManagementPage() {
               </table>
             </div>
           </div>
+          )}
+
+          {activeTab === 'segments' && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs overflow-hidden p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-extrabold">Saved Dynamic Segments</h3>
+                  <p className="text-[11px] text-slate-500">Reusable MongoDB audience segments selectable directly inside the Campaign Wizard.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSegmentModal(true)}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <FaPlus /> New Segment
+                </button>
+              </div>
+              {segments.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                  No custom segments saved yet. Click "Create Custom Segment" to build one.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {segments.map((seg) => (
+                    <div key={seg._id} className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 flex flex-col justify-between gap-2">
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="font-bold text-sm text-slate-800 dark:text-white">{seg.name}</h4>
+                          <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold">
+                            {seg.cached_count ?? 0} EPCs
+                          </span>
+                        </div>
+                        {seg.description && <p className="text-[11px] text-slate-500 mt-1">{seg.description}</p>}
+                        <div className="flex flex-wrap gap-1.5 mt-2 text-[10px] text-slate-600 dark:text-slate-300">
+                          {seg.filters?.epc_groups?.length > 0 && (
+                            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                              Groups: {seg.filters.epc_groups.join(', ')}
+                            </span>
+                          )}
+                          {seg.filters?.state_names?.length > 0 && (
+                            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                              States: {seg.filters.state_names.join(', ')}
+                            </span>
+                          )}
+                          {seg.filters?.cluster_names?.length > 0 && (
+                            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                              Clusters: {seg.filters.cluster_names.join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/70 dark:border-slate-700/70">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSegment(seg._id)}
+                          className="text-rose-600 hover:underline text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <FaTrashAlt /> Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'unsubscribed' && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs overflow-hidden p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 text-xs">
+                <input
+                  type="email"
+                  value={suppressForm.email}
+                  onChange={(e) => setSuppressForm((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="Email to suppress"
+                  className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                />
+                <input
+                  type="text"
+                  value={suppressForm.phone}
+                  onChange={(e) => setSuppressForm((p) => ({ ...p, phone: e.target.value }))}
+                  placeholder="Phone / WhatsApp (+91...)"
+                  className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                />
+                <select
+                  value={suppressForm.channel}
+                  onChange={(e) => setSuppressForm((p) => ({ ...p, channel: e.target.value }))}
+                  className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                >
+                  <option value="all">All Channels</option>
+                  <option value="email">Email Only</option>
+                  <option value="whatsapp">WhatsApp Only</option>
+                </select>
+                <input
+                  type="text"
+                  value={suppressForm.reason}
+                  onChange={(e) => setSuppressForm((p) => ({ ...p, reason: e.target.value }))}
+                  placeholder="Reason"
+                  className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                />
+                <button
+                  type="button"
+                  disabled={suppressSubmitting}
+                  onClick={() => handleSuppressContact(suppressForm)}
+                  className="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer disabled:opacity-50"
+                >
+                  {suppressSubmitting ? 'Saving...' : 'Add Suppression'}
+                </button>
+              </div>
+
+              <div className="overflow-x-auto max-h-[420px]">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-slate-500 uppercase font-bold">
+                    <tr>
+                      <th className="p-3">Contact</th>
+                      <th className="p-3">Channel</th>
+                      <th className="p-3">Source</th>
+                      <th className="p-3">Reason</th>
+                      <th className="p-3">Opted Out At</th>
+                      <th className="p-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                    {unsubscribedList.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-500">
+                          No contacts are currently suppressed or unsubscribed.
+                        </td>
+                      </tr>
+                    ) : (
+                      unsubscribedList.map((u) => (
+                        <tr key={u._id} className="hover:bg-slate-50/70 dark:hover:bg-slate-700/20">
+                          <td className="p-3">
+                            <div className="font-bold">{u.email || '—'}</div>
+                            <div className="text-[11px] text-slate-500">{u.phone || '—'}</div>
+                          </td>
+                          <td className="p-3 uppercase font-bold text-[10px]">{u.channel || 'all'}</td>
+                          <td className="p-3 text-[11px] text-slate-500">{u.source || 'link'}</td>
+                          <td className="p-3 text-[11px]">{u.reason || 'User opt-out'}</td>
+                          <td className="p-3 text-[11px] text-slate-500">
+                            {u.unsubscribed_at ? new Date(u.unsubscribed_at).toLocaleString('en-IN') : '—'}
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleResubscribeContact(u)}
+                              className="px-3 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 text-[11px] font-bold cursor-pointer"
+                            >
+                              Restore / Resubscribe
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
         </div>
 
       </div>
+
+      {/* ===================== CREATE DYNAMIC SEGMENT MODAL ===================== */}
+      {showSegmentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <form onSubmit={handleSaveSegment} className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+              <h3 className="text-base font-bold">Create Dynamic Segment</h3>
+              <button type="button" onClick={() => setShowSegmentModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <FaTimes />
+              </button>
+            </div>
+            <div className="py-4 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Segment Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={segmentForm.name}
+                  onChange={(e) => setSegmentForm((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="e.g., High-Value Maharashtra EPCs (5+ Orders)"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={segmentForm.description}
+                  onChange={(e) => setSegmentForm((p) => ({ ...p, description: e.target.value }))}
+                  placeholder="Optional segment notes..."
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Target EPC Type</label>
+                  <select
+                    value={segmentForm.epcGroup}
+                    onChange={(e) => setSegmentForm((p) => ({ ...p, epcGroup: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                  >
+                    <option value="ALL">All Types</option>
+                    <option value="buyer">Buyer EPCs Only</option>
+                    <option value="verified">Verified EPCs Only</option>
+                    <option value="registered">Registered EPCs Only</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Minimum Order Count</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={segmentForm.minOrders}
+                    onChange={(e) => setSegmentForm((p) => ({ ...p, minOrders: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">State Filter (Optional)</label>
+                  <select
+                    value={segmentForm.stateName}
+                    onChange={(e) => setSegmentForm((p) => ({ ...p, stateName: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                  >
+                    <option value="">All States</option>
+                    {availableStates.map((st) => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Cluster Filter (Optional)</label>
+                  <select
+                    value={segmentForm.clusterName}
+                    onChange={(e) => setSegmentForm((p) => ({ ...p, clusterName: e.target.value }))}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                  >
+                    <option value="">All Clusters</option>
+                    {availableClusters.map((cl) => <option key={cl} value={cl}>{cl}</option>)}
+                  </select>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 font-semibold text-slate-600 dark:text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={segmentForm.requireConsent}
+                  onChange={(e) => setSegmentForm((p) => ({ ...p, requireConsent: e.target.checked }))}
+                />
+                <span>Only include marketing opt-in consented EPCs</span>
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setShowSegmentModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingSegment}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer disabled:opacity-50"
+              >
+                {savingSegment ? 'Saving...' : 'Save Segment'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <DynamicBulkUploadModal
         isOpen={showImportModal}

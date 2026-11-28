@@ -45,6 +45,10 @@ app.use(cors({
       return callback(null, true);
     }
 
+    if (process.env.NODE_ENV === 'production' && process.env.STRICT_CORS === 'true' && FRONTEND_URLS.length > 0) {
+      return callback(new Error(`Origin ${origin} not allowed by CORS policy`), false);
+    }
+
     return callback(null, true);
   },
   credentials: true,
@@ -238,6 +242,8 @@ adminRouter.use('/franchise-clusters', require('./modules/admin-panel/routes/fra
 
 // ─── Dynamic Invoice & Delivery Order (DO) Settings ────────────────────────
 adminRouter.use('/invoice-do-settings', require('./modules/admin-panel/routes/invoice.do.settings.route'));
+// ─── Dynamic Delivery Documents Settings & Dual Verification (OTP + Manual Photo) ───
+adminRouter.use('/delivery-document-settings', require('./modules/admin-panel/routes/delivery.document.settings.route'));
 adminRouter.use('/registers', require('./modules/account-panel/routes/registers.route'));
 
 // ─── SOLARKITS: Trial Kit Management Module ───
@@ -267,6 +273,8 @@ app.use('/api/email-management', emailManagementRouter);
 app.use('/admin-api', adminRouter);
 app.use('/api', adminRouter);
 app.use('/api/admin-api', adminRouter);
+// Legacy alias for previously dispatched unsubscribe / short-link URLs
+app.use('/api/admin/marketing', require('./modules/admin-panel/marketing/routes/marketing.route'));
 
 // 3. Developer Panel routes
 const developerRouter = express.Router();

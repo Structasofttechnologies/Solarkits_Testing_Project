@@ -44,85 +44,94 @@ import {
 import IndiaTargetingMap from './components/IndiaTargetingMap';
 import WhatsAppStudio from './components/WhatsAppStudio';
 import EmailStudio from './components/EmailStudio';
+import { marketingHttp, extractApiError } from './services/marketingApi';
+import { generateResponsiveEmailHtml } from './services/emailTemplateGenerator';
 import {
   CAMPAIGN_OBJECTIVES,
-  STORE_KITS_CATALOG,
-  ALL_36_INDIAN_STATES,
   fetchAreaKits,
-  fetchLiveComboKits,
+  fetchMarketingMasterResources,
+  fetchLiveQueueStatus,
   fetchLiveGovtTenderConfigs,
-  fetchLiveClusters,
-  fetchLiveWarehouses,
-  fetchLiveActiveStates,
-  fetchLiveAudiencePreview,
-  fetchLiveMarketingQuota,
-  getQuotaState,
-  deductQuotaOnLaunch,
-  rechargeQuota,
-  saveNewCoupon,
-  PRESET_WHATSAPP_TEMPLATES,
-  PRESET_EMAIL_TEMPLATES,
-  fetchSegments,
   fetchMarketingStates,
   fetchMarketingDistricts,
-  previewMarketingAudience,
-  createMarketingCampaign,
-  launchMarketingCampaign
+  fetchSegments
 } from './services/marketingDataService';
-import { generateResponsiveEmailHtml } from './services/emailTemplateGenerator';
 
 const WIZARD_STEPS = [
-  { id: 1, label: 'Details & Wallet', icon: FaBullhorn, desc: 'Identity, channel & credit balance' },
-  { id: 2, label: 'Area & Audience', icon: FaMapMarkerAlt, desc: 'Multi-state map, clusters & warehouses' },
-  { id: 3, label: 'Purpose, Kits & Coupon', icon: FaGift, desc: 'Objective, area kits & discount engine' },
+  { id: 1, label: 'Details & Senders', icon: FaBullhorn, desc: 'Identity, channel, owner & senders' },
+  { id: 2, label: 'Area & Audience', icon: FaMapMarkerAlt, desc: 'States, clusters, segments & consent' },
+  { id: 3, label: 'Purpose, Kits & Coupon', icon: FaGift, desc: 'Objective, area kits & OfferMaster' },
   { id: 4, label: 'Creative Studio', icon: FaCogs, desc: 'WhatsApp & Email template studio' },
-  { id: 5, label: 'MIS Targets', icon: FaChartLine, desc: 'Cluster sales targets & conversion gap' },
+  { id: 5, label: 'MIS Targets', icon: FaChartLine, desc: 'Pipeline goals & conversion targets' },
   { id: 6, label: 'Schedule & Suppression', icon: FaCalendarAlt, desc: 'Timing, frequency & smart stop rules' },
-  { id: 7, label: 'Review & Launch', icon: FaRocket, desc: 'Full summary audit & activation' }
+  { id: 7, label: 'Review & Launch', icon: FaRocket, desc: 'Live test send & database dispatch' }
 ];
 
 export default function CreateCampaignWizard() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
-  const [quota, setQuota] = useState(() => getQuotaState());
-  const [showRechargeModal, setShowRechargeModal] = useState(false);
-  const [rechargeAmount, setRechargeAmount] = useState(5000);
   const [creativeChannelTab, setCreativeChannelTab] = useState('WHATSAPP');
 
-  // Live cluster, warehouse, states, segment groups & kit catalog data
+  // Live master resources, segment groups & govt tender configs from MongoDB
   const [clustersList, setClustersList] = useState([]);
   const [warehousesList, setWarehousesList] = useState([]);
   const [activeStatesList, setActiveStatesList] = useState([]);
-  const [liveKitsCatalog, setLiveKitsCatalog] = useState(STORE_KITS_CATALOG);
+  const [liveKitsCatalog, setLiveKitsCatalog] = useState([]);
+  const [ownersList, setOwnersList] = useState([]);
+  const [industriesList, setIndustriesList] = useState([]);
+  const [couponsList, setCouponsList] = useState([]);
+  const [sendersList, setSendersList] = useState([]);
+  const [dbTemplates, setDbTemplates] = useState([]);
   const [segmentsList, setSegmentsList] = useState([]);
+  const [segmentGroupsList, setSegmentGroupsList] = useState([]);
   const [marketingStates, setMarketingStates] = useState([]);
   const [segmentDistricts, setSegmentDistricts] = useState([]);
   const [selectedSegmentStateId, setSelectedSegmentStateId] = useState('');
-  const [audiencePreview, setAudiencePreview] = useState({
-    epcCount: 0,
-    segmentCount: 0,
-    deduplicatedTotal: 0,
-    segment_breakdown: {}
-  });
-  const [loadingAudiencePreview, setLoadingAudiencePreview] = useState(false);
-  const [launchingCampaign, setLaunchingCampaign] = useState(false);
   const [govtTenderConfigsList, setGovtTenderConfigsList] = useState([]);
+  const [queueStatus, setQueueStatus] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Live audience preview & submission state
+  const [audiencePreview, setAudiencePreview] = useState({
+    total_eligible: 0,
+    total_excluded: 0,
+    unsubscribed_skipped: 0,
+    consent_skipped: 0,
+    sample_preview: [],
+    consent_breakdown: { email_consented: 0, whatsapp_consented: 0, total_accounts: 0, imported_leads: 0 }
+  });
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [savingCampaign, setSavingCampaign] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+
+  // Real test send state
+  const [testEmail, setTestEmail] = useState('');
+  const [testPhone, setTestPhone] = useState('');
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState(null);
 
   // Form State
   const [formData, setFormData] = useState({
-    // Step 1: Details & Channel
-    campaignName: 'Gujarat & Maharashtra - 3kW & 5kW EPC Promotion',
-    owner: 'Admin (Global Super Admin)',
+    // Step 1: Details, Owner, Budget & Senders
+    campaignName: '',
+    assigned_manager: '',
+    owner: '',
+    budget: 0,
     channel: 'BOTH', // EMAIL | WHATSAPP | BOTH
-    status: 'Draft',
+    status: 'draft',
+    email_sender_id: '',
+    whatsapp_sender_id: '',
 
-    // Step 2: Multi-Area & Audience
-    selectedStates: ['Gujarat'],
-    selectedClusterIds: ['CLU-GJ-001', 'CLU-GJ-002'],
-    servingWarehouses: ['IND_GUJ_001', 'IND_GUJ_002'],
-    locationBasis: 'EPC Registered Address (GST Certificate)',
-    inactivityWindow: 'All Purchase Activity Stages',
+    // Step 2: Multi-Area, Segment & Audience
+    segment_id: '',
+    selectedStates: [],
+    selectedClusterIds: [],
+    servingWarehouses: [],
+    locationBasis: 'registered',
+    inactivityWindow: 'all',
+    industryPreference: 'ALL',
+    require_consent: true,
+    include_imported_leads: true,
     audienceGroups: {
       registered: true,
       verified: true,
@@ -133,29 +142,27 @@ export default function CreateCampaignWizard() {
     segmentDistrictFilter: '',
 
     // Step 3: Purpose, Kits & Coupon Engine
-    objective: 'coupon_discount',
-    destinationUrl: 'https://solarkits.in/solar-kits/3kw-dcr?utm_source=marketing&utm_campaign=coupon_offer',
+    objective: 'seasonal_coupon',
+    destinationUrl: 'https://solarkits.in/solar-kits?utm_source=solarkits_marketing',
     ctaText: 'Apply Coupon & Claim Kit Offer',
-    selectedKitIds: ['kit-3kw-dcr'],
-    kitMoqs: {
-      'kit-3kw-dcr': 25,
-      'kit-1kw-dcr': 45,
-      'kit-2kw-dcr': 30
-    },
-    hasCoupon: true,
-    couponCode: 'SOLARDIWALI5000',
+    selectedKitIds: [],
+    kitMoqs: {},
+    hasCoupon: false,
+    coupon_offer_id: '',
+    couponCode: '',
     discountType: 'per_kit', // 'flat' | 'per_kit' | 'percent'
     discountValue: 5000,
-    minOrderQty: 25,
+    minOrderQty: 1,
     includeKitDetailsInCreative: true,
     couponExpiry: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 16),
     singleUsePerEpc: true,
     deactivateOnCampaignEnd: true,
 
     // Step 4: Creative & Message Template Studio
-    templateMode: 'preset', // 'preset' | 'custom'
-    selectedWhatsAppTemplateId: 'wa-wholesale-flash',
-    selectedEmailTemplateId: 'em-qbits-solarkits-executive',
+    templateMode: 'custom', // 'preset' | 'custom'
+    selectedWhatsAppTemplateId: '',
+    selectedEmailTemplateId: '',
+    emailSubject: 'Exclusive SolarKits B2B Wholesale Kit Offer',
     customCreative: {
       headline: "DON'T JUST SELL SOLAR. SELL COMPLETE BACKUP.",
       subheading: 'Tier-1 ALMM Modules + High-Efficiency Inverters + Pre-Engineered Structure in One Single Dispatch.',
@@ -187,13 +194,12 @@ export default function CreateCampaignWizard() {
     },
 
     // Step 5: MIS Target Reference (Connected directly to Step 3 kits)
-    targetKitCount: 50,
-    kitTargets: {
-      'kit-3kw-dcr': 25,
-      'kit-1kw-dcr': 45,
-      'kit-2kw-dcr': 30
-    },
-    targetEpcSignups: 150,
+    targetKitCount: 25,
+    targetLeads: 50,
+    quarterlyKitGoal: 50,
+    achievedBaseline: 0,
+    kitTargets: {},
+    targetEpcSignups: 50,
 
     // Step 6: Schedule & Smart Suppression Guard
     launchMode: 'immediate', // 'immediate' | 'scheduled'
@@ -208,51 +214,97 @@ export default function CreateCampaignWizard() {
     followUpDelayUnit: 'days', // 'hours' | 'days'
   });
 
-  // Keep quota synchronized
+  // Load all live master resources, senders, templates, segments, segment groups, tenders & queue status
   useEffect(() => {
-    const handleQuotaUpdate = () => setQuota(getQuotaState());
-    window.addEventListener('solarkits-quota-updated', handleQuotaUpdate);
-    return () => window.removeEventListener('solarkits-quota-updated', handleQuotaUpdate);
-  }, []);
-
-  // Fetch clusters, warehouses, states, live store kits catalog, govt tender configs, Segment Groups, and live email quotas
-  useEffect(() => {
+    let mounted = true;
     async function loadResources() {
       setLoadingData(true);
       try {
-        const [cList, wList, kList, sList, mktStatesRes, tList, liveQ] = await Promise.all([
-          fetchLiveClusters(),
-          fetchLiveWarehouses(),
-          fetchLiveComboKits(),
-          fetchLiveActiveStates(),
+        const [resources, sendersRes, templatesRes, segmentsRes, qStatus, mktStatesRes, tList] = await Promise.all([
+          fetchMarketingMasterResources(true),
+          marketingHttp.get('/senders').catch(() => null),
+          marketingHttp.get('/templates').catch(() => null),
+          marketingHttp.get('/audience/segments').catch(() => null),
+          fetchLiveQueueStatus(),
           fetchMarketingStates().catch(() => []),
-          fetchLiveGovtTenderConfigs(),
-          fetchLiveMarketingQuota()
+          fetchLiveGovtTenderConfigs().catch(() => [])
         ]);
-        setClustersList(cList);
-        setWarehousesList(wList);
-        if (Array.isArray(sList) && sList.length > 0) {
-          setActiveStatesList(sList);
-        }
-        if (Array.isArray(kList) && kList.length > 0) {
-          setLiveKitsCatalog(kList);
-        }
-        if (Array.isArray(mktStatesRes)) {
-          setMarketingStates(mktStatesRes);
-        }
-        if (Array.isArray(tList)) {
-          setGovtTenderConfigsList(tList);
-        }
-        if (liveQ) {
-          setQuota(liveQ);
-        }
+        if (!mounted) return;
+
+        const normClusters = (resources.clusters || []).map((c) => ({
+          ...c,
+          id: String(c._id || c.id),
+          name: c.cluster_name || c.name,
+          state: c.state_name || '',
+          districts: c.district_names || []
+        }));
+        const normWarehouses = (resources.warehouses || []).map((w) => ({
+          ...w,
+          id: String(w._id || w.id),
+          name: w.warehouse_name || w.warehouse_code,
+          code: w.warehouse_code,
+          state: w.state_name || ''
+        }));
+        const normKits = (resources.kits || []).map((k) => {
+          const id = String(k._id || k.id);
+          const loose = Array.isArray(k.loose_order_quantities) ? k.loose_order_quantities : [];
+          const ord = Array.isArray(k.order_quantities) ? k.order_quantities : [];
+          const moq = Number(loose[0] || ord[0] || 1);
+          const price = Number(k.selling_price_cached || k.base_price_cached || 0);
+          return {
+            ...k,
+            id,
+            _id: id,
+            name: k.name || 'Solar Combo Kit',
+            sub_title: k.description || `${k.capacity || ''} kW Solar Kit`.trim(),
+            base_price: price,
+            defaultPrice: price,
+            price,
+            moq,
+            loose_order_quantities: loose,
+            image: k.kit_image || ''
+          };
+        });
+
+        setClustersList(normClusters);
+        setWarehousesList(normWarehouses);
+        setActiveStatesList((resources.states || []).map((s) => ({ ...s, id: String(s._id || s.id) })));
+        setLiveKitsCatalog(normKits);
+        setOwnersList(resources.owners || []);
+        setIndustriesList(resources.industries || []);
+        setCouponsList(resources.coupons || []);
+        if (Array.isArray(mktStatesRes)) setMarketingStates(mktStatesRes);
+        if (Array.isArray(tList)) setGovtTenderConfigsList(tList);
+
+        const allSenders = sendersRes?.data?.data || sendersRes?.data?.senders || [];
+        setSendersList(allSenders);
+        const allTemplates = templatesRes?.data?.data || templatesRes?.data?.templates || [];
+        setDbTemplates(allTemplates);
+        const allSegments = segmentsRes?.data?.data || [];
+        setSegmentsList(allSegments);
+        setQueueStatus(qStatus);
+
+        const defaultEmailSender = allSenders.find((s) => s.type === 'email' && s.is_active && s.is_default) || allSenders.find((s) => s.type === 'email' && s.is_active) || allSenders.find((s) => s.type === 'email');
+        const defaultWaSender = allSenders.find((s) => s.type === 'whatsapp' && s.is_active && s.is_default) || allSenders.find((s) => s.type === 'whatsapp' && s.is_active) || allSenders.find((s) => s.type === 'whatsapp');
+        const firstOwner = (resources.owners || [])[0];
+
+        setFormData((prev) => ({
+          ...prev,
+          assigned_manager: prev.assigned_manager || (firstOwner ? String(firstOwner._id) : ''),
+          owner: prev.owner || (firstOwner ? firstOwner.name : 'Admin'),
+          email_sender_id: prev.email_sender_id || (defaultEmailSender ? String(defaultEmailSender._id) : ''),
+          whatsapp_sender_id: prev.whatsapp_sender_id || (defaultWaSender ? String(defaultWaSender._id) : '')
+        }));
       } catch (err) {
-        console.error('Failed to load clusters/warehouses/kits/states/tenders/quotas:', err);
+        if (mounted) {
+          setSubmitError(extractApiError(err, 'Failed to load campaign master resources'));
+        }
       } finally {
-        setLoadingData(false);
+        if (mounted) setLoadingData(false);
       }
     }
     loadResources();
+    return () => { mounted = false; };
   }, []);
 
   // Load cascading GeoLevel2 districts when Segment State filter changes
@@ -275,11 +327,11 @@ export default function CreateCampaignWizard() {
       state: formData.segmentStateFilter || undefined,
       district: formData.segmentDistrictFilter || undefined
     })
-      .then(({ segments }) => setSegmentsList(segments || []))
+      .then(({ segments }) => setSegmentGroupsList(segments || []))
       .catch((err) => console.error('Failed loading segment groups in wizard:', err));
   }, [formData.segmentStateFilter, formData.segmentDistrictFilter]);
 
-  // Distinct available states from active states or clusters list
+  // Distinct available states strictly from MongoDB active states or clusters
   const availableStates = useMemo(() => {
     if (activeStatesList.length > 0) {
       return activeStatesList.map(s => s.name || s);
@@ -289,7 +341,7 @@ export default function CreateCampaignWizard() {
       const st = c.state_name || c.state;
       if (st) s.add(st);
     });
-    return s.size > 0 ? Array.from(s) : ALL_36_INDIAN_STATES.map(s => s.name);
+    return Array.from(s).sort();
   }, [activeStatesList, clustersList]);
 
   // Available clusters filtered by selected states
@@ -304,71 +356,37 @@ export default function CreateCampaignWizard() {
   // Sync serving warehouses when selected clusters change
   useEffect(() => {
     if (clustersList.length === 0) return;
-    const matchedWarehouses = new Set();
-    formData.selectedClusterIds.forEach(cId => {
-      const found = clustersList.find(c =>
-        (c.cluster_code === cId) || (c.code === cId) || (c.id === cId) || (c._id === cId)
-      );
-      if (found && (found.warehouse_code || found.warehouseCode)) {
-        matchedWarehouses.add(found.warehouse_code || found.warehouseCode);
-      }
-    });
+    const selectedClusterNames = formData.selectedClusterIds
+      .map((cid) => clustersList.find((c) => c.cluster_code === cid || c.id === cid || String(c._id) === cid))
+      .filter(Boolean)
+      .map((c) => (c.cluster_name || c.name || '').toLowerCase());
 
-    const arr = Array.from(matchedWarehouses);
-    if (arr.length > 0 && JSON.stringify(arr) !== JSON.stringify(formData.servingWarehouses)) {
-      setFormData(prev => ({ ...prev, servingWarehouses: arr }));
-    }
-  }, [formData.selectedClusterIds, clustersList]);
+    const matchedWarehouses = warehousesList
+      .filter((w) => {
+        const whClusters = (w.clusters || []).map((cn) => String(cn).toLowerCase());
+        const byCluster = selectedClusterNames.some((cn) => whClusters.includes(cn));
+        const byState = formData.selectedStates.some((st) => String(w.state_name || '').toLowerCase() === st.toLowerCase());
+        return selectedClusterNames.length > 0 ? byCluster : byState;
+      })
+      .map((w) => w.warehouse_code || w.code || w.id);
 
-  // Detailed serving warehouses objects
+    setFormData(prev => ({ ...prev, servingWarehouses: matchedWarehouses }));
+  }, [formData.selectedClusterIds, formData.selectedStates, clustersList, warehousesList]);
+
+  // Detailed serving warehouses objects from live master
   const servingWarehousesDetailed = useMemo(() => {
     return formData.servingWarehouses.map(whCode => {
       const found = warehousesList.find(w =>
-        (w.warehouse_code === whCode) || (w.code === whCode) || (w.id === whCode) || (w._id === whCode)
+        (w.warehouse_code === whCode) || (w.code === whCode) || (w.id === whCode) || (String(w._id) === whCode)
       );
       if (found) return found;
-
-      // Fallback details matching Screenshot 1 (Operations > Company Warehouses)
-      if (whCode === 'IND_GUJ_001' || whCode === 'WH-IND-GJ-001') {
-        return {
-          id: whCode,
-          warehouse_code: whCode,
-          name: 'IND_GUJ_001',
-          warehouse_name: 'IND_GUJ_001',
-          vendor_name: 'Logistics Partner',
-          city: 'Ahmedabad',
-          address: 'Ahmedabad, Gujarat (380006)'
-        };
-      }
-      if (whCode === 'IND_GUJ_002') {
-        return {
-          id: whCode,
-          warehouse_code: whCode,
-          name: 'IND_GUJ_002',
-          warehouse_name: 'IND_GUJ_002',
-          vendor_name: 'Stellar Supply Chain Solutions Pvt Ltd',
-          city: 'Surat',
-          address: 'Surat, Gujarat (394540)'
-        };
-      }
-      if (whCode === 'IND_MH_001' || whCode === 'WH-IND-MH-001') {
-        return {
-          id: whCode,
-          warehouse_code: whCode,
-          name: 'IND_MH_001',
-          warehouse_name: 'IND_MH_001',
-          vendor_name: 'Bhiwandi Central Logistics Hub',
-          city: 'Thane / Bhiwandi',
-          address: 'Logistics Park, Bhiwandi, Maharashtra (421302)'
-        };
-      }
       return {
         id: whCode,
         warehouse_code: whCode,
         name: whCode,
         warehouse_name: whCode,
-        city: 'Regional Depot',
-        address: 'Certified Regional SolarKits Logistics Hub'
+        city: 'Depot',
+        address: whCode
       };
     });
   }, [formData.servingWarehouses, warehousesList]);
@@ -460,106 +478,85 @@ export default function CreateCampaignWizard() {
     return Boolean(formData.audienceGroups.registered && !formData.audienceGroups.verified && !formData.audienceGroups.buyer);
   }, [formData.audienceGroups]);
 
-  const resolvedSelectedStateIds = useMemo(() => {
+  // Resolve selected ObjectIds & names cleanly for API requests
+  const resolvedTargeting = useMemo(() => {
     const combinedStates = [...marketingStates, ...activeStatesList];
-    const idSet = new Set();
-    formData.selectedStates.forEach((stName) => {
-      const target = String(stName || '').trim().toLowerCase();
-      const match = combinedStates.find((s) => String(s?.name || s || '').trim().toLowerCase() === target);
-      if (match && (match._id || match.id)) {
-        idSet.add(String(match._id || match.id));
-      }
-    });
-    return Array.from(idSet);
-  }, [marketingStates, activeStatesList, formData.selectedStates]);
+    const stateIds = Array.from(
+      new Set(
+        formData.selectedStates
+          .map((stName) => {
+            const match = combinedStates.find((s) => String(s?.name || s || '').trim().toLowerCase() === String(stName || '').trim().toLowerCase());
+            return match ? String(match._id || match.id) : null;
+          })
+          .filter((id) => id && /^[a-f\d]{24}$/i.test(id))
+      )
+    );
 
-  // Live MongoDB Audience Preview (keeps EPC count separate from Segment Leads and sums Total Sending Count)
-  useEffect(() => {
-    let cancelled = false;
-    const noAudienceSelected = !hasAnyEpcGroup && formData.selectedSegmentIds.length === 0;
-    if (noAudienceSelected) {
-      setAudiencePreview({ epcCount: 0, segmentCount: 0, deduplicatedTotal: 0, segment_breakdown: {} });
-      return undefined;
-    }
+    const matchedClusters = clustersList.filter((c) =>
+      formData.selectedClusterIds.includes(c.cluster_code) ||
+      formData.selectedClusterIds.includes(c.id) ||
+      formData.selectedClusterIds.includes(String(c._id))
+    );
+    const clusterIds = matchedClusters.map((c) => String(c._id || c.id)).filter((id) => /^[a-f\d]{24}$/i.test(id));
+    const clusterNames = matchedClusters.map((c) => c.cluster_name || c.name).filter(Boolean);
 
-    const timer = setTimeout(async () => {
-      setLoadingAudiencePreview(true);
-      try {
-        const preview = await previewMarketingAudience({
-          epc_groups: {
-            registered_epc: Boolean(formData.audienceGroups.registered),
-            verified_epc: Boolean(formData.audienceGroups.verified),
-            buyer_epc: Boolean(formData.audienceGroups.buyer)
-          },
-          area_type: resolvedSelectedStateIds.length > 0 ? 'state' : 'all_india',
-          state_ids: resolvedSelectedStateIds,
-          state_names: formData.selectedStates,
-          segment_ids: formData.selectedSegmentIds,
-          segment_state_filter: formData.segmentStateFilter || '',
-          segment_district_filter: formData.segmentDistrictFilter || '',
-          channel: String(formData.channel || 'BOTH').toLowerCase(),
-          require_consent: true
-        });
-        if (!cancelled && preview) {
-          setAudiencePreview({
-            epcCount: preview.epcCount ?? 0,
-            segmentCount: preview.segmentCount ?? 0,
-            deduplicatedTotal: preview.deduplicatedTotal ?? preview.total_eligible ?? 0,
-            segment_breakdown: preview.segment_breakdown || {}
-          });
-        }
-      } catch (err) {
-        if (!cancelled) {
-          console.warn('Live audience preview fallback notice:', err.message);
-        }
-      } finally {
-        if (!cancelled) setLoadingAudiencePreview(false);
-      }
-    }, 250);
+    const matchedWhs = warehousesList.filter((w) =>
+      formData.servingWarehouses.includes(w.warehouse_code) ||
+      formData.servingWarehouses.includes(w.code) ||
+      formData.servingWarehouses.includes(String(w._id))
+    );
+    const warehouseIds = matchedWhs.map((w) => String(w._id || w.id)).filter((id) => /^[a-f\d]{24}$/i.test(id));
 
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
+    const areaType = clusterIds.length > 0 || clusterNames.length > 0
+      ? 'cluster'
+      : formData.selectedStates.length > 0
+      ? 'state'
+      : 'all_india';
+
+    return {
+      segment_id: formData.segment_id || null,
+      epc_groups: {
+        registered_epc: Boolean(formData.audienceGroups.registered),
+        verified_epc: Boolean(formData.audienceGroups.verified),
+        buyer_epc: Boolean(formData.audienceGroups.buyer)
+      },
+      area_type: areaType,
+      state_ids: stateIds,
+      state_names: formData.selectedStates,
+      cluster_ids: clusterIds,
+      cluster_names: clusterNames,
+      warehouse_ids: warehouseIds,
+      warehouse_names: formData.servingWarehouses,
+      segment_ids: formData.selectedSegmentIds || [],
+      segment_state_filter: formData.segmentStateFilter || '',
+      segment_district_filter: formData.segmentDistrictFilter || '',
+      industry_ids: formData.industryPreference && formData.industryPreference !== 'ALL' && /^[a-f\d]{24}$/i.test(formData.industryPreference)
+        ? [formData.industryPreference]
+        : [],
+      kit_ids: formData.selectedKitIds.filter((id) => /^[a-f\d]{24}$/i.test(String(id))),
+      channel: String(formData.channel || 'both').toLowerCase(),
+      include_imported_leads: Boolean(formData.include_imported_leads),
+      require_consent: Boolean(formData.require_consent)
     };
   }, [
-    hasAnyEpcGroup,
-    formData.audienceGroups.registered,
-    formData.audienceGroups.verified,
-    formData.audienceGroups.buyer,
+    marketingStates,
+    activeStatesList,
+    clustersList,
+    warehousesList,
+    formData.segment_id,
     formData.selectedStates,
-    resolvedSelectedStateIds,
+    formData.selectedClusterIds,
+    formData.servingWarehouses,
+    formData.audienceGroups,
     formData.selectedSegmentIds,
     formData.segmentStateFilter,
     formData.segmentDistrictFilter,
-    formData.channel
+    formData.industryPreference,
+    formData.selectedKitIds,
+    formData.channel,
+    formData.include_imported_leads,
+    formData.require_consent
   ]);
-
-  // Live EPC industry pill counts derived from real MongoDB preview
-  const industryCounts = useMemo(() => {
-    const epcTotal = audiencePreview.epcCount || 0;
-    return {
-      all: epcTotal,
-      solar_pv: epcTotal,
-      solar_agri: epcTotal,
-      commercial: epcTotal,
-      solar_ev: epcTotal,
-      energy_storage: epcTotal
-    };
-  }, [audiencePreview.epcCount]);
-
-  // Calculated audience counts keeping Target EPCs & Segment Leads separate and summed into Total Sending Count
-  const audienceCalculation = useMemo(() => {
-    const epcCount = Number(audiencePreview.epcCount || 0);
-    const segmentCount = Number(audiencePreview.segmentCount || 0);
-    const deduplicatedTotal = Number(audiencePreview.deduplicatedTotal ?? (epcCount + segmentCount));
-
-    return {
-      rawTotal: epcCount + segmentCount,
-      deduplicatedTotal,
-      epcCount,
-      segmentCount
-    };
-  }, [audiencePreview]);
 
   // Toggle isolated Segment Group selection
   const handleToggleSegment = (segId) => {
@@ -573,22 +570,56 @@ export default function CreateCampaignWizard() {
     });
   };
 
-  // Reset industry preference to 'all' if only registered EPC is selected
+  // Live MongoDB Audience Preview (Zero fake multipliers)
   useEffect(() => {
-    if (isOnlyRegistered && formData.industryPreference !== 'all') {
-      setFormData(prev => ({ ...prev, industryPreference: 'all' }));
+    let active = true;
+    const timer = setTimeout(async () => {
+      setPreviewLoading(true);
+      try {
+        const res = await marketingHttp.post('/audience/preview', resolvedTargeting);
+        if (active && res.data?.success && res.data?.data) {
+          setAudiencePreview(res.data.data);
+        }
+      } catch (err) {
+        if (active) console.warn('Live audience preview notice:', err.message);
+      } finally {
+        if (active) setPreviewLoading(false);
+      }
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [resolvedTargeting]);
+
+  const audienceCalculation = useMemo(() => {
+    const eligible = Number(audiencePreview?.total_eligible ?? audiencePreview?.deduplicatedTotal ?? 0);
+    const epcCount = Number(audiencePreview?.epcCount ?? audiencePreview?.source_breakdown?.epc_accounts ?? eligible);
+    const segmentCount = Number(audiencePreview?.segmentCount ?? audiencePreview?.source_breakdown?.segment_groups ?? 0);
+    return {
+      rawTotal: eligible + Number(audiencePreview?.total_excluded || 0),
+      deduplicatedTotal: eligible,
+      epcCount,
+      segmentCount
+    };
+  }, [audiencePreview]);
+
+  // Reset industry preference to 'ALL' if only registered EPC is selected
+  useEffect(() => {
+    if (isOnlyRegistered && formData.industryPreference !== 'ALL') {
+      setFormData(prev => ({ ...prev, industryPreference: 'ALL' }));
     }
   }, [isOnlyRegistered, formData.industryPreference]);
 
   // Projected campaign revenue based on selected kits and individual kit targets
   const selectedKitsRevenue = useMemo(() => {
     return formData.selectedKitIds.reduce((sum, kid) => {
-      const kit = displayedStep3Kits.find(k => k.id === kid) || STORE_KITS_CATALOG.find(k => k.id === kid) || { base_price: 135000 };
-      const price = Number(kit.base_price || kit.defaultPrice || kit.price || 135000);
+      const kit = (displayedStep3Kits || dynamicAreaKits).find(k => k.id === kid) || liveKitsCatalog.find(k => k.id === kid) || { base_price: 0 };
+      const price = Number(kit.base_price || kit.defaultPrice || kit.price || 0);
       const qty = Number(formData.kitTargets?.[kid] ?? 20);
       return sum + (price * qty);
     }, 0);
-  }, [formData.selectedKitIds, formData.kitTargets, displayedStep3Kits]);
+  }, [formData.selectedKitIds, formData.kitTargets, displayedStep3Kits, dynamicAreaKits, liveKitsCatalog]);
 
   // Helper to toggle state selection
   const handleToggleState = (stateName) => {
@@ -602,7 +633,6 @@ export default function CreateCampaignWizard() {
         nextStates = [...prev.selectedStates, stateName];
       }
 
-      // Automatically select default clusters for newly selected states
       const matchingClusters = clustersList
         .filter(c => nextStates.some(st => (c.state_name || c.state || '').toLowerCase() === st.toLowerCase()))
         .map(c => c.cluster_code || c.id || c._id);
@@ -610,7 +640,7 @@ export default function CreateCampaignWizard() {
       return {
         ...prev,
         selectedStates: nextStates,
-        selectedClusterIds: matchingClusters.length > 0 ? matchingClusters : prev.selectedClusterIds
+        selectedClusterIds: matchingClusters
       };
     });
   };
@@ -629,89 +659,45 @@ export default function CreateCampaignWizard() {
     });
   };
 
-  // Objective change handler - aligns CTA, URL, vouchers and rules dynamically
+  // Objective change handler - aligned with MarketingCampaign.campaign_objective schema enum
   const handleObjectiveChange = (newObjective) => {
-    let nextCta = 'Apply Coupon & Claim Kit Offer';
-    let nextUrl = 'https://solarkits.in/solar-kits/3kw-commercial?utm_source=marketing&utm_campaign=coupon_offer';
-    let nextCoupon = 'SOLARDIWALI5000';
-    let nextDiscountType = 'per_kit';
-    let nextDiscountValue = 5000;
-    let nextMinQty = 2;
+    let nextCta = formData.ctaText;
+    let nextUrl = formData.destinationUrl;
+    let nextHasCoupon = formData.hasCoupon;
 
-    if (newObjective === 'coupon_discount') {
+    if (newObjective === 'seasonal_coupon') {
       nextCta = 'Apply Coupon & Claim Kit Offer';
-      nextUrl = 'https://solarkits.in/solar-kits/3kw-commercial?utm_source=marketing&utm_campaign=coupon_offer';
-      nextCoupon = 'SOLARDIWALI5000';
-      nextDiscountType = 'per_kit';
-      nextDiscountValue = 5000;
-      nextMinQty = 2;
+      nextUrl = 'https://solarkits.in/solar-kits?utm_source=solarkits_marketing&utm_campaign=seasonal_coupon';
+      nextHasCoupon = true;
     } else if (newObjective === 'sales') {
       nextCta = 'Order Wholesale Kits Online';
-      nextUrl = 'https://solarkits.in/store?utm_source=marketing&utm_campaign=kit_sales';
-      nextCoupon = 'WHOLESALEBULK';
-      nextDiscountType = 'per_kit';
-      nextDiscountValue = 3000;
-      nextMinQty = 1;
-    } else if (newObjective === 'epc_signup') {
+      nextUrl = 'https://solarkits.in/store?utm_source=solarkits_marketing&utm_campaign=kit_sales';
+    } else if (newObjective === 'epc_onboarding' || newObjective === 'lead_generation') {
       nextCta = 'Register as EPC Partner & Claim ₹5,000 Credit';
-      nextUrl = 'https://solarkits.in/register/epc?utm_source=marketing&utm_campaign=epc_signup';
-      nextCoupon = 'WELCOMEEPC';
-      nextDiscountType = 'flat';
-      nextDiscountValue = 5000;
-      nextMinQty = 1;
+      nextUrl = 'https://solarkits.in/register/epc?utm_source=solarkits_marketing&utm_campaign=epc_onboarding';
     } else if (newObjective === 'store_visits') {
       nextCta = 'Locate Nearest Franchise Depot & Claim Pass';
-      nextUrl = 'https://solarkits.in/franchise-stores?utm_source=marketing&utm_campaign=store_visit';
-      nextCoupon = 'STOREVISIT2000';
-      nextDiscountType = 'flat';
-      nextDiscountValue = 2000;
-      nextMinQty = 1;
-    } else if (newObjective === 'epc_onboarding') {
-      nextCta = 'Complete KYC & Unlock Wholesale Pricing';
-      nextUrl = 'https://solarkits.in/account/kyc-verification?utm_source=marketing&utm_campaign=kyc_drive';
-      nextCoupon = 'KYCVERIFIED1000';
-      nextDiscountType = 'flat';
-      nextDiscountValue = 1000;
-      nextMinQty = 1;
+      nextUrl = 'https://solarkits.in/franchise-stores?utm_source=solarkits_marketing&utm_campaign=store_visits';
     } else if (newObjective === 'product_promotion') {
       nextCta = 'Explore TopCon Bifacial Kits & Specs';
-      nextUrl = 'https://solarkits.in/technology/topcon-bifacial?utm_source=marketing&utm_campaign=product_launch';
-      nextCoupon = 'TOPCONPROMO';
-      nextDiscountType = 'per_kit';
-      nextDiscountValue = 4000;
-      nextMinQty = 2;
+      nextUrl = 'https://solarkits.in/products?utm_source=solarkits_marketing&utm_campaign=product_promotion';
     } else if (newObjective === 'add_to_cart') {
-      nextCta = 'Resume Order & Apply ₹5,000 Discount';
-      nextUrl = 'https://solarkits.in/cart?utm_source=marketing&utm_campaign=cart_recovery';
-      nextCoupon = 'SAVECART5000';
-      nextDiscountType = 'per_kit';
-      nextDiscountValue = 5000;
-      nextMinQty = 1;
+      nextCta = 'Resume Order & Apply Discount';
+      nextUrl = 'https://solarkits.in/cart?utm_source=solarkits_marketing&utm_campaign=add_to_cart';
     } else if (newObjective === 'epc_activation') {
-      nextCta = 'Reactivate Account & Claim ₹7,500 Credit';
-      nextUrl = 'https://solarkits.in/portal/dashboard?utm_source=marketing&utm_campaign=reactivation';
-      nextCoupon = 'WELCOMEBACK7500';
-      nextDiscountType = 'flat';
-      nextDiscountValue = 7500;
-      nextMinQty = 1;
+      nextCta = 'Reactivate Account & Explore Combos';
+      nextUrl = 'https://solarkits.in/portal/dashboard?utm_source=solarkits_marketing&utm_campaign=epc_activation';
     } else if (newObjective === 'govt_tender_promotion') {
       nextCta = 'Explore Govt Tender Solar Kits';
-      nextUrl = 'https://solarkits.in/govt-tenders?utm_source=marketing&utm_campaign=govt_tender_promotion';
-      nextCoupon = 'GOVTTENDER5000';
-      nextDiscountType = 'per_kit';
-      nextDiscountValue = 5000;
-      nextMinQty = 1;
+      nextUrl = 'https://solarkits.in/govt-tenders?utm_source=solarkits_marketing&utm_campaign=govt_tender_promotion';
     }
 
     setFormData(prev => ({
       ...prev,
       objective: newObjective,
+      hasCoupon: nextHasCoupon,
       ctaText: nextCta,
-      destinationUrl: nextUrl,
-      couponCode: nextCoupon,
-      discountType: nextDiscountType,
-      discountValue: nextDiscountValue,
-      minOrderQty: nextMinQty
+      destinationUrl: nextUrl
     }));
   };
 
@@ -731,11 +717,10 @@ export default function CreateCampaignWizard() {
       }
       const newTotal = nextKits.reduce((acc, id) => acc + (updatedTargets[id] || 0), 0);
 
-      // Automatically recalculate MOQ to match the selected kit's store wholesale loose batch
       const selKits = displayedStep3Kits.filter(k => nextKits.includes(k.id));
       const autoMoq = selKits.length > 0
-        ? Math.min(...selKits.map(k => prev.kitMoqs?.[k.id] ?? k.moq ?? 25))
-        : 25;
+        ? Math.min(...selKits.map(k => prev.kitMoqs?.[k.id] ?? k.moq ?? 1))
+        : 1;
 
       return {
         ...prev,
@@ -802,155 +787,161 @@ export default function CreateCampaignWizard() {
     });
   };
 
-  // Handle wallet recharge
-  const handleQuickRecharge = () => {
-    rechargeQuota(Number(rechargeAmount));
-    setQuota(getQuotaState());
-    setShowRechargeModal(false);
-  };
-
-  // Launch campaign handler (wires live backend campaign creation, dispatch & Step 4 Email HTML)
-  const handleLaunchCampaign = async () => {
-    if (launchingCampaign) return;
-
-    const requiredCredits = audienceCalculation.deduplicatedTotal;
-    if (requiredCredits <= 0) {
-      alert('No eligible EPCs or Segment Group leads match the selected audience filters. Please adjust your targeting.');
-      return;
-    }
-
-    const available = quota?.available ?? 0;
-    if (available < requiredCredits) {
-      alert(`Insufficient account wallet balance. You have ${available.toLocaleString('en-IN')} credits, but this campaign targets ${requiredCredits.toLocaleString('en-IN')} recipients. Please recharge your wallet.`);
-      setShowRechargeModal(true);
-      return;
-    }
-
-    setLaunchingCampaign(true);
+  // Build final email HTML dynamically from EmailStudio designer state
+  const generatedEmailHtml = useMemo(() => {
     try {
-      const objectiveToPurposeMap = {
-        coupon_discount: 'coupon_kit',
-        sales: 'kit_sales',
-        epc_signup: 'custom',
-        store_visits: 'store_visits',
-        epc_onboarding: 'custom',
-        product_promotion: 'new_kit',
-        add_to_cart: 'kit_sales',
-        epc_activation: 'inactive_reactivation'
-      };
+      return generateResponsiveEmailHtml(formData.customCreative || {}, selectedKitObjects, warehousesList);
+    } catch {
+      return `<p>${formData.customCreative?.customBodyText || formData.campaignName}</p>`;
+    }
+  }, [formData.customCreative, formData.campaignName, selectedKitObjects, warehousesList]);
 
-      const selectedKitNames = selectedKitObjects.map((k) => k.name).filter(Boolean).join(', ');
-      const emailSubject =
-        formData.emailSubject ||
-        `Special Wholesale Offer: ${selectedKitNames || formData.campaignName}`;
-      const emailHtmlContent = generateResponsiveEmailHtml({
-        ...formData,
-        selectedKitObjects
+  // Real test send via backend SMTP/Resend/SES and Meta WhatsApp Cloud API
+  const handleTestSend = async () => {
+    const ch = String(formData.channel || 'BOTH').toLowerCase();
+    if ((ch === 'email' || ch === 'both') && !testEmail.trim()) {
+      setSubmitError('Enter a test email address before sending a test.');
+      return;
+    }
+    if ((ch === 'whatsapp' || ch === 'both') && !testPhone.trim()) {
+      setSubmitError('Enter a test WhatsApp phone number before sending a test.');
+      return;
+    }
+    setTestSending(true);
+    setTestResult(null);
+    setSubmitError(null);
+    try {
+      const res = await marketingHttp.post('/campaigns/test-send', {
+        channel: ch,
+        email_sender_id: formData.email_sender_id || null,
+        whatsapp_sender_id: formData.whatsapp_sender_id || null,
+        email_template_id: formData.selectedEmailTemplateId || null,
+        whatsapp_template_id: formData.selectedWhatsAppTemplateId || null,
+        test_email: testEmail.trim() || undefined,
+        test_phone: testPhone.trim() || undefined,
+        subject: formData.emailSubject || formData.customCreative?.headline || formData.campaignName || 'SolarKits Test Dispatch',
+        html_content: formData.selectedEmailTemplateId ? undefined : generatedEmailHtml,
+        whatsapp_body: formData.selectedWhatsAppTemplateId ? undefined : (formData.customCreative?.whatsapp?.body || ''),
+        variables: {
+          coupon_code: formData.couponCode || '',
+          discount_value: String(formData.discountValue || '')
+        }
       });
-
-      const backendCampaign = await createMarketingCampaign({
-        campaign_name: formData.campaignName,
-        campaign_type: String(formData.channel || 'BOTH').toLowerCase(),
-        campaign_objective: formData.objective || 'sales',
-        purpose: objectiveToPurposeMap[formData.objective] || 'kit_sales',
-        epc_groups: {
-          registered_epc: Boolean(formData.audienceGroups.registered),
-          verified_epc: Boolean(formData.audienceGroups.verified),
-          buyer_epc: Boolean(formData.audienceGroups.buyer)
-        },
-        area_type: resolvedSelectedStateIds.length > 0 ? 'state' : 'all_india',
-        state_ids: resolvedSelectedStateIds,
-        state_names: formData.selectedStates,
-        segment_ids: formData.selectedSegmentIds,
-        segment_state_filter: formData.segmentStateFilter || '',
-        segment_district_filter: formData.segmentDistrictFilter || '',
-        email_subject: emailSubject,
-        email_html_content: emailHtmlContent,
-        destination_url: formData.destinationUrl,
-        campaign_target_value: Number(formData.targetKitCount || 100),
-        purpose_data: {
-          objective: formData.objective,
-          coupon_code: formData.hasCoupon ? formData.couponCode : '',
-          discount_type: formData.discountType,
-          discount_value: Number(formData.discountValue || 0),
-          selected_states: formData.selectedStates,
-          selected_clusters: formData.selectedClusterIds
-        },
-        require_consent: true
-      });
-
-      const createdCampaignId = backendCampaign?._id || backendCampaign?.id;
-      if (createdCampaignId) {
-        await launchMarketingCampaign(createdCampaignId);
-      }
-
-      // 1. Deduct wallet quota
-      deductQuotaOnLaunch(formData.campaignName, requiredCredits);
-
-      // 2. Register coupon in coupon ledger
-      if (formData.hasCoupon && formData.couponCode) {
-        saveNewCoupon({
-          code: formData.couponCode.toUpperCase().trim(),
-          campaignName: formData.campaignName,
-          objective: formData.objective,
-          discountType: formData.discountType,
-          discountValue: Number(formData.discountValue),
-          minOrderQty: Number(formData.minOrderQty),
-          expiryDate: formData.couponExpiry,
-          singleUsePerEpc: formData.singleUsePerEpc,
-          deactivateOnCampaignEnd: formData.deactivateOnCampaignEnd,
-          status: 'Active',
-          assignedClusters: formData.selectedClusterIds,
-          assignedWarehouses: formData.servingWarehouses,
-          eligibleKits: formData.selectedKitIds
-        });
-      }
-
-      // 3. Mirror campaign summary locally for dashboard widgets
-      const newCampaign = {
-        id: createdCampaignId || 'CMP-' + Date.now().toString().slice(-6),
-        name: formData.campaignName,
-        status: 'Live Active',
-        channel: formData.channel,
-        objective: formData.objective,
-        targetAudienceCount: requiredCredits,
-        epcAudienceCount: audienceCalculation.epcCount,
-        segmentAudienceCount: audienceCalculation.segmentCount,
-        selectedStates: formData.selectedStates,
-        selectedClusters: formData.selectedClusterIds,
-        selectedSegmentIds: formData.selectedSegmentIds,
-        servingWarehouses: formData.servingWarehouses,
-        couponCode: formData.couponCode,
-        stopOnGoalAchievement: formData.stopOnGoalAchievement,
-        createdAt: new Date().toISOString()
-      };
-
-      try {
-        const existing = JSON.parse(localStorage.getItem('solarkits_live_campaigns_v1') || '[]');
-        existing.unshift(newCampaign);
-        localStorage.setItem('solarkits_live_campaigns_v1', JSON.stringify(existing));
-      } catch (e) {
-        console.warn(e);
-      }
-
-      alert(`Campaign "${formData.campaignName}" launched! Sending to ${requiredCredits.toLocaleString('en-IN')} recipient(s) (${audienceCalculation.epcCount.toLocaleString('en-IN')} EPCs + ${audienceCalculation.segmentCount.toLocaleString('en-IN')} Segment Leads).`);
-      navigate('/marketing-panel/campaigns');
+      setTestResult(res.data);
     } catch (err) {
-      console.error('Campaign launch error:', err);
-      alert(err.response?.data?.message || err.message || 'Failed to create & launch campaign.');
+      setSubmitError(extractApiError(err, 'Test message dispatch failed'));
     } finally {
-      setLaunchingCampaign(false);
+      setTestSending(false);
     }
   };
 
-  // Selected WhatsApp and Email template objects
+  // Create / Schedule / Launch real MongoDB campaign
+  const handleLaunchCampaign = async (mode = 'launch') => {
+    if (!formData.campaignName.trim()) {
+      setSubmitError('Campaign name is required.');
+      setCurrentStep(1);
+      return;
+    }
+    const ch = String(formData.channel || 'BOTH').toLowerCase();
+    if (mode === 'launch' && audienceCalculation.deduplicatedTotal === 0) {
+      setSubmitError('0 eligible recipients matched your current filters. Adjust targeting or save as Draft.');
+      return;
+    }
+
+    setSavingCampaign(true);
+    setSubmitError(null);
+    try {
+      // If custom coupon configured and not yet saved as OfferMaster, persist it to OfferMaster first
+      let couponOfferId = formData.coupon_offer_id || null;
+      if (formData.hasCoupon && formData.couponCode.trim() && !couponOfferId) {
+        try {
+          const cRes = await marketingHttp.post('/coupons', {
+            offer_name: `${formData.campaignName.trim()} Coupon`,
+            coupon_code: formData.couponCode.trim().toUpperCase(),
+            discount_type: formData.discountType === 'percent' ? 'percentage' : 'flat',
+            discount_value: Number(formData.discountValue || 0),
+            end_date: formData.couponExpiry || null,
+            products_applicable: resolvedTargeting.kit_ids,
+            is_active: true
+          });
+          couponOfferId = cRes.data?.data?._id || null;
+        } catch (couponErr) {
+          console.warn('Coupon creation note:', couponErr.message);
+        }
+      }
+
+      const startDateIso =
+        mode === 'scheduled' && formData.scheduledDate
+          ? new Date(`${formData.scheduledDate}T${formData.scheduledTime || '10:00'}:00`).toISOString()
+          : new Date().toISOString();
+
+      const resolvedEmailSubject = formData.emailSubject || formData.customCreative?.headline || null;
+      const resolvedEmailHtml = formData.selectedEmailTemplateId ? null : generatedEmailHtml;
+
+      const payload = {
+        campaign_name: formData.campaignName.trim(),
+        campaign_type: ch,
+        campaign_objective: formData.objective,
+        assigned_manager: /^[a-f\d]{24}$/i.test(String(formData.assigned_manager)) ? formData.assigned_manager : null,
+        budget: Number(formData.budget || 0),
+        status: mode === 'scheduled' ? 'scheduled' : 'draft',
+        launch_immediately: mode === 'launch',
+        start_date: startDateIso,
+        send_mode: formData.repeatFrequency === 'once' ? 'one_time' : 'recurring',
+        repeat_frequency: ['daily', 'weekly', 'monthly'].includes(formData.repeatFrequency) ? formData.repeatFrequency : 'weekly',
+        send_time: formData.repeatTime || '10:30',
+        stop_on_purchase: Boolean(formData.stopOnGoalAchievement),
+        stop_on_target_reached: Boolean(formData.stopOnGoalAchievement),
+        destination_url: formData.destinationUrl || 'https://solarkits.in',
+        email_sender_id: /^[a-f\d]{24}$/i.test(String(formData.email_sender_id)) ? formData.email_sender_id : null,
+        whatsapp_sender_id: /^[a-f\d]{24}$/i.test(String(formData.whatsapp_sender_id)) ? formData.whatsapp_sender_id : null,
+        email_template_id: /^[a-f\d]{24}$/i.test(String(formData.selectedEmailTemplateId)) ? formData.selectedEmailTemplateId : null,
+        whatsapp_template_id: /^[a-f\d]{24}$/i.test(String(formData.selectedWhatsAppTemplateId)) ? formData.selectedWhatsAppTemplateId : null,
+        email_subject: resolvedEmailSubject,
+        email_html_content: resolvedEmailHtml,
+        email_subject_override: resolvedEmailSubject,
+        email_html_override: resolvedEmailHtml,
+        whatsapp_body_override: formData.selectedWhatsAppTemplateId ? null : (formData.customCreative?.whatsapp?.body || null),
+        coupon_offer_id: couponOfferId,
+        coupon_code: formData.hasCoupon && formData.couponCode ? formData.couponCode.trim().toUpperCase() : null,
+        target_leads: Number(formData.targetLeads || 0),
+        target_conversions: formData.objective === 'epc_onboarding' ? Number(formData.targetEpcSignups || 0) : Number(formData.targetKitCount || 0),
+        target_revenue: Number(selectedKitsRevenue || 0),
+        target_messages: audienceCalculation.deduplicatedTotal,
+        ...resolvedTargeting
+      };
+
+      const res = await marketingHttp.post('/campaigns', payload);
+      if (res.data?.success) {
+        navigate('/marketing-panel/campaigns');
+      } else {
+        setSubmitError(res.data?.message || 'Failed to save campaign.');
+      }
+    } catch (err) {
+      setSubmitError(extractApiError(err, 'Failed to save/launch campaign'));
+    } finally {
+      setSavingCampaign(false);
+    }
+  };
+
+  // Selected WhatsApp and Email template objects from DB templates
   const activeWATemplate = useMemo(() => {
-    return PRESET_WHATSAPP_TEMPLATES.find(t => t.id === formData.selectedWhatsAppTemplateId) || PRESET_WHATSAPP_TEMPLATES[0];
-  }, [formData.selectedWhatsAppTemplateId]);
+    return (
+      dbTemplates.find((t) => String(t._id) === String(formData.selectedWhatsAppTemplateId) && t.channel === 'whatsapp') || {
+        name: 'Custom WhatsApp Studio Message',
+        body_text: formData.customCreative?.whatsapp?.body || ''
+      }
+    );
+  }, [dbTemplates, formData.selectedWhatsAppTemplateId, formData.customCreative?.whatsapp?.body]);
 
   const activeEmailTemplate = useMemo(() => {
-    return PRESET_EMAIL_TEMPLATES.find(t => t.id === formData.selectedEmailTemplateId) || PRESET_EMAIL_TEMPLATES[0];
-  }, [formData.selectedEmailTemplateId]);
+    return (
+      dbTemplates.find((t) => String(t._id) === String(formData.selectedEmailTemplateId) && t.channel === 'email') || {
+        name: formData.customCreative?.headline || 'Custom Email Studio Design',
+        subject: formData.emailSubject
+      }
+    );
+  }, [dbTemplates, formData.selectedEmailTemplateId, formData.customCreative?.headline, formData.emailSubject]);
 
   // Formatted preview text with variables replaced
   const waPreviewBody = useMemo(() => {
@@ -980,7 +971,7 @@ export default function CreateCampaignWizard() {
     const whName = formData.servingWarehouses[0] ? formData.servingWarehouses[0] : 'Certified Hub';
     const expiryStr = formData.couponExpiry ? new Date(formData.couponExpiry).toLocaleDateString('en-IN') : 'End of Month';
 
-    let bodyText = activeWATemplate.body
+    let bodyText = (activeWATemplate.body_text || activeWATemplate.body || '')
       .replace('{{1}}', discountStr)
       .replace('{{2}}', kitName)
       .replace('{{3}}', formData.couponCode)
@@ -1018,27 +1009,34 @@ export default function CreateCampaignWizard() {
           </p>
         </div>
 
-        {/* Live Wallet Pill */}
+        {/* Live Dispatch Engine & Eligible Audience Pill */}
         <div className="flex items-center gap-3">
           <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
-              <FaCoins className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+              <FaUsers className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Message Wallet Balance</p>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Live Eligible Audience</p>
               <p className="text-sm font-black text-slate-900 dark:text-white">
-                {(quota?.available ?? 0).toLocaleString('en-IN')} <span className="text-xs font-semibold text-slate-400">Credits</span>
+                {previewLoading ? 'Calculating...' : `${audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')} EPCs`}
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setShowRechargeModal(true)}
-            className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-          >
-            <FaPlus className="w-3 h-3" /> Recharge
-          </button>
+          <div className="bg-slate-50 dark:bg-slate-700/50 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+            <p className="text-[10px] uppercase font-bold text-slate-400">Dispatch Queue</p>
+            <p className="font-black text-indigo-600 dark:text-indigo-400">
+              {queueStatus ? `${queueStatus.pending ?? 0} Pending` : 'Ready'}
+            </p>
+          </div>
         </div>
       </div>
+
+      {submitError && (
+        <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs font-bold text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2"><FaExclamationTriangle /> {submitError}</span>
+          <button type="button" onClick={() => setSubmitError(null)} className="cursor-pointer"><FaTimes /></button>
+        </div>
+      )}
 
       {/* 7-Step Navigation Bar */}
       <div className="bg-white dark:bg-slate-800 p-2 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs overflow-x-auto">
@@ -1110,18 +1108,37 @@ export default function CreateCampaignWizard() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5 uppercase tracking-wider">
-                Campaign Owner / Manager
+                Campaign Owner / Manager (CMS User)
               </label>
               <select
-                value={formData.owner}
-                onChange={(e) => setFormData({ ...formData, owner: e.target.value })}
+                value={formData.assigned_manager}
+                onChange={(e) => {
+                  const selOwner = ownersList.find((o) => String(o._id) === e.target.value);
+                  setFormData({ ...formData, assigned_manager: e.target.value, owner: selOwner?.name || '' });
+                }}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 text-slate-900 dark:text-white text-sm font-semibold focus:outline-hidden focus:border-indigo-500 cursor-pointer"
               >
-                <option value="Admin (Global Super Admin)">Admin (Global Super Admin)</option>
-                <option value="Rahil Sunnovative (Director)">Rahil Sunnovative (Director)</option>
-                <option value="Sushil Piprotar (Ops)">Sushil Piprotar (Ops)</option>
-                <option value="Regional Territory Lead">Regional Territory Lead</option>
+                <option value="">-- Unassigned / Current Admin --</option>
+                {ownersList.map((o) => (
+                  <option key={o._id} value={String(o._id)}>
+                    {o.name} {o.department_name ? `(${o.department_name})` : o.email ? `(${o.email})` : ''}
+                  </option>
+                ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5 uppercase tracking-wider">
+                Allocated Campaign Budget (₹ INR)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={formData.budget}
+                onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 text-slate-900 dark:text-white text-sm font-semibold focus:outline-hidden focus:border-indigo-500"
+                placeholder="e.g. 25000"
+              />
             </div>
           </div>
 
@@ -1154,56 +1171,61 @@ export default function CreateCampaignWizard() {
             </div>
           </div>
 
-          {/* Wallet Credit Card — No Manual Quota Limit Input Needed */}
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-50/60 via-slate-50 to-amber-50/40 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 border border-indigo-100 dark:border-indigo-900/40 space-y-3">
+          {/* Sender Accounts & Live Queue Engine Card */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-50/60 via-slate-50 to-emerald-50/40 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 border border-indigo-100 dark:border-indigo-900/40 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
-                  <FaCoins className="w-4 h-4" />
+                  <FaPaperPlane className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-black text-slate-900 dark:text-white">Account Message Credit Wallet</h4>
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white">Verified Dispatch Senders & Queue Status</h4>
                   <p className="text-xs text-slate-500">
-                    Live balance across verified AWS SES & Meta Cloud WhatsApp API accounts
+                    Select active SMTP / Resend / AWS SES email senders and Meta WhatsApp Business numbers
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setShowRechargeModal(true)}
-                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <FaPlus className="w-3 h-3" /> Recharge Wallet
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-              <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
-                <span className="text-[10px] uppercase font-bold text-slate-400">Total Account Quota</span>
-                <p className="text-lg font-black text-slate-900 dark:text-white">
-                  {(quota?.totalQuota ?? quota?.total ?? 0).toLocaleString('en-IN')} <span className="text-xs font-medium text-slate-400">Credits</span>
-                </p>
-              </div>
-
-              <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
-                <span className="text-[10px] uppercase font-bold text-slate-400">Active Dispatched Used</span>
-                <p className="text-lg font-black text-slate-500 dark:text-slate-400">
-                  {(quota?.dispatchedUsed ?? quota?.used ?? 0).toLocaleString('en-IN')} <span className="text-xs font-medium text-slate-400">Credits</span>
-                </p>
-              </div>
-
-              <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-800/50 shadow-2xs">
-                <span className="text-[10px] uppercase font-bold text-emerald-600">Available to Allocate</span>
-                <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">
-                  {(quota?.available ?? 0).toLocaleString('en-IN')} <span className="text-xs font-medium text-emerald-500">Credits</span>
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2 text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 p-3 rounded-xl border border-indigo-200 dark:border-indigo-800">
-              <FaInfoCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>
-                <strong>Smart Wallet Auto-Deduction:</strong> You don't need to manually enter a quota limit number here. When you select your target clusters in Step 2, the exact deduplicated EPC audience count will be dynamically calculated and auto-deducted from this wallet when you launch.
+              <span className="px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold">
+                Queue: {queueStatus ? `${queueStatus.pending ?? 0} pending • ${queueStatus.sent ?? 0} sent` : 'Idle'}
               </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(formData.channel === 'EMAIL' || formData.channel === 'BOTH') && (
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">Email Sender Profile</label>
+                  <select
+                    value={formData.email_sender_id}
+                    onChange={(e) => setFormData({ ...formData, email_sender_id: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold"
+                  >
+                    <option value="">-- Auto (Default Active / .env Provider) --</option>
+                    {sendersList.filter((s) => s.type === 'email').map((s) => (
+                      <option key={s._id} value={String(s._id)}>
+                        {s.name} ({s.email_provider?.toUpperCase()} • {s.from_email}) [{s.status}]
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {(formData.channel === 'WHATSAPP' || formData.channel === 'BOTH') && (
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">WhatsApp Business Sender</label>
+                  <select
+                    value={formData.whatsapp_sender_id}
+                    onChange={(e) => setFormData({ ...formData, whatsapp_sender_id: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold"
+                  >
+                    <option value="">-- Auto (Default Active / .env Meta Cloud) --</option>
+                    {sendersList.filter((s) => s.type === 'whatsapp').map((s) => (
+                      <option key={s._id} value={String(s._id)}>
+                        {s.name} ({s.whatsapp_phone_number || s.whatsapp_phone_number_id}) [{s.status}]
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1470,6 +1492,45 @@ export default function CreateCampaignWizard() {
                   ))}
                 </div>
 
+                {/* Optional Saved Segment & Consent Policies */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block mb-1">
+                      Saved Dynamic Filter Segment (Optional)
+                    </label>
+                    <select
+                      value={formData.segment_id}
+                      onChange={(e) => setFormData({ ...formData, segment_id: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 font-semibold"
+                    >
+                      <option value="">-- Custom Filters Below --</option>
+                      {segmentsList.map((seg) => (
+                        <option key={seg._id} value={String(seg._id)}>
+                          {seg.name} ({seg.cached_count ?? 0} EPCs)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col justify-center gap-2 pt-2">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={formData.require_consent}
+                        onChange={(e) => setFormData({ ...formData, require_consent: e.target.checked })}
+                      />
+                      <span>Enforce explicit opt-in channel consent</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={formData.include_imported_leads}
+                        onChange={(e) => setFormData({ ...formData, include_imported_leads: e.target.checked })}
+                      />
+                      <span>Include CSV / Website EPC Leads</span>
+                    </label>
+                  </div>
+                </div>
+
                 {/* ISOLATED SEGMENT GROUPS (NON-EPC LEADS) */}
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-700/60 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1521,13 +1582,13 @@ export default function CreateCampaignWizard() {
                     </select>
                   </div>
 
-                  {segmentsList.length === 0 ? (
+                  {segmentGroupsList.length === 0 ? (
                     <div className="p-3.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-400 text-center">
                       No isolated Segment Groups found yet. Create groups under <strong>Marketing Portal → Segment Groups</strong>.
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
-                      {segmentsList.map((seg) => {
+                      {segmentGroupsList.map((seg) => {
                         const isChecked = formData.selectedSegmentIds.includes(seg._id);
                         const filteredCnt = seg.filtered_contact_count ?? seg.contact_count ?? 0;
                         return (
@@ -1564,7 +1625,7 @@ export default function CreateCampaignWizard() {
                   )}
                 </div>
 
-                {/* Industry Preference Segment Filter (PRD Section 5 & 7) */}
+                {/* Live Industry Preference Segment Filter (DB Industries) */}
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider block">
@@ -1583,6 +1644,7 @@ export default function CreateCampaignWizard() {
                         Live EPC audience filter
                       </span>
                     )}
+                    )}
                   </div>
 
                   {!hasAnyEpcGroup ? (
@@ -1593,49 +1655,40 @@ export default function CreateCampaignWizard() {
                     <div className="p-3.5 bg-amber-50/90 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
                       <FaInfoCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-bold">
-                          Industry filter is disabled for newly registered EPCs
-                        </p>
+                        <p className="font-bold">Industry filter is disabled for newly registered EPCs</p>
                         <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
-                          Newly registered EPCs complete their industry and kit preference selection upon their first store login. All registered EPCs with marketing consent in the selected territory (<strong>{audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')} contractors</strong>) will be targeted.
+                          Eligible count: <strong>{audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')} contractors</strong>.
                         </p>
                       </div>
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {[
-                        { id: 'all', label: 'All Industries (Broad Reach)' },
-                        { id: 'solar_pv', label: 'Solar PV' },
-                        { id: 'solar_agri', label: 'Solar Agriculture' },
-                        { id: 'commercial', label: 'Commercial & Industrial' },
-                        { id: 'solar_ev', label: 'Solar EV Charging' },
-                        { id: 'energy_storage', label: 'Energy Storage' }
-                      ].map(ind => {
-                        const count = industryCounts[ind.id] ?? 0;
-                        const isSelected = (formData.industryPreference || 'all') === ind.id;
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, industryPreference: 'ALL' })}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          (formData.industryPreference || 'ALL') === 'ALL'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200'
+                        }`}
+                      >
+                        All Industries
+                      </button>
+                      {industriesList.map((ind) => {
+                        const indId = String(ind._id);
+                        const isSelected = formData.industryPreference === indId;
                         return (
                           <button
-                            key={ind.id}
+                            key={indId}
                             type="button"
-                            onClick={() => setFormData({ ...formData, industryPreference: ind.id })}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                            onClick={() => setFormData({ ...formData, industryPreference: indId })}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                               isSelected
                                 ? 'bg-indigo-600 text-white shadow-xs'
-                                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200'
                             }`}
                           >
-                            <span>{ind.label}</span>
-                            <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                                isSelected
-                                  ? 'bg-white/25 text-white'
-                                  : count > 0
-                                  ? 'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300'
-                                  : 'bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-400'
-                              }`}
-                            >
-                              {count.toLocaleString('en-IN')}
-                            </span>
+                            {ind.name}
                           </button>
                         );
                       })}
@@ -1643,32 +1696,18 @@ export default function CreateCampaignWizard() {
                   )}
                 </div>
 
-                {/* Channel Marketing Consent Compliance Guard */}
-                <div className="p-3 bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-xl flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold">
-                    <FaCheckCircle className="text-emerald-600 w-4 h-4 shrink-0" />
-                    <span>
-                      {formData.channel === 'whatsapp'
-                        ? 'WhatsApp Opt-In Enforced: Only EPCs with verified WhatsApp marketing consent will be messaged.'
-                        : formData.channel === 'email'
-                        ? 'Email Consent Enforced: Only EPCs with verified promotional email consent will be sent.'
-                        : 'Channel Consent Enforced: Strictly excludes unconsented or unsubscribed EPC contractors.'}
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 uppercase tracking-wider">
-                    PRD Verified
-                  </span>
-                </div>
-
-                {/* Live Area Audience Count vs Account Wallet Counter */}
+                {/* Live Audience Resolution Summary from MongoDB */}
                 <div className="p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="space-y-1.5">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                      Live MongoDB Audience Calculation {loadingAudiencePreview ? '(Refreshing...)' : ''}
+                      Live MongoDB Eligible Audience Count
                     </span>
                     <p className="text-xl font-black text-white">
-                      {audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')}{' '}
-                      <span className="text-xs font-normal text-slate-300">Total Sending Count</span>
+                      {previewLoading ? 'Calculating...' : audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')}{' '}
+                      <span className="text-xs font-normal text-slate-300">Target Recipients</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Unsubscribed skipped: {audiencePreview?.unsubscribed_skipped ?? 0} • Consent skipped: {audiencePreview?.consent_skipped ?? 0}
                     </p>
                     <div className="flex flex-wrap items-center gap-2 pt-0.5">
                       <span className="px-2 py-0.5 rounded-md bg-indigo-500/25 border border-indigo-400/40 text-[11px] font-bold text-indigo-200">
@@ -1680,22 +1719,16 @@ export default function CreateCampaignWizard() {
                     </div>
                   </div>
 
-                  <div className="text-left sm:text-right">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                      Quota Comparison
+                  <div className="text-left sm:text-right text-[11px]">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                      Database Breakdown
                     </span>
-                    <p className={`text-sm font-black ${
-                      (quota?.available ?? 0) >= audienceCalculation.deduplicatedTotal
-                        ? 'text-emerald-400'
-                        : 'text-rose-400'
-                    }`}>
-                      {audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')} / {(quota?.available ?? 0).toLocaleString('en-IN')} Available
+                    <p className="font-bold text-emerald-400">
+                      {audiencePreview?.consent_breakdown?.email_consented ?? 0} Email • {audiencePreview?.consent_breakdown?.whatsapp_consented ?? 0} WhatsApp
                     </p>
-                    {(quota?.available ?? 0) < audienceCalculation.deduplicatedTotal ? (
-                      <span className="text-[10px] font-bold text-rose-300 block">⚠️ Quota Deficit! Please recharge</span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-emerald-300 block">✓ Balance Sufficient</span>
-                    )}
+                    <p className="text-[10px] text-slate-400">
+                      {formData.selectedStates.length || 'All'} States • {formData.selectedClusterIds.length || 'All'} Clusters
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1780,7 +1813,7 @@ export default function CreateCampaignWizard() {
           </div>
 
           {/* 1. DEDICATED PURPOSE: DISCOUNT COUPON & PROMOTIONAL OFFER */}
-          {formData.objective === 'coupon_discount' && (
+          {formData.objective === 'seasonal_coupon' && (
             <>
               {/* Dynamically Fetched Area Kits for Coupon Eligibility */}
               <div className="space-y-3">
@@ -1948,22 +1981,39 @@ export default function CreateCampaignWizard() {
 
               {/* Coupon Code Configuration Box */}
               <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-50/50 via-white to-amber-50/20 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 border-2 border-amber-200 dark:border-amber-800/60 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <FaGift className="text-amber-600 w-5 h-5" />
                     <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                      Coupon Voucher Configuration & Redemption Rules
+                      Coupon Voucher Configuration & OfferMaster Link
                     </h4>
                   </div>
-                  {isMoqInvalid ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-300 flex items-center gap-1">
-                      <FaBan className="w-3 h-3" /> Coupon Disabled (Below Store MOQ)
-                    </span>
-                  ) : (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 flex items-center gap-1">
-                      <FaCheckCircle className="w-3 h-3" /> Coupon Active in Store Cart
-                    </span>
-                  )}
+                  <select
+                    value={formData.coupon_offer_id}
+                    onChange={(e) => {
+                      const sel = couponsList.find((c) => String(c._id) === e.target.value);
+                      if (sel) {
+                        setFormData((p) => ({
+                          ...p,
+                          hasCoupon: true,
+                          coupon_offer_id: String(sel._id),
+                          couponCode: sel.coupon_code || p.couponCode,
+                          discountType: sel.discount_type === 'percentage' ? 'percent' : 'flat',
+                          discountValue: sel.discount_value || p.discountValue
+                        }));
+                      } else {
+                        setFormData((p) => ({ ...p, coupon_offer_id: '' }));
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-800 bg-white dark:bg-slate-900 text-xs font-bold"
+                  >
+                    <option value="">-- Create / Custom Code Below --</option>
+                    {couponsList.filter((c) => c.coupon_code).map((c) => (
+                      <option key={c._id} value={String(c._id)}>
+                        {c.coupon_code} — {c.offer_name} ({c.discount_value}{c.discount_type === 'percentage' ? '%' : '₹'})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -2798,7 +2848,7 @@ export default function CreateCampaignWizard() {
           )}
 
           {/* CONDITIONAL SECTION: EPC SIGN-UP & CONTRACTOR REGISTRATION DRIVE */}
-          {formData.objective === 'epc_signup' && (
+          {formData.objective === 'epc_onboarding' && (
             <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-blue-50/40 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 border-2 border-indigo-200 dark:border-indigo-800 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -3035,6 +3085,70 @@ export default function CreateCampaignWizard() {
             )}
           </div>
 
+          {/* MongoDB Saved Templates & Subject Quick Binding */}
+          <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            {(formData.channel === 'EMAIL' || formData.channel === 'BOTH') && (
+              <>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Email Subject Line *</label>
+                  <input
+                    type="text"
+                    value={formData.emailSubject}
+                    onChange={(e) => setFormData({ ...formData, emailSubject: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-semibold"
+                    placeholder="Subject line..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Bind Saved DB Email Template (Optional)</label>
+                  <select
+                    value={formData.selectedEmailTemplateId}
+                    onChange={(e) => {
+                      const sel = dbTemplates.find((t) => String(t._id) === e.target.value);
+                      setFormData((p) => ({
+                        ...p,
+                        selectedEmailTemplateId: e.target.value,
+                        emailSubject: sel?.subject || p.emailSubject,
+                        templateMode: e.target.value ? 'preset' : 'custom'
+                      }));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-semibold"
+                  >
+                    <option value="">-- Use Custom Email Studio Design Below --</option>
+                    {dbTemplates.filter((t) => t.channel === 'email').map((t) => (
+                      <option key={t._id} value={String(t._id)}>
+                        {t.name} [{t.status}]
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+            {(formData.channel === 'WHATSAPP' || formData.channel === 'BOTH') && (
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Bind Saved DB WhatsApp Template (Optional)</label>
+                <select
+                  value={formData.selectedWhatsAppTemplateId}
+                  onChange={(e) =>
+                    setFormData((p) => ({
+                      ...p,
+                      selectedWhatsAppTemplateId: e.target.value,
+                      templateMode: e.target.value ? 'preset' : 'custom'
+                    }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-semibold"
+                >
+                  <option value="">-- Use Custom WhatsApp Studio Message Below --</option>
+                  {dbTemplates.filter((t) => t.channel === 'whatsapp').map((t) => (
+                    <option key={t._id} value={String(t._id)}>
+                      {t.name} ({t.wa_template_name || 'meta'}) [{t.status}]
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
           {/* Render Active Studio */}
           {(formData.channel === 'WHATSAPP' || (formData.channel === 'BOTH' && creativeChannelTab === 'WHATSAPP')) && (
             <WhatsAppStudio
@@ -3076,32 +3190,44 @@ export default function CreateCampaignWizard() {
               <p className="text-xl font-black text-slate-900 dark:text-white mt-1">
                 {audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')}
               </p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Audience size to be blasted</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Live eligible recipients</p>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
-              <span className="text-[10px] uppercase font-bold text-slate-400">Quarterly Kit Target</span>
-              <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1">150 Kits</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Target assigned to {formData.selectedClusterIds.length} clusters</p>
+              <label className="text-[10px] uppercase font-bold text-slate-400 block">Target Leads Expected</label>
+              <input
+                type="number"
+                min={0}
+                value={formData.targetLeads}
+                onChange={(e) => setFormData({ ...formData, targetLeads: Math.max(0, Number(e.target.value) || 0) })}
+                className="w-full mt-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-lg font-black text-indigo-600"
+              />
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
-              <span className="text-[10px] uppercase font-bold text-slate-400">Already Achieved</span>
-              <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">82 Kits</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">54.6% achieved so far</p>
+              <label className="text-[10px] uppercase font-bold text-slate-400 block">Quarterly Kit Goal</label>
+              <input
+                type="number"
+                min={0}
+                value={formData.quarterlyKitGoal}
+                onChange={(e) => setFormData({ ...formData, quarterlyKitGoal: Math.max(0, Number(e.target.value) || 0) })}
+                className="w-full mt-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-lg font-black text-emerald-600"
+              />
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-amber-200 dark:border-amber-800">
-              <span className="text-[10px] uppercase font-bold text-amber-600">Remaining Gap for Campaign</span>
-              <p className="text-xl font-black text-amber-600 mt-1">68 Kits</p>
+              <span className="text-[10px] uppercase font-bold text-amber-600">Target Conversion Needed</span>
+              <p className="text-xl font-black text-amber-600 mt-1">
+                {formData.objective === 'epc_onboarding' ? formData.targetEpcSignups : formData.targetKitCount}
+              </p>
               <p className="text-[10px] text-slate-400 mt-0.5">
-                Requires ~{audienceCalculation.deduplicatedTotal > 0 ? ((68 / audienceCalculation.deduplicatedTotal) * 100).toFixed(2) : '0.00'}% Conversion
+                Est. {audienceCalculation.deduplicatedTotal > 0 ? (((formData.objective === 'epc_onboarding' ? formData.targetEpcSignups : formData.targetKitCount) / audienceCalculation.deduplicatedTotal) * 100).toFixed(2) : '0.00'}% conversion
               </p>
             </div>
           </div>
 
           {/* CONNECTED TARGETS: KIT-RELATED OBJECTIVES */}
-          {formData.objective !== 'epc_signup' ? (
+          {formData.objective !== 'epc_onboarding' ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -3131,12 +3257,12 @@ export default function CreateCampaignWizard() {
               ) : (
                 <div className="space-y-3">
                   {formData.selectedKitIds.map(kitId => {
-                    const kit = dynamicAreaKits.find(k => k.id === kitId) || STORE_KITS_CATALOG.find(k => k.id === kitId) || {
+                    const kit = dynamicAreaKits.find(k => k.id === kitId) || liveKitsCatalog.find(k => k.id === kitId) || {
                       id: kitId,
                       name: kitId,
-                      sku: 'SLR-CK-AUTO',
-                      base_price: 135000,
-                      stockQty: 30
+                      sku: 'SLR-CK',
+                      base_price: 0,
+                      stockQty: 0
                     };
                     const kitPrice = Number(kit.base_price || kit.defaultPrice || kit.price || 135000);
                     const stock = Number(kit.stockQty ?? kit.stock_in_selected_warehouses ?? 30);
@@ -3213,7 +3339,7 @@ export default function CreateCampaignWizard() {
                         {formData.targetKitCount} <span className="text-xs font-normal text-slate-300">Total Kits to Close</span>
                       </p>
                       <p className="text-[11px] text-amber-400 font-semibold mt-0.5">
-                        Fulfills {((formData.targetKitCount / 68) * 100).toFixed(1)}% of remaining regional territory gap (68 Kits)
+                        Goal covers {formData.quarterlyKitGoal > 0 ? ((formData.targetKitCount / formData.quarterlyKitGoal) * 100).toFixed(1) : '0.0'}% of configured quarterly target ({formData.quarterlyKitGoal} Kits)
                       </p>
                     </div>
 
@@ -3223,7 +3349,7 @@ export default function CreateCampaignWizard() {
                           Required Conversion Rate
                         </span>
                         <p className="text-lg font-black text-emerald-400 mt-0.5">
-                          ~{((formData.targetKitCount / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)}%
+                          ~{audienceCalculation.deduplicatedTotal > 0 ? ((formData.targetKitCount / audienceCalculation.deduplicatedTotal) * 100).toFixed(2) : '0.00'}%
                         </p>
                         <p className="text-[10px] text-slate-400">of {audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')} Target EPCs</p>
                       </div>
@@ -3279,7 +3405,7 @@ export default function CreateCampaignWizard() {
                   </span>
                   <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                     <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">
-                      ~{(((formData.targetEpcSignups || 150) / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)}%
+                      ~{audienceCalculation.deduplicatedTotal > 0 ? (((formData.targetEpcSignups || 50) / audienceCalculation.deduplicatedTotal) * 100).toFixed(2) : '0.00'}%
                     </p>
                     <p className="text-[10px] text-slate-400">of {audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')} contractors</p>
                   </div>
@@ -3457,12 +3583,12 @@ export default function CreateCampaignWizard() {
                   Edit
                 </button>
               </div>
-              <p className="text-sm font-black text-slate-900 dark:text-white">{formData.campaignName}</p>
+              <p className="text-sm font-black text-slate-900 dark:text-white">{formData.campaignName || 'Untitled Campaign'}</p>
               <p className="text-xs text-slate-500">
-                Channel: <strong>{formData.channel}</strong> • Owner: {formData.owner}
+                Channel: <strong>{formData.channel}</strong> • Owner: {formData.owner || 'Admin'}
               </p>
               <p className="text-[11px] text-emerald-600 font-semibold">
-                ✓ Wallet: {(quota?.available ?? 0).toLocaleString('en-IN')} Available Credits
+                Budget: ₹{Number(formData.budget || 0).toLocaleString('en-IN')}
               </p>
             </div>
 
@@ -3585,21 +3711,27 @@ export default function CreateCampaignWizard() {
                 </button>
               </div>
               <p className="text-sm font-black text-slate-900 dark:text-white">
-                {formData.objective === 'epc_signup'
-                  ? `Campaign Goal: ${formData.targetEpcSignups || 150} Verified EPC Sign-ups`
+                {formData.objective === 'epc_onboarding'
+                  ? `Campaign Goal: ${formData.targetEpcSignups || 50} Verified EPC Sign-ups`
                   : `Campaign Goal: ${formData.targetKitCount} Kits to Close`}
               </p>
               <p className="text-xs text-slate-500">
-                {formData.objective === 'epc_signup'
-                  ? `Est. Pipeline: ₹${(((formData.targetEpcSignups || 150) * 180000)).toLocaleString('en-IN')}`
-                  : `Quarterly Target: 150 Kits • Achieved: 82 Kits (Gap: 68 Kits)`}
+                {formData.objective === 'epc_onboarding'
+                  ? `Target Leads: ${formData.targetLeads}`
+                  : `Quarterly Target: ${formData.quarterlyKitGoal} Kits • Proj. Revenue: ₹${selectedKitsRevenue.toLocaleString('en-IN')}`}
               </p>
               <p className="text-[11px] text-amber-600 font-semibold">
+<<<<<<< HEAD
+                Required Conversion: ~{audienceCalculation.deduplicatedTotal > 0 ? (formData.objective === 'epc_onboarding'
+                  ? (((formData.targetEpcSignups || 50) / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)
+                  : ((formData.targetKitCount / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)) : '0.00'}%
+=======
                 Required Conversion: ~{audienceCalculation.deduplicatedTotal > 0
                   ? (formData.objective === 'epc_signup'
                       ? (((formData.targetEpcSignups || 150) / audienceCalculation.deduplicatedTotal) * 100).toFixed(2)
                       : ((formData.targetKitCount / audienceCalculation.deduplicatedTotal) * 100).toFixed(2))
                   : '0.00'}%
+>>>>>>> 1be01239219aba6043c1ae0b8eb9296b9aa57074
               </p>
             </div>
 
@@ -3629,37 +3761,103 @@ export default function CreateCampaignWizard() {
 
           </div>
 
-          {/* Wallet Deduction Notification */}
-          <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FaCoins className="w-5 h-5 text-indigo-600" />
-              <div>
-                <p className="text-xs font-bold text-slate-900 dark:text-white">Wallet Deduction on Activation</p>
-                <p className="text-xs text-slate-500">
-                  {audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')} credits will be deducted from your available balance of {(quota?.available ?? 0).toLocaleString('en-IN')}.
-                </p>
+          {/* Real Provider Test Send Panel */}
+          <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <FaPaperPlane className="w-4 h-4 text-indigo-600" />
+                <div>
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">Real Provider Test Dispatch (No Simulation)</p>
+                  <p className="text-[11px] text-slate-500">
+                    Dispatch a live test via your selected SMTP/Resend/SES and Meta WhatsApp sender before blasting {audienceCalculation.deduplicatedTotal.toLocaleString('en-IN')} EPCs.
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                disabled={testSending}
+                onClick={handleTestSend}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-2 cursor-pointer shrink-0"
+              >
+                <FaPaperPlane /> {testSending ? 'Sending...' : 'Send Live Test'}
+              </button>
             </div>
-            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
-              Post-Launch Remaining: {Math.max(0, (quota?.available ?? 0) - audienceCalculation.deduplicatedTotal).toLocaleString('en-IN')} Credits
-            </span>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              {(formData.channel === 'EMAIL' || formData.channel === 'BOTH') && (
+                <input
+                  type="email"
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                  placeholder="Test recipient email (e.g. yourname@domain.com)"
+                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                />
+              )}
+              {(formData.channel === 'WHATSAPP' || formData.channel === 'BOTH') && (
+                <input
+                  type="text"
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  placeholder="Test WhatsApp phone (e.g. +9198XXXXXXXX)"
+                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                />
+              )}
+            </div>
+
+            {testResult && (
+              <div className={`p-3 rounded-xl text-xs font-semibold ${testResult.success ? 'bg-emerald-100/70 text-emerald-900 border border-emerald-300' : 'bg-rose-100/70 text-rose-900 border border-rose-300'}`}>
+                <div>{testResult.message}</div>
+                {testResult.results?.email && (
+                  <div className="mt-1">
+                    Email ({testResult.results.email.provider}): {testResult.results.email.success ? `Sent (ID: ${testResult.results.email.messageId})` : `Failed — ${testResult.results.email.error}`}
+                  </div>
+                )}
+                {testResult.results?.whatsapp && (
+                  <div className="mt-1">
+                    WhatsApp ({testResult.results.whatsapp.provider}): {testResult.results.whatsapp.success ? `Sent (ID: ${testResult.results.whatsapp.messageId})` : `Failed — ${testResult.results.whatsapp.error}`}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100 dark:border-slate-700/60">
+          <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700/60">
             <button
-              onClick={() => alert('Simulated test message sent to admin email & WhatsApp!')}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-all flex items-center gap-2 cursor-pointer"
+              type="button"
+              disabled={savingCampaign}
+              onClick={() => handleLaunchCampaign('draft')}
+              className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer disabled:opacity-50"
             >
-              <FaPaperPlane className="text-indigo-600" /> Send Test Message to My Device
+              Save as Draft
             </button>
 
+            {formData.launchMode === 'scheduled' && (
+              <button
+                type="button"
+                disabled={savingCampaign}
+                onClick={() => handleLaunchCampaign('scheduled')}
+                className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 cursor-pointer"
+              >
+                <FaCalendarAlt /> Save & Schedule Campaign
+              </button>
+            )}
+
             <button
+<<<<<<< HEAD
+              type="button"
+              disabled={savingCampaign}
+              onClick={() => handleLaunchCampaign('launch')}
+              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
+            >
+              <FaRocket className="w-4 h-4" /> {savingCampaign ? 'Saving & Queuing...' : 'Launch & Dispatch Immediately'}
+=======
               onClick={handleLaunchCampaign}
               disabled={launchingCampaign}
               className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer disabled:opacity-60"
             >
               <FaRocket className="w-4 h-4" /> {launchingCampaign ? 'Launching Campaign...' : 'Launch & Activate Campaign Now'}
+>>>>>>> 1be01239219aba6043c1ae0b8eb9296b9aa57074
             </button>
           </div>
         </div>
@@ -3691,84 +3889,22 @@ export default function CreateCampaignWizard() {
         ) : (
           <button
             type="button"
+<<<<<<< HEAD
+            disabled={savingCampaign}
+            onClick={() => handleLaunchCampaign('launch')}
+            className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition-all"
+          >
+            {savingCampaign ? 'Dispatching...' : 'Launch Campaign'} <FaCheck className="w-3 h-3" />
+=======
             onClick={handleLaunchCampaign}
             disabled={launchingCampaign}
             className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition-all disabled:opacity-60"
           >
             <FaCheck className="w-3 h-3" /> {launchingCampaign ? 'Launching...' : 'Launch Campaign'}
+>>>>>>> 1be01239219aba6043c1ae0b8eb9296b9aa57074
           </button>
         )}
       </div>
-
-      {/* Quick Recharge Modal */}
-      {showRechargeModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-700 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FaCoins className="text-amber-500 w-5 h-5" />
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Top-Up Message Wallet</h3>
-              </div>
-              <button
-                onClick={() => setShowRechargeModal(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <FaTimes />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-500">
-              Current Available Balance: <strong>{(quota?.available ?? 0).toLocaleString('en-IN')} Credits</strong>. Select or enter credit package to add immediately.
-            </p>
-
-            <div className="grid grid-cols-3 gap-2">
-              {[2500, 5000, 10000].map(amt => (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => setRechargeAmount(amt)}
-                  className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                    rechargeAmount === amt
-                      ? 'border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60'
-                      : 'border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  +{amt.toLocaleString('en-IN')} Credits
-                </button>
-              ))}
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
-                Custom Credit Amount
-              </label>
-              <input
-                type="number"
-                value={rechargeAmount}
-                onChange={(e) => setRechargeAmount(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowRechargeModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleQuickRecharge}
-                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs cursor-pointer"
-              >
-                Confirm & Add Credits
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -50,6 +50,8 @@ const schema = new mongoose.Schema({
   parent_account_id:        { type: mongoose.Schema.Types.ObjectId, ref: 'epc_accounts', default: null },
   assigned_districts:       [{ type: mongoose.Schema.Types.ObjectId, ref: 'geolocation_level_2' }],
   is_active:                { type: Boolean, default: true },
+  is_marketing_unsubscribed:{ type: Boolean, default: false },
+  marketing_unsubscribed_at:{ type: Date, default: null },
 
   deleted_at: { type: Date, default: null }
 }, { 

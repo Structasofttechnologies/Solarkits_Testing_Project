@@ -18,8 +18,32 @@ const schema = new mongoose.Schema({
   },
   consent_source: {
     type: String,
-    enum: ['first_login_popup', 'new_kit_modal', 'profile_settings', 'admin_import', 'signup', 'portal', 'register'],
+    enum: ['signup', 'first_login_popup', 'new_kit_modal', 'profile_settings', 'epc_profile_page', 'admin_import', 'portal', 'register'],
     default: 'first_login_popup'
+  },
+  company_name: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  registered_email: {
+    type: String,
+    default: null,
+    trim: true,
+    lowercase: true
+  },
+  registered_mobile: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  ip_address: {
+    type: String,
+    default: null
+  },
+  user_agent: {
+    type: String,
+    default: null
   },
   consent_wording: {
     type: String,

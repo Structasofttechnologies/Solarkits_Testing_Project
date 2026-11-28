@@ -579,6 +579,9 @@ const create_account = async (req, res) => {
         await EpcMarketingConsent.create([
             {
                 epc_id: account._id,
+                company_name: name,
+                registered_email: email,
+                registered_mobile: finalWhatsapp,
                 email_consent: emailConsent,
                 whatsapp_consent: whatsappConsent,
                 consent_source: 'signup',

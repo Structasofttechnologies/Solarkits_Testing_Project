@@ -1,114 +1,169 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  FaEnvelope, FaPlus, FaCheckCircle, FaTrash, FaPaperPlane,
-  FaAws, FaExternalLinkAlt, FaKey, FaServer, FaInfoCircle
+  FaEnvelope, FaTrash, FaPaperPlane, FaAws, FaExternalLinkAlt,
+  FaKey, FaServer, FaInfoCircle, FaEdit, FaExclamationTriangle, FaCheckCircle
 } from 'react-icons/fa';
-import { SiResend } from 'react-icons/si';
+import { marketingHttp, extractApiError } from './services/marketingApi';
+
+const EMPTY_EMAIL_FORM = (provider = 'smtp') => ({
+  provider,
+  email_provider: provider,
+  purpose: 'marketing',
+  sender_name: '',
+  sender_email: '',
+  reply_to_email: '',
+  resend_api_key: '',
+  aws_region: 'ap-south-1',
+  smtp_host: provider === 'aws_ses' ? 'email-smtp.ap-south-1.amazonaws.com' : provider === 'smtp' ? 'smtp.gmail.com' : '',
+  smtp_port: provider === 'smtp' ? 465 : 587,
+  smtp_secure: provider === 'smtp',
+  smtp_user: '',
+  smtp_pass: '',
+  is_default: false
+});
 
 export default function EmailSettingsPage() {
-  const [senders, setSenders] = useState([
-    {
-      _id: 'em_resend_default',
-      sender_name: 'SolarKits Central Promotions (Resend)',
-      sender_email: 'orders@solarkits.in',
-      reply_to_email: 'support@solarkits.in',
-      provider: 'resend',
-      resend_api_key: 're_live_••••••••••••••••••••••••',
-      is_default: true,
-      status: 'active'
-    },
-    {
-      _id: 'em_aws_ses',
-      sender_name: 'SolarKits Bulk Wholesale (AWS SES)',
-      sender_email: 'campaigns@solarkits.in',
-      reply_to_email: 'sales@solarkits.in',
-      provider: 'aws_ses',
-      aws_region: 'ap-south-1',
-      smtp_host: 'email-smtp.ap-south-1.amazonaws.com',
-      smtp_port: 587,
-      smtp_user: 'AKIA••••••••••••',
-      is_default: false,
-      status: 'active'
-    },
-    {
-      _id: 'em_smtp_backup',
-      sender_name: 'SolarKits Franchisee Desk (SMTP)',
-      sender_email: 'franchisee@solarkits.in',
-      reply_to_email: 'partner@solarkits.in',
-      provider: 'smtp',
-      smtp_host: 'smtp.gmail.com',
-      smtp_port: 587,
-      smtp_user: 'franchisee@solarkits.in',
-      is_default: false,
-      status: 'active'
-    }
-  ]);
-
-  const [activeProviderTab, setActiveProviderTab] = useState('resend'); // 'resend' | 'aws_ses' | 'smtp'
-
-  const [formData, setFormData] = useState({
-    provider: 'resend',
-    sender_name: 'SolarKits India',
-    sender_email: 'orders@solarkits.in',
-    reply_to_email: 'support@solarkits.in',
-    // Resend
-    resend_api_key: '',
-    // AWS SES
-    aws_region: 'ap-south-1',
-    smtp_host: 'email-smtp.ap-south-1.amazonaws.com',
-    smtp_port: 587,
-    smtp_user: '',
-    smtp_pass: '',
-    is_default: false
-  });
+  const [senders, setSenders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [activeProviderTab, setActiveProviderTab] = useState('smtp');
+  const [formData, setFormData] = useState(EMPTY_EMAIL_FORM('smtp'));
 
   const [testEmail, setTestEmail] = useState('');
-  const [testStatus, setTestStatus] = useState(null);
+  const [testingId, setTestingId] = useState(null);
+  const [statusBanner, setStatusBanner] = useState(null);
+
+  const loadSenders = async () => {
+    setLoading(true);
+    try {
+      const res = await marketingHttp.get('/senders?type=email');
+      if (res.data?.success) {
+        setSenders(res.data.data || []);
+      }
+    } catch (err) {
+      setStatusBanner({ type: 'error', text: extractApiError(err, 'Failed to fetch email senders') });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSenders();
+  }, []);
 
   const handleProviderChange = (provider) => {
     setActiveProviderTab(provider);
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       provider,
-      smtp_host: provider === 'aws_ses' ? 'email-smtp.ap-south-1.amazonaws.com' : provider === 'smtp' ? 'smtp.gmail.com' : ''
+      email_provider: provider,
+      smtp_host: provider === 'aws_ses' ? `email-smtp.${prev.aws_region || 'ap-south-1'}.amazonaws.com` : provider === 'smtp' ? 'smtp.gmail.com' : '',
+      smtp_port: provider === 'smtp' ? 465 : 587,
+      smtp_secure: provider === 'smtp'
     }));
   };
 
-  const handleAddSender = (e) => {
+  const handleSaveSender = async (e) => {
     e.preventDefault();
-    if (!formData.sender_email) return;
+    if (!formData.sender_email || !formData.sender_name) return;
 
-    setSenders([...senders, { ...formData, _id: `em_${Date.now()}`, status: 'active' }]);
-    setTestStatus(`✅ Successfully added ${formData.provider.toUpperCase()} sender: ${formData.sender_email}`);
-    setTimeout(() => setTestStatus(null), 4000);
-
-    setFormData({
-      provider: activeProviderTab,
-      sender_name: 'SolarKits India',
-      sender_email: '',
-      reply_to_email: 'support@solarkits.in',
-      resend_api_key: '',
-      aws_region: 'ap-south-1',
-      smtp_host: activeProviderTab === 'aws_ses' ? 'email-smtp.ap-south-1.amazonaws.com' : 'smtp.gmail.com',
-      smtp_port: 587,
-      smtp_user: '',
-      smtp_pass: '',
-      is_default: false
-    });
+    setSaving(true);
+    setStatusBanner(null);
+    try {
+      const payload = {
+        ...formData,
+        type: 'email',
+        name: formData.sender_name,
+        email_provider: activeProviderTab,
+        status: 'verification_pending'
+      };
+      if (editingId) {
+        await marketingHttp.put(`/senders/${editingId}`, payload);
+        setStatusBanner({ type: 'success', text: `Updated ${activeProviderTab.toUpperCase()} sender "${formData.sender_name}". Run Test Send to verify.` });
+        setEditingId(null);
+      } else {
+        await marketingHttp.post('/senders', payload);
+        setStatusBanner({ type: 'success', text: `Saved ${activeProviderTab.toUpperCase()} sender "${formData.sender_email}". Click Test Send to verify live delivery.` });
+      }
+      setFormData(EMPTY_EMAIL_FORM(activeProviderTab));
+      await loadSenders();
+    } catch (err) {
+      setStatusBanner({ type: 'error', text: extractApiError(err, 'Failed to save sender') });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSendTest = (sender) => {
-    const provName = (sender.provider || 'smtp').toUpperCase();
-    setTestStatus(`⏳ Sending test email via ${provName} engine to ${testEmail || sender.sender_email}...`);
-    setTimeout(() => {
-      setTestStatus(`✓ Test verification email dispatched via ${provName}! Audit log recorded.`);
-      setTimeout(() => setTestStatus(null), 4000);
-    }, 1200);
+  const handleEdit = (sender) => {
+    const prov = sender.email_provider || sender.provider || 'smtp';
+    setEditingId(sender._id);
+    setActiveProviderTab(prov);
+    setFormData({
+      provider: prov,
+      email_provider: prov,
+      purpose: sender.purpose || 'marketing',
+      sender_name: sender.sender_name || sender.name || '',
+      sender_email: sender.sender_email || '',
+      reply_to_email: sender.reply_to_email || '',
+      resend_api_key: sender.resend_api_key || '',
+      aws_region: sender.aws_region || 'ap-south-1',
+      smtp_host: sender.smtp_host || '',
+      smtp_port: sender.smtp_port || (prov === 'smtp' ? 465 : 587),
+      smtp_secure: Boolean(sender.smtp_secure),
+      smtp_user: sender.smtp_user || '',
+      smtp_pass: sender.smtp_pass || '',
+      is_default: Boolean(sender.is_default)
+    });
+    window.scrollTo({ top: 360, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this email sender configuration?')) return;
+    try {
+      await marketingHttp.delete(`/senders/${id}`);
+      setStatusBanner({ type: 'success', text: 'Email sender deleted.' });
+      await loadSenders();
+    } catch (err) {
+      setStatusBanner({ type: 'error', text: extractApiError(err, 'Failed to delete sender') });
+    }
+  };
+
+  const handleSendTest = async (sender) => {
+    const target = testEmail.trim() || sender.sender_email;
+    if (!target) {
+      setStatusBanner({ type: 'error', text: 'Enter a recipient test email address first.' });
+      return;
+    }
+    setTestingId(sender._id);
+    setStatusBanner({ type: 'info', text: `Testing ${(sender.email_provider || 'smtp').toUpperCase()} connection & sending email to ${target}...` });
+    try {
+      const res = await marketingHttp.post('/senders/test', {
+        sender_id: sender._id,
+        test_target: target
+      });
+      const data = res.data || {};
+      if (data.success) {
+        setStatusBanner({
+          type: 'success',
+          text: `Verified & sent via ${data.provider?.toUpperCase()} (simulated: ${Boolean(data.simulated)}, MessageId: ${data.messageId})`
+        });
+      } else {
+        setStatusBanner({
+          type: 'error',
+          text: `Test FAILED via ${(data.provider || sender.email_provider || 'unknown').toUpperCase()} [${data.errorCode || 'ERROR'}]: ${data.error || 'Unknown error'}`
+        });
+      }
+      await loadSenders();
+    } catch (err) {
+      setStatusBanner({ type: 'error', text: extractApiError(err, 'Test send failed') });
+    } finally {
+      setTestingId(null);
+    }
   };
 
   return (
     <div className="space-y-6 text-slate-800 dark:text-slate-100 max-w-5xl mx-auto">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider mb-2">
@@ -116,11 +171,12 @@ export default function EmailSettingsPage() {
             <span>Email Infrastructure & Senders</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">Email Account Settings</h1>
-          <p className="text-sm text-slate-500">Configure Resend API, AWS SES (Amazon Simple Email Service) and SMTP providers for high-deliverability bulk EPC marketing campaigns.</p>
+          <p className="text-sm text-slate-500">Configure encrypted Resend API, AWS SES, and SMTP email senders with real verification testing.</p>
         </div>
+
         <a
           href="/developer-panel/email-dispatchers"
-          className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs hover:shadow-md hover:scale-[1.02] transition-all self-start"
+          className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs hover:shadow-md transition-all self-start"
         >
           <FaServer className="w-3.5 h-3.5" />
           <span>Open in Developer Panel</span>
@@ -128,7 +184,7 @@ export default function EmailSettingsPage() {
         </a>
       </div>
 
-      {/* Video Guides Alert Banner (From Boss) */}
+      {/* Video Guides */}
       <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-md border border-blue-700/40 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-amber-300">
@@ -138,120 +194,150 @@ export default function EmailSettingsPage() {
           <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">Step-by-Step</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-          <a
-            href="https://youtu.be/eubuhK_1NN0"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 transition-all flex items-center justify-between group"
-          >
+          <a href="https://youtu.be/eubuhK_1NN0" target="_blank" rel="noopener noreferrer" className="p-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-between">
             <div>
-              <div className="text-xs font-extrabold flex items-center gap-1.5 text-white">
-                <span>📹 Resend Bulk Email & API Key Setup</span>
-                <FaExternalLinkAlt className="w-3 h-3 text-slate-300 group-hover:text-amber-300" />
-              </div>
+              <div className="text-xs font-extrabold text-white">Resend Bulk Email & API Key Setup</div>
               <p className="text-[11px] text-slate-300 mt-1">Watch 5-min tutorial for API key generation & domain verification.</p>
             </div>
+            <FaExternalLinkAlt className="w-3 h-3 text-slate-300" />
           </a>
-
-          <a
-            href="https://youtu.be/VWt43MXhuk4"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 transition-all flex items-center justify-between group"
-          >
+          <a href="https://youtu.be/VWt43MXhuk4" target="_blank" rel="noopener noreferrer" className="p-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-between">
             <div>
-              <div className="text-xs font-extrabold flex items-center gap-1.5 text-white">
-                <span>📹 AWS SES Domain & SMTP Setup Guide</span>
-                <FaExternalLinkAlt className="w-3 h-3 text-slate-300 group-hover:text-amber-300" />
-              </div>
-              <p className="text-[11px] text-slate-300 mt-1">Watch tutorial for AWS SES Sandbox exit & SMTP credentials generation.</p>
+              <div className="text-xs font-extrabold text-white">AWS SES Domain & SMTP Setup Guide</div>
+              <p className="text-[11px] text-slate-300 mt-1">Watch tutorial for AWS SES Sandbox exit & SMTP credentials.</p>
             </div>
+            <FaExternalLinkAlt className="w-3 h-3 text-slate-300" />
           </a>
         </div>
       </div>
 
-      {testStatus && (
-        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 text-emerald-800 dark:text-emerald-200 text-sm font-semibold">
-          {testStatus}
+      {statusBanner && (
+        <div
+          className={`p-4 rounded-2xl border text-sm font-semibold flex items-center gap-2 ${
+            statusBanner.type === 'error'
+              ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+              : statusBanner.type === 'info'
+              ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200'
+              : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+          }`}
+        >
+          {statusBanner.type === 'error' ? <FaExclamationTriangle className="shrink-0" /> : <FaCheckCircle className="shrink-0" />}
+          <span>{statusBanner.text}</span>
         </div>
       )}
 
       {/* Senders List */}
       <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">Configured Email Delivery Senders</h2>
-          <span className="text-xs font-bold text-slate-400">{senders.length} Providers Active</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">Configured Email Delivery Senders ({senders.length})</h2>
+            <p className="text-xs text-slate-500">Live records from database; enter an optional recipient address before clicking Test Send.</p>
+          </div>
+          <input
+            type="email"
+            placeholder="Optional test recipient email (e.g. you@gmail.com)"
+            value={testEmail}
+            onChange={(e) => setTestEmail(e.target.value)}
+            className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs w-full sm:w-72"
+          />
         </div>
 
-        <div className="space-y-3">
-          {senders.map((s) => (
-            <div key={s._id} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-slate-900 dark:text-white">{s.sender_name}</h4>
-                  {s.provider === 'resend' ? (
-                    <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-slate-900 text-white">RESEND API</span>
-                  ) : s.provider === 'aws_ses' ? (
-                    <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-500 text-white">AWS SES</span>
-                  ) : (
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">SMTP</span>
-                  )}
+        {loading ? (
+          <div className="text-xs text-slate-400 py-6 text-center">Loading email senders from server...</div>
+        ) : senders.length === 0 ? (
+          <div className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl">
+            No email senders saved in MongoDB yet. Add one below (or use .env SMTP/Resend).
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {senders.map((s) => {
+              const prov = s.email_provider || s.provider || 'smtp';
+              return (
+                <div key={s._id} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-bold text-slate-900 dark:text-white">{s.sender_name || s.name}</h4>
+                      {prov === 'resend' ? (
+                        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-slate-900 text-white">RESEND API</span>
+                      ) : prov === 'aws_ses' ? (
+                        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-500 text-white">AWS SES</span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">SMTP</span>
+                      )}
+                      {s.is_default && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400">Default</span>
+                      )}
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                        {s.status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      From: <strong>{s.sender_email}</strong> • Reply-To: {s.reply_to_email || s.sender_email} • Purpose: <strong>{s.purpose || 'marketing'}</strong>
+                      {prov === 'smtp' && ` • ${s.smtp_host}:${s.smtp_port}`}
+                      {prov === 'aws_ses' && ` • ${s.aws_region || 'ap-south-1'}`}
+                    </div>
+                    {s.last_error && (
+                      <div className="text-xs text-rose-600 dark:text-rose-400 font-semibold">Error: {s.last_error}</div>
+                    )}
+                  </div>
 
-                  {s.is_default && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400">Default Sender</span>
-                  )}
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Active</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={testingId === s._id}
+                      onClick={() => handleSendTest(s)}
+                      className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <FaPaperPlane className="w-3 h-3" />
+                      <span>{testingId === s._id ? 'Sending...' : 'Test Send'}</span>
+                    </button>
+                    <button type="button" onClick={() => handleEdit(s)} className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-xs cursor-pointer" title="Edit">
+                      <FaEdit />
+                    </button>
+                    <button type="button" onClick={() => handleDelete(s._id)} className="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-700 text-xs cursor-pointer" title="Delete">
+                      <FaTrash />
+                    </button>
+                  </div>
                 </div>
-                <div className="text-xs text-slate-500 mt-1">
-                  From: <strong>{s.sender_email}</strong> • Reply-To: {s.reply_to_email || s.sender_email}
-                  {s.provider === 'resend' && ' • Engine: Official Resend HTTP API'}
-                  {s.provider === 'aws_ses' && ` • Region: ${s.aws_region || 'ap-south-1'} (${s.smtp_host})`}
-                  {s.provider === 'smtp' && ` • Host: ${s.smtp_host}:${s.smtp_port}`}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleSendTest(s)}
-                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
-                >
-                  <FaPaperPlane className="w-3 h-3 text-indigo-600" />
-                  <span>Test Send</span>
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Add New Email Account Form */}
+      {/* Add / Edit Form */}
       <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
-        <div>
-          <h2 className="text-lg font-bold">Add New Email Dispatch Provider</h2>
-          <p className="text-xs text-slate-500">Choose between Resend API, AWS SES or Custom SMTP.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold">{editingId ? 'Edit Email Dispatch Provider' : 'Add New Email Dispatch Provider'}</h2>
+            <p className="text-xs text-slate-500">Choose Resend API, AWS SES, or Custom SMTP (Gmail/Zoho/Hostinger).</p>
+          </div>
+          {editingId && (
+            <button
+              type="button"
+              onClick={() => { setEditingId(null); setFormData(EMPTY_EMAIL_FORM(activeProviderTab)); }}
+              className="text-xs font-bold text-slate-500 underline cursor-pointer"
+            >
+              Cancel Edit
+            </button>
+          )}
         </div>
 
-        {/* Provider Tabs */}
         <div className="grid grid-cols-3 gap-2 bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl">
           <button
             type="button"
             onClick={() => handleProviderChange('resend')}
-            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              activeProviderTab === 'resend'
-                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-500 hover:text-slate-900'
+            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${
+              activeProviderTab === 'resend' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500'
             }`}
           >
-            <span className="font-black text-sm">⚡</span> Resend API
+            Resend API
           </button>
           <button
             type="button"
             onClick={() => handleProviderChange('aws_ses')}
-            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              activeProviderTab === 'aws_ses'
-                ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-xs'
-                : 'text-slate-500 hover:text-slate-900'
+            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${
+              activeProviderTab === 'aws_ses' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-xs' : 'text-slate-500'
             }`}
           >
             <FaAws className="w-4 h-4 text-amber-500" /> AWS SES
@@ -259,25 +345,23 @@ export default function EmailSettingsPage() {
           <button
             type="button"
             onClick={() => handleProviderChange('smtp')}
-            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              activeProviderTab === 'smtp'
-                ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
-                : 'text-slate-500 hover:text-slate-900'
+            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer ${
+              activeProviderTab === 'smtp' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs' : 'text-slate-500'
             }`}
           >
             <FaServer className="w-3.5 h-3.5" /> Custom SMTP
           </button>
         </div>
 
-        <form onSubmit={handleAddSender} className="space-y-4">
+        <form onSubmit={handleSaveSender} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">Sender Name *</label>
               <input
                 type="text"
-                placeholder="e.g. SolarKits Wholesale Promotions"
+                placeholder="e.g. SolarKits Marketing"
                 value={formData.sender_name}
-                onChange={e => setFormData({ ...formData, sender_name: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, sender_name: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold"
                 required
               />
@@ -289,7 +373,7 @@ export default function EmailSettingsPage() {
                 type="email"
                 placeholder="e.g. orders@solarkits.in"
                 value={formData.sender_email}
-                onChange={e => setFormData({ ...formData, sender_email: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, sender_email: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold"
                 required
               />
@@ -301,24 +385,39 @@ export default function EmailSettingsPage() {
                 type="email"
                 placeholder="e.g. support@solarkits.in"
                 value={formData.reply_to_email}
-                onChange={e => setFormData({ ...formData, reply_to_email: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, reply_to_email: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold"
               />
             </div>
 
-            {/* Provider-Specific Fields */}
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1">Routing Purpose</label>
+              <select
+                value={formData.purpose}
+                onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold"
+              >
+                <option value="marketing">Bulk Marketing</option>
+                <option value="wholesale">Wholesale Offers</option>
+                <option value="product_launch">Product Launch</option>
+                <option value="festive_offer">Festive Offers</option>
+                <option value="onboarding">EPC Onboarding</option>
+                <option value="all">Universal Fallback</option>
+              </select>
+            </div>
+
             {activeProviderTab === 'resend' && (
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1.5">
                   <FaKey className="text-amber-500" /> Resend API Key *
                 </label>
                 <input
                   type="password"
-                  placeholder="re_123456789..."
+                  placeholder={editingId ? 'Leave masked to keep unchanged, or paste new key' : 're_123456789...'}
                   value={formData.resend_api_key}
-                  onChange={e => setFormData({ ...formData, resend_api_key: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, resend_api_key: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-mono"
-                  required={activeProviderTab === 'resend'}
+                  required={!editingId}
                 />
               </div>
             )}
@@ -329,11 +428,7 @@ export default function EmailSettingsPage() {
                   <label className="block text-xs font-bold text-slate-600 mb-1">AWS Region</label>
                   <select
                     value={formData.aws_region}
-                    onChange={e => setFormData({
-                      ...formData,
-                      aws_region: e.target.value,
-                      smtp_host: `email-smtp.${e.target.value}.amazonaws.com`
-                    })}
+                    onChange={(e) => setFormData({ ...formData, aws_region: e.target.value, smtp_host: `email-smtp.${e.target.value}.amazonaws.com` })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold"
                   >
                     <option value="ap-south-1">Asia Pacific (Mumbai) — ap-south-1</option>
@@ -342,39 +437,17 @@ export default function EmailSettingsPage() {
                     <option value="eu-west-1">Europe (Ireland) — eu-west-1</option>
                   </select>
                 </div>
-
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">AWS SES SMTP Host</label>
-                  <input
-                    type="text"
-                    value={formData.smtp_host}
-                    onChange={e => setFormData({ ...formData, smtp_host: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold"
-                  />
+                  <input type="text" value={formData.smtp_host} onChange={(e) => setFormData({ ...formData, smtp_host: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold" />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">AWS SES SMTP User (Access Key ID)</label>
-                  <input
-                    type="text"
-                    placeholder="AKIAIOSFODNN7EXAMPLE"
-                    value={formData.smtp_user}
-                    onChange={e => setFormData({ ...formData, smtp_user: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-mono"
-                    required={activeProviderTab === 'aws_ses'}
-                  />
+                  <label className="block text-xs font-bold text-slate-600 mb-1">AWS SES SMTP User *</label>
+                  <input type="text" placeholder="AKIA..." value={formData.smtp_user} onChange={(e) => setFormData({ ...formData, smtp_user: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-mono" required={!editingId} />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">AWS SES SMTP Password</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••••••••••••••••••"
-                    value={formData.smtp_pass}
-                    onChange={e => setFormData({ ...formData, smtp_pass: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-mono"
-                    required={activeProviderTab === 'aws_ses'}
-                  />
+                  <label className="block text-xs font-bold text-slate-600 mb-1">AWS SES SMTP Password *</label>
+                  <input type="password" placeholder="••••••••••••" value={formData.smtp_pass} onChange={(e) => setFormData({ ...formData, smtp_pass: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-mono" required={!editingId} />
                 </div>
               </>
             )}
@@ -382,35 +455,20 @@ export default function EmailSettingsPage() {
             {activeProviderTab === 'smtp' && (
               <>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">SMTP Host</label>
-                  <input
-                    type="text"
-                    placeholder="smtp.gmail.com"
-                    value={formData.smtp_host}
-                    onChange={e => setFormData({ ...formData, smtp_host: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold"
-                  />
+                  <label className="block text-xs font-bold text-slate-600 mb-1">SMTP Host *</label>
+                  <input type="text" placeholder="smtp.gmail.com" value={formData.smtp_host} onChange={(e) => setFormData({ ...formData, smtp_host: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold" required />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">SMTP User / Email</label>
-                  <input
-                    type="text"
-                    value={formData.smtp_user}
-                    onChange={e => setFormData({ ...formData, smtp_user: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold"
-                  />
+                  <label className="block text-xs font-bold text-slate-600 mb-1">SMTP Port *</label>
+                  <input type="number" value={formData.smtp_port} onChange={(e) => setFormData({ ...formData, smtp_port: Number(e.target.value) })} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold" required />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">SMTP Password</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••••••"
-                    value={formData.smtp_pass}
-                    onChange={e => setFormData({ ...formData, smtp_pass: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold"
-                  />
+                  <label className="block text-xs font-bold text-slate-600 mb-1">SMTP User / Email *</label>
+                  <input type="text" value={formData.smtp_user} onChange={(e) => setFormData({ ...formData, smtp_user: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold" required={!editingId} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">SMTP App Password *</label>
+                  <input type="password" placeholder={editingId ? 'Leave masked to keep unchanged' : 'App Password'} value={formData.smtp_pass} onChange={(e) => setFormData({ ...formData, smtp_pass: e.target.value })} className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold" required={!editingId} />
                 </div>
               </>
             )}
@@ -418,22 +476,14 @@ export default function EmailSettingsPage() {
 
           <div className="flex items-center pt-2">
             <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
-              <input
-                type="checkbox"
-                checked={formData.is_default}
-                onChange={e => setFormData({ ...formData, is_default: e.target.checked })}
-                className="accent-indigo-600 w-4 h-4 rounded"
-              />
+              <input type="checkbox" checked={formData.is_default} onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })} className="accent-indigo-600 w-4 h-4 rounded" />
               Set as Default Company Email Sender
             </label>
           </div>
 
           <div className="pt-2">
-            <button
-              type="submit"
-              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer shadow-sm transition-all"
-            >
-              Save & Activate {activeProviderTab.toUpperCase()} Sender
+            <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer shadow-sm disabled:opacity-50">
+              {saving ? 'Saving...' : editingId ? 'Update Email Sender' : `Save ${activeProviderTab.toUpperCase()} Sender`}
             </button>
           </div>
         </form>

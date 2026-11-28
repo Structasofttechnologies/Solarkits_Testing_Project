@@ -52,6 +52,8 @@ const schema = new mongoose.Schema({
   credit_limit_inr:         { type: Number, default: 0 },
   behavior_notes:           { type: String, default: '' },
   last_activity_at:         { type: Date, default: null },
+  is_marketing_unsubscribed:{ type: Boolean, default: false },
+  marketing_unsubscribed_at:{ type: Date, default: null },
 
   deleted_at: { type: Date, default: null }
 }, { 

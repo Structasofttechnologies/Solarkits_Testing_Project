@@ -12,6 +12,10 @@ import {
   FaCamera,
   FaChevronDown,
   FaChevronUp,
+  FaKey,
+  FaUpload,
+  FaSpinner,
+  FaClipboardList,
 } from 'react-icons/fa';
 import PageHeader from '../../../components/PageHeader';
 import Button from '../../../components/Button';
@@ -19,6 +23,8 @@ import CustomInput from '../../../components/CustomInput';
 import Dialog from '../../../components/Dialog';
 import Loader from '../../../components/Loader';
 import { deliveryApi } from '../../../api/deliveryApi';
+import { authHeaderObj } from '@/app/authHeader';
+import DeliveryDocumentsModal from '../../../../../components/DeliveryDocumentsModal';
 
 const JOURNEY_STAGES = [
   'delivery_created',
@@ -64,6 +70,18 @@ export default function DeliveryTracking() {
   const [podNotes, setPodNotes] = useState('');
   const [receiverName, setReceiverName] = useState('');
   const [receiverPhone, setReceiverPhone] = useState('');
+  const [signedSlipUrl, setSignedSlipUrl] = useState('');
+  const [uploadingPodFile, setUploadingPodFile] = useState(false);
+  const [uploadingSlipFile, setUploadingSlipFile] = useState(false);
+
+  // Delivery Documents & Dual Verification Modal
+  const [docModalState, setDocModalState] = useState({
+    open: false,
+    tripId: null,
+    stopNumber: 1,
+    stopIndex: 0,
+    focusDoc: null,
+  });
 
   // Trip Status Advancement Modal
   const [statusModalOpen, setStatusModalOpen] = useState(false);
@@ -99,26 +117,51 @@ export default function DeliveryTracking() {
   const handleOpenPodModal = (trip, stop) => {
     setSelectedTripForPod(trip);
     setSelectedStopForPod(stop);
-    setPodUrl('');
+    setPodUrl(stop.pod?.pod_url || '');
+    setSignedSlipUrl(stop.pod?.signed_slip_url || '');
     setPodNotes('');
     setReceiverName(stop.destination?.contact_name || '');
     setReceiverPhone(stop.destination?.contact_phone || '');
     setPodModalOpen(true);
   };
 
+  const handleUploadPodAttachment = async (file, type = 'pod') => {
+    if (!file) return;
+    try {
+      if (type === 'pod') setUploadingPodFile(true);
+      else setUploadingSlipFile(true);
+
+      const res = await deliveryApi.uploadDeliveryDocumentFile(file, 'delivery_pod');
+      if (res?.status === 'success' && res.url) {
+        if (type === 'pod') setPodUrl(res.url);
+        else setSignedSlipUrl(res.url);
+        showAlert(`${type === 'pod' ? 'POD Photo' : 'Signed Slip'} uploaded!`);
+      } else {
+        showAlert('File upload failed to return URL.', 'error');
+      }
+    } catch (err) {
+      showAlert(err.response?.data?.message || 'Upload failed', 'error');
+    } finally {
+      if (type === 'pod') setUploadingPodFile(false);
+      else setUploadingSlipFile(false);
+    }
+  };
+
   const handleConfirmPodSubmit = async (e) => {
     e.preventDefault();
     if (!podUrl.trim()) {
-      showAlert('Please provide POD document URL / photo proof.', 'error');
+      showAlert('Please upload POD photo proof or enter valid URL.', 'error');
       return;
     }
 
     try {
       await deliveryApi.confirmStopPod(selectedTripForPod._id, selectedStopForPod.stop_number, {
         pod_url: podUrl,
+        signed_slip_url: signedSlipUrl || undefined,
         pod_notes: podNotes,
         receiver_name: receiverName,
         receiver_phone: receiverPhone,
+        verification_mode: 'manual_photo',
       });
 
       showAlert(`Stop ${selectedStopForPod.stop_number} POD confirmed successfully.`);
@@ -310,25 +353,57 @@ export default function DeliveryTracking() {
                               </div>
                             </div>
 
-                            {/* Individual Stop POD Button / Status */}
-                            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                              {stop.pod?.pod_url ? (
-                                <a
-                                  href={stop.pod.pod_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
-                                >
-                                  <FaFileAlt /> View POD Document
-                                </a>
-                              ) : (
+                            {/* Individual Stop POD & Delivery Documents */}
+                            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                {stop.pod?.pod_url && (
+                                  <a
+                                    href={stop.pod.pod_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                                  >
+                                    <FaFileAlt /> View POD Proof
+                                  </a>
+                                )}
+                                {stop.pod?.signed_slip_url && (
+                                  <a
+                                    href={stop.pod.signed_slip_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-semibold text-emerald-600 hover:underline flex items-center gap-1"
+                                  >
+                                    <FaFileAlt /> Signed Slip
+                                  </a>
+                                )}
+                                {stop.pod?.otp_verified && (
+                                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold flex items-center gap-1">
+                                    <FaKey className="text-[9px]" /> OTP Verified
+                                  </span>
+                                )}
+                                {!stop.pod?.pod_url && !stop.pod?.otp_verified && (
+                                  <Button
+                                    onClick={() => handleOpenPodModal(trip, stop)}
+                                    className="px-2.5 py-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1"
+                                  >
+                                    <FaCamera className="text-xs" /> Upload POD
+                                  </Button>
+                                )}
                                 <Button
-                                  onClick={() => handleOpenPodModal(trip, stop)}
-                                  className="px-3 py-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1"
+                                  onClick={() =>
+                                    setDocModalState({
+                                      open: true,
+                                      tripId: trip._id,
+                                      stopNumber: stop.stop_number,
+                                      stopIndex: idx,
+                                      focusDoc: null,
+                                    })
+                                  }
+                                  className="px-2.5 py-1 text-xs bg-amber-500 hover:bg-amber-600 text-white font-semibold flex items-center gap-1"
                                 >
-                                  <FaCamera className="text-xs" /> Upload Stop POD
+                                  <FaClipboardList className="text-xs" /> Delivery Docs (4) / OTP
                                 </Button>
-                              )}
+                              </div>
                               {stop.delivered_at ? (
                                 <span className="text-[10px] text-slate-400">
                                   {new Date(stop.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -370,13 +445,46 @@ export default function DeliveryTracking() {
             Proof of Delivery (POD) must be captured separately for each order/stop before that order is closed.
           </p>
 
-          <CustomInput
-            label="Proof of Delivery Document / Photo URL *"
-            placeholder="e.g. https://res.cloudinary.com/.../pod_slip.jpg"
-            value={podUrl}
-            onChange={(e) => setPodUrl(e.target.value)}
-            required
-          />
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Upload Cargo Delivery Photo Proof *
+            </label>
+            <div className="flex items-center gap-2 mb-2">
+              <label className="flex-1 px-3 py-2 border border-dashed border-slate-300 hover:border-emerald-500 rounded-lg text-xs text-center cursor-pointer bg-slate-50 font-semibold text-slate-700 flex items-center justify-center gap-1.5">
+                {uploadingPodFile ? <FaSpinner className="animate-spin" /> : <FaUpload />}
+                <span>{uploadingPodFile ? 'Uploading Photo...' : podUrl ? 'Replace POD Photo' : 'Choose POD Photo File'}</span>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={(e) => handleUploadPodAttachment(e.target.files?.[0], 'pod')}
+                />
+              </label>
+            </div>
+            <CustomInput
+              label="Or Uploaded POD URL *"
+              placeholder="Uploaded file URL appears here automatically"
+              value={podUrl}
+              onChange={(e) => setPodUrl(e.target.value)}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Signed Physical Slip Photo (Optional)
+            </label>
+            <label className="flex px-3 py-2 border border-dashed border-slate-300 hover:border-blue-500 rounded-lg text-xs text-center cursor-pointer bg-slate-50 font-semibold text-slate-700 items-center justify-center gap-1.5">
+              {uploadingSlipFile ? <FaSpinner className="animate-spin" /> : <FaUpload />}
+              <span>{uploadingSlipFile ? 'Uploading Signed Slip...' : signedSlipUrl ? '✓ Signed Slip Uploaded (Click to Replace)' : 'Upload Signed Slip Image / PDF'}</span>
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                onChange={(e) => handleUploadPodAttachment(e.target.files?.[0], 'slip')}
+              />
+            </label>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <CustomInput
@@ -408,6 +516,18 @@ export default function DeliveryTracking() {
           </div>
         </form>
       </Dialog>
+
+      <DeliveryDocumentsModal
+        isOpen={docModalState.open}
+        onClose={() => setDocModalState((prev) => ({ ...prev, open: false }))}
+        orderId={docModalState.tripId}
+        stopNumber={docModalState.stopNumber}
+        stopIndex={docModalState.stopIndex}
+        portalMode="admin"
+        getHeaders={authHeaderObj}
+        initialFocusDoc={docModalState.focusDoc}
+        onUpdated={loadTrips}
+      />
     </div>
   );
 }

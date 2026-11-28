@@ -22,8 +22,11 @@ import {
   sendDeliveryOtp,
   verifyDeliveryOtp,
   completeManualDelivery,
-  uploadDeliveryEvidence
+  uploadDeliveryEvidence,
+  getDeliveryDocumentSettings
 } from '../../api/deliveryOrders';
+import { authHeaderObj } from '@/app/authHeader';
+import DeliveryDocumentsModal from '../../../../components/DeliveryDocumentsModal';
 
 import Dialog from '../../components/Dialog';
 
@@ -448,6 +451,11 @@ export default function TrackDeliveryHub() {
   const [manualDatetime, setManualDatetime] = useState(new Date().toISOString().slice(0, 16));
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [submittingManual, setSubmittingManual] = useState(false);
+  const [isOtpFallback, setIsOtpFallback] = useState(false);
+  const [otpBypassReason, setOtpBypassReason] = useState('');
+  const [signedSlipPhoto, setSignedSlipPhoto] = useState('');
+  const [uploadingSignedSlip, setUploadingSignedSlip] = useState(false);
+  const [manualReceiverPhone, setManualReceiverPhone] = useState('');
 
   // Auto Delivery OTP Completion Modal
   const [otpModalOpen, setOtpModalOpen] = useState(false);
@@ -458,8 +466,12 @@ export default function TrackDeliveryHub() {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [otpSentNotice, setOtpSentNotice] = useState(null);
 
-  // Photo viewer modal
+  // Photo viewer modal & Delivery Documents modal
   const [photoViewerUrl, setPhotoViewerUrl] = useState(null);
+  const [docModalOpen, setDocModalOpen] = useState(false);
+  const [selectedOrderForDocs, setSelectedOrderForDocs] = useState(null);
+  const [docModalFocus, setDocModalFocus] = useState(null);
+  const [docSettings, setDocSettings] = useState(null);
 
   const fetchDispatchedOrders = async () => {
     try {
@@ -483,15 +495,33 @@ export default function TrackDeliveryHub() {
 
   useEffect(() => {
     fetchDispatchedOrders();
+    getDeliveryDocumentSettings()
+      .then((res) => {
+        if (res?.status === 'success' && res.data) {
+          setDocSettings(res.data);
+        }
+      })
+      .catch(() => {});
   }, []);
 
-  // Open Manual Completion Modal
-  const handleOpenManualModal = (ord) => {
+  const openDeliveryDocs = (ord, focus = null) => {
+    setSelectedOrderForDocs(ord);
+    setDocModalFocus(focus);
+    setDocModalOpen(true);
+  };
+
+  // Open Manual Completion Modal (also supports switching from OTP when OTP fails)
+  const handleOpenManualModal = (ord, opts = {}) => {
     setSelectedOrderForManual(ord);
     setDestinationPhoto(ord.delivery_completion?.destination_photo || '');
-    setManualReceiverName(ord.delivery_completion?.receiver_name || ord.customer_name);
+    setSignedSlipPhoto(ord.delivery_completion?.signed_slip_photo || '');
+    setManualReceiverName(ord.delivery_completion?.receiver_name || ord.customer_name || '');
+    setManualReceiverPhone(ord.delivery_completion?.receiver_phone || ord.customer_phone || '');
     setManualRemarks('');
     setManualDatetime(new Date().toISOString().slice(0, 16));
+    const reasons = docSettings?.doc_pod?.otp_bypass_reasons || [];
+    setIsOtpFallback(Boolean(opts.fallbackFromOtp));
+    setOtpBypassReason(opts.fallbackFromOtp ? (reasons[0] || 'No Network / Phone Unreachable at Site') : '');
     setManualModalOpen(true);
   };
 
@@ -503,12 +533,31 @@ export default function TrackDeliveryHub() {
       const res = await uploadDeliveryEvidence(file);
       if (res.status === 'success' && res.url) {
         setDestinationPhoto(res.url);
+      } else {
+        dispatch(setAlert({ message: 'Photo upload did not return a URL. Please try again.', type: 'error' }));
       }
     } catch (err) {
-      const localUrl = URL.createObjectURL(file);
-      setDestinationPhoto(localUrl);
+      dispatch(setAlert({ message: err.response?.data?.message || 'Photo upload failed. Please try again.', type: 'error' }));
     } finally {
       setUploadingPhoto(false);
+    }
+  };
+
+  // Upload Signed Physical Slip Photo
+  const handleSignedSlipUpload = async (file) => {
+    if (!file) return;
+    try {
+      setUploadingSignedSlip(true);
+      const res = await uploadDeliveryEvidence(file);
+      if (res.status === 'success' && res.url) {
+        setSignedSlipPhoto(res.url);
+      } else {
+        dispatch(setAlert({ message: 'Signed slip upload did not return a URL. Please try again.', type: 'error' }));
+      }
+    } catch (err) {
+      dispatch(setAlert({ message: err.response?.data?.message || 'Signed slip upload failed. Please try again.', type: 'error' }));
+    } finally {
+      setUploadingSignedSlip(false);
     }
   };
 
@@ -526,8 +575,12 @@ export default function TrackDeliveryHub() {
       setSubmittingManual(true);
       const res = await completeManualDelivery(selectedOrderForManual._id, {
         destination_photo: destinationPhoto,
+        signed_slip_photo: signedSlipPhoto,
+        is_otp_fallback: isOtpFallback,
+        otp_bypass_reason: isOtpFallback ? otpBypassReason : undefined,
         remarks: manualRemarks,
         receiver_name: manualReceiverName,
+        receiver_phone: manualReceiverPhone,
         delivery_datetime: manualDatetime
       });
 
@@ -582,6 +635,7 @@ export default function TrackDeliveryHub() {
     try {
       setVerifyingOtp(true);
       const res = await verifyDeliveryOtp(selectedOrderForOtp._id, {
+        otp_code: enteredOtp,
         otp: enteredOtp,
         receiver_name: otpReceiverName
       });
@@ -683,7 +737,16 @@ export default function TrackDeliveryHub() {
                 <span>Back to All Delivery Orders</span>
               </button>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openDeliveryDocs(ord)}
+                  className="px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-xs font-bold text-amber-400 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <FaFilePdf className="text-sm" />
+                  <span>Delivery Docs (4)</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -695,6 +758,17 @@ export default function TrackDeliveryHub() {
                   <HiOutlineDocumentText className="text-base text-primary" />
                   <span>Print Manifest (Doc)</span>
                 </button>
+
+                {isDelivered && ord.delivery_completion?.destination_photo && (
+                  <button
+                    type="button"
+                    onClick={() => setPhotoViewerUrl(ord.delivery_completion.destination_photo)}
+                    className="px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs font-bold text-emerald-400 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <HiOutlinePhotograph className="text-sm" />
+                    <span>View POD Photo</span>
+                  </button>
+                )}
 
                 {isInTransit && (
                   <>
@@ -762,7 +836,11 @@ export default function TrackDeliveryHub() {
 
                       {/* Method Tag */}
                       <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-surface border border-border text-text-muted uppercase">
-                        {isManualMethod ? 'Manual (Photo POD)' : 'Auto (Customer OTP)'}
+                        {ord.delivery_completion?.verification_mode === 'manual_photo_fallback'
+                          ? 'Manual Photo (OTP Fallback)'
+                          : isManualMethod
+                            ? 'Manual (Photo POD)'
+                            : 'Auto (Customer OTP)'}
                       </span>
 
                       {/* SLA Alert Badge */}
@@ -793,7 +871,7 @@ export default function TrackDeliveryHub() {
                   <div className="text-left md:text-right shrink-0 bg-surface/80 p-3 rounded-xl border border-border shadow-2xs">
                     <span className="text-[10px] uppercase font-bold text-text-muted block">Scheduled Delivery By:</span>
                     <div className="text-base font-black text-text-primary font-mono mt-0.5">
-                      {ord.transport_details?.expected_delivery_date ? new Date(ord.transport_details.expected_delivery_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '02 Nov 2026'}
+                      {ord.transport_details?.expected_delivery_date ? new Date(ord.transport_details.expected_delivery_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Pending ETA'}
                     </div>
                     <span className="text-[10px] text-text-muted block">
                       Dispatched on {ord.transport_details?.dispatch_date ? new Date(ord.transport_details.dispatch_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'Today'}
@@ -1685,6 +1763,26 @@ export default function TrackDeliveryHub() {
                           </span>
                         )}
 
+                        {isDelivered && ord.delivery_completion?.destination_photo && (
+                          <button
+                            type="button"
+                            onClick={() => setPhotoViewerUrl(ord.delivery_completion.destination_photo)}
+                            className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-[11px] font-bold text-emerald-400 transition-all flex items-center gap-1 cursor-pointer"
+                          >
+                            <HiOutlinePhotograph className="text-sm" />
+                            <span>View POD</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => openDeliveryDocs(ord)}
+                          className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-[11px] font-bold text-amber-400 transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <FaFilePdf className="text-xs" />
+                          <span>Docs (4)</span>
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => {
@@ -1710,7 +1808,7 @@ export default function TrackDeliveryHub() {
                           <span className="text-[10px] font-bold text-primary font-mono">{ord.transport_details?.vehicle_type || ord.required_vehicle || 'Container Truck'}</span>
                         </div>
                         <div className="font-mono font-black text-text-primary text-sm flex items-center gap-1.5">
-                          <span>{ord.transport_details?.vehicle_number || plan.fleetVehicles[0]?.vehicle_number || 'RJ-14-GA-9021'}</span>
+                          <span>{ord.transport_details?.vehicle_number || plan.fleetVehicles[0]?.vehicle_number || 'Vehicle Pending'}</span>
                           {plan.fleetVehicles.length > 1 && (
                             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-bold">
                               +{plan.fleetVehicles.length - 1} more
@@ -1761,8 +1859,8 @@ export default function TrackDeliveryHub() {
                           <span className="text-emerald-400">{plan.dropStops.length} Site Drops</span>
                         </div>
                         <div className="text-[10px] text-text-muted flex items-center justify-between pt-0.5">
-                          <span>ETA: <strong className="text-text-primary">{ord.transport_details?.expected_delivery_date ? new Date(ord.transport_details.expected_delivery_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '02 Nov 2026'}</strong></span>
-                          <span className="font-mono text-text-secondary">{ord.destination?.district || 'Jaipur'}, {ord.destination?.state || 'RJ'}</span>
+                          <span>ETA: <strong className="text-text-primary">{ord.transport_details?.expected_delivery_date ? new Date(ord.transport_details.expected_delivery_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Pending ETA'}</strong></span>
+                          <span className="font-mono text-text-secondary">{[ord.destination?.district, ord.destination?.state].filter(Boolean).join(', ') || 'Destination Pending'}</span>
                         </div>
                       </div>
                     </div>
@@ -1972,9 +2070,41 @@ export default function TrackDeliveryHub() {
         {selectedOrderForManual && (
           <form onSubmit={handleSubmitManual} className="space-y-4 p-1">
             <div className="p-3 bg-surface-hover rounded-xl border border-border text-xs space-y-1">
-              <div className="font-bold text-text-primary">DO: {selectedOrderForManual.delivery_order_id}</div>
-              <div className="text-text-muted">Customer: {selectedOrderForManual.customer_name} ({selectedOrderForManual.destination?.address})</div>
+              <div className="font-bold text-text-primary flex items-center justify-between gap-2">
+                <span>DO: {selectedOrderForManual.delivery_order_id}</span>
+                {isOtpFallback && (
+                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase">
+                    OTP Fallback Mode
+                  </span>
+                )}
+              </div>
+              <div className="text-text-muted">Customer: {selectedOrderForManual.customer_name} ({selectedOrderForManual.destination?.address || 'Site'})</div>
             </div>
+
+            {isOtpFallback && (
+              <div>
+                <label className="text-xs font-bold text-amber-400 block mb-1">
+                  Reason for OTP Bypass (Verification by Photo Proof) *
+                </label>
+                <select
+                  value={otpBypassReason}
+                  onChange={(e) => setOtpBypassReason(e.target.value)}
+                  className="w-full p-2.5 text-xs bg-surface-hover border border-amber-500/40 rounded-xl text-text-primary focus:outline-none focus:border-primary"
+                >
+                  {(docSettings?.doc_pod?.otp_bypass_reasons?.length
+                    ? docSettings.doc_pod.otp_bypass_reasons
+                    : [
+                        'No Network / Phone Unreachable at Site',
+                        'Customer Phone Switched Off / Battery Dead',
+                        'Customer Requested Physical Paper Sign & Stamp',
+                        'Emergency Unloading / Rush Site Condition',
+                      ]
+                  ).map((reason, idx) => (
+                    <option key={idx} value={reason}>{reason}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Destination Photo Upload */}
             <div>
@@ -2017,19 +2147,66 @@ export default function TrackDeliveryHub() {
               )}
             </div>
 
-            {/* Receiver Name */}
+            {/* Signed Physical POD Slip Upload (Optional / Recommended for OTP Bypass) */}
             <div>
               <label className="text-xs font-bold text-text-primary block mb-1">
-                Handed Over To (Receiver Name) *
+                Signed Physical Slip / Challan Photo {isOtpFallback ? '(Recommended)' : '(Optional)'}
               </label>
-              <input
-                type="text"
-                required
-                value={manualReceiverName}
-                onChange={(e) => setManualReceiverName(e.target.value)}
-                placeholder="Name of customer representative receiving goods"
-                className="w-full p-2.5 text-xs bg-surface-hover border border-border rounded-xl text-text-primary focus:outline-none focus:border-primary font-medium"
-              />
+              {signedSlipPhoto ? (
+                <div className="flex items-center justify-between p-2.5 bg-surface-hover border border-success/40 rounded-xl text-xs">
+                  <a href={signedSlipPhoto} target="_blank" rel="noreferrer" className="text-success font-bold underline truncate">
+                    View Uploaded Signed Slip
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setSignedSlipPhoto('')}
+                    className="text-danger text-xs font-bold cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <label className="block p-3 border border-dashed border-border hover:border-primary rounded-xl text-center cursor-pointer transition-colors bg-surface-hover text-xs">
+                  <span className="font-bold text-primary">
+                    {uploadingSignedSlip ? 'Uploading Signed Slip...' : 'Upload Photo of Signed Physical POD / Stamp'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={(e) => handleSignedSlipUpload(e.target.files[0])}
+                  />
+                </label>
+              )}
+            </div>
+
+            {/* Receiver Name & Phone */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-text-primary block mb-1">
+                  Handed Over To (Receiver Name) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={manualReceiverName}
+                  onChange={(e) => setManualReceiverName(e.target.value)}
+                  placeholder="Name of customer representative receiving goods"
+                  className="w-full p-2.5 text-xs bg-surface-hover border border-border rounded-xl text-text-primary focus:outline-none focus:border-primary font-medium"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-text-primary block mb-1">
+                  Receiver Mobile
+                </label>
+                <input
+                  type="text"
+                  value={manualReceiverPhone}
+                  onChange={(e) => setManualReceiverPhone(e.target.value)}
+                  placeholder="Site contact mobile number"
+                  className="w-full p-2.5 text-xs bg-surface-hover border border-border rounded-xl text-text-primary focus:outline-none focus:border-primary font-medium"
+                />
+              </div>
             </div>
 
             {/* Delivery Date & Time */}
@@ -2156,6 +2333,26 @@ export default function TrackDeliveryHub() {
                 className="w-full p-2.5 text-xs bg-surface-hover border border-border rounded-xl text-text-primary focus:outline-none focus:border-primary"
               />
             </div>
+
+            {docSettings?.doc_pod?.allow_manual_photo_verification !== false && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
+                <p className="text-[11px] text-amber-300 font-semibold">
+                  OTP not working / customer phone unreachable at site?
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ord = selectedOrderForOtp;
+                    setOtpModalOpen(false);
+                    handleOpenManualModal(ord, { fallbackFromOtp: true });
+                  }}
+                  className="w-full py-2 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                >
+                  <HiOutlinePhotograph className="text-sm" />
+                  <span>Switch to Manual Photo Proof</span>
+                </button>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2.5 pt-3 border-t border-border">
               <button
@@ -2413,6 +2610,16 @@ export default function TrackDeliveryHub() {
           );
         })()}
       </Dialog>
+
+      <DeliveryDocumentsModal
+        isOpen={docModalOpen}
+        onClose={() => setDocModalOpen(false)}
+        orderId={selectedOrderForDocs?._id}
+        portalMode="warehouse"
+        getHeaders={authHeaderObj}
+        initialFocusDoc={docModalFocus}
+        onUpdated={fetchDispatchedOrders}
+      />
     </div>
   );
 }
