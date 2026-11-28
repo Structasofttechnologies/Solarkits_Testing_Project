@@ -155,8 +155,8 @@ function StoreKitCard({
     <div
       onClick={() => onSelectKit(kit, activeChipQty, currentMode)}
       className={`rounded-2xl border-2 transition-all duration-200 flex flex-col justify-between overflow-hidden bg-white dark:bg-slate-800 shadow-sm hover:shadow-md cursor-pointer ${isSelected
-          ? "border-amber-500 ring-2 ring-amber-500/20 shadow-md"
-          : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
+        ? "border-amber-500 ring-2 ring-amber-500/20 shadow-md"
+        : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
         }`}
     >
       <div className="p-4 flex-1 flex flex-col">
@@ -284,8 +284,8 @@ function StoreKitCard({
                     handleTabChange("loose");
                   }}
                   className={`flex-1 py-1 px-1.5 rounded-md transition-all text-center cursor-pointer ${activeTierType === "loose"
-                      ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs font-black"
-                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs font-black"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                     }`}
                 >
                   Loose ({looseQtys[0] || 25}-{looseQtys[looseQtys.length - 1] || 100})
@@ -299,8 +299,8 @@ function StoreKitCard({
                     handleTabChange("po");
                   }}
                   className={`flex-1 py-1 px-1.5 rounded-md transition-all text-center cursor-pointer ${activeTierType === "po"
-                      ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs font-black"
-                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs font-black"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                     }`}
                 >
                   Bulk PO ({poQtys[0] || 100}+)
@@ -314,8 +314,8 @@ function StoreKitCard({
                     handleTabChange("trial");
                   }}
                   className={`flex-1 py-1 px-1.5 rounded-md transition-all text-center cursor-pointer ${activeTierType === "trial"
-                      ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs font-black"
-                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs font-black"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                     }`}
                 >
                   Trial ({trialQtys[0]} Kits)
@@ -353,8 +353,8 @@ function StoreKitCard({
                     }
                   }}
                   className={`px-3 py-1 rounded-full text-[11px] font-black border transition-all duration-150 cursor-pointer ${activeChipQty === qty
-                      ? "bg-amber-500 text-white border-amber-500 shadow-xs scale-102"
-                      : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-amber-400 hover:text-amber-600"
+                    ? "bg-amber-500 text-white border-amber-500 shadow-xs scale-102"
+                    : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-amber-400 hover:text-amber-600"
                     }`}
                 >
                   {qty} Kits
@@ -1320,840 +1320,840 @@ export default function CreateEpcQuote() {
                   <p className="text-xs text-slate-500">Choose the approved EPC buyer for whom this quote is generated</p>
                 </div>
 
-                  <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
-                    {/* View Mode Toggle */}
-                    <div className="flex items-center bg-slate-100 dark:bg-slate-900/60 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
-                      <button
-                        type="button"
-                        onClick={() => setEpcViewMode("table")}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${epcViewMode === "table"
-                            ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
-                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                          }`}
-                      >
-                        <FiList size={13} />
-                        <span>List View</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEpcViewMode("grid")}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${epcViewMode === "grid"
-                            ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
-                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                          }`}
-                      >
-                        <FiGrid size={13} />
-                        <span>Cards</span>
-                      </button>
-                    </div>
+                <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-900/60 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => setEpcViewMode("table")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${epcViewMode === "table"
+                        ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        }`}
+                    >
+                      <FiList size={13} />
+                      <span>List View</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEpcViewMode("grid")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${epcViewMode === "grid"
+                        ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        }`}
+                    >
+                      <FiGrid size={13} />
+                      <span>Cards</span>
+                    </button>
+                  </div>
 
-                    <div className="relative w-full sm:w-64">
-                      <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-                      <input
-                        type="text"
-                        value={epcSearch}
-                        onChange={(e) => setEpcSearch(e.target.value)}
-                        placeholder="Search EPC name or GSTIN..."
-                        className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30"
-                      />
-                    </div>
+                  <div className="relative w-full sm:w-64">
+                    <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                    <input
+                      type="text"
+                      value={epcSearch}
+                      onChange={(e) => setEpcSearch(e.target.value)}
+                      placeholder="Search EPC name or GSTIN..."
+                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                    />
                   </div>
                 </div>
+              </div>
 
-                {filteredEpcs.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <FiUsers size={32} className="mx-auto text-slate-300 mb-2" />
-                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Eligible EPC Buyers Found</p>
-                    <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                      Only verified EPCs assigned to your franchise or onboarded under your territory can receive quotations.
-                    </p>
-                  </div>
-                ) : epcViewMode === "table" ? (
-                  /* ── TABLE / LIST VIEW (DEFAULT) ── */
-                  <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xs">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-700">
-                        <tr>
-                          <th className="py-3 px-3 w-12 text-center">Select</th>
-                          <th className="py-3 px-4">EPC Company & Legal Name</th>
-                          <th className="py-3 px-4">GSTIN</th>
-                          <th className="py-3 px-4">Contact Details</th>
-                          <th className="py-3 px-4">Location</th>
-                          <th className="py-3 px-4">Status</th>
-                          <th className="py-3 px-4 text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                        {filteredEpcs.map((epc) => {
-                          const isSel = selectedEpc?._id === epc._id;
-                          return (
-                            <tr
-                              key={epc._id}
-                              onClick={() => handleSelectEpc(epc)}
-                              className={`cursor-pointer transition duration-150 ${isSel
-                                  ? "bg-amber-50/70 dark:bg-amber-950/30 border-l-4 border-l-amber-500 font-medium"
-                                  : "hover:bg-slate-50/80 dark:hover:bg-slate-750/30 border-l-4 border-l-transparent"
-                                }`}
-                            >
-                              {/* Radio Indicator */}
-                              <td className="py-3.5 px-3 text-center">
-                                <div
-                                  className={`w-4 h-4 rounded-full border-2 mx-auto flex items-center justify-center transition ${isSel
-                                      ? "border-amber-500 bg-amber-500 text-white"
-                                      : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800"
-                                    }`}
-                                >
-                                  {isSel && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                                </div>
-                              </td>
+              {filteredEpcs.length === 0 ? (
+                <div className="py-12 text-center">
+                  <FiUsers size={32} className="mx-auto text-slate-300 mb-2" />
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Eligible EPC Buyers Found</p>
+                  <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    Only verified EPCs assigned to your franchise or onboarded under your territory can receive quotations.
+                  </p>
+                </div>
+              ) : epcViewMode === "table" ? (
+                /* ── TABLE / LIST VIEW (DEFAULT) ── */
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xs">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <th className="py-3 px-3 w-12 text-center">Select</th>
+                        <th className="py-3 px-4">EPC Company & Legal Name</th>
+                        <th className="py-3 px-4">GSTIN</th>
+                        <th className="py-3 px-4">Contact Details</th>
+                        <th className="py-3 px-4">Location</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                      {filteredEpcs.map((epc) => {
+                        const isSel = selectedEpc?._id === epc._id;
+                        return (
+                          <tr
+                            key={epc._id}
+                            onClick={() => handleSelectEpc(epc)}
+                            className={`cursor-pointer transition duration-150 ${isSel
+                              ? "bg-amber-50/70 dark:bg-amber-950/30 border-l-4 border-l-amber-500 font-medium"
+                              : "hover:bg-slate-50/80 dark:hover:bg-slate-750/30 border-l-4 border-l-transparent"
+                              }`}
+                          >
+                            {/* Radio Indicator */}
+                            <td className="py-3.5 px-3 text-center">
+                              <div
+                                className={`w-4 h-4 rounded-full border-2 mx-auto flex items-center justify-center transition ${isSel
+                                  ? "border-amber-500 bg-amber-500 text-white"
+                                  : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800"
+                                  }`}
+                              >
+                                {isSel && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                              </div>
+                            </td>
 
-                              {/* EPC Company */}
-                              <td className="py-3.5 px-4">
-                                <div className="font-bold text-slate-900 dark:text-white text-sm">
-                                  {epc.company_name || epc.name}
-                                </div>
-                                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                                  {epc.gstin_legal_name && epc.gstin_legal_name !== (epc.company_name || epc.name)
-                                    ? epc.gstin_legal_name
-                                    : "Registered EPC Contractor"}
-                                </div>
-                              </td>
-
-                              {/* GSTIN */}
-                              <td className="py-3.5 px-4">
-                                <span className="font-mono font-bold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs border border-slate-200 dark:border-slate-600">
-                                  {epc.gstin || "—"}
-                                </span>
-                              </td>
-
-                              {/* Contact Person & Phone */}
-                              <td className="py-3.5 px-4">
-                                <div className="font-semibold text-slate-800 dark:text-slate-200">
-                                  {epc.contact_person || epc.name || "—"}
-                                </div>
-                                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                                  {epc.mobile || epc.phone || "—"}
-                                </div>
-                              </td>
-
-                              {/* Location */}
-                              <td className="py-3.5 px-4">
-                                <div className="text-slate-700 dark:text-slate-300 font-medium">
-                                  {epc.district_name || epc.address?.district || "District"}, {epc.state_name || epc.address?.state || "State"}
-                                </div>
-                                <div className="text-[10px] text-slate-400 font-mono">
-                                  PIN: {epc.pincode || epc.address?.pincode || "—"}
-                                </div>
-                              </td>
-
-                              {/* Status */}
-                              <td className="py-3.5 px-4">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                  <FiCheckCircle size={10} /> Active Buyer
-                                </span>
-                              </td>
-
-                              {/* Action Button */}
-                              <td className="py-3.5 px-4 text-right">
-                                {isSel ? (
-                                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-xs">
-                                    <FiCheck size={12} /> Selected
-                                  </span>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleSelectEpc(epc);
-                                    }}
-                                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-500 hover:text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                                  >
-                                    Select EPC
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  /* ── CARDS / GRID VIEW ── */
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {filteredEpcs.map((epc) => {
-                      const isSel = selectedEpc?._id === epc._id;
-                      return (
-                        <div
-                          key={epc._id}
-                          onClick={() => handleSelectEpc(epc)}
-                          className={`p-4 rounded-xl border-2 cursor-pointer transition text-left relative flex flex-col justify-between ${isSel
-                            ? "border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm"
-                            : "border-slate-200 dark:border-slate-700 hover:border-slate-300 bg-slate-50/50 dark:bg-slate-900/30"
-                            }`}
-                        >
-                          <div>
-                            <div className="flex items-start justify-between gap-2">
-                              <h4 className="font-bold text-slate-900 dark:text-white text-sm line-clamp-1">
+                            {/* EPC Company */}
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-slate-900 dark:text-white text-sm">
                                 {epc.company_name || epc.name}
-                              </h4>
-                              {isSel && (
-                                <div className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0">
-                                  <FiCheck size={12} />
-                                </div>
-                              )}
-                            </div>
+                              </div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                {epc.gstin_legal_name && epc.gstin_legal_name !== (epc.company_name || epc.name)
+                                  ? epc.gstin_legal_name
+                                  : "Registered EPC Contractor"}
+                              </div>
+                            </td>
 
-                            <div className="text-[11px] font-mono text-slate-500 mt-1">
-                              GSTIN: {epc.gstin || "—"}
-                            </div>
+                            {/* GSTIN */}
+                            <td className="py-3.5 px-4">
+                              <span className="font-mono font-bold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs border border-slate-200 dark:border-slate-600">
+                                {epc.gstin || "—"}
+                              </span>
+                            </td>
 
-                            <div className="mt-2 text-xs text-slate-600 dark:text-slate-300 space-y-0.5">
-                              <div>Contact: {epc.contact_person || epc.name || "—"}</div>
-                              <div>Phone: {epc.mobile || epc.phone || "—"}</div>
-                              <div className="text-slate-400 text-[11px]">
+                            {/* Contact Person & Phone */}
+                            <td className="py-3.5 px-4">
+                              <div className="font-semibold text-slate-800 dark:text-slate-200">
+                                {epc.contact_person || epc.name || "—"}
+                              </div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                                {epc.mobile || epc.phone || "—"}
+                              </div>
+                            </td>
+
+                            {/* Location */}
+                            <td className="py-3.5 px-4">
+                              <div className="text-slate-700 dark:text-slate-300 font-medium">
                                 {epc.district_name || epc.address?.district || "District"}, {epc.state_name || epc.address?.state || "State"}
                               </div>
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                PIN: {epc.pincode || epc.address?.pincode || "—"}
+                              </div>
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3.5 px-4">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                <FiCheckCircle size={10} /> Active Buyer
+                              </span>
+                            </td>
+
+                            {/* Action Button */}
+                            <td className="py-3.5 px-4 text-right">
+                              {isSel ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-xs">
+                                  <FiCheck size={12} /> Selected
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSelectEpc(epc);
+                                  }}
+                                  className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-500 hover:text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                                >
+                                  Select EPC
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                /* ── CARDS / GRID VIEW ── */
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredEpcs.map((epc) => {
+                    const isSel = selectedEpc?._id === epc._id;
+                    return (
+                      <div
+                        key={epc._id}
+                        onClick={() => handleSelectEpc(epc)}
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition text-left relative flex flex-col justify-between ${isSel
+                          ? "border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm"
+                          : "border-slate-200 dark:border-slate-700 hover:border-slate-300 bg-slate-50/50 dark:bg-slate-900/30"
+                          }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="font-bold text-slate-900 dark:text-white text-sm line-clamp-1">
+                              {epc.company_name || epc.name}
+                            </h4>
+                            {isSel && (
+                              <div className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0">
+                                <FiCheck size={12} />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="text-[11px] font-mono text-slate-500 mt-1">
+                            GSTIN: {epc.gstin || "—"}
+                          </div>
+
+                          <div className="mt-2 text-xs text-slate-600 dark:text-slate-300 space-y-0.5">
+                            <div>Contact: {epc.contact_person || epc.name || "—"}</div>
+                            <div>Phone: {epc.mobile || epc.phone || "—"}</div>
+                            <div className="text-slate-400 text-[11px]">
+                              {epc.district_name || epc.address?.district || "District"}, {epc.state_name || epc.address?.state || "State"}
                             </div>
                           </div>
-
-                          <div className="mt-3 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-[10px] text-slate-500">
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">
-                              Active Buyer
-                            </span>
-                            <span>Pincode: {epc.pincode || epc.address?.pincode || "—"}</span>
-                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+
+                        <div className="mt-3 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-[10px] text-slate-500">
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">
+                            Active Buyer
+                          </span>
+                          <span>Pincode: {epc.pincode || epc.address?.pincode || "—"}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
 
-              {/* STEP 2: DELIVERY SITE */}
-              {currentStep === 2 && (
-                <div className="space-y-6">
-                  <div className="pb-4 border-b border-slate-100 dark:border-slate-700">
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Delivery Mode & Destination</h2>
-                    <p className="text-xs text-slate-500">Configure logistics destination and delivery contact person</p>
+          {/* STEP 2: DELIVERY SITE */}
+          {currentStep === 2 && (
+            <div className="space-y-6">
+              <div className="pb-4 border-b border-slate-100 dark:border-slate-700">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Delivery Mode & Destination</h2>
+                <p className="text-xs text-slate-500">Configure logistics destination and delivery contact person</p>
+              </div>
+
+              {/* 2 Delivery Mode Tiles: EPC Registered Address & Franchisee Store Pickup */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  {
+                    id: "epc_location",
+                    title: "EPC Registered Address",
+                    desc: "Dispatch directly to EPC registered office / godown",
+                  },
+                  {
+                    id: "franchisee_warehouse",
+                    title: "Franchisee Store Pickup",
+                    desc: "Self-fulfillment via your local franchisee warehouse",
+                  },
+                ].map((mode) => {
+                  const isSel = deliveryType === mode.id;
+                  return (
+                    <div
+                      key={mode.id}
+                      onClick={() => handleDeliveryModeSelect(mode.id)}
+                      className={`p-4 rounded-xl border-2 cursor-pointer transition ${isSel
+                        ? "border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm"
+                        : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                        }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-sm text-slate-900 dark:text-white">{mode.title}</span>
+                        {isSel && <FiCheckCircle className="text-amber-500" size={16} />}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">{mode.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Informative Destination Banner */}
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                <FiTruck size={16} className="shrink-0" />
+                <span>
+                  {deliveryType === "franchisee_warehouse"
+                    ? "Franchisee Store Pickup: Order will be prepared for collection at your local franchisee depot (Free logistics / ₹0 freight)."
+                    : "EPC Registered Address: Auto-fetched from verified EPC registration & GST records. You can update the delivery site address below if required."}
+                </span>
+              </div>
+
+              {/* Delivery Address Form */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 space-y-4">
+                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Site Delivery Details
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                      Site Contact Person *
+                    </label>
+                    <input
+                      type="text"
+                      value={deliveryDetails.contact_person}
+                      onChange={(e) => setDeliveryDetails({ ...deliveryDetails, contact_person: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                      placeholder="Name of site engineer or receiver"
+                    />
                   </div>
 
-                  {/* 2 Delivery Mode Tiles: EPC Registered Address & Franchisee Store Pickup */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {[
-                      {
-                        id: "epc_location",
-                        title: "EPC Registered Address",
-                        desc: "Dispatch directly to EPC registered office / godown",
-                      },
-                      {
-                        id: "franchisee_warehouse",
-                        title: "Franchisee Store Pickup",
-                        desc: "Self-fulfillment via your local franchisee warehouse",
-                      },
-                    ].map((mode) => {
-                      const isSel = deliveryType === mode.id;
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                      Contact Mobile Number *
+                    </label>
+                    <input
+                      type="text"
+                      value={deliveryDetails.mobile}
+                      onChange={(e) => setDeliveryDetails({ ...deliveryDetails, mobile: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                      placeholder="10-digit mobile number"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    Street Address / Site Location *
+                  </label>
+                  <input
+                    type="text"
+                    value={deliveryDetails.shipping_address_line1}
+                    onChange={(e) => setDeliveryDetails({ ...deliveryDetails, shipping_address_line1: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                    placeholder="Plot / Survey No., Landmark, Industrial Area"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">State</label>
+                    <input
+                      type="text"
+                      value={deliveryDetails.state_name}
+                      onChange={(e) => setDeliveryDetails({ ...deliveryDetails, state_name: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">District</label>
+                    <input
+                      type="text"
+                      value={deliveryDetails.district_name}
+                      onChange={(e) => setDeliveryDetails({ ...deliveryDetails, district_name: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Pincode *</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={deliveryDetails.pincode}
+                      onChange={(e) => setDeliveryDetails({ ...deliveryDetails, pincode: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono font-bold"
+                      placeholder="6 digits"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: COMBOKIT (DIRECT DISPLAY WITH INDUSTRY & PROJECT TYPE) */}
+          {currentStep === 3 && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-700">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Choose Authorized ComboKit</h2>
+                  <p className="text-xs text-slate-500">
+                    Products assigned to your franchisee plan displayed with Industry Type and Project Type
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    <span className="text-[11px] font-semibold text-slate-400">Plan Quote Permissions:</span>
+                    {effectiveQuotePermissions.map((perm) => {
+                      const badgeMap = {
+                        po_quote: { label: "Bulk PO Quotes", bg: "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800" },
+                        loose_quote: { label: "Loose Quotes", bg: "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800" },
+                        trial_quote: { label: "Trial Order Quotes", bg: "bg-purple-100 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-800" },
+                      };
+                      const b = badgeMap[perm] || { label: perm, bg: "bg-slate-100 text-slate-700 border-slate-300" };
                       return (
-                        <div
-                          key={mode.id}
-                          onClick={() => handleDeliveryModeSelect(mode.id)}
-                          className={`p-4 rounded-xl border-2 cursor-pointer transition ${isSel
-                            ? "border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm"
-                            : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-                            }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-bold text-sm text-slate-900 dark:text-white">{mode.title}</span>
-                            {isSel && <FiCheckCircle className="text-amber-500" size={16} />}
-                          </div>
-                          <p className="text-xs text-slate-500 mt-1">{mode.desc}</p>
-                        </div>
+                        <span key={perm} className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${b.bg}`}>
+                          <FiCheck size={11} /> {b.label}
+                        </span>
                       );
                     })}
                   </div>
+                </div>
 
-                  {/* Informative Destination Banner */}
-                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
-                    <FiTruck size={16} className="shrink-0" />
-                    <span>
-                      {deliveryType === "franchisee_warehouse"
-                        ? "Franchisee Store Pickup: Order will be prepared for collection at your local franchisee depot (Free logistics / ₹0 freight)."
-                        : "EPC Registered Address: Auto-fetched from verified EPC registration & GST records. You can update the delivery site address below if required."}
+                <div className="relative w-full sm:w-80">
+                  <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                  <input
+                    type="text"
+                    value={kitSearch}
+                    onChange={(e) => setKitSearch(e.target.value)}
+                    placeholder="Search by kit, brand, kW, industry, project..."
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Filters Component (matching Screenshot 2) */}
+              <div className="bg-slate-50 dark:bg-slate-800/80 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <FiPackage className="text-blue-600 dark:text-blue-400" size={18} />
+                    <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Quick Filters</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearMainFilters}
+                    className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition cursor-pointer"
+                  >
+                    Clear Main
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {/* 1. Industry Type */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                      Industry Type
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={quickFilters.industryType}
+                        onChange={(e) =>
+                          setQuickFilters((prev) => ({
+                            ...prev,
+                            industryType: e.target.value,
+                            category: "all",
+                            subCategory: "all",
+                            systemType: "all",
+                            projectRange: "all",
+                          }))
+                        }
+                        className="w-full appearance-none px-3 py-2 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 pr-8 cursor-pointer"
+                      >
+                        {industryTypeOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <FiChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                    </div>
+                  </div>
+
+                  {/* 2. Category */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                      Category
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={quickFilters.category}
+                        onChange={(e) =>
+                          setQuickFilters((prev) => ({
+                            ...prev,
+                            category: e.target.value,
+                            subCategory: "all",
+                            systemType: "all",
+                            projectRange: "all",
+                          }))
+                        }
+                        className="w-full appearance-none px-3 py-2 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 pr-8 cursor-pointer"
+                      >
+                        {categoryOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <FiChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                    </div>
+                  </div>
+
+                  {/* 3. Sub Category */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                      Sub Category
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={quickFilters.subCategory}
+                        onChange={(e) =>
+                          setQuickFilters((prev) => ({
+                            ...prev,
+                            subCategory: e.target.value,
+                          }))
+                        }
+                        className="w-full appearance-none px-3 py-2 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 pr-8 cursor-pointer"
+                      >
+                        {subCategoryOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <FiChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                    </div>
+                  </div>
+
+                  {/* 4. System Type */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                      System Type
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={quickFilters.systemType}
+                        onChange={(e) =>
+                          setQuickFilters((prev) => ({
+                            ...prev,
+                            systemType: e.target.value,
+                          }))
+                        }
+                        className="w-full appearance-none px-3 py-2 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 pr-8 cursor-pointer"
+                      >
+                        {systemTypeOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <FiChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                    </div>
+                  </div>
+
+                  {/* 5. Project Range */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                      Project Range
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={quickFilters.projectRange}
+                        onChange={(e) =>
+                          setQuickFilters((prev) => ({
+                            ...prev,
+                            projectRange: e.target.value,
+                          }))
+                        }
+                        className="w-full appearance-none px-3 py-2 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 pr-8 cursor-pointer"
+                      >
+                        {projectRangeOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <FiChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {loadingKits ? (
+                <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                  <span>Loading authorized ComboKits...</span>
+                </div>
+              ) : filteredKits.length === 0 ? (
+                <div className="py-16 text-center text-slate-400 text-xs">
+                  <FiBox size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                  <p className="font-semibold text-slate-600 dark:text-slate-300">No authorized ComboKits found</p>
+                  <p className="mt-1">Check your franchisee plan subscriptions or contact admin.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {filteredKits.map((kit) => (
+                    <StoreKitCard
+                      key={kit._id}
+                      kit={kit}
+                      isSelected={selectedKit?._id === kit._id}
+                      selectedQuantity={selectedKit?._id === kit._id ? quantity : null}
+                      selectedQuoteMode={selectedKit?._id === kit._id ? selectedQuoteMode : null}
+                      quotePermissions={effectiveQuotePermissions}
+                      onSelectKit={(k, q, mode) => {
+                        setSelectedKit(k);
+                        setQuantity(q);
+                        setSelectedQuoteMode(mode || (q >= 200 ? "po_quote" : "loose_quote"));
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STEP 4: WARRANTY OPTION */}
+          {currentStep === 4 && (
+            <div className="space-y-6">
+              <div className="pb-4 border-b border-slate-100 dark:border-slate-700">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Select Warranty & Protection Option</h2>
+                <p className="text-xs text-slate-500">Choose extended warranty protection package for the quotation</p>
+              </div>
+
+              {/* Selected Kit Summary Banner */}
+              {selectedKit && (
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                      <FiPackage size={18} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
+                        {selectedKit.name || selectedKit.kit_name}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {selectedKit.brand_name || "SolarKits Direct"} • {selectedKit.category_name || "Rooftop"} • Capacity: {((selectedKit.capacity || selectedKit.kit_capacity_kw || 3) * quantity).toFixed(1)} kW
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-bold text-xs">
+                      Selected Quantity: {quantity} {quantity > 1 ? "kits" : "kit"}
                     </span>
                   </div>
-
-                  {/* Delivery Address Form */}
-                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 space-y-4">
-                    <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                      Site Delivery Details
-                    </h4>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
-                          Site Contact Person *
-                        </label>
-                        <input
-                          type="text"
-                          value={deliveryDetails.contact_person}
-                          onChange={(e) => setDeliveryDetails({ ...deliveryDetails, contact_person: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
-                          placeholder="Name of site engineer or receiver"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
-                          Contact Mobile Number *
-                        </label>
-                        <input
-                          type="text"
-                          value={deliveryDetails.mobile}
-                          onChange={(e) => setDeliveryDetails({ ...deliveryDetails, mobile: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
-                          placeholder="10-digit mobile number"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
-                        Street Address / Site Location *
-                      </label>
-                      <input
-                        type="text"
-                        value={deliveryDetails.shipping_address_line1}
-                        onChange={(e) => setDeliveryDetails({ ...deliveryDetails, shipping_address_line1: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
-                        placeholder="Plot / Survey No., Landmark, Industrial Area"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">State</label>
-                        <input
-                          type="text"
-                          value={deliveryDetails.state_name}
-                          onChange={(e) => setDeliveryDetails({ ...deliveryDetails, state_name: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">District</label>
-                        <input
-                          type="text"
-                          value={deliveryDetails.district_name}
-                          onChange={(e) => setDeliveryDetails({ ...deliveryDetails, district_name: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Pincode *</label>
-                        <input
-                          type="text"
-                          maxLength={6}
-                          value={deliveryDetails.pincode}
-                          onChange={(e) => setDeliveryDetails({ ...deliveryDetails, pincode: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono font-bold"
-                          placeholder="6 digits"
-                        />
-                      </div>
-                    </div>
-                  </div>
                 </div>
               )}
 
-              {/* STEP 3: COMBOKIT (DIRECT DISPLAY WITH INDUSTRY & PROJECT TYPE) */}
-              {currentStep === 3 && (
-                <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-700">
-                    <div>
-                      <h2 className="text-lg font-bold text-slate-900 dark:text-white">Choose Authorized ComboKit</h2>
-                      <p className="text-xs text-slate-500">
-                        Products assigned to your franchisee plan displayed with Industry Type and Project Type
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        <span className="text-[11px] font-semibold text-slate-400">Plan Quote Permissions:</span>
-                        {effectiveQuotePermissions.map((perm) => {
-                          const badgeMap = {
-                            po_quote: { label: "Bulk PO Quotes", bg: "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800" },
-                            loose_quote: { label: "Loose Quotes", bg: "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800" },
-                            trial_quote: { label: "Trial Order Quotes", bg: "bg-purple-100 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-800" },
-                          };
-                          const b = badgeMap[perm] || { label: perm, bg: "bg-slate-100 text-slate-700 border-slate-300" };
-                          return (
-                            <span key={perm} className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${b.bg}`}>
-                              <FiCheck size={11} /> {b.label}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </div>
+              {/* Warranty Options */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-3">
+                  Select Warranty & Protection Option
+                </h4>
 
-                    <div className="relative w-full sm:w-80">
-                      <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-                      <input
-                        type="text"
-                        value={kitSearch}
-                        onChange={(e) => setKitSearch(e.target.value)}
-                        placeholder="Search by kit, brand, kW, industry, project..."
-                        className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30"
-                      />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {/* Default Standard Warranty */}
+                  <div
+                    onClick={() => setSelectedWarranty(null)}
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition ${selectedWarranty === null
+                      ? "border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm"
+                      : "border-slate-200 dark:border-slate-700"
+                      }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs text-slate-900 dark:text-white">
+                        Standard OEM Warranty
+                      </span>
+                      {selectedWarranty === null && <FiCheckCircle className="text-amber-500" size={16} />}
                     </div>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Standard manufacturer warranty (25 yrs panels, 5 yrs inverter). No extra charge.
+                    </p>
+                    <div className="mt-3 text-xs font-black text-emerald-600">Free / Included</div>
                   </div>
 
-                  {/* Quick Filters Component (matching Screenshot 2) */}
-                  <div className="bg-slate-50 dark:bg-slate-800/80 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <FiPackage className="text-blue-600 dark:text-blue-400" size={18} />
-                        <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Quick Filters</h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleClearMainFilters}
-                        className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition cursor-pointer"
-                      >
-                        Clear Main
-                      </button>
-                    </div>
+                  {(Array.isArray(warrantyList) ? warrantyList : []).map((war) => {
+                    const isSel = selectedWarranty?._id === war._id;
+                    const priceLabel =
+                      war.pricing_mode === "percentage"
+                        ? `+${war.price_pct}% of Kit Price`
+                        : `+${formatINR(war.price_per_kit_paise || 0)} / Kit`;
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                      {/* 1. Industry Type */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                          Industry Type
-                        </label>
-                        <div className="relative">
-                          <select
-                            value={quickFilters.industryType}
-                            onChange={(e) =>
-                              setQuickFilters((prev) => ({
-                                ...prev,
-                                industryType: e.target.value,
-                                category: "all",
-                                subCategory: "all",
-                                systemType: "all",
-                                projectRange: "all",
-                              }))
-                            }
-                            className="w-full appearance-none px-3 py-2 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 pr-8 cursor-pointer"
-                          >
-                            {industryTypeOptions.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                          <FiChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
-                        </div>
-                      </div>
-
-                      {/* 2. Category */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                          Category
-                        </label>
-                        <div className="relative">
-                          <select
-                            value={quickFilters.category}
-                            onChange={(e) =>
-                              setQuickFilters((prev) => ({
-                                ...prev,
-                                category: e.target.value,
-                                subCategory: "all",
-                                systemType: "all",
-                                projectRange: "all",
-                              }))
-                            }
-                            className="w-full appearance-none px-3 py-2 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 pr-8 cursor-pointer"
-                          >
-                            {categoryOptions.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                          <FiChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
-                        </div>
-                      </div>
-
-                      {/* 3. Sub Category */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                          Sub Category
-                        </label>
-                        <div className="relative">
-                          <select
-                            value={quickFilters.subCategory}
-                            onChange={(e) =>
-                              setQuickFilters((prev) => ({
-                                ...prev,
-                                subCategory: e.target.value,
-                              }))
-                            }
-                            className="w-full appearance-none px-3 py-2 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 pr-8 cursor-pointer"
-                          >
-                            {subCategoryOptions.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                          <FiChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
-                        </div>
-                      </div>
-
-                      {/* 4. System Type */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                          System Type
-                        </label>
-                        <div className="relative">
-                          <select
-                            value={quickFilters.systemType}
-                            onChange={(e) =>
-                              setQuickFilters((prev) => ({
-                                ...prev,
-                                systemType: e.target.value,
-                              }))
-                            }
-                            className="w-full appearance-none px-3 py-2 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 pr-8 cursor-pointer"
-                          >
-                            {systemTypeOptions.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                          <FiChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
-                        </div>
-                      </div>
-
-                      {/* 5. Project Range */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                          Project Range
-                        </label>
-                        <div className="relative">
-                          <select
-                            value={quickFilters.projectRange}
-                            onChange={(e) =>
-                              setQuickFilters((prev) => ({
-                                ...prev,
-                                projectRange: e.target.value,
-                              }))
-                            }
-                            className="w-full appearance-none px-3 py-2 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 pr-8 cursor-pointer"
-                          >
-                            {projectRangeOptions.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                          <FiChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {loadingKits ? (
-                    <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center">
-                      <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-                      <span>Loading authorized ComboKits...</span>
-                    </div>
-                  ) : filteredKits.length === 0 ? (
-                    <div className="py-16 text-center text-slate-400 text-xs">
-                      <FiBox size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-                      <p className="font-semibold text-slate-600 dark:text-slate-300">No authorized ComboKits found</p>
-                      <p className="mt-1">Check your franchisee plan subscriptions or contact admin.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {filteredKits.map((kit) => (
-                        <StoreKitCard
-                          key={kit._id}
-                          kit={kit}
-                          isSelected={selectedKit?._id === kit._id}
-                          selectedQuantity={selectedKit?._id === kit._id ? quantity : null}
-                          selectedQuoteMode={selectedKit?._id === kit._id ? selectedQuoteMode : null}
-                          quotePermissions={effectiveQuotePermissions}
-                          onSelectKit={(k, q, mode) => {
-                            setSelectedKit(k);
-                            setQuantity(q);
-                            setSelectedQuoteMode(mode || (q >= 200 ? "po_quote" : "loose_quote"));
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* STEP 4: WARRANTY OPTION */}
-              {currentStep === 4 && (
-                <div className="space-y-6">
-                  <div className="pb-4 border-b border-slate-100 dark:border-slate-700">
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Select Warranty & Protection Option</h2>
-                    <p className="text-xs text-slate-500">Choose extended warranty protection package for the quotation</p>
-                  </div>
-
-                  {/* Selected Kit Summary Banner */}
-                  {selectedKit && (
-                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                          <FiPackage size={18} />
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
-                            {selectedKit.name || selectedKit.kit_name}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                            {selectedKit.brand_name || "SolarKits Direct"} • {selectedKit.category_name || "Rooftop"} • Capacity: {((selectedKit.capacity || selectedKit.kit_capacity_kw || 3) * quantity).toFixed(1)} kW
-                          </p>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-bold text-xs">
-                          Selected Quantity: {quantity} {quantity > 1 ? "kits" : "kit"}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Warranty Options */}
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-3">
-                      Select Warranty & Protection Option
-                    </h4>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {/* Default Standard Warranty */}
+                    return (
                       <div
-                        onClick={() => setSelectedWarranty(null)}
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition ${selectedWarranty === null
+                        key={war._id}
+                        onClick={() => setSelectedWarranty(war)}
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition ${isSel
                           ? "border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm"
                           : "border-slate-200 dark:border-slate-700"
                           }`}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-xs text-slate-900 dark:text-white">
-                            Standard OEM Warranty
-                          </span>
-                          {selectedWarranty === null && <FiCheckCircle className="text-amber-500" size={16} />}
+                          <span className="font-bold text-xs text-slate-900 dark:text-white">{war.name}</span>
+                          {isSel && <FiCheckCircle className="text-amber-500" size={16} />}
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">
-                          Standard manufacturer warranty (25 yrs panels, 5 yrs inverter). No extra charge.
-                        </p>
-                        <div className="mt-3 text-xs font-black text-emerald-600">Free / Included</div>
+                        <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{war.terms || war.covered_products}</p>
+                        <div className="mt-3 text-xs font-black text-amber-600">{priceLabel}</div>
                       </div>
-
-                      {(Array.isArray(warrantyList) ? warrantyList : []).map((war) => {
-                        const isSel = selectedWarranty?._id === war._id;
-                        const priceLabel =
-                          war.pricing_mode === "percentage"
-                            ? `+${war.price_pct}% of Kit Price`
-                            : `+${formatINR(war.price_per_kit_paise || 0)} / Kit`;
-
-                        return (
-                          <div
-                            key={war._id}
-                            onClick={() => setSelectedWarranty(war)}
-                            className={`p-4 rounded-xl border-2 cursor-pointer transition ${isSel
-                              ? "border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm"
-                              : "border-slate-200 dark:border-slate-700"
-                              }`}
-                          >
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="font-bold text-xs text-slate-900 dark:text-white">{war.name}</span>
-                              {isSel && <FiCheckCircle className="text-amber-500" size={16} />}
-                            </div>
-                            <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{war.terms || war.covered_products}</p>
-                            <div className="mt-3 text-xs font-black text-amber-600">{priceLabel}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 5: REVIEW & GENERATE */}
-              {currentStep === 5 && (
-                <div className="space-y-6">
-                  <div className="pb-4 border-b border-slate-100 dark:border-slate-700">
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Review Quotation Summary</h2>
-                    <p className="text-xs text-slate-500">
-                      Verify commercial numbers and client details before issuing formal quotation
-                    </p>
-                  </div>
-
-                  {/* 3 Information Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* EPC Card */}
-                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">EPC Buyer</span>
-                      <div className="font-bold text-slate-900 dark:text-white text-sm mt-1">
-                        {selectedEpc?.company_name}
-                      </div>
-                      <div className="text-xs text-slate-500 mt-1 space-y-0.5">
-                        <div>GST: {selectedEpc?.gstin || "—"}</div>
-                        <div>Contact: {selectedEpc?.contact_person}</div>
-                        <div>Phone: {selectedEpc?.mobile}</div>
-                      </div>
-                    </div>
-
-                    {/* Delivery Card */}
-                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Delivery Site</span>
-                      <div className="font-bold text-slate-900 dark:text-white text-sm mt-1">
-                        {deliveryType === "franchisee_warehouse" ? "Franchisee Store Pickup" : "EPC Registered Address"}
-                      </div>
-                      <div className="text-xs text-slate-500 mt-1 space-y-0.5">
-                        <div>Address: {deliveryDetails.shipping_address_line1 || "—"}</div>
-                        <div>Pincode: {deliveryDetails.pincode || "—"}</div>
-                        <div>Receiver: {deliveryDetails.contact_person}</div>
-                      </div>
-                    </div>
-
-                    {/* ComboKit Card */}
-                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
-                      <div className="flex items-center justify-between gap-1 mb-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ComboKit</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${selectedQuoteMode === "trial_quote"
-                            ? "bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200"
-                            : selectedQuoteMode === "po_quote"
-                              ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200"
-                              : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200"
-                          }`}>
-                          {selectedQuoteMode === "trial_quote" ? "Trial Quote" : (selectedQuoteMode === "po_quote" ? "Bulk PO Quote" : "Loose Quote")}
-                        </span>
-                      </div>
-                      <div className="font-bold text-slate-900 dark:text-white text-sm mt-1 line-clamp-2">
-                        {selectedKit?.name}
-                      </div>
-                      <div className="flex flex-wrap gap-1 mt-1.5 mb-1.5">
-                        {selectedKit?.industry_type_name && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100/70 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                            {selectedKit.industry_type_name}
-                          </span>
-                        )}
-                        {selectedKit?.project_type_name && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                            {selectedKit.project_type_name}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500 mt-1 space-y-0.5">
-                        <div>Quantity: {quantity} Kits ({((selectedKit?.capacity || 3) * quantity).toFixed(1)} kW)</div>
-                        <div>Warranty: {selectedWarranty?.name || "Standard OEM"}</div>
-                        <div>Quote Mode: <span className="font-semibold text-slate-700 dark:text-slate-300">{selectedQuoteMode === "trial_quote" ? "Trial Order Quotation" : (selectedQuoteMode === "po_quote" ? "Bulk PO Quotation" : "Loose Kit Quotation")}</span></div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Price Calculation Table */}
-                  <div className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
-                    <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider pb-2 border-b border-slate-100 dark:border-slate-700">
-                      Commercial Pricing Breakdown
-                    </h4>
-
-                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
-                      <span>Unit Price per Kit:</span>
-                      <span className="font-mono font-bold">{formatINR(pricing.price_per_kit_paise)}</span>
-                    </div>
-
-                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
-                      <span>Product Subtotal ({quantity} Kits):</span>
-                      <span className="font-mono font-bold">{formatINR(pricing.product_subtotal_paise)}</span>
-                    </div>
-
-                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
-                      <span>Warranty Charges:</span>
-                      <span className="font-mono font-bold">{formatINR(pricing.warranty_charges_paise)}</span>
-                    </div>
-
-                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
-                      <span>Logistics & Freight:</span>
-                      <span className="font-mono font-bold">{formatINR(pricing.delivery_charges_paise)}</span>
-                    </div>
-
-                    <div className="flex justify-between text-xs font-bold text-slate-800 dark:text-slate-200 pt-2 border-t border-slate-100 dark:border-slate-700">
-                      <span>Taxable Value:</span>
-                      <span className="font-mono font-black">{formatINR(pricing.taxable_amount_paise)}</span>
-                    </div>
-
-                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
-                      <span>GST ({pricing.gst_rate}%):</span>
-                      <span className="font-mono font-bold">{formatINR(pricing.gst_amount_paise)}</span>
-                    </div>
-
-                    <div className="flex justify-between text-sm font-black text-slate-900 dark:text-white pt-3 border-t-2 border-slate-200 dark:border-slate-700">
-                      <span>Total Payable Quotation Amount:</span>
-                      <span className="font-mono text-lg text-emerald-600 dark:text-emerald-400">
-                        {formatINR(pricing.total_amount_paise)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Stepper Navigation Buttons */}
-              <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  disabled={currentStep === 1 || generating}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 disabled:opacity-40 transition"
-                >
-                  <FiArrowLeft size={15} />
-                  <span>Back</span>
-                </button>
-
-                <div className="flex items-center gap-2">
-                  {currentStep === 5 ? (
-                    <>
-                      <button
-                        type="button"
-                        disabled={generating}
-                        onClick={() => handleGenerateQuote(true)}
-                        className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 transition"
-                      >
-                        Save as Draft
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={generating}
-                        onClick={() => handleGenerateQuote(false)}
-                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-bold shadow-md transition"
-                      >
-                        {generating ? (
-                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                          <FiCheck size={16} />
-                        )}
-                        <span>Generate Official Quote</span>
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleNext}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow transition"
-                    >
-                      <span>Continue</span>
-                      <FiArrowRight size={15} />
-                    </button>
-                  )}
+                    );
+                  })}
                 </div>
               </div>
             </div>
+          )}
+
+          {/* STEP 5: REVIEW & GENERATE */}
+          {currentStep === 5 && (
+            <div className="space-y-6">
+              <div className="pb-4 border-b border-slate-100 dark:border-slate-700">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Review Quotation Summary</h2>
+                <p className="text-xs text-slate-500">
+                  Verify commercial numbers and client details before issuing formal quotation
+                </p>
+              </div>
+
+              {/* 3 Information Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* EPC Card */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">EPC Buyer</span>
+                  <div className="font-bold text-slate-900 dark:text-white text-sm mt-1">
+                    {selectedEpc?.company_name}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1 space-y-0.5">
+                    <div>GST: {selectedEpc?.gstin || "—"}</div>
+                    <div>Contact: {selectedEpc?.contact_person}</div>
+                    <div>Phone: {selectedEpc?.mobile}</div>
+                  </div>
+                </div>
+
+                {/* Delivery Card */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Delivery Site</span>
+                  <div className="font-bold text-slate-900 dark:text-white text-sm mt-1">
+                    {deliveryType === "franchisee_warehouse" ? "Franchisee Store Pickup" : "EPC Registered Address"}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1 space-y-0.5">
+                    <div>Address: {deliveryDetails.shipping_address_line1 || "—"}</div>
+                    <div>Pincode: {deliveryDetails.pincode || "—"}</div>
+                    <div>Receiver: {deliveryDetails.contact_person}</div>
+                  </div>
+                </div>
+
+                {/* ComboKit Card */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ComboKit</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${selectedQuoteMode === "trial_quote"
+                      ? "bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200"
+                      : selectedQuoteMode === "po_quote"
+                        ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200"
+                        : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200"
+                      }`}>
+                      {selectedQuoteMode === "trial_quote" ? "Trial Quote" : (selectedQuoteMode === "po_quote" ? "Bulk PO Quote" : "Loose Quote")}
+                    </span>
+                  </div>
+                  <div className="font-bold text-slate-900 dark:text-white text-sm mt-1 line-clamp-2">
+                    {selectedKit?.name}
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1.5 mb-1.5">
+                    {selectedKit?.industry_type_name && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100/70 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                        {selectedKit.industry_type_name}
+                      </span>
+                    )}
+                    {selectedKit?.project_type_name && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                        {selectedKit.project_type_name}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1 space-y-0.5">
+                    <div>Quantity: {quantity} Kits ({((selectedKit?.capacity || 3) * quantity).toFixed(1)} kW)</div>
+                    <div>Warranty: {selectedWarranty?.name || "Standard OEM"}</div>
+                    <div>Quote Mode: <span className="font-semibold text-slate-700 dark:text-slate-300">{selectedQuoteMode === "trial_quote" ? "Trial Order Quotation" : (selectedQuoteMode === "po_quote" ? "Bulk PO Quotation" : "Loose Kit Quotation")}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Price Calculation Table */}
+              <div className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
+                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider pb-2 border-b border-slate-100 dark:border-slate-700">
+                  Commercial Pricing Breakdown
+                </h4>
+
+                <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
+                  <span>Unit Price per Kit:</span>
+                  <span className="font-mono font-bold">{formatINR(pricing.price_per_kit_paise)}</span>
+                </div>
+
+                <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
+                  <span>Product Subtotal ({quantity} Kits):</span>
+                  <span className="font-mono font-bold">{formatINR(pricing.product_subtotal_paise)}</span>
+                </div>
+
+                <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
+                  <span>Warranty Charges:</span>
+                  <span className="font-mono font-bold">{formatINR(pricing.warranty_charges_paise)}</span>
+                </div>
+
+                <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
+                  <span>Logistics & Freight:</span>
+                  <span className="font-mono font-bold">{formatINR(pricing.delivery_charges_paise)}</span>
+                </div>
+
+                <div className="flex justify-between text-xs font-bold text-slate-800 dark:text-slate-200 pt-2 border-t border-slate-100 dark:border-slate-700">
+                  <span>Taxable Value:</span>
+                  <span className="font-mono font-black">{formatINR(pricing.taxable_amount_paise)}</span>
+                </div>
+
+                <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
+                  <span>GST ({pricing.gst_rate}%):</span>
+                  <span className="font-mono font-bold">{formatINR(pricing.gst_amount_paise)}</span>
+                </div>
+
+                <div className="flex justify-between text-sm font-black text-slate-900 dark:text-white pt-3 border-t-2 border-slate-200 dark:border-slate-700">
+                  <span>Total Payable Quotation Amount:</span>
+                  <span className="font-mono text-lg text-emerald-600 dark:text-emerald-400">
+                    {formatINR(pricing.total_amount_paise)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Stepper Navigation Buttons */}
+          <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleBack}
+              disabled={currentStep === 1 || generating}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 disabled:opacity-40 transition"
+            >
+              <FiArrowLeft size={15} />
+              <span>Back</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              {currentStep === 5 ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={generating}
+                    onClick={() => handleGenerateQuote(true)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 transition"
+                  >
+                    Save as Draft
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={generating}
+                    onClick={() => handleGenerateQuote(false)}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-bold shadow-md transition"
+                  >
+                    {generating ? (
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <FiCheck size={16} />
+                    )}
+                    <span>Generate Official Quote</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow transition"
+                >
+                  <span>Continue</span>
+                  <FiArrowRight size={15} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
-      </div>
-      );
+    </div>
+  );
 }

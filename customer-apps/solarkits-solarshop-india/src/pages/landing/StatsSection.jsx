@@ -108,7 +108,7 @@ export default function StatsSection({ statsConfig }) {
       ref={sectionRef}
       style={{
         background: "#f8faff",
-        padding: "88px 28px",
+        padding: "clamp(48px, 7vw, 88px) clamp(16px, 4vw, 28px)",
         position: "relative",
         overflow: "hidden",
       }}

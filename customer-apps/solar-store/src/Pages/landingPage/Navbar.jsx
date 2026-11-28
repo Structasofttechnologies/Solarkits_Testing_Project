@@ -198,16 +198,16 @@ export default function Navbar() {
           : "bg-white/95 backdrop-blur-md border-b border-gray-100"
           }`}
       >
-        <div className="w-full px-3 sm:px-4 lg:px-5">
-          <div className="flex flex-wrap items-center min-h-16 gap-x-3 gap-y-2 py-3 sm:flex-nowrap lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:min-h-[72px] lg:gap-x-5">
+        <div className="w-full px-2.5 sm:px-4 lg:px-5">
+          <div className="flex flex-wrap items-center min-h-14 sm:min-h-16 gap-x-2 sm:gap-x-3 gap-y-2 py-2.5 sm:py-3 sm:flex-nowrap lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:min-h-[72px] lg:gap-x-5">
             <div
-              className="shrink-0 cursor-pointer flex items-center lg:justify-self-start"
+              className="shrink-0 cursor-pointer flex items-center lg:justify-self-start min-w-0"
               onClick={() => handleNavClick("#hero")}
             >
               <img
                 src={logo}
                 alt="SolarKits — A Solar Marketplace"
-                className="h-8 sm:h-9 lg:h-10 w-auto max-w-[120px] sm:max-w-[160px] object-contain object-left transition-transform hover:scale-[1.03] duration-200"
+                className="h-6 sm:h-9 lg:h-10 w-auto max-w-[92px] sm:max-w-[160px] object-contain object-left transition-transform hover:scale-[1.03] duration-200"
               />
             </div>
             <nav aria-label="Main navigation" className="hidden lg:flex items-center justify-center gap-1 xl:gap-2 lg:justify-self-center">
@@ -289,16 +289,14 @@ export default function Navbar() {
                             <div
                               key={sector.title}
                               onClick={() => handleNavClick(sector.href || sector.appRoute || "/shop")}
-                              className={`flex items-center gap-3 p-3 rounded-2xl border transition-all cursor-pointer group shadow-2xs ${
-                                isBlue
+                              className={`flex items-center gap-3 p-3 rounded-2xl border transition-all cursor-pointer group shadow-2xs ${isBlue
                                   ? "bg-blue-50/60 hover:bg-blue-100/70 border-blue-200/80 hover:border-blue-300"
                                   : "bg-amber-50/60 hover:bg-amber-100/70 border-amber-200/80 hover:border-amber-300"
-                              }`}
+                                }`}
                             >
                               <div
-                                className={`w-9 h-9 rounded-xl text-white flex items-center justify-center shrink-0 shadow-xs ${
-                                  isBlue ? "bg-blue-600" : "bg-amber-500"
-                                }`}
+                                className={`w-9 h-9 rounded-xl text-white flex items-center justify-center shrink-0 shadow-xs ${isBlue ? "bg-blue-600" : "bg-amber-500"
+                                  }`}
                               >
                                 <Icon size={17} />
                               </div>
@@ -306,11 +304,10 @@ export default function Navbar() {
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-1.5">
                                     <p
-                                      className={`text-xs font-bold transition-colors ${
-                                        isBlue
+                                      className={`text-xs font-bold transition-colors ${isBlue
                                           ? "text-blue-900 group-hover:text-blue-700"
                                           : "text-amber-900 group-hover:text-amber-700"
-                                      }`}
+                                        }`}
                                     >
                                       {sector.title}
                                     </p>
@@ -321,9 +318,8 @@ export default function Navbar() {
                                     )}
                                   </div>
                                   <FiArrowRight
-                                    className={`text-xs shrink-0 group-hover:translate-x-0.5 transition-transform ${
-                                      isBlue ? "text-blue-500" : "text-amber-500"
-                                    }`}
+                                    className={`text-xs shrink-0 group-hover:translate-x-0.5 transition-transform ${isBlue ? "text-blue-500" : "text-amber-500"
+                                      }`}
                                   />
                                 </div>
                                 <p className="text-[10px] text-gray-500 mt-0.5">{sector.desc}</p>
@@ -477,16 +473,16 @@ export default function Navbar() {
 
 
             </nav>
-            <div className="ml-auto flex items-center gap-1.5 sm:gap-2 xl:gap-2.5 shrink-0 lg:ml-0 lg:justify-self-end">
+            <div className="ml-auto flex items-center gap-1 sm:gap-2 xl:gap-2.5 shrink-0 lg:ml-0 lg:justify-self-end">
               {/* Location / Pincode Selector Pill */}
               <button
                 type="button"
                 onClick={() => setLocationModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
+                className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-[11px] sm:text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
                 title="Enter Pincode to view local Best Sellers & Stock"
               >
-                <FiMapPin className="text-amber-600 text-sm shrink-0" />
-                <span className="truncate max-w-[110px] sm:max-w-[150px]">
+                <FiMapPin className="text-amber-600 text-xs sm:text-sm shrink-0" />
+                <span className="truncate max-w-[68px] sm:max-w-[150px]">
                   {selectedDistrict?.name
                     ? `${selectedPincode ? `${selectedPincode} • ` : ""}${selectedDistrict.name}`
                     : "Select PIN"}
@@ -521,12 +517,12 @@ export default function Navbar() {
                 </>
               )}
               {!isAuthenticated && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2">
                   <motion.button
                     onClick={() => navigate("/auth/signup")}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-4 py-2 bg-white hover:bg-blue-50/80 text-[#132a68] border border-blue-300 text-xs sm:text-sm font-bold rounded-full transition-all shadow-2xs cursor-pointer"
+                    className="whitespace-nowrap shrink-0 inline-flex items-center gap-1 px-2 sm:px-4 py-1.5 sm:py-2 bg-white hover:bg-blue-50/80 text-[#132a68] border border-blue-300 text-[11px] sm:text-sm font-bold rounded-full transition-all shadow-2xs cursor-pointer"
                   >
                     <FiUserPlus className="hidden sm:block text-sm shrink-0 text-[#132a68]" />
                     <span className="whitespace-nowrap">Sign Up</span>
@@ -535,7 +531,7 @@ export default function Navbar() {
                     onClick={() => navigate("/auth/login")}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 px-2 sm:px-4 py-2 bg-[#132a68] hover:bg-[#0c1d4a] text-white text-xs sm:text-sm font-bold rounded-full transition-all shadow-sm cursor-pointer"
+                    className="whitespace-nowrap shrink-0 inline-flex items-center gap-1 px-2 sm:px-4 py-1.5 sm:py-2 bg-[#132a68] hover:bg-[#0c1d4a] text-white text-[11px] sm:text-sm font-bold rounded-full transition-all shadow-sm cursor-pointer"
                   >
                     <FiUser className="hidden sm:block text-sm shrink-0" />
                     <span className="whitespace-nowrap">Login</span>
@@ -545,7 +541,7 @@ export default function Navbar() {
               <motion.button
                 onClick={() => setMenuOpen(!menuOpen)}
                 whileTap={{ scale: 0.92 }}
-                className="lg:hidden p-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-all border border-gray-200 shrink-0"
+                className="lg:hidden p-1.5 sm:p-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-all border border-gray-200 shrink-0"
                 aria-label="Toggle menu"
                 aria-expanded={menuOpen}
                 aria-controls="mobile-navigation"

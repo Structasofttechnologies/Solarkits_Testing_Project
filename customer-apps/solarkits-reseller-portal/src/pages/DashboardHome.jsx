@@ -285,16 +285,16 @@ export default function DashboardHome() {
               </div>
             </div>
             <span className={`px-2.5 py-1 rounded-full text-[11px] font-black ${epcAchPct >= 100
-                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
-                : epcAchPct >= 50
-                  ? "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-300 dark:border-blue-800"
-                  : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
+              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+              : epcAchPct >= 50
+                ? "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-300 dark:border-blue-800"
+                : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
               }`}>
               {epcAchPct}% Achieved
             </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-2.5 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-center">
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Onboarding Target</div>
               <div className="text-xl font-black text-slate-900 dark:text-white mt-1">
@@ -348,16 +348,16 @@ export default function DashboardHome() {
               </div>
             </div>
             <span className={`px-2.5 py-1 rounded-full text-[11px] font-black ${liveAchPct >= 100
-                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
-                : liveAchPct >= 50
-                  ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
-                  : "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
+              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+              : liveAchPct >= 50
+                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
+                : "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700"
               }`}>
               {liveAchPct}% Live
             </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-2.5 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-center">
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Live Target</div>
               <div className="text-xl font-black text-slate-900 dark:text-white mt-1">
@@ -415,10 +415,10 @@ export default function DashboardHome() {
                   </span>
                 )}
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${kitAchPct >= 100
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                    : kitAchPct >= 70
-                      ? "bg-blue-100 text-blue-800 border border-blue-300"
-                      : "bg-amber-100 text-amber-800 border border-amber-300"
+                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  : kitAchPct >= 70
+                    ? "bg-blue-100 text-blue-800 border border-blue-300"
+                    : "bg-amber-100 text-amber-800 border border-amber-300"
                   }`}>
                   {kitAchPct >= 100
                     ? "🎯 Kit Goal Achieved"
@@ -532,10 +532,10 @@ export default function DashboardHome() {
             <div className="h-3 w-full bg-slate-200/70 dark:bg-slate-700 rounded-full overflow-hidden p-0.5">
               <div
                 className={`h-full rounded-full transition-all duration-700 ${kitAchPct >= 100
-                    ? "bg-gradient-to-r from-emerald-500 to-teal-400"
-                    : kitAchPct >= 50
-                      ? "bg-gradient-to-r from-blue-600 to-cyan-400"
-                      : "bg-gradient-to-r from-amber-500 to-orange-400"
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-400"
+                  : kitAchPct >= 50
+                    ? "bg-gradient-to-r from-blue-600 to-cyan-400"
+                    : "bg-gradient-to-r from-amber-500 to-orange-400"
                   }`}
                 style={{ width: `${Math.min(Math.max(kitAchPct, kitsFulfilled > 0 ? 4 : 0), 100)}%` }}
               />
@@ -560,10 +560,10 @@ export default function DashboardHome() {
             <div className="h-3 w-full bg-slate-200/70 dark:bg-slate-700 rounded-full overflow-hidden p-0.5">
               <div
                 className={`h-full rounded-full transition-all duration-700 ${poOrdersAchPct >= 100
-                    ? "bg-gradient-to-r from-emerald-500 to-teal-400"
-                    : poOrdersAchPct >= 50
-                      ? "bg-gradient-to-r from-purple-600 to-indigo-500"
-                      : "bg-gradient-to-r from-amber-500 to-orange-400"
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-400"
+                  : poOrdersAchPct >= 50
+                    ? "bg-gradient-to-r from-purple-600 to-indigo-500"
+                    : "bg-gradient-to-r from-amber-500 to-orange-400"
                   }`}
                 style={{ width: `${Math.min(Math.max(poOrdersAchPct, poOrdersActual > 0 ? 4 : 0), 100)}%` }}
               />

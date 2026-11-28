@@ -36,7 +36,7 @@ export default function HowItWorks({ howItWorksConfig }) {
     <section
       id="how-it-works"
       ref={sectionRef}
-      style={{ background: "#f0f6ff", padding: "96px 28px", position: "relative", overflow: "hidden" }}
+      style={{ background: "#f0f6ff", padding: "clamp(48px, 7vw, 96px) clamp(16px, 4vw, 28px)", position: "relative", overflow: "hidden" }}
     >
       <div style={{ maxWidth: "1280px", margin: "0 auto", position: "relative", zIndex: 1 }}>
         <motion.div

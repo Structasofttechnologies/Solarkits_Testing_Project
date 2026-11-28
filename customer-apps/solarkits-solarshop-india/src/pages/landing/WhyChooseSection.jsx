@@ -37,7 +37,7 @@ export default function WhyChooseSection({ whyChooseConfig }) {
     <section
       id="why-choose"
       ref={sectionRef}
-      style={{ background: "#ffffff", padding: "96px 28px", position: "relative", overflow: "hidden" }}
+      style={{ background: "#ffffff", padding: "clamp(48px, 7vw, 96px) clamp(16px, 4vw, 28px)", position: "relative", overflow: "hidden" }}
     >
       {/* Subtle background shapes */}
       <div style={{ position: "absolute", top: 0, right: 0, width: "400px", height: "400px", background: "radial-gradient(circle, rgba(248,194,26,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
@@ -66,60 +66,60 @@ export default function WhyChooseSection({ whyChooseConfig }) {
           </p>
         </motion.div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "20px" }}>
-          {items.map((feat, i) => {
-            const IconComponent = feat.icon || iconOptions[i % iconOptions.length];
-            const color = feat.color || colorOptions[i % colorOptions.length];
-            const bg = feat.bg || bgOptions[i % bgOptions.length];
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: "20px" }}>
+            {items.map((feat, i) => {
+              const IconComponent = feat.icon || iconOptions[i % iconOptions.length];
+              const color = feat.color || colorOptions[i % colorOptions.length];
+              const bg = feat.bg || bgOptions[i % bgOptions.length];
 
-            return (
-              <motion.div
-                key={feat.title || i}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: active ? 1 : 0, y: active ? 0 : 30 }}
-                transition={{ duration: 0.5, delay: i * 0.08, ease: "easeOut" }}
-                style={{
-                  background: "#fff",
-                  borderRadius: "16px",
-                  padding: "28px",
-                  border: "1.5px solid #f1f5f9",
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
-                  transition: "all 0.3s ease",
-                  display: "flex",
-                  gap: "18px",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = `${color}40`;
-                  e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.boxShadow = `0 12px 36px ${color}15`;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#f1f5f9";
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.04)";
-                }}
-              >
-                <div style={{
-                  width: "50px", height: "50px", borderRadius: "14px",
-                  background: bg, flexShrink: 0,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: color, fontSize: "1.3rem",
-                }}>
-                  <IconComponent />
-                </div>
-                <div>
-                  <h3 style={{ color: "#0f172a", fontSize: "1rem", fontWeight: 700, marginBottom: "8px", fontFamily: "'Outfit', sans-serif" }}>
-                    {feat.title}
-                  </h3>
-                  <p style={{ color: "#64748b", fontSize: "0.875rem", lineHeight: 1.6, margin: 0 }}>
-                    {feat.desc || feat.description}
-                  </p>
-                </div>
-              </motion.div>
-            );
-          })}
+              return (
+                <motion.div
+                  key={feat.title || i}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: active ? 1 : 0, y: active ? 0 : 30 }}
+                  transition={{ duration: 0.5, delay: i * 0.08, ease: "easeOut" }}
+                  style={{
+                    background: "#fff",
+                    borderRadius: "16px",
+                    padding: "28px",
+                    border: "1.5px solid #f1f5f9",
+                    boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+                    transition: "all 0.3s ease",
+                    display: "flex",
+                    gap: "18px",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = `${color}40`;
+                    e.currentTarget.style.transform = "translateY(-4px)";
+                    e.currentTarget.style.boxShadow = `0 12px 36px ${color}15`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "#f1f5f9";
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.04)";
+                  }}
+                >
+                  <div style={{
+                    width: "50px", height: "50px", borderRadius: "14px",
+                    background: bg, flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: color, fontSize: "1.3rem",
+                  }}>
+                    <IconComponent />
+                  </div>
+                  <div>
+                    <h3 style={{ color: "#0f172a", fontSize: "1rem", fontWeight: 700, marginBottom: "8px", fontFamily: "'Outfit', sans-serif" }}>
+                      {feat.title}
+                    </h3>
+                    <p style={{ color: "#64748b", fontSize: "0.875rem", lineHeight: 1.6, margin: 0 }}>
+                      {feat.desc || feat.description}
+                    </p>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
         </div>
-      </div>
     </section>
   );
 }

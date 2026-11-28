@@ -1,189 +1,485 @@
 /**
- * SolarKits High-Conversion Email Template Generator
- * Bulletproof 600px Responsive Table Layout for Desktop, Mobile Web, Gmail & Outlook
+ * SolarKits Executive Email Template Generator
+ * Clean Architectural 590px Responsive Table Layout
+ * Modeled on modern B2B hardware showcase emails for Desktop, Mobile, Gmail & Outlook
  */
 
 export const OFFICIAL_SOLARKITS_LOGO_URL =
   'https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png';
 
+export const DEFAULT_HERO_BANNER_URL =
+  'https://res.cloudinary.com/dggmbagax/image/upload/v1795868944/solarkits/marketing-creatives/hero-banners/solarkits_default_hero_banner_1_2_3kw.jpg';
+
+export const SOLARKITS_MEDIA_ASSETS = {
+  defaultHeroBanner: DEFAULT_HERO_BANNER_URL,
+  socialIcons: {
+    linkedin:
+      'https://res.cloudinary.com/dggmbagax/image/upload/v1795859042/solarkits/marketing-creatives/boss-suite/social_linkedin.png',
+    instagram:
+      'https://res.cloudinary.com/dggmbagax/image/upload/v1795859043/solarkits/marketing-creatives/boss-suite/social_instagram.png',
+    youtube:
+      'https://res.cloudinary.com/dggmbagax/image/upload/v1795859044/solarkits/marketing-creatives/boss-suite/social_youtube.png',
+    facebook:
+      'https://res.cloudinary.com/dggmbagax/image/upload/v1795859045/solarkits/marketing-creatives/boss-suite/social_facebook.png',
+    whatsapp:
+      'https://res.cloudinary.com/dggmbagax/image/upload/v1795859046/solarkits/marketing-creatives/boss-suite/social_whatsapp.png',
+    website:
+      'https://res.cloudinary.com/dggmbagax/image/upload/v1795859046/solarkits/marketing-creatives/boss-suite/social_website.png'
+  }
+};
+
+export const PLATFORM_LINK_GROUPS = [
+  {
+    group: 'Solar Store (store.solarkits.in)',
+    items: [
+      {
+        url: 'https://store.solarkits.in/preconfigured-combo-kit',
+        label: 'Combo Kits Catalog — Ready-to-dispatch 1kW, 2kW & 3kW+ solar kits'
+      },
+      {
+        url: 'https://store.solarkits.in/shop',
+        label: 'Store Shop — Browse all pre-configured solar hardware & kits'
+      },
+      {
+        url: 'https://store.solarkits.in/custom-combo-kit',
+        label: 'Custom Kit Builder — Configure custom panels, inverter & BOS specs'
+      },
+      {
+        url: 'https://store.solarkits.in/browse/govt-tender',
+        label: 'Govt Tender Kits — State-wise govt tender & subsidy solar kits'
+      },
+      {
+        url: 'https://store.solarkits.in/browse/industry',
+        label: 'Industry Solutions — C&I solar kits filtered by industry segment'
+      },
+      {
+        url: 'https://store.solarkits.in/know-my-margin',
+        label: 'Know My Margin — EPC project margin & ROI calculator'
+      },
+      {
+        url: 'https://store.solarkits.in/epc-catalogue',
+        label: 'EPC Catalogue — White-label partner hardware catalogue'
+      },
+      {
+        url: 'https://store.solarkits.in/bulk-buy',
+        label: 'Bulk Buy Wholesale — High-volume loose & container pricing'
+      },
+      {
+        url: 'https://store.solarkits.in/po-orders',
+        label: 'PO Orders & Allocations — Purchase order & stock allocation desk'
+      },
+      {
+        url: 'https://store.solarkits.in/cart',
+        label: 'Shopping Cart — Checkout & apply seasonal coupon voucher'
+      },
+      {
+        url: 'https://store.solarkits.in/store-locator',
+        label: 'Store Locator — Find nearest SolarKits depot or franchise store'
+      },
+      {
+        url: 'https://store.solarkits.in/knowledge-center',
+        label: 'Knowledge Center — Datasheets, installation SOPs & tutorials'
+      },
+      {
+        url: 'https://store.solarkits.in/track-order',
+        label: 'Track Order Status — Live dispatch & delivery telemetry'
+      },
+      {
+        url: 'https://store.solarkits.in/auth/signup',
+        label: 'EPC Partner Signup — Register new EPC buyer account'
+      },
+      {
+        url: 'https://store.solarkits.in/auth/login',
+        label: 'EPC Partner Login — Sign in to Solar Store portal'
+      }
+    ]
+  },
+  {
+    group: 'SolarKits Main Website (solarkits.in)',
+    items: [
+      {
+        url: 'https://solarkits.in/',
+        label: 'SolarKits Homepage — Main corporate landing & overview page'
+      },
+      {
+        url: 'https://solarkits.in/industries',
+        label: 'Industries Showcase — Sector-wise solar deployment solutions'
+      }
+    ]
+  },
+  {
+    group: 'Franchise Portal (franchise.solarkits.in)',
+    items: [
+      {
+        url: 'https://franchise.solarkits.in/',
+        label: 'Franchise Landing — Franchise partner program & benefits'
+      },
+      {
+        url: 'https://franchise.solarkits.in/eligibility',
+        label: 'Eligibility Checker — Check territory availability & qualification'
+      },
+      {
+        url: 'https://franchise.solarkits.in/register',
+        label: 'Franchise Registration — Apply for authorized franchise store'
+      },
+      {
+        url: 'https://franchise.solarkits.in/login',
+        label: 'Franchise Login — Reseller partner dashboard sign-in'
+      },
+      {
+        url: 'https://franchise.solarkits.in/dashboard',
+        label: 'Franchise Dashboard — Live store telemetry & quotes overview'
+      },
+      {
+        url: 'https://franchise.solarkits.in/catalog',
+        label: 'Franchise Authorized Catalog — Depot-linked franchise pricing'
+      },
+      {
+        url: 'https://franchise.solarkits.in/epc-quotes',
+        label: 'EPC Quotations — Create & manage EPC project quotes'
+      },
+      {
+        url: 'https://franchise.solarkits.in/trial-kit-quotes',
+        label: 'Trial Kit Quotes — Send sample / trial kit proposals'
+      }
+    ]
+  },
+  {
+    group: 'Direct Actions (WhatsApp / Call / Email)',
+    items: [
+      {
+        url: 'https://wa.me/919913421453',
+        label: 'WhatsApp Quote Chat — Opens direct WhatsApp conversation (+91 99134 21453)'
+      },
+      {
+        url: 'tel:+919913421453',
+        label: 'Call Sales Helpline — Direct phone call to +91 99134 21453'
+      },
+      {
+        url: 'mailto:support@solarkits.in',
+        label: 'Email Support — Opens mail composer to support@solarkits.in'
+      }
+    ]
+  }
+];
+
+export const COLOR_PALETTES = [
+  {
+    id: 'royal_navy',
+    name: 'SolarKits Royal Navy + Orange',
+    themeColor: '#1E3A8A',
+    accentColor: '#F59E0B',
+    stripColor: '#EA580C',
+    softBg: '#EFF6FF'
+  },
+  {
+    id: 'eco_teal',
+    name: 'Architectural Teal + Coral',
+    themeColor: '#006272',
+    accentColor: '#0D9488',
+    stripColor: '#F97316',
+    softBg: '#F0FDFA'
+  },
+  {
+    id: 'slate_gold',
+    name: 'Executive Slate + Solar Gold',
+    themeColor: '#0F172A',
+    accentColor: '#F59E0B',
+    stripColor: '#D97706',
+    softBg: '#FFFBEB'
+  }
+];
+
 export const DEFAULT_EMAIL_SECTIONS = [
-  { id: 'banner', label: 'Hero Media Banner', desc: 'Executive banner, photo, or video' },
-  { id: 'pitch', label: 'Pitch Title & Body Text', desc: 'Category tag, H1 heading, and email copy' },
-  { id: 'primary_cta', label: 'Primary Call to Action', desc: 'Main full-width action button' },
-  { id: 'products', label: 'Featured Solar Kits', desc: 'Live pricing, specs, and MOQs' },
-  { id: 'coupon', label: 'Promo Coupon Voucher', desc: 'Dashed discount voucher box' },
-  { id: 'benefit_cards', label: 'Feature Benefit Cards', desc: 'Color-coded highlight value boxes' },
-  { id: 'closing_pitch', label: 'Closing Pitch & Secondary CTA', desc: 'Bottom conversion pitch' },
-  { id: 'custom_ctas', label: 'Additional Action CTAs', desc: 'Secondary action buttons' }
+  { id: 'banner', label: 'Hero Title & Visual Animation', desc: 'Clean editorial headline + animated hero illustration or video' },
+  { id: 'pitch', label: 'Intro Narrative & Tagline', desc: 'Centered value statement, sign-off line & copy' },
+  { id: 'primary_cta', label: 'Primary Action CTA', desc: 'Centered clean rounded action button' },
+  { id: 'system_showcase', label: 'Zigzag System Lineup', desc: '3 alternating left/right solar kit showcase cards' },
+  { id: 'products', label: 'Selected Catalog Solar Kits', desc: 'Live campaign kits with pricing & MOQ specs' },
+  { id: 'coupon', label: 'Promo Coupon Voucher', desc: 'Minimalist discount voucher badge' },
+  { id: 'intelligence', label: 'Portal & Phone Animation', desc: 'Smart SolarKits portal + mobile showcase GIF' },
+  { id: 'benefit_cards', label: 'Trust Metrics & Highlights', desc: '3-column impact metric cards & partner benefits' },
+  { id: 'closing_pitch', label: 'Dual Action Buttons', desc: 'Side-by-side Datasheet & Store CTA buttons' },
+  { id: 'custom_ctas', label: 'Additional Action Links', desc: 'Extra contact or brochure buttons' }
 ];
 
 export const DEFAULT_SECTIONS_ORDER = [
   'banner',
   'pitch',
   'primary_cta',
+  'system_showcase',
   'products',
   'coupon',
+  'intelligence',
   'benefit_cards',
   'closing_pitch',
   'custom_ctas'
 ];
 
-export const DEFAULT_EXECUTIVE_CREATIVE = {
-  logoUrl: OFFICIAL_SOLARKITS_LOGO_URL,
-  headerTagline: 'B2B SOLAR KITS STORE',
-  headline: "DON'T JUST SELL SOLAR. SELL COMPLETE BACKUP.",
-  subheading: 'Tier-1 ALMM Modules + High-Efficiency Inverters + Pre-Engineered Structure in One Single Dispatch.',
-  themeColor: '#263880',
-  accentColor: '#f59e0b',
-  stripColor: '#ea580c',
-  contactPhone: '+91 99134 21453',
-  contactWebsite: 'solarkits.in',
-  categoryTag: 'B2B WHOLESALE KITS BY SOLARKITS',
-  h1Title: 'Solar EPCs, this one is for you.',
-  customBodyText:
-    'Your customers want rooftop solar that keeps the power running during grid outages too. With SolarKits Pre-Engineered Hybrid & DCR Combos, quote solar plus battery storage in one complete package and win projects that on-grid-only EPCs lose.',
-  primaryCtaText: 'Get SolarKits Pricing Today →',
-  destinationUrl: 'https://solarkits.in/solar-kits',
-  mediaType: 'banner', // 'banner' | 'image' | 'video'
-  heroImageUrl: '',
-  videoUrl: '',
-  sectionsOrder: DEFAULT_SECTIONS_ORDER,
-  valuePills: [
-    '1. Add Backup to Quotes',
-    '2. Higher Ticket Size',
-    '3. Depot Support'
-  ],
-  bulletPoints: [
-    'Higher Project Value & Margin: Sell complete combo (Panels + Inverter + Battery + Structure) in one order and maximize ticket size.',
-    'Win More Quotes Against Competitors: Deliver unmatched power cut reliability with up to 98% inverter efficiency and guaranteed MNRE & ALMM compliance.',
-    'Free Engineering Tools & Technical Helpdesk: Instant access to CAD drawings, SLDs, datasheets, sizing tools, and direct dedicated technical support.',
-    'Regional Depots & Fast Dispatch Across India: Dispatches across regional warehouses with transit insurance.'
-  ],
-  closingPitch: 'Sell complete solar power, not just panels. Choose SolarKits.',
-  secondaryCtaText: 'Explore Wholesale Solar Kits →',
-  footerTitle: 'SOLARKITS INDIA',
-  footerTagline: "Powering India's Leading Solar EPC Network",
-  footerAddress: '© 2026 SolarKits (India) Pvt. Ltd. • All Rights Reserved. Verified Pan-India B2B Solar Supply Network.',
-  unsubscribeBtnText: '🔕 Unsubscribe from this list',
-  footerDisclaimer: '*Exclusive wholesale rates applicable for verified GST-registered EPC contractors only.'
-};
-
-/**
- * 5 Purpose-Based Template Presets (Switchable with 1-click in Studio & Wizard)
- */
-export const PURPOSE_BASED_PRESETS = [
+export const DEFAULT_SYSTEM_TIERS = [
   {
-    id: 'wholesale_backup',
-    label: '⚡ B2B Wholesale / Backup',
-    purpose: 'wholesale',
-    headline: "DON'T JUST SELL SOLAR. SELL COMPLETE BACKUP.",
-    subheading: 'Tier-1 ALMM Modules + High-Efficiency Inverters + Pre-Engineered Structure in One Single Dispatch.',
-    categoryTag: 'B2B WHOLESALE KITS BY SOLARKITS',
-    h1Title: 'Solar EPCs, this one is for you.',
-    customBodyText:
-      'Your customers want rooftop solar that keeps the power running during grid outages too. With SolarKits Pre-Engineered Hybrid & DCR Combos, quote solar plus battery storage in one complete package and win projects that on-grid-only EPCs lose.',
-    primaryCtaText: 'Get SolarKits Pricing Today →',
-    valuePills: ['1. Add Backup to Quotes', '2. Higher Ticket Size', '3. Depot Support'],
-    bulletPoints: [
-      'Higher Project Value & Margin: Sell complete combo (Panels + Inverter + Battery + Structure) in one order and maximize ticket size.',
-      'Win More Quotes Against Competitors: Deliver unmatched power cut reliability with up to 98% inverter efficiency and guaranteed MNRE & ALMM compliance.',
-      'Free Engineering Tools & Technical Helpdesk: Instant access to CAD drawings, SLDs, datasheets, sizing tools, and direct dedicated technical support.',
-      'Regional Depots & Fast Dispatch Across India: Dispatches across regional warehouses with full transit insurance.'
-    ],
-    closingPitch: 'Sell complete solar power, not just panels. Choose SolarKits.',
-    secondaryCtaText: 'Explore Wholesale Solar Kits →'
+    eyebrow: '1 KW DCR KIT',
+    title: '1 K.W. Solarkits DCR Kit',
+    desc: 'Compact 1 kW residential rooftop DCR combo kit. PM Surya Ghar subsidy-compliant panels with single-phase Wi-Fi string inverter and pre-wired BOSkit.',
+    badge: '1 kW DCR',
+    imageUrl: ''
   },
   {
-    id: 'product_launch',
-    label: '🚀 New Product Launch & Datasheet',
-    purpose: 'product_launch',
-    headline: 'INTRODUCING NEXT-GEN N-TYPE TOPCON MODULES',
-    subheading: 'Up to 22.8% Module Efficiency with 30-Year Performance Warranty & Bifacial Generation.',
-    categoryTag: 'NEW PRODUCT INNOVATION • TIER-1 ALMM',
-    h1Title: 'Upgrade Your EPC Quotes with Next-Gen Efficiency',
-    customBodyText:
-      'Offer your customers next-generation N-Type TOPCon solar modules engineered for extreme heat endurance and up to 25% bifacial rear gain. Direct factory allocation available for certified regional installers.',
-    primaryCtaText: 'Download Technical Datasheets & Pricing →',
-    valuePills: ['1. 22.8% Efficiency', '2. 30-Year Warranty', '3. 25% Rear Gain'],
-    bulletPoints: [
-      'Bifacial Rear Power Gain: Generate up to 25% extra energy from ground and rooftop albedo reflection.',
-      'Superior Low-Light & Temperature Performance: Generates more kWh even during cloudy mornings and peak summer heat.',
-      '30-Year Performance Assurance: Underwritten linear warranty with less than 0.4% annual degradation.',
-      'Zero-Delay Regional Depot Dispatch: Ready stock available across regional logistics hubs.'
-    ],
-    closingPitch: 'Lead the technology curve in your region. Quote Next-Gen TOPCon Kits.',
-    secondaryCtaText: 'Request Sample Datasheet & Quotation →'
+    eyebrow: '2 KW DCR COMBOKIT',
+    title: '2 K.W. Solarkits DCR Combokit',
+    desc: 'Popular 2 kW household solar combo package. Pre-matched ALMM DCR modules, 2 kW inverter, and ready-to-install AC/DC BOS protection.',
+    badge: '2 kW DCR',
+    imageUrl: ''
   },
   {
-    id: 'festive_offer',
-    label: '🎉 Festive / Seasonal Mega Offer',
-    purpose: 'festive_offer',
-    headline: 'SEASONAL B2B COMBO OFFER FOR SOLAR EPCs',
-    subheading: 'Special Volume Voucher per Kit with Priority Regional Depot Dispatches & GST Tax Invoice.',
-    categoryTag: 'FESTIVE WHOLESALE BONANZA • LIMITED ALLOCATION',
-    h1Title: 'Exclusive Festive Pre-Booking Allocation for EPCs',
-    customBodyText:
-      'Seasonal rooftop solar inquiries are peaking across India. Lock in pre-booked subsidy-approved commercial kits with instant voucher redemption and priority depot dispatch.',
-    primaryCtaText: 'Claim Voucher & Lock Pricing →',
-    valuePills: ['1. Volume Voucher', '2. Priority Dispatch', '3. GST Credit'],
-    bulletPoints: [
-      'Instant Cash Voucher Redemption: Redeem campaign voucher directly at Solar Shop checkout on eligible commercial combos.',
-      'Assured Priority Dispatch: Transit-insured dispatches directly from your nearest certified regional warehouse.',
-      'Transparent B2B Margins: Instant GST tax invoice generation and volume-tiered EPC partner rates.',
-      'Priority Documentation Support: Dedicated helpdesk for subsidy portal documentation and SLD generation.'
-    ],
-    closingPitch: 'Maximize your margins before allocations run out. Book now.',
-    secondaryCtaText: 'Apply Voucher & Order Kits →'
-  },
-  {
-    id: 'price_drop',
-    label: '🔥 Flash Price Drop & Clearance',
-    purpose: 'price_drop',
-    headline: 'FLASH WHOLESALE PRICE DROP: ON-GRID & DCR KITS',
-    subheading: 'Limited Regional Stock Cleared at Factory-Direct Wholesale Rates for Certified EPCs.',
-    categoryTag: 'FLASH CLEARANCE ALERT • LIMITED STOCK',
-    h1Title: 'Slashed Wholesale Rates on In-Demand Commercial Kits',
-    customBodyText:
-      'Take advantage of limited warehouse stock allocation at regional hubs. Tier-1 ALMM modules & combo kits ready for dispatch at factory-direct B2B margins.',
-    primaryCtaText: 'View Wholesale Prices →',
-    valuePills: ['1. Direct B2B Rates', '2. Ready Stock', '3. Full Insurance'],
-    bulletPoints: [
-      'Factory-Direct Margin Advantage: Pass on competitive pricing to your rooftop clients and win more contracts.',
-      'Immediate Loading & Transit Insurance: Insured dispatch from serving regional depots.',
-      'Zero Hassle Documentation: Instant GST tax invoice and dispatch tracking.',
-      'Complete Installation Accessories Included: Pre-crimped MC4, DCDB, ACDB, and mounting components.'
-    ],
-    closingPitch: 'Stock is reserved on a first-come, first-served basis. Act fast.',
-    secondaryCtaText: 'Claim Allocation Today →'
-  },
-  {
-    id: 'onboarding',
-    label: '🤝 EPC Partner Onboarding & Welcome',
-    purpose: 'onboarding',
-    headline: "WELCOME TO INDIA'S LARGEST SOLAR EPC NETWORK",
-    subheading: 'Your Direct B2B Wholesale Portal Access & Regional Depot Support Are Now Active.',
-    categoryTag: 'OFFICIAL PARTNER ONBOARDING • SOLARKITS',
-    h1Title: 'Welcome Aboard! Here is Everything You Need to Scale',
-    customBodyText:
-      'Thank you for connecting with SolarKits India. As an installer partner, you get direct access to India-wide depot dispatches, transparent wholesale kit rates, and technical engineering tools.',
-    primaryCtaText: 'Access Your Partner Portal & Sizing Tools →',
-    valuePills: ['1. Direct Depot Access', '2. Free CAD/SLD', '3. Dedicated Desk'],
-    bulletPoints: [
-      'Wholesale Partner Pricing Unlocked: Access transparent, volume-tiered rates across residential and commercial solar kits.',
-      'Free Engineering Drawings & Sizing Tools: Instant access to CAD drawings, Single Line Diagrams (SLD), and BOM calculators.',
-      'Dedicated Regional Account Manager: One direct point of contact for priority quotes, dispatch tracking, and site queries.',
-      '24/7 Logistics Tracking: Live shipment updates from regional fulfillment hubs.'
-    ],
-    closingPitch: 'We are committed to helping your solar contracting business grow faster.',
-    secondaryCtaText: 'Explore Partner Dashboard & Products →'
+    eyebrow: '3 KW DCR COMBOKIT',
+    title: '3 KW Solarkits DCR Combokit',
+    desc: 'High-efficiency 3 kW residential DCR combo kit. Engineered for fast installation with matched inverter, mounting hardware, and certified BOSkit.',
+    badge: '3 kW DCR',
+    imageUrl: ''
   }
 ];
 
-const normalizeActionUrl = (rawUrl, fallback = 'https://solarkits.in/solar-kits') => {
+export const DEFAULT_TRUST_METRICS = [
+  { value: '500+ MW', label: 'Solar capacity deployed across India by EPC partners' },
+  { value: '3,500+ EPCs', label: 'Verified installers ordering from regional depots' },
+  { value: '24-Hr Dispatch', label: 'Insured delivery with GST invoice & CAD/SLD pack' }
+];
+
+export const DEFAULT_EXECUTIVE_CREATIVE = {
+  logoUrl: OFFICIAL_SOLARKITS_LOGO_URL,
+  headerTagline: '',
+  headline: 'Three Systems. One Platform. Built for every solar load.',
+  subheading: 'Pre-engineered Tier-1 solar kits, inverters & BOS hardware — packed and ready to dispatch.',
+  themeColor: '#1E3A8A',
+  accentColor: '#F59E0B',
+  stripColor: '#EA580C',
+  contactPhone: '+91 99134 21453',
+  contactEmail: 'support@solarkits.in',
+  contactWebsite: 'solarkits.in',
+  categoryTag: '',
+  h1Title: 'Complete solar power, when your clients need it.',
+  customBodyText:
+    'SolarKits bundles Tier-1 ALMM modules, smart inverters, mounting hardware, and pre-wired BOS boxes into single ready-to-install packages. From managing residential subsidy sites to commercial power backup, our kits help EPC contractors quote faster and protect project margins.',
+  primaryCtaText: 'WhatsApp Quote',
+  destinationUrl: 'https://wa.me/919913421453',
+  mediaType: 'image', // 'banner' | 'image' | 'video'
+  heroImageUrl: DEFAULT_HERO_BANNER_URL,
+  videoUrl: '',
+  videoPosterUrl: '',
+  sectionsOrder: DEFAULT_SECTIONS_ORDER,
+  showcaseHeading: 'Find your kit.',
+  showcaseSubheading: 'Pre-engineered 1 kW, 2 kW & 3 kW DCR Residential Solar Combo Kits — ready to dispatch.',
+  systemTiers: DEFAULT_SYSTEM_TIERS,
+  intelligenceHeading: 'Intelligence That Makes Solar Deployment Faster.',
+  intelligenceText:
+    'More than hardware supply, SolarKits Portal is the engine behind every EPC order. From instant BOM sizing and CAD/SLD engineering tools to live regional depot tracking and GST billing, every step works smarter.',
+  intelligenceImageUrl: '',
+  trustMetrics: DEFAULT_TRUST_METRICS,
+  valuePills: ['1 kW DCR Solar Kit', '2 kW DCR Combo Kit', '3 kW DCR Combo Kit'],
+  bulletPoints: [],
+  closingPitch: '',
+  secondaryCtaText: 'Visit our Website',
+  secondaryCtaUrl: 'https://solarkits.in/',
+  secondaryCtaIsPdf: false,
+  primaryDualCtaText: 'Download Datasheet',
+  primaryDualCtaUrl: 'https://store.solarkits.in/preconfigured-combo-kit',
+  primaryDualCtaIsPdf: false,
+  footerTitle: 'SOLARKITS INDIA',
+  footerTagline: "Powering India's Leading Solar EPC Network",
+  footerAddress: '© 2026 SolarKits (India) Pvt. Ltd.',
+  unsubscribeBtnText: 'Unsubscribe',
+  footerDisclaimer: ''
+};
+
+/**
+ * 3 Signature Boss-Reference Templates + Purpose-Based Presets (1-Click Switch)
+ */
+export const PURPOSE_BASED_PRESETS = [
+  {
+    id: 'boss_showcase_navy',
+    label: '🏢 1. System Showcase (Royal Navy)',
+    badge: 'Boss Reference • Default',
+    purpose: 'showcase',
+    themeColor: '#1E3A8A',
+    accentColor: '#F59E0B',
+    stripColor: '#EA580C',
+    emailSubject: 'SolarKits: Complete Solar Systems, Ready to Dispatch!',
+    emailPreviewText: 'Three Systems. One Platform. Built for every residential, hybrid, and C&I solar load.',
+    headline: 'Three Systems. One Platform. Built for every solar load.',
+    subheading: 'Pre-engineered Tier-1 solar kits, inverters & BOS hardware — packed and ready to dispatch.',
+    h1Title: 'Complete solar power, when your clients need it.',
+    customBodyText:
+      'SolarKits bundles Tier-1 ALMM modules, smart inverters, mounting hardware, and pre-wired BOS boxes into single ready-to-install packages. From managing residential subsidy sites to commercial power backup, our kits help EPC contractors quote faster and protect project margins.',
+    primaryCtaText: 'WhatsApp Quote',
+    mediaType: 'image',
+    heroImageUrl: DEFAULT_HERO_BANNER_URL,
+    intelligenceImageUrl: '',
+    showcaseHeading: 'Find your kit.',
+    showcaseSubheading: 'From residential rooftops to commercial & industrial plants.',
+    systemTiers: DEFAULT_SYSTEM_TIERS,
+    intelligenceHeading: 'Intelligence That Makes Solar Deployment Faster.',
+    intelligenceText:
+      'More than hardware supply, SolarKits Portal is the engine behind every EPC order. From instant BOM sizing and CAD/SLD engineering tools to live regional depot tracking and GST billing, every step works smarter.',
+    trustMetrics: DEFAULT_TRUST_METRICS,
+    primaryDualCtaText: 'Download Datasheet',
+    secondaryCtaText: 'Visit our Website',
+    bulletPoints: []
+  },
+  {
+    id: 'boss_hybrid_teal',
+    label: '⚡ 2. Hybrid & Storage (Teal + Coral)',
+    badge: 'Exact Boss Palette',
+    purpose: 'product_launch',
+    themeColor: '#006272',
+    accentColor: '#0D9488',
+    stripColor: '#F97316',
+    emailSubject: 'SolarKits Hybrid & ESS: Power When Your Clients Need It!',
+    emailPreviewText: 'Quote solar plus reliable battery storage in one integrated package.',
+    headline: 'Three Systems. One Family. Built for every outage & load.',
+    subheading: 'High-efficiency hybrid inverters + LFP battery storage + Tier-1 TOPCon modules.',
+    h1Title: 'Energy, when your customers need it.',
+    customBodyText:
+      'PowerBackup Hybrid stores solar energy when the sun shines and delivers reliable backup when the grid fails. From peak-demand load shifting to uninterrupted commercial operations, our pre-engineered storage kits help EPCs win high-margin projects.',
+    primaryCtaText: 'Get Hybrid Quote',
+    mediaType: 'image',
+    heroImageUrl: '',
+    intelligenceImageUrl: '',
+    showcaseHeading: 'Find your residential DCR kit.',
+    showcaseSubheading: 'Pre-engineered 1 kW, 2 kW & 3 kW On-Grid DCR Solar Combo Kits — ready to dispatch.',
+    systemTiers: DEFAULT_SYSTEM_TIERS,
+    intelligenceHeading: 'Intelligence That Makes Energy Work Better.',
+    intelligenceText:
+      'Monitor generation, battery state-of-charge, and live dispatch status from the SolarKits Portal and EPC Mobile App. Predictive sizing and instant SLDs keep every engineering layer working smarter.',
+    trustMetrics: [
+      { value: '98.2% Eff.', label: 'Maximum hybrid inverter conversion efficiency' },
+      { value: '6,000+ Cycles', label: 'Long-life LFP cell durability under Indian climates' },
+      { value: '24-Hr Dispatch', label: 'Ready stock across Bhiwandi, Gujarat & Rajasthan depots' }
+    ],
+    primaryDualCtaText: 'Download Datasheet',
+    secondaryCtaText: 'Visit our Website',
+    bulletPoints: []
+  },
+  {
+    id: 'boss_offer_slate',
+    label: '🎁 3. Bulk Wholesale Offer (Slate + Gold)',
+    badge: 'Promo & Coupon',
+    purpose: 'festive_offer',
+    themeColor: '#0F172A',
+    accentColor: '#F59E0B',
+    stripColor: '#D97706',
+    emailSubject: 'Exclusive EPC Allocation: Wholesale SolarKits Rates & Instant Voucher',
+    emailPreviewText: 'Lock volume pricing across DCR, Hybrid & Commercial kits with 24-hour depot dispatch.',
+    headline: 'Direct Factory Allocation. Built for Growing EPCs.',
+    subheading: 'Volume partner rates, GST tax invoice & priority regional warehouse loading.',
+    h1Title: 'Lock in your seasonal EPC allocation today.',
+    customBodyText:
+      'Rooftop solar demand is accelerating across every cluster. Reserve ready-stock ALMM DCR and commercial kits directly from your nearest SolarKits regional depot with instant coupon savings and full transit insurance.',
+    primaryCtaText: 'Claim Partner Pricing',
+    mediaType: 'image',
+    heroImageUrl: '',
+    intelligenceImageUrl: '',
+    showcaseHeading: 'Choose your allocation tier.',
+    showcaseSubheading: 'Transparent wholesale batches with immediate GST invoicing.',
+    systemTiers: DEFAULT_SYSTEM_TIERS,
+    intelligenceHeading: 'Order, Track & Manage on Mobile & Web.',
+    intelligenceText:
+      'Skip multi-vendor delays. Check live warehouse stock, apply your partner voucher, download BOM & SLD files, and track dispatch straight from your phone.',
+    trustMetrics: [
+      { value: 'GST 100%', label: 'Compliant B2B tax invoice on every kit order' },
+      { value: '1-Click BOM', label: 'Instant CAD drawings, SLDs & technical datasheets' },
+      { value: '0 Delays', label: 'Transit-insured dispatches from nearest depot' }
+    ],
+    primaryDualCtaText: 'Explore Wholesale Kits',
+    secondaryCtaText: 'Apply Coupon in Store',
+    bulletPoints: []
+  },
+  {
+    id: 'price_drop',
+    label: '🔥 4. Flash Price Drop',
+    badge: 'Clearance',
+    purpose: 'price_drop',
+    themeColor: '#1E3A8A',
+    accentColor: '#F59E0B',
+    stripColor: '#DC2626',
+    emailSubject: 'Flash B2B Price Drop on Ready-Stock Solar Kits',
+    emailPreviewText: 'Limited depot stock available at slashed wholesale EPC pricing.',
+    headline: 'Slashed Wholesale Rates on Ready-Stock Solar Kits.',
+    subheading: 'Factory-direct pricing on Tier-1 ALMM modules & combo systems.',
+    h1Title: 'Ready to load. Ready to earn higher margins.',
+    customBodyText:
+      'Take advantage of limited warehouse allocation across our regional depots. Every kit ships complete with modules, inverter, and certified SolarKits BOSkit.',
+    primaryCtaText: 'View Slashed Prices',
+    mediaType: 'image',
+    heroImageUrl: '',
+    intelligenceImageUrl: '',
+    showcaseHeading: 'Available clearance tiers.',
+    showcaseSubheading: 'First-come, first-served allocation from serving depots.',
+    systemTiers: DEFAULT_SYSTEM_TIERS,
+    intelligenceHeading: 'Real-Time Stock & Dispatch Visibility.',
+    intelligenceText:
+      'Reserve your batch online in minutes and track every shipment live through the SolarKits Partner Portal.',
+    trustMetrics: DEFAULT_TRUST_METRICS,
+    primaryDualCtaText: 'Download Price List',
+    secondaryCtaText: 'Order Now',
+    bulletPoints: []
+  },
+  {
+    id: 'onboarding',
+    label: '🤝 5. EPC Partner Welcome',
+    badge: 'Onboarding',
+    purpose: 'onboarding',
+    themeColor: '#006272',
+    accentColor: '#10B981',
+    stripColor: '#EA580C',
+    emailSubject: 'Welcome to SolarKits — Your B2B Wholesale Portal is Active',
+    emailPreviewText: 'Access wholesale solar kit pricing, free CAD/SLD tools, and 24-hr depot support.',
+    headline: "Welcome to India's Smart Solar EPC Network.",
+    subheading: 'Direct wholesale portal access, engineering tools & regional warehouse support.',
+    h1Title: 'Everything your solar business needs to scale faster.',
+    customBodyText:
+      'Thank you for joining SolarKits India. As a verified EPC partner, you now have direct access to transparent kit pricing, free CAD & SLD sizing tools, and dedicated regional depot logistics.',
+    primaryCtaText: 'Open Partner Portal',
+    mediaType: 'image',
+    heroImageUrl: '',
+    intelligenceImageUrl: '',
+    showcaseHeading: 'Explore our 3 core kit lines.',
+    showcaseSubheading: 'Engineered for residential, hybrid, and commercial tenders.',
+    systemTiers: DEFAULT_SYSTEM_TIERS,
+    intelligenceHeading: 'Your Mobile & Desktop Engineering Desk.',
+    intelligenceText:
+      'Quote projects in minutes with ready-made datasheets, instant GST billing, and live delivery status updates right from your phone.',
+    trustMetrics: DEFAULT_TRUST_METRICS,
+    primaryDualCtaText: 'Download Welcome Pack',
+    secondaryCtaText: 'Browse Solar Kits',
+    bulletPoints: []
+  }
+];
+
+const normalizeActionUrl = (rawUrl, fallback = 'https://store.solarkits.in/preconfigured-combo-kit') => {
   const val = String(rawUrl || '').trim();
   if (!val) return fallback;
   if (/^({{.*}}|https?:\/\/|mailto:|tel:|#)/i.test(val)) return val;
   return `https://${val}`;
+};
+
+const escapeHtmlAttr = (str = '') =>
+  String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+export const isPdfDownloadUrl = (rawUrl = '') => /\.pdf(\?|$)/i.test(String(rawUrl || '').trim());
+
+export const findPlatformLinkMeta = (rawUrl = '') => {
+  const clean = String(rawUrl || '').trim();
+  if (!clean) return null;
+  for (const grp of PLATFORM_LINK_GROUPS) {
+    const found = grp.items.find((it) => it.url === clean);
+    if (found) return { group: grp.group, ...found };
+  }
+  return null;
 };
 
 const extractYoutubeVideoId = (rawUrl) => {
@@ -199,17 +495,31 @@ const formatMultilineHtml = (text) =>
     .replace(/\r?\n/g, '<br />');
 
 /**
- * Generates production-ready 600px responsive table HTML
+ * Generates clean, breathable 590px responsive HTML modeled after the boss's reference email.
  */
 export function generateResponsiveEmailHtml(formData = {}) {
   const cr = { ...DEFAULT_EXECUTIVE_CREATIVE, ...(formData.customCreative || {}) };
-  const subject = formData.emailSubject || 'SolarKits B2B Wholesale Pricing';
+  if (typeof cr.heroImageUrl === 'string' && cr.heroImageUrl.includes('solarkits_default_hero_banner.jpg')) {
+    cr.heroImageUrl = DEFAULT_HERO_BANNER_URL;
+  } else if (!cr.heroImageUrl && !cr.heroImageCleared) {
+    cr.heroImageUrl = DEFAULT_HERO_BANNER_URL;
+  }
+  const primaryCol = cr.themeColor || '#1E3A8A';
+  const accentCol = cr.stripColor || '#EA580C';
+  const subject = formData.emailSubject || 'SolarKits: Complete Solar Systems, Ready to Dispatch!';
   const preheader =
     formData.emailPreviewText ||
     cr.subheading ||
-    'Exclusive B2B solar kit pricing & depot support for verified EPC contractors.';
-  const primaryCta = formData.ctaText || cr.primaryCtaText || 'Get SolarKits Pricing Today →';
-  const destUrl = normalizeActionUrl(formData.destinationUrl || cr.destinationUrl, 'https://solarkits.in/solar-kits');
+    'Three Systems. One Platform. Pre-engineered Tier-1 solar kits ready to dispatch.';
+  const ctaButtons =
+    Array.isArray(cr.ctaButtons) && cr.ctaButtons.length > 0 ? cr.ctaButtons : formData.ctaButtons || [];
+  const firstCtaBtn = Array.isArray(ctaButtons) && ctaButtons.length > 0 ? ctaButtons[0] : null;
+  const primaryCta = firstCtaBtn?.text || formData.ctaText || cr.primaryCtaText || 'WhatsApp Quote';
+  const destUrl = normalizeActionUrl(
+    firstCtaBtn?.url || formData.destinationUrl || cr.destinationUrl,
+    'https://store.solarkits.in/preconfigured-combo-kit'
+  );
+  const primaryIsPdf = Boolean(firstCtaBtn?.isPdf || isPdfDownloadUrl(destUrl));
   const couponCode = String(formData.couponCode || '').trim();
   const hasCoupon = Boolean(formData.hasCoupon && couponCode);
 
@@ -222,84 +532,57 @@ export function generateResponsiveEmailHtml(formData = {}) {
       : 'Special Partner Discount';
 
   const safeLogoUrl = normalizeActionUrl(cr.logoUrl || OFFICIAL_SOLARKITS_LOGO_URL, OFFICIAL_SOLARKITS_LOGO_URL);
-  const safeWebsiteDisplay = String(cr.contactWebsite || 'solarkits.in')
-    .replace(/^https?:\/\//i, '')
-    .replace(/\/+$/, '');
-  const safeWebsiteHref = normalizeActionUrl(cr.contactWebsite, 'https://solarkits.in');
+  const safeWebsiteHref = normalizeActionUrl(cr.contactWebsite, 'https://solarkits.in/');
+  const safeEmail = cr.contactEmail || 'support@solarkits.in';
+  const safePhone = cr.contactPhone || '+91 99134 21453';
 
-  // Parse bullet points into { title, desc }
-  const points = (cr.bulletPoints || []).map((pt, idx) => {
-    if (typeof pt === 'object' && pt.title) return pt;
-    const str = String(pt);
-    if (str.includes(':')) {
-      const parts = str.split(':');
-      return {
-        title: parts[0].trim(),
-        desc: parts.slice(1).join(':').trim(),
-        borderColor: idx % 2 === 0 ? cr.themeColor : cr.accentColor
-      };
-    }
-    return {
-      title: `Highlight ${idx + 1}`,
-      desc: str.trim(),
-      borderColor: idx % 2 === 0 ? cr.themeColor : cr.accentColor
-    };
-  });
-
-  const pointsHtml = points
-    .map(
-      (p, i) => `
-    <tr>
-      <td style="padding: 15px 18px; background-color: #f8fafc; background-image: linear-gradient(#f8fafc, #f8fafc) !important; border-left: 4px solid ${p.borderColor || (i % 2 === 0 ? cr.themeColor : cr.accentColor)}; border-radius: 6px; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-        <p style="margin: 0; font-size: 15px; font-weight: 800; color: ${cr.themeColor} !important; font-family: Arial, sans-serif;">
-          ${p.title}
-        </p>
-        <p style="margin: 5px 0 0; font-size: 13px; line-height: 20px; color: #475569 !important; font-family: Arial, sans-serif;">
-          ${p.desc}
-        </p>
-      </td>
-    </tr>
-    ${i < points.length - 1 ? '<tr><td height="12"></td></tr>' : ''}
-  `
-    )
-    .join('');
+  const systemTiers =
+    Array.isArray(cr.systemTiers) && cr.systemTiers.length > 0
+      ? cr.systemTiers
+      : (formData.previewProducts || formData.selectedKitObjects || []).slice(0, 3).map((k) => ({
+        kitId: k.id || k._id || '',
+        eyebrow: k.is_govt_tender
+          ? `${k.primary_badge || 'GOVT. TENDER'}${k.target_state ? ` • ${k.target_state}` : ''}`
+          : [k.system_type || k.category_name || 'SOLAR KIT', k.brand_name].filter(Boolean).join(' • ').toUpperCase(),
+        title: k.tender_name || k.name || 'Solar Combo Kit',
+        desc: k.tender_description || k.description || k.sub_title || 'Pre-engineered Tier-1 solar kit ready for regional dispatch.',
+        badge: k.capacity ? `${k.capacity} kW` : k.project_range || 'Explore Kit',
+        imageUrl: k.tender_image_url || k.kit_image || k.image || '',
+        ctaUrl: destUrl
+      }));
+  const trustMetrics =
+    Array.isArray(cr.trustMetrics) && cr.trustMetrics.length > 0 ? cr.trustMetrics : DEFAULT_TRUST_METRICS;
+  const previewProducts = formData.previewProducts || formData.selectedKitObjects || [];
 
   const sectionsOrder =
     Array.isArray(cr.sectionsOrder) && cr.sectionsOrder.length > 0 ? cr.sectionsOrder : DEFAULT_SECTIONS_ORDER;
 
-  const ctaButtons =
-    Array.isArray(cr.ctaButtons) && cr.ctaButtons.length > 0 ? cr.ctaButtons : formData.ctaButtons || [];
-
-  const previewProducts = formData.previewProducts || formData.selectedKitObjects || [];
-
-  const renderHeroBanner = () => {
-    if (cr.mediaType === 'image' && cr.heroImageUrl) {
-      const heroSrc = normalizeActionUrl(cr.heroImageUrl, '');
-      if (heroSrc) {
-        return `<a href="${destUrl}" target="_blank" style="display: block; text-decoration: none;"><img src="${heroSrc}" alt="${cr.headline || 'SolarKits Campaign Banner'}" width="600" style="width: 100%; max-width: 600px; height: auto; display: block; border: 0; margin: 0 auto;" /></a>`;
-      }
-    }
-
+  // Render hero visual: Clean centered headline + manually uploaded photo / GIF / video poster
+  const renderHeroVisualHtml = () => {
     if (cr.mediaType === 'video' && cr.videoUrl) {
       const videoHref = normalizeActionUrl(cr.videoUrl, destUrl);
       const ytId = extractYoutubeVideoId(videoHref);
-      if (ytId) {
-        return `
-          <a href="${videoHref}" target="_blank" style="display: block; text-decoration: none; background-color: #0f172a;">
-            <img src="https://img.youtube.com/vi/${ytId}/hqdefault.jpg" alt="Watch Explainer Video" width="600" style="width: 100%; max-width: 600px; height: auto; display: block; border: 0; margin: 0 auto;" />
-            <div style="padding: 12px 16px; background-color: #1e293b; color: #ffffff; font-size: 13px; font-weight: 800; text-align: center; font-family: Arial, sans-serif;">
-              ▶ Watch Explainer Video on YouTube →
-            </div>
-          </a>
-        `;
-      }
+      const posterSrc = ytId
+        ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
+        : normalizeActionUrl(cr.videoPosterUrl, '');
       return `
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+          ${posterSrc
+          ? `
           <tr>
-            <td align="center" style="padding: 34px 24px; background-color: #0f172a; text-align: center; color: #ffffff;">
-              <p style="margin: 0 0 12px; font-size: 18px; font-weight: 900; color: #ffffff;">${cr.headline || 'Product Explainer Video'}</p>
-              <a href="${videoHref}" target="_blank" style="display: inline-block; padding: 12px 26px; background-color: #dc2626; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 800; font-family: Arial, sans-serif;">
-                ▶ Watch Explainer Video
+            <td align="center" style="padding: 8px 16px 4px;">
+              <a href="${videoHref}" data-cta-slot="hero_video" data-cta-label="Hero Video Poster" target="_blank" style="display: block; text-decoration: none; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0;">
+                <img src="${posterSrc}" alt="Watch SolarKits Explainer Video" width="558" style="width: 100%; max-width: 558px; height: auto; display: block; border: 0;" />
+              </a>
+            </td>
+          </tr>
+          `
+          : ''
+        }
+          <tr>
+            <td align="center" style="padding: 10px 16px 6px;">
+              <a href="${videoHref}" data-cta-slot="hero_video_btn" data-cta-label="Watch Full Explainer Video" target="_blank" style="display: inline-block; padding: 8px 18px; border-radius: 20px; background-color: #f1f5f9; border: 1px solid #cbd5e1; color: ${primaryCol}; font-size: 12px; font-weight: 800; text-decoration: none; font-family: Arial, Helvetica, sans-serif;">
+                ▶ Watch Full Explainer Video
               </a>
             </td>
           </tr>
@@ -307,81 +590,158 @@ export function generateResponsiveEmailHtml(formData = {}) {
       `;
     }
 
-    const formattedHeadline = cr.headline.includes('SELL COMPLETE BACKUP')
-      ? cr.headline.replace('SELL COMPLETE BACKUP', `<span style="color: ${cr.accentColor};">SELL COMPLETE BACKUP</span>`)
-      : cr.headline;
+    const mediaSrc = normalizeActionUrl(cr.heroImageUrl, '');
 
-    return `
-      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-        <tr>
-          <td style="padding: 34px 24px 28px; background-color: ${cr.themeColor}; background: linear-gradient(135deg, #1e2d66 0%, ${cr.themeColor} 60%, #3a56c9 100%); text-align: center; color: #ffffff;">
-            <!-- Clean Tag Badge -->
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto 14px auto;">
-              <tr>
-                <td align="center" style="background-color: #ffffff; padding: 6px 16px; border-radius: 20px; border-left: 4px solid ${cr.accentColor}; text-align: center;">
-                  <div style="font-size: 11px; line-height: 16px; font-weight: 800; color: ${cr.themeColor}; letter-spacing: 1px; text-transform: uppercase; font-family: Arial, sans-serif; margin: 0;">
-                    ⚡ ${cr.headerTagline || 'SOLARKITS B2B NETWORK'}
-                  </div>
-                </td>
-              </tr>
-            </table>
+    if (mediaSrc) {
+      return `
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+          <tr>
+            <td align="center" style="padding: 6px 0 4px;">
+              <a href="${destUrl}" data-cta-slot="hero_banner" data-cta-label="Hero Banner Visual" target="_blank" style="display: block; text-decoration: none;">
+                <img src="${mediaSrc}" alt="${cr.headline || 'SolarKits Systems Showcase'}" width="590" style="width: 100%; max-width: 590px; height: auto; display: block; border: 0; border-radius: 6px; margin: 0 auto;" />
+              </a>
+            </td>
+          </tr>
+        </table>
+      `;
+    }
 
-            <h2 style="margin: 0 0 10px; font-size: 26px; line-height: 34px; font-weight: 900; color: #ffffff; letter-spacing: -0.5px; text-align: center;">
-              ${formattedHeadline}
-            </h2>
+    return '';
+  };
 
-            <p style="margin: 0 0 18px; font-size: 13px; line-height: 20px; color: #e2e8f0; max-width: 480px; margin-left: auto; margin-right: auto; text-align: center;">
-              ${cr.subheading}
+  // Render alternating zigzag system showcase cards (Boss Reference Screenshot #2)
+  const renderZigzagTiersHtml = () => {
+    const rowsHtml = systemTiers
+      .map((tier, idx) => {
+        const isImageRight = idx % 2 === 0;
+        const imgUrl = normalizeActionUrl(tier.imageUrl, '');
+        const tierHref = normalizeActionUrl(tier.ctaUrl || 'https://store.solarkits.in/preconfigured-combo-kit', 'https://store.solarkits.in/preconfigured-combo-kit');
+        const tierLabel = escapeHtmlAttr(tier.title || `Kit #${idx + 1}`);
+        const tierDlAttr = tier.isPdf || isPdfDownloadUrl(tierHref) ? ' data-cta-dl="1"' : '';
+
+        const textCell = `
+          <td width="${imgUrl ? '50%' : '100%'}" valign="middle" class="stack-col" style="width: ${imgUrl ? '50%' : '100%'}; padding: 14px 16px; text-align: left; vertical-align: middle;">
+            <p style="margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: ${primaryCol}; font-family: Arial, Helvetica, sans-serif;">
+              ${tier.eyebrow || 'SOLAR SERIES'}
             </p>
-
-            <!-- Outlook-safe Responsive Value Badges -->
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" width="100%" style="max-width: 520px; margin: 0 auto;">
+            <h3 style="margin: 0 0 8px; font-size: 20px; line-height: 26px; font-weight: 700; color: #1f2937; font-family: Arial, Helvetica, sans-serif;">
+              ${tier.title}
+            </h3>
+            <p style="margin: 0 0 14px; font-size: 13px; line-height: 20px; color: #4b5563; font-family: Arial, Helvetica, sans-serif;">
+              ${tier.desc}
+            </p>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0">
               <tr>
-                <td align="center" style="text-align: center; padding: 0 4px;">
-                  ${(cr.valuePills || [])
-        .map(
-          (pill) => `
-                    <div style="display: inline-block; margin: 3px 4px; padding: 6px 12px; background-color: #2f4599; border: 1px solid #6b80d6; border-radius: 6px; font-size: 11px; font-weight: 700; color: #ffffff; font-family: Arial, sans-serif; line-height: 16px; text-align: center;">
-                      ${pill}
-                    </div>
-                  `
-        )
-        .join('')}
+                <td align="center" bgcolor="${primaryCol}" style="background-color: ${primaryCol}; border-radius: 6px; padding: 7px 18px;">
+                  <a href="${tierHref}" data-cta-slot="kit_card_${idx + 1}" data-cta-label="${tierLabel} (${escapeHtmlAttr(tier.badge || 'Explore')})"${tierDlAttr} target="_blank" style="font-size: 12px; font-weight: 700; color: #ffffff !important; text-decoration: none; font-family: Arial, Helvetica, sans-serif; display: inline-block;">
+                    ${tier.badge || 'Explore Series'}
+                  </a>
+                </td>
+                <td style="padding-left: 10px;">
+                  <a href="${tierHref}" data-cta-slot="kit_card_specs_${idx + 1}" data-cta-label="${tierLabel} — View Specs"${tierDlAttr} target="_blank" style="font-size: 11.5px; font-weight: 700; color: ${primaryCol}; text-decoration: underline; font-family: Arial, Helvetica, sans-serif;">
+                    View Components &amp; Specs →
+                  </a>
                 </td>
               </tr>
             </table>
           </td>
-        </tr>
-      </table>
+        `;
+
+        const imageCell = imgUrl
+          ? `
+          <td width="50%" valign="middle" align="center" class="stack-col" style="width: 50%; padding: 10px 8px; text-align: center; vertical-align: middle;">
+            <a href="${tierHref}" data-cta-slot="kit_card_img_${idx + 1}" data-cta-label="${tierLabel} Photo"${tierDlAttr} target="_blank" style="display: block; text-decoration: none;">
+              <img src="${imgUrl}" alt="${tier.title}" width="260" style="width: 100%; max-width: 260px; height: auto; display: block; border: 0; border-radius: 6px; margin: 0 auto;" />
+            </a>
+          </td>
+        `
+          : '';
+
+        return `
+          <tr>
+            <td style="padding: 6px 8px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" dir="${isImageRight || !imgUrl ? 'ltr' : 'rtl'}" style="border-bottom: 1px solid #e2e8f0;">
+                <tr dir="ltr">
+                  ${!imgUrl ? textCell : isImageRight ? `${textCell}${imageCell}` : `${imageCell}${textCell}`}
+                </tr>
+              </table>
+            </td>
+          </tr>
+        `;
+      })
+      .join('');
+
+    return `
+      <tr>
+        <td class="pad-mob" style="padding: 18px 20px 10px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+            <tr>
+              <td align="center" style="padding: 8px 12px 6px; text-align: center;">
+                <h2 style="margin: 0 0 6px; font-size: 20px; line-height: 26px; font-weight: 700; color: ${primaryCol}; font-family: Arial, Helvetica, sans-serif;">
+                  ${cr.showcaseHeading || 'Find your kit.'}
+                </h2>
+                <p style="margin: 0 0 12px; font-size: 14px; line-height: 21px; color: #666666; font-family: Arial, Helvetica, sans-serif;">
+                  ${cr.showcaseSubheading || 'From residential rooftops to commercial &amp; industrial plants.'}
+                </p>
+              </td>
+            </tr>
+            ${rowsHtml}
+          </table>
+        </td>
+      </tr>
     `;
   };
+
+  // Optional bullet highlights if user explicitly added custom points
+  const points = (cr.bulletPoints || []).map((pt, idx) => {
+    if (typeof pt === 'object' && pt.title) return pt;
+    const str = String(pt);
+    if (str.includes(':')) {
+      const parts = str.split(':');
+      return { title: parts[0].trim(), desc: parts.slice(1).join(':').trim() };
+    }
+    return { title: `Highlight ${idx + 1}`, desc: str.trim() };
+  });
 
   const renderSectionHtml = (sectionId) => {
     switch (sectionId) {
       case 'banner':
         return `
-          <!-- HERO BANNER -->
+          <!-- HERO TITLE & ANIMATED VISUAL -->
           <tr>
-            <td align="center" style="background-color: ${cr.themeColor}; text-align: center;">
-              ${renderHeroBanner()}
+            <td align="center" style="padding: 10px 24px 6px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; text-align: center;">
+              <h2 class="mobile-h2" style="margin: 0 0 6px; font-size: 20px; line-height: 27px; font-weight: 700; color: ${primaryCol}; font-family: Arial, Helvetica, sans-serif; text-align: center;">
+                ${cr.headline || 'Three Systems. One Platform. Built for every solar load.'}
+              </h2>
+              ${cr.subheading
+            ? `<p style="margin: 0 auto 8px; max-width: 490px; font-size: 13px; line-height: 19px; color: #64748b; font-family: Arial, Helvetica, sans-serif; text-align: center;">${cr.subheading}</p>`
+            : ''
+          }
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; text-align: center;">
+              ${renderHeroVisualHtml()}
             </td>
           </tr>
         `;
 
       case 'pitch':
         return `
-          <!-- PITCH & BODY INTRO -->
+          <!-- INTRO NARRATIVE & TAGLINE -->
           <tr>
-            <td class="pad-mob" align="center" style="padding: 34px 40px 10px; text-align: center; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
-              <p style="margin: 0 0 10px; font-size: 12px; letter-spacing: 2px; font-weight: 800; color: ${cr.stripColor}; text-transform: uppercase;">
-                ${cr.categoryTag}
-              </p>
-              <h1 style="margin: 0 0 14px; font-size: 26px; line-height: 34px; font-weight: 900; color: ${cr.themeColor} !important;">
-                ${cr.h1Title || 'Solar EPCs, this one is for you.'}
-              </h1>
-              <p style="margin: 0; font-size: 15px; line-height: 25px; color: #334155 !important;">
+            <td class="pad-mob" align="center" style="padding: 16px 32px 8px; text-align: center; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
+              ${cr.categoryTag
+            ? `<p style="margin: 0 0 8px; font-size: 11px; letter-spacing: 1.8px; font-weight: 700; color: ${accentCol}; text-transform: uppercase; font-family: Arial, Helvetica, sans-serif;">${cr.categoryTag}</p>`
+            : ''
+          }
+              <p style="margin: 0 auto; max-width: 510px; font-size: 14px; line-height: 24px; color: #666666 !important; font-family: Arial, Helvetica, sans-serif; text-align: center;">
                 ${formatMultilineHtml(cr.customBodyText)}
               </p>
+              ${cr.h1Title
+            ? `<p style="margin: 14px 0 0; font-size: 14px; line-height: 22px; font-weight: 600; color: ${primaryCol} !important; font-family: Arial, Helvetica, sans-serif; text-align: center;">${cr.h1Title}</p>`
+            : ''
+          }
             </td>
           </tr>
         `;
@@ -390,11 +750,11 @@ export function generateResponsiveEmailHtml(formData = {}) {
         return `
           <!-- PRIMARY CTA BUTTON -->
           <tr>
-            <td class="pad-mob" align="center" style="padding: 22px 20px 14px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; text-align: center;">
+            <td class="pad-mob" align="center" style="padding: 14px 20px 18px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; text-align: center;">
               <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto;">
                 <tr>
-                  <td align="center" bgcolor="${cr.themeColor}" style="border-radius: 8px; background-color: ${cr.themeColor}; text-align: center;">
-                    <a href="${destUrl}" target="_blank" style="font-size: 16px; line-height: 22px; font-weight: 800; color: #ffffff !important; text-decoration: none; padding: 14px 34px; border-radius: 8px; display: inline-block; background-color: ${cr.themeColor}; text-align: center;">
+                  <td align="center" bgcolor="${primaryCol}" style="border-radius: 5px; background-color: ${primaryCol}; text-align: center;">
+                    <a href="${destUrl}" data-cta-slot="primary_cta" data-cta-label="${escapeHtmlAttr(primaryCta)}"${primaryIsPdf ? ' data-cta-dl="1"' : ''} target="_blank" style="font-size: 14px; line-height: 18px; font-weight: 700; color: #ffffff !important; text-decoration: none; padding: 12px 30px; border-radius: 5px; display: inline-block; background-color: ${primaryCol}; font-family: Arial, Helvetica, sans-serif; text-align: center;">
                       ${primaryCta}
                     </a>
                   </td>
@@ -404,16 +764,19 @@ export function generateResponsiveEmailHtml(formData = {}) {
           </tr>
         `;
 
+      case 'system_showcase':
+        return renderZigzagTiersHtml();
+
       case 'products':
         if (!previewProducts || previewProducts.length === 0) return '';
         return `
-          <!-- FEATURED SOLAR KITS -->
+          <!-- SELECTED LIVE SOLAR KITS -->
           <tr>
-            <td class="pad-mob" style="padding: 16px 36px 10px; background-color: #ffffff;">
+            <td class="pad-mob" style="padding: 14px 28px 10px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                 <tr>
-                  <td style="padding-bottom: 8px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 1px;">
-                    Featured Solar Kits (${previewProducts.length})
+                  <td align="center" style="padding-bottom: 12px; font-size: 12px; font-weight: 700; text-transform: uppercase; color: ${primaryCol}; letter-spacing: 1.4px; font-family: Arial, Helvetica, sans-serif;">
+                    Featured Wholesale Kits (${previewProducts.length})
                   </td>
                 </tr>
                 ${previewProducts
@@ -421,23 +784,23 @@ export function generateResponsiveEmailHtml(formData = {}) {
               const livePrice = Number(k.base_price || k.selling_price_cached || k.defaultPrice || k.price || 0);
               const priceLabel = livePrice > 0 ? `₹${livePrice.toLocaleString('en-IN')}` : 'Quote on Request';
               return `
-                  <tr>
-                    <td style="padding: 12px 16px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
-                      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                        <tr>
-                          <td style="font-size: 14px; font-weight: 800; color: #0f172a;">${k.name || 'Solar Combo Kit'}</td>
-                          <td align="right" style="font-size: 14px; font-weight: 800; color: #2563eb; white-space: nowrap;">${priceLabel}</td>
-                        </tr>
-                        <tr>
-                          <td colspan="2" style="padding-top: 4px; font-size: 12px; color: #64748b;">
-                            ${k.components_summary || k.sub_title || 'Tier-1 ALMM Certified Kit • Regional Depot Dispatch'}
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                  <tr><td height="8"></td></tr>
-                `;
+                    <tr>
+                      <td style="padding: 14px 18px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                          <tr>
+                            <td style="font-size: 15px; font-weight: 700; color: #1f2937; font-family: Arial, Helvetica, sans-serif;">${k.name || 'Solar Combo Kit'}</td>
+                            <td align="right" style="font-size: 14px; font-weight: 800; color: ${primaryCol}; white-space: nowrap; font-family: Arial, Helvetica, sans-serif;">${priceLabel}</td>
+                          </tr>
+                          <tr>
+                            <td colspan="2" style="padding-top: 5px; font-size: 12px; line-height: 18px; color: #64748b; font-family: Arial, Helvetica, sans-serif;">
+                              ${k.components_summary || k.sub_title || 'Tier-1 ALMM Certified Kit • 24-Hr Regional Depot Dispatch'}
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr><td height="10"></td></tr>
+                  `;
             })
             .join('')}
               </table>
@@ -448,50 +811,15 @@ export function generateResponsiveEmailHtml(formData = {}) {
       case 'coupon':
         if (!hasCoupon) return '';
         return `
-          <!-- COUPON VOUCHER -->
+          <!-- MINIMALIST PROMO VOUCHER -->
           <tr>
-            <td class="pad-mob" style="padding: 10px 40px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
-              <div style="background-color: #fffbeb; border: 1px dashed #f59e0b; padding: 14px; border-radius: 8px; text-align: center;">
-                <span style="font-size: 11px; font-weight: 800; color: #b45309; text-transform: uppercase; letter-spacing: 1px;">Exclusive EPC Discount Voucher</span>
-                <div style="font-size: 20px; font-weight: 900; color: #78350f; font-family: monospace; margin: 4px 0;">${couponCode}</div>
-                <span style="font-size: 12px; color: #92400e; font-weight: 700;">Get ${discountStr} on eligible orders in Solar Shop</span>
-              </div>
-            </td>
-          </tr>
-        `;
-
-      case 'benefit_cards':
-        if (points.length === 0) return '';
-        return `
-          <!-- VALUE PROPOSITION BOXES / HIGHLIGHT POINTS -->
-          <tr>
-            <td class="pad-mob" style="padding: 18px 40px 10px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                ${pointsHtml}
-              </table>
-            </td>
-          </tr>
-        `;
-
-      case 'closing_pitch':
-        return `
-          <!-- SECONDARY CLOSING PITCH & SECONDARY CTA -->
-          <tr>
-            <td class="pad-mob" align="center" style="padding: 24px 40px 6px; text-align: center; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
-              <p style="margin: 0; font-size: 17px; font-weight: 800; color: ${cr.themeColor} !important;">
-                ${cr.closingPitch}
-              </p>
-            </td>
-          </tr>
-
-          <tr>
-            <td class="pad-mob" align="center" style="padding: 14px 20px 10px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; text-align: center;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto;">
+            <td class="pad-mob" style="padding: 12px 32px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #fffbeb; border: 1px dashed ${accentCol}; border-radius: 8px;">
                 <tr>
-                  <td align="center" bgcolor="${cr.stripColor}" style="border-radius: 8px; background-color: ${cr.stripColor}; text-align: center;">
-                    <a href="${destUrl}" target="_blank" style="font-size: 15px; line-height: 20px; font-weight: 800; color: #ffffff !important; text-decoration: none; padding: 13px 32px; border-radius: 8px; display: inline-block; background-color: ${cr.stripColor}; text-align: center;">
-                      ${cr.secondaryCtaText}
-                    </a>
+                  <td align="center" style="padding: 14px 18px; text-align: center;">
+                    <span style="font-size: 11px; font-weight: 700; color: ${accentCol}; text-transform: uppercase; letter-spacing: 1.2px; font-family: Arial, Helvetica, sans-serif;">Partner Wholesale Voucher</span>
+                    <div style="font-size: 20px; font-weight: 900; color: #0f172a; font-family: monospace; margin: 4px 0;">${couponCode}</div>
+                    <span style="font-size: 12px; color: #475569; font-weight: 600; font-family: Arial, Helvetica, sans-serif;">Save ${discountStr} at SolarKits Checkout</span>
                   </td>
                 </tr>
               </table>
@@ -499,25 +827,172 @@ export function generateResponsiveEmailHtml(formData = {}) {
           </tr>
         `;
 
+      case 'intelligence': {
+        const intelSrc = normalizeActionUrl(cr.intelligenceImageUrl, '');
+        return `
+          <!-- INTELLIGENCE & PORTAL + PHONE ANIMATION -->
+          <tr>
+            <td class="pad-mob" align="center" style="padding: 22px 26px 8px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; text-align: center;">
+              <h3 style="margin: 0 0 10px; font-size: 18px; line-height: 24px; font-weight: 700; color: ${primaryCol}; font-family: Arial, Helvetica, sans-serif; text-align: center;">
+                ${cr.intelligenceHeading || 'Intelligence That Makes Solar Deployment Faster.'}
+              </h3>
+              <p style="margin: 0 auto ${intelSrc ? '14px' : '4px'}; max-width: 510px; font-size: 14px; line-height: 23px; color: #666666; font-family: Arial, Helvetica, sans-serif; text-align: center;">
+                ${formatMultilineHtml(cr.intelligenceText || DEFAULT_EXECUTIVE_CREATIVE.intelligenceText)}
+              </p>
+              ${intelSrc
+            ? `
+              <a href="${destUrl}" data-cta-slot="portal_banner" data-cta-label="Portal & Phone Animation" target="_blank" style="display: block; text-decoration: none;">
+                <img src="${intelSrc}" alt="SolarKits Portal & Mobile App Live Telemetry" width="560" style="width: 100%; max-width: 560px; height: auto; display: block; border: 0; margin: 0 auto;" />
+              </a>
+              `
+            : ''
+          }
+            </td>
+          </tr>
+        `;
+      }
+
+      case 'benefit_cards': {
+        const metricsHtml =
+          trustMetrics.length > 0
+            ? `
+          <tr>
+            <td class="pad-mob" style="padding: 16px 12px 10px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                <tr>
+                  ${trustMetrics
+              .slice(0, 3)
+              .map(
+                (m) => `
+                    <td width="33.33%" valign="top" class="stack-col" style="width: 33.33%; padding: 5px;">
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" bgcolor="${primaryCol}" style="background-color: ${primaryCol}; border-radius: 10px;">
+                        <tr>
+                          <td style="padding: 16px 14px; text-align: left; color: #ffffff;">
+                            <div style="font-size: 19px; line-height: 24px; font-weight: 800; color: #ffffff; font-family: Arial, Helvetica, sans-serif; margin-bottom: 6px;">
+                              ${m.value}
+                            </div>
+                            <div style="font-size: 11.5px; line-height: 16px; color: #e2e8f0; font-family: Arial, Helvetica, sans-serif;">
+                              ${m.label}
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  `
+              )
+              .join('')}
+                </tr>
+              </table>
+            </td>
+          </tr>
+        `
+            : '';
+
+        const extraPointsHtml =
+          points.length > 0
+            ? `
+          <tr>
+            <td class="pad-mob" style="padding: 8px 28px 6px; background-color: #ffffff;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                ${points
+              .map(
+                (p, i) => `
+                  <tr>
+                    <td style="padding: 12px 16px; background-color: #f8fafc; border-left: 3px solid ${i % 2 === 0 ? primaryCol : accentCol}; border-radius: 6px; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                      <p style="margin: 0; font-size: 14px; font-weight: 700; color: ${primaryCol}; font-family: Arial, Helvetica, sans-serif;">${p.title}</p>
+                      <p style="margin: 4px 0 0; font-size: 12.5px; line-height: 19px; color: #475569; font-family: Arial, Helvetica, sans-serif;">${p.desc}</p>
+                    </td>
+                  </tr>
+                  ${i < points.length - 1 ? '<tr><td height="8"></td></tr>' : ''}
+                `
+              )
+              .join('')}
+              </table>
+            </td>
+          </tr>
+        `
+            : '';
+
+        return metricsHtml + extraPointsHtml;
+      }
+
+      case 'closing_pitch': {
+        const leftLabel = cr.primaryDualCtaText || 'Download Datasheet';
+        const leftUrl = normalizeActionUrl(cr.primaryDualCtaUrl || destUrl, destUrl);
+        const leftDlAttr = cr.primaryDualCtaIsPdf || isPdfDownloadUrl(leftUrl) ? ' data-cta-dl="1"' : '';
+        const rightLabel = cr.secondaryCtaText || 'Visit our Website';
+        const rightUrl = normalizeActionUrl(cr.secondaryCtaUrl || safeWebsiteHref, safeWebsiteHref);
+        const rightDlAttr = cr.secondaryCtaIsPdf || isPdfDownloadUrl(rightUrl) ? ' data-cta-dl="1"' : '';
+
+        return `
+          <!-- SIDE-BY-SIDE DUAL ACTION BUTTONS -->
+          ${cr.closingPitch
+            ? `
+          <tr>
+            <td class="pad-mob" align="center" style="padding: 16px 32px 4px; text-align: center; background-color: #ffffff;">
+              <p style="margin: 0; font-size: 16px; font-weight: 700; color: ${primaryCol}; font-family: Arial, Helvetica, sans-serif;">
+                ${cr.closingPitch}
+              </p>
+            </td>
+          </tr>`
+            : ''
+          }
+          <tr>
+            <td class="pad-mob" align="center" style="padding: 14px 20px 18px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; text-align: center;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 420px; margin: 0 auto;">
+                <tr>
+                  <td width="50%" align="center" class="stack-col" style="padding: 6px 8px; text-align: center;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="180" style="width: 180px; margin: 0 auto;">
+                      <tr>
+                        <td align="center" bgcolor="${primaryCol}" style="border-radius: 5px; background-color: ${primaryCol};">
+                          <a href="${leftUrl}" data-cta-slot="dual_left_cta" data-cta-label="${escapeHtmlAttr(leftLabel)}"${leftDlAttr} target="_blank" style="display: block; padding: 12px 14px; font-size: 13.5px; font-weight: 700; color: #ffffff !important; text-decoration: none; font-family: Arial, Helvetica, sans-serif; text-align: center;">
+                            ${leftLabel}
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td width="50%" align="center" class="stack-col" style="padding: 6px 8px; text-align: center;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="180" style="width: 180px; margin: 0 auto;">
+                      <tr>
+                        <td align="center" bgcolor="${accentCol}" style="border-radius: 5px; background-color: ${accentCol};">
+                          <a href="${rightUrl}" data-cta-slot="dual_right_cta" data-cta-label="${escapeHtmlAttr(rightLabel)}"${rightDlAttr} target="_blank" style="display: block; padding: 12px 14px; font-size: 13.5px; font-weight: 700; color: #ffffff !important; text-decoration: none; font-family: Arial, Helvetica, sans-serif; text-align: center;">
+                            ${rightLabel}
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        `;
+      }
+
       case 'custom_ctas':
         if (!ctaButtons || ctaButtons.length <= 1) return '';
         return `
           <!-- ADDITIONAL CUSTOM CTAS -->
           <tr>
-            <td class="pad-mob" align="center" style="padding: 10px 40px 16px; background-color: #ffffff; text-align: center;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 450px; margin: 0 auto;">
+            <td class="pad-mob" align="center" style="padding: 6px 36px 14px; background-color: #ffffff; text-align: center;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 420px; margin: 0 auto;">
                 ${ctaButtons
-            .slice(1)
-            .map(
-              (btn) => `
+                  .slice(1)
+                  .map(
+                    (btn, bIdx) => {
+                      const btnHref = normalizeActionUrl(btn.url, destUrl);
+                      const btnDlAttr = btn.isPdf || isPdfDownloadUrl(btnHref) ? ' data-cta-dl="1"' : '';
+                      return `
                   <tr>
-                    <td align="center" style="padding: 6px 0;">
-                      <a href="${normalizeActionUrl(btn.url, destUrl)}" target="_blank" style="display: block; width: 100%; box-sizing: border-box; padding: 11px 20px; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; font-weight: 700; color: #334155; text-decoration: none; text-align: center;">
+                    <td align="center" style="padding: 5px 0;">
+                      <a href="${btnHref}" data-cta-slot="custom_cta_${bIdx + 2}" data-cta-label="${escapeHtmlAttr(btn.text)}"${btnDlAttr} target="_blank" style="display: block; width: 100%; box-sizing: border-box; padding: 10px 18px; background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; font-weight: 700; color: #334155; text-decoration: none; text-align: center; font-family: Arial, Helvetica, sans-serif;">
                         ${btn.text}
                       </a>
                     </td>
                   </tr>
-                `
+                `;
+                    }
             )
             .join('')}
               </table>
@@ -530,6 +1005,9 @@ export function generateResponsiveEmailHtml(formData = {}) {
     }
   };
 
+  const icons = SOLARKITS_MEDIA_ASSETS.socialIcons;
+  const waHref = `https://wa.me/${String(safePhone).replace(/\D/g, '')}`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -539,95 +1017,96 @@ export function generateResponsiveEmailHtml(formData = {}) {
   <meta name="supported-color-schemes" content="light">
   <title>${subject}</title>
   <style>
-    html, body { margin: 0 auto !important; padding: 0 !important; background-color: #f1f5f9; font-family: Arial, Helvetica, sans-serif; }
+    html, body { margin: 0 auto !important; padding: 0 !important; background-color: #f9fafc; font-family: Arial, Helvetica, sans-serif; color: #3b3f44; }
     table, td { border-collapse: collapse !important; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { border: 0; outline: none; text-decoration: none; }
     @media screen and (max-width: 620px) {
       .email-wrap { width: 100% !important; max-width: 100% !important; border-radius: 0 !important; }
-      .pad-mob { padding-left: 20px !important; padding-right: 20px !important; }
+      .pad-mob { padding-left: 16px !important; padding-right: 16px !important; }
+      .stack-col { display: block !important; width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
+      .mobile-h2 { font-size: 19px !important; line-height: 25px !important; }
     }
   </style>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f1f5f9;">
+<body style="margin: 0; padding: 0; background-color: #f9fafc;">
 
   <!-- Preheader -->
   <div style="display: none; font-size: 1px; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden;">
     ${preheader} &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
   </div>
 
-  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f1f5f9;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f9fafc;">
     <tr>
-      <td align="center" style="padding: 20px 10px;">
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" class="email-wrap" style="width: 600px; max-width: 600px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(15, 23, 42, 0.08); border: 1px solid #e2e8f0; margin: 0 auto;">
+      <td align="center" style="padding: 24px 10px 10px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="590" class="email-wrap" style="width: 590px; max-width: 590px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; margin: 0 auto;">
 
-          <!-- 1. HEADER (PINNED AT TOP) -->
+          <!-- 1. CLEAN CENTERED HEADER (PINNED TOP) -->
           <tr>
-            <td align="center" style="padding: 22px 20px 16px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; border-bottom: 2px solid #f1f5f9; text-align: center;">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto;">
-                <tr>
-                  <td align="center" style="text-align: center;">
-                    <a href="${safeWebsiteHref}" target="_blank" style="text-decoration: none; display: inline-block;">
-                      <img src="${safeLogoUrl}" alt="SolarKits Official Logo" width="190" style="width: 190px; max-width: 190px; height: auto; display: block; border: 0; margin: 0 auto;" />
-                    </a>
-                    ${cr.headerTagline ? `
-                      <div style="font-size: 10px; font-weight: 800; color: ${cr.stripColor}; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 6px; font-family: Arial, sans-serif; text-align: center;">
-                        ${cr.headerTagline}
-                      </div>
-                    ` : ''}
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- CONTACT STRIP BAR (PINNED AS PART OF HEADER) -->
-          <tr>
-            <td align="center" style="background-color: ${cr.stripColor}; padding: 10px 20px; text-align: center;">
-              <span style="font-size: 13px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px;">
-                📞 ${cr.contactPhone} &nbsp;|&nbsp; 🌐 <a href="${safeWebsiteHref}" target="_blank" style="color: #ffffff; text-decoration: underline;">${safeWebsiteDisplay}</a>
-              </span>
+            <td align="center" style="padding: 24px 20px 10px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; text-align: center;">
+              <a href="${safeWebsiteHref}" data-cta-slot="header_logo" data-cta-label="SolarKits Header Logo" target="_blank" style="text-decoration: none; display: inline-block;">
+                <img src="${safeLogoUrl}" alt="SolarKits Official Logo" width="175" style="width: 175px; max-width: 175px; height: auto; display: block; border: 0; margin: 0 auto;" />
+              </a>
+              ${cr.headerTagline
+      ? `<div style="font-size: 10px; font-weight: 700; color: #64748b; letter-spacing: 1.8px; text-transform: uppercase; margin-top: 6px; font-family: Arial, Helvetica, sans-serif; text-align: center;">${cr.headerTagline}</div>`
+      : ''
+    }
             </td>
           </tr>
 
           <!-- DYNAMIC REORDERABLE BODY SECTIONS -->
           ${sectionsOrder.map(renderSectionHtml).join('')}
 
-          <!-- DISCLAIMER (PINNED AT BOTTOM) -->
+          <!-- CLEAN HORIZONTAL DIVIDER -->
           <tr>
-            <td align="center" style="padding: 16px 40px 18px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important; text-align: center;">
-              <p style="margin: 0; font-size: 12px; color: #94a3b8; text-align: center;">
-                ${cr.footerDisclaimer}
-              </p>
-            </td>
-          </tr>
-
-          <!-- FOOTER (PINNED AT BOTTOM) -->
-          <tr>
-            <td align="center" style="background-color: #1a2552; padding: 28px 25px; color: #ffffff; border-top: 4px solid ${cr.accentColor}; text-align: center;">
-              <p style="margin: 0; font-size: 18px; font-weight: 900; letter-spacing: 1px; color: #ffffff; text-align: center;">
-                ${cr.footerTitle || 'SOLARKITS INDIA'}
-              </p>
-              <p style="margin: 4px 0 12px; font-size: 13px; color: #cbd5e1; text-align: center;">
-                ${cr.footerTagline || "Powering India's Leading Solar EPC Network"}
-              </p>
-              <p style="margin: 0 0 8px; font-size: 11px; color: #94a3b8; line-height: 16px; text-align: center;">
-                ${cr.footerAddress || '© 2026 SolarKits (India) Pvt. Ltd. • All Rights Reserved.'}
-              </p>
-              <p style="margin: 0; font-size: 11px; line-height: 18px; color: #94a3b8; text-align: center;">
-                You are receiving this exclusive wholesale bulletin as a registered Solar EPC contractor in India.<br>
-                Prefer not to receive commercial solar kit dispatches?
-              </p>
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 12px auto 0 auto;">
+            <td style="padding: 12px 20px; background-color: #ffffff;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                 <tr>
-                  <td align="center" style="border-radius: 4px; background-color: #24336b; border: 1px solid #4c62a8; text-align: center;">
-                    <a href="{{unsubscribe_url}}" target="_blank" style="display: inline-block; padding: 7px 18px; font-family: Arial, sans-serif; font-size: 11px; font-weight: 700; color: ${cr.accentColor}; text-decoration: none; text-align: center;">
-                      ${cr.unsubscribeBtnText || '🔕 Unsubscribe from this list'}
-                    </a>
-                  </td>
+                  <td height="1" style="border-top: 1px solid #94a3b8; font-size: 1px; line-height: 1px;">&nbsp;</td>
                 </tr>
               </table>
             </td>
           </tr>
 
+          <!-- CLEAN 2-COLUMN FOOTER (PINNED BOTTOM) -->
+          <tr>
+            <td style="padding: 6px 20px 22px; background-color: #ffffff; background-image: linear-gradient(#ffffff, #ffffff) !important;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                <tr>
+                  <td width="52%" valign="middle" class="stack-col" style="padding: 10px 6px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 20px; color: #58595b; text-align: left;">
+                    <div><strong>Email address: <a href="mailto:${safeEmail}" style="color: ${primaryCol}; text-decoration: none;">${safeEmail}</a></strong></div>
+                    <div><strong>Telephone: ${safePhone}</strong></div>
+                    <div><strong>${cr.footerAddress || '© 2026 SolarKits (India) Pvt. Ltd.'}</strong></div>
+                  </td>
+                  <td width="48%" valign="middle" align="right" class="stack-col" style="padding: 10px 6px; text-align: right;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="right" style="margin-left: auto;">
+                      <tr>
+                        <td style="padding: 0 3px;"><a href="${safeWebsiteHref}" data-cta-slot="social_linkedin" data-cta-label="Social: LinkedIn" target="_blank"><img src="${icons.linkedin}" width="30" height="30" alt="LinkedIn" style="display: block; border: 0; border-radius: 50%;" /></a></td>
+                        <td style="padding: 0 3px;"><a href="${safeWebsiteHref}" data-cta-slot="social_instagram" data-cta-label="Social: Instagram" target="_blank"><img src="${icons.instagram}" width="30" height="30" alt="Instagram" style="display: block; border: 0; border-radius: 50%;" /></a></td>
+                        <td style="padding: 0 3px;"><a href="${safeWebsiteHref}" data-cta-slot="social_youtube" data-cta-label="Social: YouTube" target="_blank"><img src="${icons.youtube}" width="30" height="30" alt="YouTube" style="display: block; border: 0; border-radius: 50%;" /></a></td>
+                        <td style="padding: 0 3px;"><a href="${safeWebsiteHref}" data-cta-slot="social_facebook" data-cta-label="Social: Facebook" target="_blank"><img src="${icons.facebook}" width="30" height="30" alt="Facebook" style="display: block; border: 0; border-radius: 50%;" /></a></td>
+                        <td style="padding: 0 3px;"><a href="${waHref}" data-cta-slot="social_whatsapp" data-cta-label="Social: WhatsApp" target="_blank"><img src="${icons.whatsapp}" width="30" height="30" alt="WhatsApp" style="display: block; border: 0; border-radius: 50%;" /></a></td>
+                        <td style="padding: 0 3px;"><a href="${safeWebsiteHref}" data-cta-slot="social_website" data-cta-label="Social: Website" target="_blank"><img src="${icons.website}" width="30" height="30" alt="Website" style="display: block; border: 0; border-radius: 50%;" /></a></td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              ${cr.footerDisclaimer
+      ? `<p style="margin: 8px 0 0; font-size: 11px; color: #94a3b8; text-align: left; font-family: Arial, Helvetica, sans-serif;">${cr.footerDisclaimer}</p>`
+      : ''
+    }
+            </td>
+          </tr>
+
+        </table>
+
+        <!-- CLEAN MICRO UNSUBSCRIBE LINE OUTSIDE CARD -->
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="590" class="email-wrap" style="width: 590px; max-width: 590px; margin: 0 auto;">
+          <tr>
+            <td align="center" style="padding: 12px 16px 20px; font-size: 11px; color: #727272; font-family: Arial, Helvetica, sans-serif; text-align: center;">
+              If you wish to unsubscribe from our updates, click <a href="{{unsubscribe_url}}" target="_blank" style="color: ${primaryCol}; text-decoration: underline;">here</a>.
+            </td>
+          </tr>
         </table>
       </td>
     </tr>

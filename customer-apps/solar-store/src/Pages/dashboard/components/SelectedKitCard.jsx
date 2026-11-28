@@ -841,7 +841,7 @@ const SelectedKitCard = memo(({ kit, initialVariantIndex = 0, isCart = false, ac
             </button>
 
             {showVariants && (
-              <div className="absolute top-full left-0 mt-1.5 bg-surface rounded-xl border border-border shadow-xl z-20 min-w-[320px] overflow-hidden">
+              <div className="absolute top-full left-0 mt-1.5 bg-surface rounded-xl border border-border shadow-xl z-20 w-full sm:min-w-[320px] max-w-full overflow-hidden">
                 {kit.variants.map((variant, index) => {
                   const variantTierConfig = getTierConfig(variant.productTier, variant.tierColor);
                   const variantDiscount = variant.marketPrice > variant.ourPrice

@@ -421,21 +421,19 @@ export default function TrialKitQuoteDetail() {
             <div className="flex border-b border-slate-100 dark:border-slate-700">
               <button
                 onClick={() => setActiveTab("followups")}
-                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition ${
-                  activeTab === "followups"
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition ${activeTab === "followups"
                     ? "border-purple-600 text-purple-600 font-black"
                     : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 Follow-up History ({followups.length})
               </button>
               <button
                 onClick={() => setActiveTab("activity")}
-                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition ${
-                  activeTab === "activity"
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition ${activeTab === "activity"
                     ? "border-purple-600 text-purple-600 font-black"
                     : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 Audit Trail ({activities.length})
               </button>
@@ -577,7 +575,7 @@ export default function TrialKitQuoteDetail() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-700"
+              className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-700"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
                 <h3 className="font-black text-sm text-slate-900 dark:text-white">
@@ -595,7 +593,7 @@ export default function TrialKitQuoteDetail() {
               )}
 
               <form onSubmit={handleShareSubmit} className="space-y-4 mt-4">
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {[
                     { id: "email", label: "Email", icon: FiMail },
                     { id: "whatsapp", label: "WhatsApp", icon: FiPhone },
@@ -607,11 +605,10 @@ export default function TrialKitQuoteDetail() {
                         key={m.id}
                         type="button"
                         onClick={() => setShareMethod(m.id)}
-                        className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition ${
-                          shareMethod === m.id
+                        className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition ${shareMethod === m.id
                             ? "border-purple-600 bg-purple-50 text-purple-700"
                             : "border-slate-200 text-slate-600"
-                        }`}
+                          }`}
                       >
                         <Icon size={16} />
                         <span>{m.label}</span>
@@ -664,7 +661,7 @@ export default function TrialKitQuoteDetail() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-700"
+              className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-700"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
                 <h3 className="font-black text-sm text-slate-900 dark:text-white">
@@ -742,7 +739,7 @@ export default function TrialKitQuoteDetail() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-700"
+              className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-700"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
                 <h3 className="font-black text-sm text-slate-900 dark:text-white">
@@ -764,9 +761,8 @@ export default function TrialKitQuoteDetail() {
                   <button
                     type="button"
                     onClick={() => setOrderType("epc_order")}
-                    className={`p-3 rounded-xl border text-left font-bold ${
-                      orderType === "epc_order" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-200"
-                    }`}
+                    className={`p-3 rounded-xl border text-left font-bold ${orderType === "epc_order" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-200"
+                      }`}
                   >
                     <div>EPC Trial Order</div>
                     <div className="text-[10px] font-normal text-slate-400">Direct client dispatch</div>
@@ -775,9 +771,8 @@ export default function TrialKitQuoteDetail() {
                   <button
                     type="button"
                     onClick={() => setOrderType("fpo_order")}
-                    className={`p-3 rounded-xl border text-left font-bold ${
-                      orderType === "fpo_order" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-200"
-                    }`}
+                    className={`p-3 rounded-xl border text-left font-bold ${orderType === "fpo_order" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-200"
+                      }`}
                   >
                     <div>Franchisee PO</div>
                     <div className="text-[10px] font-normal text-slate-400">Buffer inventory</div>

@@ -95,7 +95,7 @@ export default function StoreAvailabilityChecker({ onOpenLeadModal, storeAvailab
   return (
     <section id="store-availability" className="py-16 sm:py-24 bg-slate-50 text-slate-900 border-t border-slate-200/80 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto space-y-3 sm:space-y-4">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-slate-200 shadow-xs">
@@ -117,10 +117,10 @@ export default function StoreAvailabilityChecker({ onOpenLeadModal, storeAvailab
         {/* Checker Card Container */}
         <div className="max-w-4xl mx-auto mt-10 sm:mt-14">
           <div className="rounded-3xl bg-white border border-slate-200 shadow-xl p-6 sm:p-10 space-y-6">
-            
+
             {/* Input Form */}
             <form onSubmit={handleCheck} className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
-              
+
               {/* State Dropdown */}
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1.5">
@@ -381,7 +381,7 @@ export default function StoreAvailabilityChecker({ onOpenLeadModal, storeAvailab
                   {/* Modal Body */}
                   <div className="p-6 sm:p-8 space-y-6">
                     {/* Location Summary Pill */}
-                    <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 flex items-center justify-between">
+                    <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black">
                           <FiMapPin size={20} />
@@ -462,7 +462,7 @@ export default function StoreAvailabilityChecker({ onOpenLeadModal, storeAvailab
                   {/* Modal Body */}
                   <div className="p-6 sm:p-8 space-y-6">
                     {/* Location Summary Pill */}
-                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-slate-700 text-white flex items-center justify-center font-black">
                           <FiMapPin size={20} />
@@ -543,7 +543,7 @@ export default function StoreAvailabilityChecker({ onOpenLeadModal, storeAvailab
                   {/* Modal Body */}
                   <div className="p-6 sm:p-8 space-y-6">
                     {/* Location Summary Pill */}
-                    <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between">
+                    <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-orange-600 text-white flex items-center justify-center font-black">
                           <FiMapPin size={20} />

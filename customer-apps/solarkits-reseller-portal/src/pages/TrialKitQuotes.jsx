@@ -165,10 +165,10 @@ export default function TrialKitQuotes() {
         const list = Array.isArray(raw)
           ? raw
           : Array.isArray(raw?.followups)
-          ? raw.followups
-          : Array.isArray(res.data?.followups)
-          ? res.data.followups
-          : [];
+            ? raw.followups
+            : Array.isArray(res.data?.followups)
+              ? res.data.followups
+              : [];
         setFollowups(list);
       } else {
         setFollowups([]);
@@ -432,11 +432,10 @@ export default function TrialKitQuotes() {
       <div className="flex border-b border-slate-200 dark:border-slate-700">
         <button
           onClick={() => setActiveTab("quotes")}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === "quotes"
+          className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${activeTab === "quotes"
               ? "border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-400 font-black"
               : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
-          }`}
+            }`}
         >
           <FiFileText size={15} />
           <span>All Trial Quotes ({pagination.total})</span>
@@ -444,11 +443,10 @@ export default function TrialKitQuotes() {
 
         <button
           onClick={() => setActiveTab("followups")}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === "followups"
+          className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${activeTab === "followups"
               ? "border-purple-600 text-purple-600 dark:border-purple-400 dark:text-purple-400 font-black"
               : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
-          }`}
+            }`}
         >
           <FiCalendar size={15} />
           <span>Quote Follow-ups ({dashboardData?.followup_stats?.due_today ?? 0})</span>
@@ -725,11 +723,10 @@ export default function TrialKitQuotes() {
                 <button
                   key={tab.id}
                   onClick={() => setFollowupFilter(tab.id)}
-                  className={`px-3 py-1.5 rounded-xl transition ${
-                    followupFilter === tab.id
+                  className={`px-3 py-1.5 rounded-xl transition ${followupFilter === tab.id
                       ? "bg-purple-600 text-white font-bold shadow-xs"
                       : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -850,7 +847,7 @@ export default function TrialKitQuotes() {
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
                     Share Channel
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {[
                       { id: "email", label: "Email", icon: FiMail },
                       { id: "whatsapp", label: "WhatsApp", icon: FiPhone },
@@ -862,11 +859,10 @@ export default function TrialKitQuotes() {
                           key={m.id}
                           type="button"
                           onClick={() => setShareMethod(m.id)}
-                          className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition ${
-                            shareMethod === m.id
+                          className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition ${shareMethod === m.id
                               ? "border-purple-600 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300"
                               : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
-                          }`}
+                            }`}
                         >
                           <Icon size={16} />
                           <span>{m.label}</span>
@@ -1074,11 +1070,10 @@ export default function TrialKitQuotes() {
                     <button
                       type="button"
                       onClick={() => setOrderType("epc_order")}
-                      className={`p-3 rounded-xl border text-xs font-bold text-left transition ${
-                        orderType === "epc_order"
+                      className={`p-3 rounded-xl border text-xs font-bold text-left transition ${orderType === "epc_order"
                           ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
                           : "border-slate-200 dark:border-slate-700 text-slate-600"
-                      }`}
+                        }`}
                     >
                       <div className="font-bold">EPC Trial Order</div>
                       <div className="text-[10px] font-normal text-slate-400 mt-0.5">Direct EPC dispatch</div>
@@ -1087,11 +1082,10 @@ export default function TrialKitQuotes() {
                     <button
                       type="button"
                       onClick={() => setOrderType("fpo_order")}
-                      className={`p-3 rounded-xl border text-xs font-bold text-left transition ${
-                        orderType === "fpo_order"
+                      className={`p-3 rounded-xl border text-xs font-bold text-left transition ${orderType === "fpo_order"
                           ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
                           : "border-slate-200 dark:border-slate-700 text-slate-600"
-                      }`}
+                        }`}
                     >
                       <div className="font-bold">Franchisee PO</div>
                       <div className="text-[10px] font-normal text-slate-400 mt-0.5">Warehouse buffer</div>

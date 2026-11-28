@@ -467,8 +467,8 @@ export default function BdeFranchiseOnboardingModal({
         </div>
 
         {/* ── Step Indicator Bar (Matches Screenshot) ──────────────────────────── */}
-        <div className="px-6 py-3.5 bg-slate-50/70 border-b border-slate-100">
-          <div className="grid grid-cols-5 gap-2 text-center text-xs font-bold">
+        <div className="px-3 sm:px-6 py-3 sm:py-3.5 bg-slate-50/70 border-b border-slate-100 overflow-x-auto">
+          <div className="grid grid-cols-5 min-w-[540px] sm:min-w-0 gap-2 text-center text-xs font-bold">
 
             {/* Step 1 */}
             <div

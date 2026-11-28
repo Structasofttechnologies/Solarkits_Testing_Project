@@ -145,7 +145,7 @@ export default function ProductsSection({ productsConfig }) {
     <section
       id="products"
       ref={sectionRef}
-      style={{ background: "#f0f6ff", padding: "96px 28px", position: "relative", overflow: "hidden" }}
+      style={{ background: "#f0f6ff", padding: "clamp(48px, 7vw, 96px) clamp(16px, 4vw, 28px)", position: "relative", overflow: "hidden" }}
     >
       {/* Decorative circles */}
       <div style={{ position: "absolute", top: "-80px", right: "-80px", width: "300px", height: "300px", borderRadius: "50%", background: "rgba(26,59,139,0.05)", pointerEvents: "none" }} />
@@ -174,12 +174,12 @@ export default function ProductsSection({ productsConfig }) {
           </p>
         </motion.div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px", marginBottom: "48px" }}>
-          {items.map((item, i) => (
-            <ProductCard key={item.name || i} item={item} index={i} active={active} />
-          ))}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: "20px", marginBottom: "48px" }}>
+            {items.map((item, i) => (
+              <ProductCard key={item.name || i} item={item} index={i} active={active} />
+            ))}
+          </div>
         </div>
-      </div>
     </section>
   );
 }

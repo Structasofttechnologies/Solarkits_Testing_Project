@@ -254,10 +254,15 @@ const resolveAudience = async (inputConfig = {}) => {
     kit_ids = [],
     subcategory_ids = [],
     include_imported_leads = true,
+    lead_sources = [],
     import_batch_id = null,
     require_consent = true,
     selected_recipient_emails = []
   } = filterConfig;
+
+  const cleanLeadSources = Array.isArray(lead_sources)
+    ? lead_sources.map((s) => String(s || '').trim()).filter(Boolean)
+    : [];
 
   const selectedEmailSet = new Set(
     (Array.isArray(selected_recipient_emails) ? selected_recipient_emails : [])
@@ -330,7 +335,9 @@ const resolveAudience = async (inputConfig = {}) => {
     buyer_epc: 0
   };
 
-  if (hasAnyEpcGroup || import_batch_id) {
+  const isLegacySegmentOnlyMode = validSegmentIds.length > 0 && !hasAnyEpcGroup;
+
+  if (hasAnyEpcGroup || import_batch_id || (include_imported_leads && !isLegacySegmentOnlyMode)) {
     const orders = await EpcOrder.find({ order_status: { $nin: ['cancelled', 'rejected'] } })
       .select('epc_id delivery_address customer_phone created_at')
       .sort({ created_at: -1 })
@@ -608,6 +615,12 @@ const resolveAudience = async (inputConfig = {}) => {
       if (import_batch_id) {
         leadQuery.import_batch_id = String(import_batch_id).trim();
       }
+      if (cleanLeadSources.length > 0) {
+        leadQuery.$or = [
+          { lead_source: { $in: cleanLeadSources } },
+          { source: { $in: cleanLeadSources } }
+        ];
+      }
 
       const leads = await WebsiteEpcLead.find(leadQuery)
         .select('name company_name contact_person phone mobile_number email state_id state_name district_id district_name cluster_name cluster_code gst_number gst_verification_status lead_source import_batch_id lifetime_orders marketing_consent created_at')
@@ -664,7 +677,7 @@ const resolveAudience = async (inputConfig = {}) => {
         if (exclude_groups.includes('verified_epc') && isVerified) { excludedCount++; continue; }
         if (exclude_groups.includes('registered_epc') && isRegistered) { excludedCount++; continue; }
 
-        if (!import_batch_id) {
+        if (!import_batch_id && (hasAnyEpcGroup || isLegacySegmentOnlyMode)) {
           let isIncluded = false;
           if (epc_groups.buyer_epc && isBuyer) isIncluded = true;
           if (epc_groups.verified_epc && isVerified) isIncluded = true;

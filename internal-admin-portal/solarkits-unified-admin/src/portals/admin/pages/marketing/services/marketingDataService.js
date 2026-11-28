@@ -150,6 +150,7 @@ export async function fetchLiveComboKits(forceRefresh = false) {
       const orderList = Array.isArray(k.order_quantities) ? k.order_quantities : [];
       const moq = Number(looseList[0] || orderList[0] || 1);
       return {
+        ...k,
         id,
         _id: id,
         name: k.name || 'Solar Combo Kit',
@@ -166,7 +167,11 @@ export async function fetchLiveComboKits(forceRefresh = false) {
         loose_order_quantities: looseList,
         po_order_quantities: orderList,
         allow_trial_kit: Boolean(k.allow_trial_kit),
-        image: k.kit_image || ''
+        kit_image: k.kit_image || '',
+        image: k.kit_image || '',
+        available_photos: Array.isArray(k.available_photos) ? k.available_photos : [],
+        base_components_details: Array.isArray(k.base_components_details) ? k.base_components_details : [],
+        bos_kits_details: Array.isArray(k.bos_kits_details) ? k.bos_kits_details : []
       };
     });
   } catch (err) {
@@ -218,7 +223,7 @@ export async function fetchLiveQueueStatus() {
   try {
     const res = await marketingHttp.get('/queue/status');
     return res.data?.queue || null;
-  } catch (err) {
+  } catch {
     return null;
   }
 }
@@ -442,4 +447,9 @@ export async function launchMarketingCampaign(campaignId) {
     headers: marketingHeaders()
   });
   return res.data;
+}
+
+export async function fetchMarketingLeadSources() {
+  const res = await marketingHttp.get('/lead-sources?scope=epc_leads');
+  return Array.isArray(res.data?.data) ? res.data.data : [];
 }

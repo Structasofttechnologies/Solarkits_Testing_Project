@@ -70,7 +70,14 @@ export default function ChoosePanel() {
           icon: <HiMegaphone className="w-8 h-8" />,
           color: "from-indigo-500/10 to-violet-600/10 dark:from-indigo-500/20 dark:to-violet-600/20 border-indigo-500/20 dark:border-indigo-400/30 text-indigo-600 dark:text-indigo-400 hover:shadow-indigo-500/10",
           btnColor: "bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 shadow-indigo-500/20",
-          desc: "Email & WhatsApp marketing campaigns, EPC audience segmentation, website form tracking, and MIS conversion analytics."
+          desc: "Email & WhatsApp marketing campaigns, EPC audience targeting, website form tracking, and MIS conversion analytics."
+        };
+      case 'lead-marketing-panel':
+        return {
+          icon: <HiSparkles className="w-8 h-8" />,
+          color: "from-teal-500/10 to-cyan-600/10 dark:from-teal-500/20 dark:to-cyan-600/20 border-teal-500/20 dark:border-teal-400/30 text-teal-600 dark:text-teal-400 hover:shadow-teal-500/10",
+          btnColor: "bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 shadow-teal-500/20",
+          desc: "Centralized Lead CRM across Franchisee, EPC Signup & EPC Sales segments, multi-sheet Excel uploads, World/India cluster map & First/Last-Touch order attribution."
         };
       case 'developer-panel':
         return {
@@ -167,17 +174,34 @@ export default function ChoosePanel() {
         {/* Panel Options Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
           {(() => {
-            const panels = [...(allowed_panels || [])];
+            const panels = (allowed_panels || []).map((p) =>
+              p.url_prefix === '/marketing-panel' || p.slug === 'marketing-panel'
+                ? { ...p, name: 'EPC Marketing Panel' }
+                : p
+            );
             if (!panels.some(p => p.slug === 'marketing-panel')) {
               panels.push({
                 id: 'marketing-panel-gateway',
-                name: 'Marketing Management Panel',
+                name: 'EPC Marketing Panel',
                 slug: 'marketing-panel',
                 url_prefix: '/marketing-panel',
                 products: [
                   { id: 'mk-prod-1', name: 'Email Campaigns' },
                   { id: 'mk-prod-2', name: 'WhatsApp Business' },
                   { id: 'mk-prod-3', name: 'MIS Conversions' }
+                ]
+              });
+            }
+            if (!panels.some(p => p.slug === 'lead-marketing-panel')) {
+              panels.push({
+                id: 'lead-marketing-panel-gateway',
+                name: 'Lead Marketing Panel',
+                slug: 'lead-marketing-panel',
+                url_prefix: '/lead-marketing-panel',
+                products: [
+                  { id: 'lm-prod-1', name: 'Lead CRM & 3 Segments' },
+                  { id: 'lm-prod-2', name: 'Geo Intelligence Map' },
+                  { id: 'lm-prod-3', name: 'Order Attribution' }
                 ]
               });
             }

@@ -1685,7 +1685,7 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
           </aside>
 
           {/* Kits Grid/List */}
-          <main className="flex-1">
+          <main className="flex-1 min-w-0 w-full">
             {/* System Capacity Quick Selection Bar */}
             <div className="bg-surface rounded-xl p-3 border border-border mb-5 shadow-sm">
               <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
@@ -1747,7 +1747,7 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
                     : "Try adjusting your search criteria or filters to find more options."
                   }
                 </p>
-                <div className="flex gap-3 justify-center">
+                <div className="flex flex-wrap gap-3 justify-center">
                   <Button onClick={clearAllFilters} variant="primary" size="lg">
                     Clear All Filters
                   </Button>
@@ -1759,7 +1759,7 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
                 </div>
               </div>
             ) : viewMode === "grid" ? (
-              <div className="grid xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                 {finalKits.map((kit) => (
                   <KitCard
                     key={kit.id}
@@ -1807,8 +1807,8 @@ export default function PreconfiguredComboKit({ showBestSellers = true }) {
 
       {/* Floating Bottom Comparison Action Bar */}
       {comparedKits.length > 0 && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-4 animate-in slide-in-from-bottom-5 duration-200">
-          <div className="flex items-center gap-2">
+        <div className="fixed bottom-4 sm:bottom-5 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-1.5rem)] sm:w-auto max-w-xl bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-md text-white px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-2xl shadow-2xl border border-slate-700 flex flex-wrap items-center justify-between sm:justify-start gap-2.5 sm:gap-4 animate-in slide-in-from-bottom-5 duration-200">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
             <span className="text-xs font-black uppercase text-amber-400">Comparing:</span>
             <div className="flex items-center gap-1.5">
               {comparedKits.map((kit) => (

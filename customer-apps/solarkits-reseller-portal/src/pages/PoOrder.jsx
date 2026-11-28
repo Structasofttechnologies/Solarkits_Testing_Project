@@ -1761,8 +1761,8 @@ export default function PoOrder() {
           className="rounded-2xl border shadow-xs bg-surface transition-all overflow-hidden w-full"
           style={{ borderColor: "var(--color-border)" }}
         >
-          <div className="w-full overflow-hidden">
-            <table className="w-full text-left text-xs border-collapse table-auto">
+          <div className="w-full overflow-x-auto">
+            <table className="w-full min-w-[780px] text-left text-xs border-collapse table-auto">
               <thead>
                 <tr
                   className="border-b text-[10px] font-bold uppercase tracking-wider text-text-muted select-none"
@@ -3499,7 +3499,7 @@ export default function PoOrder() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center pt-1">
                     <div className="p-2.5 rounded-xl bg-surface border border-border">
                       <div className="text-[10px] text-text-muted">Booked Quota</div>
                       <div className="text-sm font-black text-text-primary">
@@ -3598,8 +3598,8 @@ export default function PoOrder() {
                   <h4 className="font-bold text-text-primary uppercase tracking-wider text-[11px]">
                     Itemized Product
                   </h4>
-                  <div className="border border-border rounded-xl overflow-hidden">
-                    <table className="w-full text-left">
+                  <div className="border border-border rounded-xl overflow-x-auto">
+                    <table className="w-full min-w-[460px] text-left">
                       <thead className="bg-surface-hover border-b border-border text-[10px] font-black uppercase text-text-muted">
                         <tr>
                           <th className="py-2.5 px-3">Item Description</th>
@@ -3635,8 +3635,8 @@ export default function PoOrder() {
                     <h4 className="font-bold text-text-primary uppercase tracking-wider text-[11px]">
                       EPC Buyer Allocations
                     </h4>
-                    <div className="border border-border rounded-xl overflow-hidden">
-                      <table className="w-full text-left">
+                    <div className="border border-border rounded-xl overflow-x-auto">
+                      <table className="w-full min-w-[420px] text-left">
                         <thead className="bg-surface-hover border-b border-border text-[10px] font-black uppercase text-text-muted">
                           <tr>
                             <th className="py-2.5 px-3">EPC Buyer</th>
@@ -3676,8 +3676,8 @@ export default function PoOrder() {
                       No repeat drawdowns placed against this PO yet.
                     </div>
                   ) : (
-                    <div className="border border-border rounded-xl overflow-hidden">
-                      <table className="w-full text-left">
+                    <div className="border border-border rounded-xl overflow-x-auto">
+                      <table className="w-full min-w-[560px] text-left">
                         <thead className="bg-surface-hover border-b border-border text-[10px] font-black uppercase text-text-muted">
                           <tr>
                             <th className="py-2 px-3">Order #</th>

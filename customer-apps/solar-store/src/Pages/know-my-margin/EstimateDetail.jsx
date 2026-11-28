@@ -89,8 +89,8 @@ export default function EstimateDetail({ estimate, onClose, onGenerateQuote }) {
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
               <FiLayers className="text-primary dark:text-blue-400" /> Frozen BOM Items Snapshot
             </h3>
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-              <table className="w-full text-xs text-left">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+              <table className="w-full min-w-[540px] text-xs text-left">
                 <thead className="bg-slate-50 dark:bg-slate-800 text-slate-400 uppercase font-semibold">
                   <tr>
                     <th className="px-3 py-2">Item Name</th>
@@ -118,27 +118,27 @@ export default function EstimateDetail({ estimate, onClose, onGenerateQuote }) {
           </div>
 
           {/* Cost & Margin Summary */}
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-primary via-[#253880] to-[#1d2c66] text-white shadow-lg shadow-primary/20 space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-primary via-[#253880] to-[#1d2c66] text-white shadow-lg shadow-primary/20 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <span className="text-xs uppercase font-bold text-blue-100 tracking-wider">
                   Estimated Customer Selling Price
                 </span>
-                <div className="text-3xl font-black font-mono mt-1">
+                <div className="text-2xl sm:text-3xl font-black font-mono mt-1">
                   ₹{estimate.estimated_customer_price?.toLocaleString("en-IN")}
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-left sm:text-right">
                 <span className="text-xs uppercase font-bold text-blue-100 tracking-wider">
                   EPC Profit
                 </span>
-                <div className="text-xl font-bold font-mono text-emerald-200 mt-1">
+                <div className="text-lg sm:text-xl font-bold font-mono text-emerald-200 mt-1">
                   +₹{estimate.profit_amount?.toLocaleString("en-IN")} ({estimate.margin_percentage}%)
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/20 text-xs text-blue-100 font-mono">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-3 border-t border-white/20 text-xs text-blue-100 font-mono">
               <div>Kit Cost: ₹{estimate.kit_total_price?.toLocaleString("en-IN")}</div>
               <div>BOM Cost: ₹{estimate.bom_total_cost?.toLocaleString("en-IN")}</div>
               <div>GST: ₹{estimate.gst_amount?.toLocaleString("en-IN")} ({estimate.gst_rate}%)</div>
@@ -147,7 +147,7 @@ export default function EstimateDetail({ estimate, onClose, onGenerateQuote }) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-slate-400">
             Valid until: {estimate.valid_until ? new Date(estimate.valid_until).toLocaleDateString("en-IN") : "30 days"}
           </div>

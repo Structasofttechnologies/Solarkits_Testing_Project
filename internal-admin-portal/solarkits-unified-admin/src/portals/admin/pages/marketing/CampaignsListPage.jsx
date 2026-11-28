@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { authHeaderObj } from '../../app/authHeader';
 import { API_BASE_URL } from './services/marketingDataService';
 import {
-  FaBullhorn, FaPlus, FaPlay, FaPause, FaTrash, FaCopy,
+  FaBullhorn, FaPlus, FaTrash, FaCopy,
   FaEnvelope, FaWhatsapp, FaFilter, FaSearch, FaCheckCircle,
-  FaClock, FaBan, FaListAlt, FaTimes, FaExclamationTriangle
+  FaClock, FaBan, FaListAlt, FaTimes, FaExclamationTriangle, FaMousePointer
 } from 'react-icons/fa';
 import { marketingHttp, buildShortTrackingUrl, extractApiError } from './services/marketingApi';
+import CampaignLifecycleButtons from './CampaignLifecycleButtons';
+import CampaignCtaBreakdownView from './components/CampaignCtaBreakdownView';
 
 export default function CampaignsListPage() {
   const navigate = useNavigate();
@@ -20,7 +20,9 @@ export default function CampaignsListPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState(null);
   const [banner, setBanner] = useState(null);
+  const [actingId, setActingId] = useState(null);
   const [logsModal, setLogsModal] = useState(null);
+  const [logsModalTab, setLogsModalTab] = useState('delivery'); // 'delivery' | 'cta'
   const [logsLoading, setLogsLoading] = useState(false);
 
   const fetchCampaigns = async () => {
@@ -51,6 +53,14 @@ export default function CampaignsListPage() {
   }, [campaigns]);
 
   const handleLifecycleAction = async (id, action) => {
+    const prefix = window.location.pathname.startsWith('/admin-panel') ? '/admin-panel/marketing' : '/marketing-panel';
+    if (action === 'edit') {
+      navigate(`${prefix}/create-campaign?edit=${id}`);
+      return;
+    }
+    if (action === 'rerun' && !window.confirm('Rerun this campaign to all eligible recipients now?')) return;
+    if (action === 'delete' && !window.confirm('Delete this campaign?')) return;
+    setActingId(id);
     setBanner(null);
     try {
       let res;
@@ -58,20 +68,25 @@ export default function CampaignsListPage() {
       else if (action === 'resume') res = await marketingHttp.post(`/campaigns/${id}/resume`);
       else if (action === 'pause') res = await marketingHttp.post(`/campaigns/${id}/pause`);
       else if (action === 'cancel') res = await marketingHttp.post(`/campaigns/${id}/cancel`);
-      else if (action === 'delete') {
-        if (!window.confirm('Delete this campaign?')) return;
-        res = await marketingHttp.delete(`/campaigns/${id}`);
-      }
+      else if (action === 'draft') {
+        res = await marketingHttp.post(`/campaigns/${id}/draft`);
+        navigate(`${prefix}/create-campaign?edit=${id}`);
+        return;
+      } else if (action === 'rerun') res = await marketingHttp.post(`/campaigns/${id}/rerun`);
+      else if (action === 'delete') res = await marketingHttp.delete(`/campaigns/${id}`);
       setBanner({ type: 'success', text: res?.data?.message || `Campaign ${action} executed.` });
       await fetchCampaigns();
     } catch (err) {
       setBanner({ type: 'error', text: extractApiError(err, `Failed to ${action} campaign`) });
+    } finally {
+      setActingId(null);
     }
   };
 
-  const openLogsDrawer = async (campaign) => {
+  const openLogsDrawer = async (campaign, initialTab = 'delivery') => {
     setLogsLoading(true);
-    setLogsModal({ campaign, recipients: [], deliveryLogs: [] });
+    setLogsModalTab(initialTab);
+    setLogsModal({ campaign, recipients: [], deliveryLogs: [], ctaAnalytics: null });
     try {
       const res = await marketingHttp.get(`/campaigns/${campaign._id}/logs`);
       if (res.data?.success) {
@@ -144,16 +159,40 @@ export default function CampaignsListPage() {
 
       {banner && (
         <div
-          className={`p-4 rounded-2xl border text-sm font-semibold flex items-center gap-2 ${
-            banner.type === 'error'
-              ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 text-rose-800'
-              : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 text-emerald-800'
-          }`}
+          className={`p-4 rounded-2xl border text-sm font-semibold flex items-center gap-2 ${banner.type === 'error'
+            ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 text-rose-800'
+            : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 text-emerald-800'
+            }`}
         >
           {banner.type === 'error' ? <FaExclamationTriangle className="shrink-0" /> : <FaCheckCircle className="shrink-0" />}
           <span>{banner.text}</span>
         </div>
       )}
+
+      {/* Live Status Summary Filter Strip */}
+      <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+        {[
+          { id: 'all', label: `All Campaigns (${campaigns.length})` },
+          { id: 'running', label: `Running (${campaigns.filter((c) => c.status === 'running').length})` },
+          { id: 'scheduled', label: `Scheduled (${campaigns.filter((c) => c.status === 'scheduled').length})` },
+          { id: 'paused', label: `Paused (${campaigns.filter((c) => c.status === 'paused').length})` },
+          { id: 'draft', label: `Draft (${campaigns.filter((c) => c.status === 'draft').length})` },
+          { id: 'completed', label: `Completed (${campaigns.filter((c) => c.status === 'completed').length})` },
+          { id: 'cancelled', label: `Stopped / Cancelled (${campaigns.filter((c) => c.status === 'cancelled').length})` }
+        ].map((st) => (
+          <button
+            key={st.id}
+            type="button"
+            onClick={() => setFilterStatus(st.id)}
+            className={`px-3 py-1.5 rounded-full border cursor-pointer transition ${filterStatus === st.id
+              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
+          >
+            {st.label}
+          </button>
+        ))}
+      </div>
 
       {/* Filter Bar */}
       <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex flex-wrap items-center justify-between gap-3">
@@ -267,8 +306,20 @@ export default function CampaignsListPage() {
                       <div className="text-[11px] space-x-2">
                         <span className="text-emerald-600">{c.stats?.messages_sent || 0} sent</span>
                         <span className="text-rose-600">{c.stats?.failed || 0} failed</span>
-                        <span className="text-indigo-600">{c.stats?.link_clicks || 0} clicks</span>
+                        <span className="text-indigo-600 font-bold">{c.stats?.link_clicks || 0} clicks</span>
                       </div>
+                      {Array.isArray(c.top_ctas) && c.top_ctas.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {c.top_ctas.slice(0, 2).map((cta, cIdx) => (
+                            <span
+                              key={`${cta.cta_label}_${cIdx}`}
+                              className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300"
+                            >
+                              {cta.cta_label}: {cta.clicks}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </td>
 
                     <td className="py-3.5 px-4 text-xs">
@@ -287,38 +338,58 @@ export default function CampaignsListPage() {
                     <td className="py-3.5 px-4">{getStatusBadge(c.status)}</td>
 
                     <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {['draft', 'scheduled'].includes(c.status) && (
-                          <button onClick={() => handleLifecycleAction(c._id, 'launch')} title="Launch Now" className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 cursor-pointer">
-                            <FaPlay className="w-3 h-3" />
-                          </button>
-                        )}
-                        {c.status === 'paused' && (
-                          <button onClick={() => handleLifecycleAction(c._id, 'resume')} title="Resume Campaign" className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 cursor-pointer">
-                            <FaPlay className="w-3 h-3" />
-                          </button>
-                        )}
-                        {['running', 'scheduled'].includes(c.status) && (
-                          <button onClick={() => handleLifecycleAction(c._id, 'pause')} title="Pause Campaign" className="p-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 cursor-pointer">
-                            <FaPause className="w-3 h-3" />
-                          </button>
-                        )}
-                        {['draft', 'scheduled', 'running', 'paused'].includes(c.status) && (
-                          <button onClick={() => handleLifecycleAction(c._id, 'cancel')} title="Cancel Campaign" className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 cursor-pointer">
-                            <FaBan className="w-3 h-3" />
-                          </button>
-                        )}
-                        <button onClick={() => openLogsDrawer(c)} title="View Delivery & Error Logs" className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer">
-                          <FaListAlt className="w-3 h-3" />
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        <CampaignLifecycleButtons
+                          campaignId={c._id}
+                          status={c.status}
+                          disabled={actingId === c._id}
+                          onAction={handleLifecycleAction}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => openLogsDrawer(c, 'cta')}
+                          title="Inspect Per-CTA & User Click Analytics"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800 text-[11px] font-bold transition-colors cursor-pointer"
+                        >
+                          <FaMousePointer className="w-2.5 h-2.5 shrink-0" />
+                          <span>CTA Clicks ({c.stats?.link_clicks || 0})</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openLogsDrawer(c, 'delivery')}
+                          title="View Delivery & Error Logs"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 text-[11px] font-bold transition-colors cursor-pointer"
+                        >
+                          <FaListAlt className="w-2.5 h-2.5 shrink-0" />
+                          <span>Logs</span>
                         </button>
                         {c.tracking_short_code && (
-                          <button onClick={() => handleCopyLink(c.tracking_short_code)} title="Copy Tracking Link" className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 cursor-pointer">
-                            {copiedId === c.tracking_short_code ? <span className="text-[10px] font-bold text-emerald-600">✓</span> : <FaCopy className="w-3 h-3" />}
+                          <button
+                            type="button"
+                            onClick={() => handleCopyLink(c.tracking_short_code)}
+                            title="Copy Tracking Link"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 text-[11px] font-bold transition-colors cursor-pointer"
+                          >
+                            {copiedId === c.tracking_short_code ? (
+                              <span className="text-emerald-600 dark:text-emerald-300">✓ Copied</span>
+                            ) : (
+                              <>
+                                <FaCopy className="w-2.5 h-2.5 shrink-0" />
+                                <span>Copy Link</span>
+                              </>
+                            )}
                           </button>
                         )}
                         {c.status !== 'running' && (
-                          <button onClick={() => handleLifecycleAction(c._id, 'delete')} title="Delete Campaign" className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-700 cursor-pointer">
-                            <FaTrash className="w-3 h-3" />
+                          <button
+                            type="button"
+                            disabled={actingId === c._id}
+                            onClick={() => handleLifecycleAction(c._id, 'delete')}
+                            title="Delete Campaign"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-100 text-slate-700 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            <FaTrash className="w-2.5 h-2.5 shrink-0" />
+                            <span>Delete</span>
                           </button>
                         )}
                       </div>
@@ -331,15 +402,15 @@ export default function CampaignsListPage() {
         )}
       </div>
 
-      {/* Campaign Delivery & Error Logs Modal */}
+      {/* Campaign Delivery & CTA Click Analytics Modal */}
       {logsModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-700 max-w-4xl w-full max-h-[88vh] flex flex-col p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3 mb-3">
               <div>
-                <h3 className="font-bold text-lg">{logsModal.campaign?.campaign_name} — Delivery & Error Logs</h3>
+                <h3 className="font-bold text-lg">{logsModal.campaign?.campaign_name} — Delivery &amp; CTA Analytics</h3>
                 <p className="text-xs text-slate-500">
-                  Sent: {logsModal.campaign?.stats?.messages_sent || 0} | Failed: {logsModal.campaign?.stats?.failed || 0} | Unsubscribed Skipped: {logsModal.campaign?.stats?.unsubscribed || 0}
+                  Sent: {logsModal.campaign?.stats?.messages_sent || 0} | Failed: {logsModal.campaign?.stats?.failed || 0} | Unsubscribed Skipped: {logsModal.campaign?.stats?.unsubscribed || 0} | CTA Clicks: {logsModal.ctaAnalytics?.total_clicks ?? logsModal.campaign?.stats?.link_clicks ?? 0} ({logsModal.ctaAnalytics?.unique_clickers || 0} users)
                 </p>
               </div>
               <button onClick={() => setLogsModal(null)} className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center cursor-pointer">
@@ -347,11 +418,39 @@ export default function CampaignsListPage() {
               </button>
             </div>
 
+            <div className="flex items-center gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setLogsModalTab('delivery')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition ${
+                  logsModalTab === 'delivery'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                Delivery Logs ({(logsModal.deliveryLogs?.length > 0 ? logsModal.deliveryLogs : logsModal.recipients || []).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogsModalTab('cta')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition flex items-center gap-1.5 ${
+                  logsModalTab === 'cta'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                <FaMousePointer className="w-3 h-3" />
+                <span>CTA &amp; User Clicks ({logsModal.ctaAnalytics?.total_clicks ?? logsModal.campaign?.stats?.link_clicks ?? 0})</span>
+              </button>
+            </div>
+
             {logsLoading ? (
-              <div className="py-12 text-center text-xs text-slate-400">Fetching delivery logs...</div>
+              <div className="py-12 text-center text-xs text-slate-400">Fetching campaign telemetry...</div>
             ) : (
               <div className="overflow-y-auto flex-1 space-y-4">
-                {(logsModal.deliveryLogs || []).length === 0 && (logsModal.recipients || []).length === 0 ? (
+                {logsModalTab === 'cta' ? (
+                  <CampaignCtaBreakdownView ctaAnalytics={logsModal.ctaAnalytics} />
+                ) : (logsModal.deliveryLogs || []).length === 0 && (logsModal.recipients || []).length === 0 ? (
                   <div className="text-xs text-slate-500 text-center py-8">No dispatch logs recorded for this campaign yet.</div>
                 ) : (
                   <table className="w-full text-left text-xs">

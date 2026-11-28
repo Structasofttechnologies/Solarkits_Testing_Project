@@ -663,7 +663,7 @@ const SelectedBulkKitCard = memo(({ kit }) => {
             </button>
 
             {showVariants && (
-              <div className="absolute top-full left-0 mt-1.5 bg-surface rounded-xl border border-border shadow-xl z-20 min-w-[350px] overflow-hidden">
+              <div className="absolute top-full left-0 mt-1.5 bg-surface rounded-xl border border-border shadow-xl z-20 w-full sm:min-w-[350px] max-w-full overflow-hidden">
                 {kit.variants.map((variant, index) => {
                   const variantTierConfig = getTierConfig(variant.productTier, variant.tierColor);
                   const isInCart = bulkCart.some(item =>

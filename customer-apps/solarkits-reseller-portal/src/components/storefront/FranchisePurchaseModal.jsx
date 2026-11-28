@@ -486,7 +486,7 @@ export default function FranchisePurchaseModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 lg:p-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-md flex items-start sm:items-center justify-center p-2.5 sm:p-6 lg:p-8">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -494,21 +494,21 @@ export default function FranchisePurchaseModal({
         className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]"
       >
         {/* ── Modal Top Header ────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-blue-50/60">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-[#253880]/10 text-[#253880] flex items-center justify-center font-bold shadow-xs">
-              <FiZap size={24} />
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-8 py-4 sm:py-5 border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-blue-50/60">
+          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[#253880]/10 text-[#253880] flex items-center justify-center font-bold shadow-xs shrink-0">
+              <FiZap size={22} />
             </div>
-            <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+                <h3 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">
                   Franchise Partner Onboarding
                 </h3>
-                <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-[#253880] text-white shadow-xs">
+                <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-black uppercase tracking-wider bg-[#253880] text-white shadow-xs">
                   {step === 5 ? "Complete" : `Step ${step} of 4`}
                 </span>
               </div>
-              <p className="text-sm text-slate-600 font-medium mt-0.5">
+              <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
                 Lead Generation & GST-Linked Verification System
               </p>
             </div>
@@ -516,7 +516,7 @@ export default function FranchisePurchaseModal({
 
           <button
             onClick={onClose}
-            className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors cursor-pointer shrink-0"
             title="Close"
           >
             <FiX size={20} />
@@ -524,7 +524,7 @@ export default function FranchisePurchaseModal({
         </div>
 
         {/* ── Spacious Progressive Step Indicator Bar ──────────────────────── */}
-        <div className="px-6 sm:px-8 py-3.5 bg-slate-50 border-b border-slate-200">
+        <div className="px-4 sm:px-8 py-3 sm:py-3.5 bg-slate-50 border-b border-slate-200">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-2.5">
             {[
               { num: "1", title: "Territory Selection", active: step === 1, done: step > 1 },
@@ -559,7 +559,7 @@ export default function FranchisePurchaseModal({
         </div>
 
         {/* ── Modal Scrollable Body ────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-5 sm:space-y-6">
           {/* ═══════════════════════════════════════════════════════════════════ */}
           {/* STEP 1: TERRITORY & PLAN SELECTION                                  */}
           {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -728,7 +728,7 @@ export default function FranchisePurchaseModal({
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
                         Business GSTIN Number <span className="text-red-500">*</span>
                       </label>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <div className="relative flex-1">
                           <input
                             type="text"
@@ -896,7 +896,7 @@ export default function FranchisePurchaseModal({
                           )}
                         </div>
 
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
                           <input
                             type="text"
                             maxLength={6}

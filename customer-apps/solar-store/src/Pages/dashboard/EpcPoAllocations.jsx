@@ -230,7 +230,7 @@ function EpcPoCardItem({ order, onSelectOrder, onOpenReorder, onOpenRefund }) {
 
         {/* Row 4: Purchased Qty vs Pending Qty Strip with Visual Progress Bar */}
         <div className="p-3.5 rounded-2xl border border-border bg-surface-hover space-y-2.5">
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
             <div className="space-y-0.5">
               <div className="text-[10px] font-black uppercase tracking-wider text-text-muted">
                 📦 Committed
@@ -238,7 +238,7 @@ function EpcPoCardItem({ order, onSelectOrder, onOpenReorder, onOpenRefund }) {
               <div className="text-sm font-black text-text-primary">{booked} Kits</div>
             </div>
 
-            <div className="space-y-0.5 border-x border-border/60">
+            <div className="space-y-0.5 sm:border-x border-border/60">
               <div className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">
                 🚚 Purchased
               </div>
@@ -267,7 +267,7 @@ function EpcPoCardItem({ order, onSelectOrder, onOpenReorder, onOpenRefund }) {
 
         {/* Row 5: Token Paid & Amount Adjusted Strip */}
         <div className="p-3 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 space-y-2 text-xs">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-400 flex items-center gap-1">
               <FaRupeeSign size={11} /> Token Escrow & Settlement
             </span>
@@ -276,12 +276,12 @@ function EpcPoCardItem({ order, onSelectOrder, onOpenReorder, onOpenRefund }) {
             </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/40 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/40 text-center">
             <div>
               <div className="text-[10px] text-text-muted">Token Paid</div>
               <div className="text-xs font-black text-text-primary">₹{tokenPaidINR.toLocaleString("en-IN")}</div>
             </div>
-            <div className="border-x border-emerald-200/60 dark:border-emerald-800/40">
+            <div className="sm:border-x border-emerald-200/60 dark:border-emerald-800/40">
               <div className="text-[10px] text-text-muted">Adjusted</div>
               <div className="text-xs font-black text-blue-600">₹{tokenAdjustedINR.toLocaleString("en-IN")}</div>
             </div>
@@ -1231,11 +1231,11 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
             </div>
           ) : viewMode === "table" ? (
             <div
-              className="rounded-2xl border shadow-xs bg-surface transition-all overflow-hidden w-full no-scrollbar"
+              className="rounded-2xl border shadow-xs bg-surface transition-all overflow-hidden w-full"
               style={{ borderColor: "var(--color-border)" }}
             >
-              <div className="w-full overflow-hidden no-scrollbar">
-                <table className="w-full text-left text-xs border-collapse table-auto">
+              <div className="w-full overflow-x-auto">
+                <table className="w-full min-w-[780px] text-left text-xs border-collapse table-auto">
                   <thead>
                     <tr
                       className="border-b text-[10px] font-bold uppercase tracking-wider text-text-muted select-none"
@@ -2179,7 +2179,7 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center pt-1">
                     <div className="p-2.5 rounded-xl bg-surface border border-border">
                       <div className="text-[10px] text-text-muted">Booked Quota</div>
                       <div className="text-sm font-black text-text-primary">
@@ -2209,8 +2209,8 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
                   <h4 className="font-bold text-text-primary uppercase tracking-wider text-[11px]">
                     Itemized Product & Quantities
                   </h4>
-                  <div className="border border-border rounded-xl overflow-hidden">
-                    <table className="w-full text-left">
+                  <div className="border border-border rounded-xl overflow-x-auto">
+                    <table className="w-full min-w-[460px] text-left">
                       <thead className="bg-surface-hover border-b border-border text-[10px] font-black uppercase text-text-muted">
                         <tr>
                           <th className="py-2.5 px-3">Item Description</th>
@@ -2460,7 +2460,7 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
                             </div>
 
                             {/* Quota & Escrow Stats Row */}
-                            <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/60 text-center text-xs">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-border/60 text-center text-xs">
                               <div className="p-2 rounded-xl bg-surface-hover/50 border border-border/60">
                                 <div className="text-[10px] text-text-muted font-medium">Total Committed</div>
                                 <div className="font-black text-text-primary text-sm">{committed} Kits</div>
@@ -3233,7 +3233,7 @@ const handleOpenTokenModal = (order, epcAlloc, item) => {
                         Settlement & Penalty Reconciliation
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                         <div className="p-2 rounded-xl bg-surface border border-border">
                           <div className="text-[10px] text-text-muted">Committed</div>
                           <div className="font-black text-text-primary">{refundPreview.total_committed_qty} Kits</div>

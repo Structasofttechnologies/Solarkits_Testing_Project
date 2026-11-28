@@ -4,15 +4,15 @@ import {
   FaTag, FaMobileAlt, FaDesktop, FaTimes, FaPaperPlane, FaExclamationTriangle, FaCheckCircle
 } from 'react-icons/fa';
 import EmailStudio from './components/EmailStudio';
-import { generateResponsiveEmailHtml } from './services/emailTemplateGenerator';
+import { DEFAULT_EXECUTIVE_CREATIVE, generateResponsiveEmailHtml } from './services/emailTemplateGenerator';
 import { marketingHttp, extractApiError } from './services/marketingApi';
 
 const DEFAULT_MODAL_DATA = {
   templateName: '',
-  emailSubject: '',
-  emailPreviewText: '',
-  ctaText: 'View Solar Kits & Pricing',
-  destinationUrl: 'https://solarkits.in/solar-kits',
+  emailSubject: 'SolarKits: Complete Solar Systems, Ready to Dispatch!',
+  emailPreviewText: DEFAULT_EXECUTIVE_CREATIVE.subheading,
+  ctaText: DEFAULT_EXECUTIVE_CREATIVE.primaryCtaText,
+  destinationUrl: DEFAULT_EXECUTIVE_CREATIVE.destinationUrl,
   hasCoupon: false,
   couponCode: '',
   discountType: 'per_kit',
@@ -20,14 +20,7 @@ const DEFAULT_MODAL_DATA = {
   minOrderQty: 1,
   includeKitDetailsInCreative: true,
   customCreative: {
-    headline: '',
-    subheading: '',
-    themeColor: '#2563eb',
-    mediaType: 'image',
-    heroImageUrl: '',
-    customBodyText: '',
-    bulletPoints: [],
-    footerDisclaimer: 'Unsubscribe anytime using the footer link.'
+    ...DEFAULT_EXECUTIVE_CREATIVE
   }
 };
 

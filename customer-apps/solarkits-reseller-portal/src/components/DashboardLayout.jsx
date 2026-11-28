@@ -268,7 +268,7 @@ export default function DashboardLayout() {
     : null;
 
   return (
-    <div className="h-screen flex font-sans antialiased overflow-hidden" style={{ background: "var(--color-bg)", color: "var(--color-text-primary)" }}>
+    <div className="h-[100dvh] flex font-sans antialiased overflow-hidden" style={{ background: "var(--color-bg)", color: "var(--color-text-primary)" }}>
 
       {/* Mobile Overlay */}
       <AnimatePresence>
@@ -561,7 +561,7 @@ export default function DashboardLayout() {
 
         {/* Header - matches EPC Solar dashboard style */}
         <header
-          className="shrink-0 flex items-center justify-between px-6 py-3 relative z-30 transition-colors duration-200"
+          className="shrink-0 flex items-center justify-between gap-2 px-3 sm:px-6 py-3 relative z-30 transition-colors duration-200"
           style={{
             background: "var(--color-surface)",
             borderBottom: "1px solid var(--color-border)",
@@ -665,7 +665,7 @@ export default function DashboardLayout() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -8, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute right-0 top-12 w-80 rounded-2xl shadow-2xl p-4 z-50 space-y-3"
+                      className="absolute right-0 top-12 w-[min(20rem,calc(100vw-1.5rem))] rounded-2xl shadow-2xl p-4 z-50 space-y-3"
                       style={{
                         background: "var(--color-surface)",
                         border: "1px solid var(--color-border)",
@@ -781,7 +781,7 @@ export default function DashboardLayout() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -8, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute right-0 top-[calc(100%+10px)] rounded-2xl shadow-2xl py-2 z-50 w-64"
+                      className="absolute right-0 top-[calc(100%+10px)] rounded-2xl shadow-2xl py-2 z-50 w-[min(16rem,calc(100vw-1.5rem))]"
                       style={{
                         background: "var(--color-surface)",
                         border: "1px solid var(--color-border)",
@@ -906,7 +906,7 @@ export default function DashboardLayout() {
         </header>
 
         {/* Page Body */}
-        <main className="flex-1 p-4 sm:p-6 overflow-y-auto scrollbar-hover min-h-0" style={{ background: "var(--color-bg)" }}>
+        <main className="flex-1 min-w-0 p-3 sm:p-6 overflow-y-auto scrollbar-hover min-h-0" style={{ background: "var(--color-bg)" }}>
           <Outlet
             context={{
               reseller,

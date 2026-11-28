@@ -155,7 +155,7 @@ export default function EstimatorWizard({ onEstimateSaved, onQuoteGenerated }) {
     <div className="space-y-6">
       {/* ── Streamlined Stepper Progress Bar ───────────────────────────────── */}
       <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
-        <div className="flex items-center justify-between min-w-[350px] max-w-xl mx-auto">
+        <div className="flex items-center justify-between min-w-[280px] sm:min-w-[350px] max-w-xl mx-auto">
           {STEPS.map((s, idx) => {
             const isCompleted = activeStep > s.step;
             const isCurrent = activeStep === s.step;
@@ -167,29 +167,26 @@ export default function EstimatorWizard({ onEstimateSaved, onQuoteGenerated }) {
                     // Allow navigating back to completed steps
                     if (isCompleted) dispatch(setActiveStep(s.step));
                   }}
-                  className={`flex items-center gap-2.5 select-none ${
-                    isCompleted ? "cursor-pointer group" : "cursor-default"
-                  }`}
+                  className={`flex items-center gap-2.5 select-none ${isCompleted ? "cursor-pointer group" : "cursor-default"
+                    }`}
                 >
                   <div
-                    className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs transition ${
-                      isCurrent
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs transition ${isCurrent
                         ? "bg-primary text-white shadow-md shadow-primary/25 ring-4 ring-primary/20"
                         : isCompleted
-                        ? "bg-emerald-600 text-white group-hover:bg-emerald-700"
-                        : "bg-slate-100 dark:bg-slate-800 text-slate-400"
-                    }`}
+                          ? "bg-emerald-600 text-white group-hover:bg-emerald-700"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-400"
+                      }`}
                   >
                     {isCompleted ? "✓" : s.step}
                   </div>
                   <span
-                    className={`text-xs font-semibold ${
-                      isCurrent
+                    className={`text-xs font-semibold ${isCurrent
                         ? "text-primary dark:text-blue-400 font-bold"
                         : isCompleted
-                        ? "text-slate-700 dark:text-slate-200 group-hover:text-emerald-600"
-                        : "text-slate-400"
-                    }`}
+                          ? "text-slate-700 dark:text-slate-200 group-hover:text-emerald-600"
+                          : "text-slate-400"
+                      }`}
                   >
                     {s.title}
                   </span>
@@ -197,9 +194,8 @@ export default function EstimatorWizard({ onEstimateSaved, onQuoteGenerated }) {
 
                 {idx < STEPS.length - 1 && (
                   <div
-                    className={`flex-1 h-0.5 mx-3 rounded-full transition ${
-                      activeStep > s.step ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-800"
-                    }`}
+                    className={`flex-1 h-0.5 mx-3 rounded-full transition ${activeStep > s.step ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-800"
+                      }`}
                   />
                 )}
               </React.Fragment>

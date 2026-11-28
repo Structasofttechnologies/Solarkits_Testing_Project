@@ -5,24 +5,33 @@ import {
   Plus, Trash2, X, Check, ExternalLink, Play, Smile, Phone, Layers, ShieldCheck,
   ArrowUp, ArrowDown, Bookmark, Save, MoveVertical, RefreshCw, CheckCircle2,
   GripVertical, ChevronsUp, ChevronsDown, Lock, ListOrdered, LayoutList, Info,
-  CornerDownRight, SlidersHorizontal, ArrowUpDown, Upload
+  CornerDownRight, SlidersHorizontal, ArrowUpDown, Upload, Eye, Package, Wrench, FileText
 } from 'lucide-react';
 import {
   DEFAULT_EXECUTIVE_CREATIVE,
   PURPOSE_BASED_PRESETS,
   DEFAULT_EMAIL_SECTIONS,
   DEFAULT_SECTIONS_ORDER,
+  DEFAULT_SYSTEM_TIERS,
+  DEFAULT_TRUST_METRICS,
+  COLOR_PALETTES,
+  PLATFORM_LINK_GROUPS,
+  SOLARKITS_MEDIA_ASSETS,
+  DEFAULT_HERO_BANNER_URL,
+  isPdfDownloadUrl,
+  findPlatformLinkMeta,
   generateResponsiveEmailHtml
 } from '../services/emailTemplateGenerator';
 import { marketingHttp, extractApiError } from '../services/marketingApi';
+import { fetchLiveComboKits } from '../services/marketingDataService';
 
 // Rich Section Metadata with intuitive icons, color coding, and editor anchors
 const SECTION_METADATA_MAP = {
   banner: {
     id: 'banner',
-    label: 'Hero Media Banner',
-    shortLabel: 'Hero Banner',
-    desc: 'Executive gradient banner, photo, or 45s explainer video',
+    label: 'Hero Title & Visual Animation',
+    shortLabel: 'Hero Showcase',
+    desc: 'Clean editorial headline + animated hero illustration or video',
     icon: ImageIcon,
     color: 'text-purple-600 dark:text-purple-400',
     bgColor: 'bg-purple-100 dark:bg-purple-950/60',
@@ -31,9 +40,9 @@ const SECTION_METADATA_MAP = {
   },
   pitch: {
     id: 'pitch',
-    label: 'Pitch Title & Body Copy',
-    shortLabel: 'Pitch & Copy',
-    desc: 'Category tag, main H1 headline, and custom value pitch text',
+    label: 'Intro Narrative & Tagline',
+    shortLabel: 'Narrative & Tagline',
+    desc: 'Centered body story and brand sign-off tagline',
     icon: Type,
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-100 dark:bg-blue-950/60',
@@ -42,14 +51,25 @@ const SECTION_METADATA_MAP = {
   },
   primary_cta: {
     id: 'primary_cta',
-    label: 'Primary Call to Action',
-    shortLabel: 'Primary CTA Button',
-    desc: 'Main high-contrast action button (e.g. Claim Kit Offer & Apply Coupon)',
+    label: 'Primary Action CTA',
+    shortLabel: 'Primary CTA',
+    desc: 'Centered rounded action button (e.g. WhatsApp Quote)',
     icon: MousePointer,
     color: 'text-emerald-600 dark:text-emerald-400',
     bgColor: 'bg-emerald-100 dark:bg-emerald-950/60',
     borderColor: 'border-emerald-200 dark:border-emerald-800',
     editorAnchor: 'editor-section-ctas'
+  },
+  system_showcase: {
+    id: 'system_showcase',
+    label: 'Zigzag System Lineup',
+    shortLabel: 'System Showcase',
+    desc: '3 alternating left/right solar kit showcase tiers',
+    icon: LayoutGrid,
+    color: 'text-teal-600 dark:text-teal-400',
+    bgColor: 'bg-teal-100 dark:bg-teal-950/60',
+    borderColor: 'border-teal-200 dark:border-teal-800',
+    editorAnchor: 'editor-section-showcase'
   },
   products: {
     id: 'products',
@@ -66,18 +86,29 @@ const SECTION_METADATA_MAP = {
     id: 'coupon',
     label: 'Promo Coupon Voucher',
     shortLabel: 'Discount Voucher',
-    desc: 'Dashed discount voucher box with coupon code & savings breakdown',
+    desc: 'Minimalist discount voucher box with coupon code & savings',
     icon: Tag,
     color: 'text-orange-600 dark:text-orange-400',
     bgColor: 'bg-orange-100 dark:bg-orange-950/60',
     borderColor: 'border-orange-200 dark:border-orange-800',
     editorAnchor: 'editor-section-coupon'
   },
+  intelligence: {
+    id: 'intelligence',
+    label: 'Portal & Phone Animation',
+    shortLabel: 'Portal & Phone GIF',
+    desc: 'Smart SolarKits portal + mobile showcase animation block',
+    icon: Smartphone,
+    color: 'text-sky-600 dark:text-sky-400',
+    bgColor: 'bg-sky-100 dark:bg-sky-950/60',
+    borderColor: 'border-sky-200 dark:border-sky-800',
+    editorAnchor: 'editor-section-intelligence'
+  },
   benefit_cards: {
     id: 'benefit_cards',
-    label: 'Feature Benefit Cards',
-    shortLabel: 'Executive Value Cards',
-    desc: 'Color-coded highlight value boxes showcasing key contractor benefits',
+    label: 'Trust Metrics & Highlights',
+    shortLabel: 'Trust Metrics Strip',
+    desc: '3 rounded brand metric cards + optional partner highlights',
     icon: Layers,
     color: 'text-cyan-600 dark:text-cyan-400',
     bgColor: 'bg-cyan-100 dark:bg-cyan-950/60',
@@ -86,9 +117,9 @@ const SECTION_METADATA_MAP = {
   },
   closing_pitch: {
     id: 'closing_pitch',
-    label: 'Closing Pitch & Secondary CTA',
-    shortLabel: 'Closing Pitch & CTA',
-    desc: 'Bottom conversion pitch statement and secondary action button',
+    label: 'Dual Bottom Action Buttons',
+    shortLabel: 'Dual CTA Pair',
+    desc: 'Side-by-side Datasheet and Website action buttons',
     icon: AlignLeft,
     color: 'text-rose-600 dark:text-rose-400',
     bgColor: 'bg-rose-100 dark:bg-rose-950/60',
@@ -99,7 +130,7 @@ const SECTION_METADATA_MAP = {
     id: 'custom_ctas',
     label: 'Additional Action CTAs',
     shortLabel: 'Secondary Buttons',
-    desc: 'Datasheet download, catalogue links, and extra contact buttons',
+    desc: 'Extra contact or catalogue links',
     icon: ExternalLink,
     color: 'text-indigo-600 dark:text-indigo-400',
     bgColor: 'bg-indigo-100 dark:bg-indigo-950/60',
@@ -115,15 +146,151 @@ const DYNAMIC_VARS = [
   { key: 'discount_value', label: 'Discount Value', preview: '₹5,000 OFF' },
   { key: 'kit_name', label: 'Kit Name', preview: '3 K.W. Solarkits DCR Combokit' },
   { key: 'warehouse_name', label: 'Serving Depot', preview: 'Bhiwandi Central Depot' },
-  { key: 'tracking_url', label: 'Tracking / Cart URL', preview: 'https://solarkits.in/solar-kits/3kw-dcr?coupon=SOLARDIWALI5000' }
+  { key: 'tracking_url', label: 'Tracking / Cart URL', preview: 'https://store.solarkits.in/preconfigured-combo-kit?coupon=SOLARDIWALI5000' }
 ];
+
+const extractPdfFilenameFromUrl = (rawUrl = '') => {
+  try {
+    const pathname = new URL(rawUrl).pathname;
+    return decodeURIComponent(pathname.split('/').pop() || 'Datasheet.pdf');
+  } catch {
+    return String(rawUrl || '').split('/').pop() || 'Datasheet.pdf';
+  }
+};
+
+/**
+ * Reusable platform destination picker + custom URL + Cloudinary PDF upload control
+ * used across Action CTAs, Dual Bottom Buttons, and Kit Showcase Cards.
+ */
+function DestinationLinkPicker({
+  value = '',
+  onChange,
+  isPdf = false,
+  uploadFieldKey,
+  uploadingAssetField,
+  onUploadPdf,
+  compact = false
+}) {
+  const cleanVal = String(value || '').trim();
+  const baseNoUtm = (() => {
+    try {
+      const u = new URL(cleanVal);
+      return `${u.origin}${u.pathname === '/' ? '/' : u.pathname}`;
+    } catch {
+      return cleanVal;
+    }
+  })();
+  const matchedMeta = findPlatformLinkMeta(cleanVal) || findPlatformLinkMeta(baseNoUtm);
+  const currentIsPdf = Boolean(isPdf || isPdfDownloadUrl(cleanVal));
+  const selectValue = matchedMeta ? matchedMeta.url : (currentIsPdf ? '__PDF__' : '__CUSTOM__');
+  const isUploading = uploadingAssetField === uploadFieldKey;
+
+  return (
+    <div className={compact ? 'space-y-1' : 'space-y-1.5'}>
+      <div className="flex items-center gap-1.5">
+        <select
+          value={selectValue}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val === '__CUSTOM__' || val === '__PDF__') return;
+            onChange(val, false);
+          }}
+          className={`flex-1 min-w-0 rounded-lg border border-blue-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold cursor-pointer ${
+            compact ? 'px-2 py-1 text-[10.5px]' : 'px-2.5 py-1.5 text-[11px]'
+          }`}
+        >
+          {currentIsPdf && (
+            <option value="__PDF__">
+              📄 Uploaded PDF: {extractPdfFilenameFromUrl(cleanVal)} — Downloads PDF on click
+            </option>
+          )}
+          {PLATFORM_LINK_GROUPS.map((grp) => (
+            <optgroup key={grp.group} label={grp.group}>
+              {grp.items.map((item) => (
+                <option key={item.url} value={item.url}>
+                  {item.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+          <option value="__CUSTOM__">
+            🔗 Custom URL — Enter manual destination link below
+          </option>
+        </select>
+
+        {onUploadPdf && (
+          <label
+            className={`inline-flex items-center gap-1 rounded-lg font-bold cursor-pointer shrink-0 transition-colors ${
+              currentIsPdf
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                : 'bg-amber-600 hover:bg-amber-700 text-white'
+            } ${compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1.5 text-[10.5px]'}`}
+            title="Upload PDF brochure/datasheet to Cloudinary (auto-downloads when user clicks this button)"
+          >
+            <Upload className="w-3 h-3" />
+            <span>{isUploading ? 'Uploading...' : currentIsPdf ? 'Replace PDF' : 'Upload PDF'}</span>
+            <input
+              type="file"
+              accept=".pdf,application/pdf"
+              className="hidden"
+              disabled={isUploading}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) onUploadPdf(file);
+              }}
+            />
+          </label>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value, isPdfDownloadUrl(e.target.value))}
+          placeholder="Destination URL or uploaded PDF link..."
+          className={`flex-1 min-w-0 rounded-lg border border-slate-200 dark:border-slate-700 font-mono bg-white dark:bg-slate-800 ${
+            compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1 text-[10.5px]'
+          }`}
+        />
+        {currentIsPdf && (
+          <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 text-[9.5px] font-bold shrink-0">
+            PDF Download
+          </span>
+        )}
+      </div>
+
+      {!compact && (
+        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+          {currentIsPdf ? (
+            <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+              📥 Clicking this button will download: {extractPdfFilenameFromUrl(cleanVal)}
+            </span>
+          ) : matchedMeta ? (
+            <span>
+              <strong>Opens:</strong> {matchedMeta.group} — {matchedMeta.label}
+            </span>
+          ) : cleanVal ? (
+            <span>
+              <strong>Opens:</strong> {cleanVal}
+            </span>
+          ) : (
+            <span>Select a SolarKits platform page above or upload a PDF datasheet.</span>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function EmailStudio({
   formData,
   setFormData,
   selectedKitObjects = [],
   allKitsCatalog = [],
-  warehousesList = []
+  warehousesList = [],
+  campaignObjective = ''
 }) {
   const [activeTab, setActiveTab] = useState('custom'); // 'custom' | 'template'
   const [previewDevice, setPreviewDevice] = useState('desktop'); // 'desktop' | 'mobile'
@@ -139,8 +306,34 @@ export default function EmailStudio({
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [uploadingAssetField, setUploadingAssetField] = useState(null);
   const [assetUploadError, setAssetUploadError] = useState('');
+  const [fetchedCatalog, setFetchedCatalog] = useState([]);
+  const [loadingLiveCatalog, setLoadingLiveCatalog] = useState(false);
+  const [viewingKitDetail, setViewingKitDetail] = useState(null);
+  const [activeEditorSectionId, setActiveEditorSectionId] = useState(null);
 
-  const handleUploadEmailAsset = async (file, fieldKey) => {
+  const effectiveKitsCatalog = useMemo(() => {
+    const raw = Array.isArray(allKitsCatalog) && allKitsCatalog.length > 0 ? allKitsCatalog : fetchedCatalog;
+    return [...raw].sort((a, b) => (Number(a.capacity) || 9999) - (Number(b.capacity) || 9999));
+  }, [allKitsCatalog, fetchedCatalog]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (Array.isArray(allKitsCatalog) && allKitsCatalog.length > 0) return undefined;
+    setLoadingLiveCatalog(true);
+    fetchLiveComboKits()
+      .then((kits) => {
+        if (!cancelled && Array.isArray(kits)) setFetchedCatalog(kits);
+      })
+      .catch(() => { })
+      .finally(() => {
+        if (!cancelled) setLoadingLiveCatalog(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [allKitsCatalog]);
+
+  const handleUploadEmailAsset = async (file, fieldKey, onUploaded) => {
     if (!file) return;
     setUploadingAssetField(fieldKey);
     setAssetUploadError('');
@@ -151,7 +344,11 @@ export default function EmailStudio({
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       if (res.data?.success && res.data?.url) {
-        updateCreative({ [fieldKey]: res.data.url });
+        if (typeof onUploaded === 'function') {
+          onUploaded(res.data.url);
+        } else {
+          updateCreative({ [fieldKey]: res.data.url });
+        }
       } else {
         setAssetUploadError(res.data?.message || 'Upload failed.');
       }
@@ -226,16 +423,24 @@ export default function EmailStudio({
     ...DEFAULT_EXECUTIVE_CREATIVE,
     ...(formData.customCreative || {}),
     logoUrl: (formData.customCreative && formData.customCreative.logoUrl) || DEFAULT_EXECUTIVE_CREATIVE.logoUrl,
+    heroImageUrl: (() => {
+      const raw = formData.customCreative?.heroImageUrl;
+      if (!raw) return formData.customCreative?.heroImageCleared ? '' : DEFAULT_HERO_BANNER_URL;
+      if (raw.includes('solarkits_default_hero_banner.jpg')) return DEFAULT_HERO_BANNER_URL;
+      return raw;
+    })(),
     sectionsOrder:
       Array.isArray(formData.customCreative?.sectionsOrder) && formData.customCreative.sectionsOrder.length > 0
         ? formData.customCreative.sectionsOrder
         : DEFAULT_SECTIONS_ORDER
   };
 
-  // Active dynamic section ordering
+  // Active dynamic section ordering (preserves custom/saved order & safely includes new default sections)
   const activeSectionsOrder = useMemo(() => {
-    if (Array.isArray(creative.sectionsOrder) && creative.sectionsOrder.length === DEFAULT_SECTIONS_ORDER.length) {
-      return creative.sectionsOrder;
+    if (Array.isArray(creative.sectionsOrder) && creative.sectionsOrder.length > 0) {
+      const valid = creative.sectionsOrder.filter((id) => Boolean(SECTION_METADATA_MAP[id]));
+      const missing = DEFAULT_SECTIONS_ORDER.filter((id) => !valid.includes(id));
+      return valid.length > 0 ? [...valid, ...missing] : DEFAULT_SECTIONS_ORDER;
     }
     return DEFAULT_SECTIONS_ORDER;
   }, [creative.sectionsOrder]);
@@ -337,20 +542,22 @@ export default function EmailStudio({
   const handleApplyLayoutPreset = (presetKey) => {
     switch (presetKey) {
       case 'standard':
-        // Standard B2B sales flow
-        updateCreative({ sectionsOrder: ['banner', 'pitch', 'primary_cta', 'products', 'coupon', 'benefit_cards', 'closing_pitch', 'custom_ctas'] });
+        updateCreative({ sectionsOrder: DEFAULT_SECTIONS_ORDER });
         break;
       case 'offer_first':
-        // Highlight coupon discount right after banner
-        updateCreative({ sectionsOrder: ['banner', 'coupon', 'products', 'pitch', 'primary_cta', 'benefit_cards', 'closing_pitch', 'custom_ctas'] });
+        updateCreative({
+          sectionsOrder: ['banner', 'coupon', 'products', 'pitch', 'primary_cta', 'system_showcase', 'intelligence', 'benefit_cards', 'closing_pitch', 'custom_ctas']
+        });
         break;
       case 'catalog_first':
-        // Product showcase focus
-        updateCreative({ sectionsOrder: ['banner', 'products', 'pitch', 'primary_cta', 'coupon', 'benefit_cards', 'closing_pitch', 'custom_ctas'] });
+        updateCreative({
+          sectionsOrder: ['banner', 'system_showcase', 'products', 'pitch', 'primary_cta', 'coupon', 'intelligence', 'benefit_cards', 'closing_pitch', 'custom_ctas']
+        });
         break;
       case 'urgency_first':
-        // Pitch headline at the very top
-        updateCreative({ sectionsOrder: ['pitch', 'banner', 'coupon', 'primary_cta', 'products', 'benefit_cards', 'closing_pitch', 'custom_ctas'] });
+        updateCreative({
+          sectionsOrder: ['pitch', 'primary_cta', 'banner', 'coupon', 'system_showcase', 'products', 'intelligence', 'benefit_cards', 'closing_pitch', 'custom_ctas']
+        });
         break;
       default:
         updateCreative({ sectionsOrder: DEFAULT_SECTIONS_ORDER });
@@ -361,17 +568,276 @@ export default function EmailStudio({
     updateCreative({ sectionsOrder: DEFAULT_SECTIONS_ORDER });
   };
 
-  // Smooth scroll to an editor section
-  const scrollToEditorSection = (anchorId) => {
+  const SECTION_FOCUS_SELECTOR_MAP = {
+    banner: '[data-banner-focus="primary"], input[type="text"], input:not([type="hidden"])',
+    pitch: 'textarea, input[type="text"]',
+    primary_cta: '[data-cta-input="0"], input[type="text"]',
+    system_showcase: '[data-kit-select="0"], select, input[type="text"]',
+    products: 'button, select, input[type="text"]',
+    coupon: 'input[type="text"], input[type="checkbox"]',
+    intelligence: 'input[type="text"], textarea',
+    benefit_cards: 'input[type="text"]',
+    closing_pitch: 'input[type="text"]',
+    custom_ctas: '[data-cta-input="1"], [data-cta-input="0"], input[type="text"]'
+  };
+
+  const buildTierFromKit = (kit, idx = 0) => {
+    if (!kit) {
+      return {
+        kitId: '',
+        eyebrow: 'SOLAR KIT',
+        title: `Solar System #${idx + 1}`,
+        desc: '',
+        badge: 'View Specs',
+        imageUrl: ''
+      };
+    }
+    const isGovtTender = Boolean(kit.is_govt_tender || kit.tender_name);
+    const eyebrow = (
+      isGovtTender
+        ? (kit.state_name || kit.category_name || 'GOVT TENDER KIT')
+        : (kit.category_name || kit.system_type || kit.project_range || (kit.capacity ? `${kit.capacity} kW SOLAR KIT` : 'SOLAR KIT'))
+    ).toUpperCase();
+    const title = kit.tender_name || kit.name || kit.combo_kit_name || `Solar Kit #${idx + 1}`;
+    const compParts = [];
+    if (kit.brand_name) compParts.push(kit.brand_name);
+    if (kit.system_type) compParts.push(kit.system_type);
+    const baseCount = Array.isArray(kit.base_components_details) ? kit.base_components_details.length : 0;
+    const bosCount = Array.isArray(kit.bos_kits_details) ? kit.bos_kits_details.length : 0;
+    if (baseCount > 0 || bosCount > 0) {
+      compParts.push(`${baseCount} Base + ${bosCount} BOS Items`);
+    }
+    const rawDesc = kit.tender_description || kit.tagline || kit.description || kit.components_summary || compParts.join(' • ');
+    const cleanDesc = String(rawDesc || '').replace(/\s+/g, ' ').trim();
+    const desc = cleanDesc.length > 175 ? `${cleanDesc.slice(0, 172)}...` : cleanDesc;
+    const badge = kit.capacity
+      ? `${kit.capacity} kW${kit.dcr_module_available ? ' DCR' : ''}`
+      : (kit.secondary_badge_text || kit.primary_badge_text || kit.system_type || 'View Specs');
+    const imageUrl =
+      kit.tender_image_url ||
+      kit.kit_image ||
+      kit.image ||
+      (Array.isArray(kit.available_photos) && kit.available_photos[0]?.url) ||
+      '';
+    const ctaUrl = kit.is_govt_tender
+      ? 'https://store.solarkits.in/browse/govt-tender'
+      : 'https://store.solarkits.in/preconfigured-combo-kit';
+    return {
+      kitId: kit.id != null ? String(kit.id) : '',
+      eyebrow,
+      title,
+      desc,
+      badge,
+      imageUrl,
+      ctaUrl,
+      isPdf: false
+    };
+  };
+
+  const findKitForTier = (tier) => {
+    if (!tier) return null;
+    const pool = [...effectiveKitsCatalog, ...selectedKitObjects];
+    if (tier.kitId) {
+      const byId = pool.find((k) => String(k.id) === String(tier.kitId));
+      if (byId) return byId;
+    }
+    const normTitle = String(tier.title || '').trim().toLowerCase();
+    if (normTitle) {
+      const byTitle = pool.find((k) => {
+        const kName = String(k.tender_name || k.name || k.combo_kit_name || '').trim().toLowerCase();
+        return kName && kName === normTitle;
+      });
+      if (byTitle) return byTitle;
+    }
+    return null;
+  };
+
+  // Smooth scroll to an editor section and place cursor inside its primary control
+  const scrollToEditorSection = (anchorId, secId = null) => {
     if (!anchorId) return;
-    const el = document.getElementById(anchorId);
-    if (el) {
+    if (secId) setActiveEditorSectionId(secId);
+
+    const runScrollAndFocus = () => {
+      const el = document.getElementById(anchorId);
+      if (!el) return;
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.classList.add('ring-2', 'ring-blue-500', 'transition-all');
       setTimeout(() => {
         el.classList.remove('ring-2', 'ring-blue-500');
       }, 1500);
+
+      const selector = (secId && SECTION_FOCUS_SELECTOR_MAP[secId]) || '';
+      let targetInput =
+        (selector && document.querySelector(secId === 'banner' ? selector : `#${anchorId} ${selector}`)) ||
+        (selector && el.querySelector(selector)) ||
+        el.querySelector('input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])');
+      if (!targetInput && el.parentElement) {
+        targetInput = el.parentElement.querySelector('input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])');
+      }
+      if (targetInput && typeof targetInput.focus === 'function') {
+        setTimeout(() => {
+          try {
+            targetInput.focus({ preventScroll: true });
+          } catch {
+            targetInput.focus();
+          }
+        }, 180);
+      }
+    };
+
+    if (activeTab !== 'custom') {
+      setActiveTab('custom');
+      setTimeout(runScrollAndFocus, 100);
+    } else {
+      runScrollAndFocus();
     }
+  };
+
+  // Auto-sync Zigzag System Lineup cards with live Kits Configuration / Step 3 purpose-filtered kits
+  // unless the user has manually customized the lineup for this objective.
+  useEffect(() => {
+    const sourceKits =
+      Array.isArray(selectedKitObjects) && selectedKitObjects.length > 0
+        ? selectedKitObjects
+        : effectiveKitsCatalog;
+    if (!Array.isArray(sourceKits) || sourceKits.length === 0) return;
+
+    setFormData((prev) => {
+      const existingCr = prev?.customCreative || {};
+      const objectiveChanged =
+        Boolean(campaignObjective) && existingCr.lastAutoKitObjective !== campaignObjective;
+      if (existingCr.systemTiersCustomized && !objectiveChanged) {
+        return prev;
+      }
+
+      const existingTiers = Array.isArray(existingCr.systemTiers) ? existingCr.systemTiers : [];
+      const isUsingStaticDefaults =
+        existingTiers.length === 0 ||
+        existingTiers.every((t) => !t?.kitId);
+
+      if (!existingCr.systemTiersCustomized || objectiveChanged || isUsingStaticDefaults) {
+        const nextTiers = sourceKits.slice(0, 3).map((kit, idx) => buildTierFromKit(kit, idx));
+        const sameTiers =
+          existingTiers.length === nextTiers.length &&
+          existingTiers.every((t, i) => t?.kitId && t.kitId === nextTiers[i]?.kitId && t.title === nextTiers[i]?.title) &&
+          !objectiveChanged;
+        if (sameTiers) return prev;
+
+        return {
+          ...prev,
+          customCreative: {
+            ...(prev?.customCreative || DEFAULT_EXECUTIVE_CREATIVE),
+            systemTiers: nextTiers,
+            systemTiersCustomized: false,
+            lastAutoKitObjective: campaignObjective || ''
+          }
+        };
+      }
+      return prev;
+    });
+  }, [selectedKitObjects, effectiveKitsCatalog, campaignObjective, setFormData]);
+
+  const handleSyncTiersFromLiveKits = () => {
+    const sourceKits =
+      Array.isArray(selectedKitObjects) && selectedKitObjects.length > 0
+        ? selectedKitObjects
+        : effectiveKitsCatalog;
+    if (!Array.isArray(sourceKits) || sourceKits.length === 0) return;
+    const nextTiers = sourceKits.slice(0, 3).map((kit, idx) => buildTierFromKit(kit, idx));
+    setFormData((prev) => ({
+      ...prev,
+      customCreative: {
+        ...(prev?.customCreative || DEFAULT_EXECUTIVE_CREATIVE),
+        systemTiers: nextTiers,
+        systemTiersCustomized: false,
+        lastAutoKitObjective: campaignObjective || ''
+      }
+    }));
+  };
+
+  const handleSelectKitForTier = (idx, kitId) => {
+    const pickedKit = effectiveKitsCatalog.find((k) => String(k.id) === String(kitId))
+      || selectedKitObjects.find((k) => String(k.id) === String(kitId));
+    setFormData((prev) => {
+      const prevCr = prev?.customCreative || DEFAULT_EXECUTIVE_CREATIVE;
+      const baseTiers =
+        Array.isArray(prevCr.systemTiers) && prevCr.systemTiers.length > 0
+          ? [...prevCr.systemTiers]
+          : DEFAULT_SYSTEM_TIERS.map((t) => ({ ...t }));
+      if (!pickedKit) {
+        baseTiers[idx] = { ...(baseTiers[idx] || {}), kitId: '' };
+      } else {
+        baseTiers[idx] = buildTierFromKit(pickedKit, idx);
+      }
+      return {
+        ...prev,
+        customCreative: {
+          ...prevCr,
+          systemTiers: baseTiers,
+          systemTiersCustomized: true,
+          lastAutoKitObjective: campaignObjective || ''
+        }
+      };
+    });
+  };
+
+  const handleUpdateTierField = (idx, fieldOrPatch, maybeValue) => {
+    const patch = typeof fieldOrPatch === 'object' ? fieldOrPatch : { [fieldOrPatch]: maybeValue };
+    setFormData((prev) => {
+      const prevCr = prev?.customCreative || DEFAULT_EXECUTIVE_CREATIVE;
+      const baseTiers =
+        Array.isArray(prevCr.systemTiers) && prevCr.systemTiers.length > 0
+          ? [...prevCr.systemTiers]
+          : DEFAULT_SYSTEM_TIERS.map((t) => ({ ...t }));
+      baseTiers[idx] = { ...(baseTiers[idx] || {}), ...patch };
+      return {
+        ...prev,
+        customCreative: {
+          ...prevCr,
+          systemTiers: baseTiers,
+          systemTiersCustomized: true
+        }
+      };
+    });
+  };
+
+  const handleAddTierCard = () => {
+    setFormData((prev) => {
+      const prevCr = prev?.customCreative || DEFAULT_EXECUTIVE_CREATIVE;
+      const baseTiers =
+        Array.isArray(prevCr.systemTiers) && prevCr.systemTiers.length > 0
+          ? [...prevCr.systemTiers]
+          : [];
+      const unusedKit = effectiveKitsCatalog.find(
+        (k) => !baseTiers.some((t) => String(t.kitId) === String(k.id))
+      ) || effectiveKitsCatalog[0];
+      const nextCard = buildTierFromKit(unusedKit, baseTiers.length);
+      return {
+        ...prev,
+        customCreative: {
+          ...prevCr,
+          systemTiers: [...baseTiers, nextCard],
+          systemTiersCustomized: true
+        }
+      };
+    });
+  };
+
+  const handleRemoveTierCard = (idx) => {
+    setFormData((prev) => {
+      const prevCr = prev?.customCreative || DEFAULT_EXECUTIVE_CREATIVE;
+      const baseTiers = Array.isArray(prevCr.systemTiers) ? [...prevCr.systemTiers] : [];
+      if (baseTiers.length <= 1) return prev;
+      baseTiers.splice(idx, 1);
+      return {
+        ...prev,
+        customCreative: {
+          ...prevCr,
+          systemTiers: baseTiers,
+          systemTiersCustomized: true
+        }
+      };
+    });
   };
 
   // Selected products to display in the email (defaults to all Step 3 selected kits)
@@ -387,15 +853,15 @@ export default function EmailStudio({
     if (formData.customCreative?.ctaButtons?.length > 0) {
       return formData.customCreative.ctaButtons;
     }
-    const baseCta = formData.ctaText || 'Get SolarKits Pricing Today →';
-    const rawDest = formData.destinationUrl || 'https://solarkits.in/solar-kits';
-    const baseUrl = formData.couponCode
+    const baseCta = formData.ctaText || DEFAULT_EXECUTIVE_CREATIVE.primaryCtaText || 'WhatsApp Quote';
+    const rawDest = formData.destinationUrl || DEFAULT_EXECUTIVE_CREATIVE.destinationUrl || 'https://wa.me/919913421453';
+    const baseUrl = formData.couponCode && !rawDest.includes('wa.me')
       ? `${rawDest}${rawDest.includes('?') ? '&' : '?'}coupon=${formData.couponCode}`
       : rawDest;
 
     return [
-      { id: 'cta_1', text: baseCta, url: baseUrl, variant: 'primary' },
-      { id: 'cta_2', text: '📥 Explore Solar Kits Catalog', url: 'https://solarkits.in/solar-kits', variant: 'secondary' }
+      { id: 'cta_1', text: baseCta, url: baseUrl, isPdf: isPdfDownloadUrl(baseUrl), variant: 'primary' },
+      { id: 'cta_2', text: 'Explore Solar Kits Catalog', url: 'https://store.solarkits.in/preconfigured-combo-kit', isPdf: false, variant: 'secondary' }
     ];
   });
 
@@ -423,18 +889,19 @@ export default function EmailStudio({
     updateCreative({ ctaButtons: updated });
   };
 
-  const handleUpdateCta = (id, field, value) => {
+  const handleUpdateCta = (id, fieldOrPatch, maybeValue) => {
+    const patch = typeof fieldOrPatch === 'object' ? fieldOrPatch : { [fieldOrPatch]: maybeValue };
     const btnIndex = ctaButtons.findIndex((b) => b.id === id);
-    const updated = ctaButtons.map((b) => (b.id === id ? { ...b, [field]: value } : b));
+    const updated = ctaButtons.map((b) => (b.id === id ? { ...b, ...patch } : b));
     setCtaButtons(updated);
     setFormData((prev) => ({
       ...prev,
-      ...(btnIndex === 0 && field === 'text' ? { ctaText: value } : {}),
-      ...(btnIndex === 0 && field === 'url' ? { destinationUrl: value } : {}),
+      ...(btnIndex === 0 && 'text' in patch ? { ctaText: patch.text } : {}),
+      ...(btnIndex === 0 && 'url' in patch ? { destinationUrl: patch.url } : {}),
       customCreative: {
         ...prev.customCreative,
-        ...(btnIndex === 0 && field === 'text' ? { primaryCtaText: value } : {}),
-        ...(btnIndex === 0 && field === 'url' ? { destinationUrl: value } : {}),
+        ...(btnIndex === 0 && 'text' in patch ? { primaryCtaText: patch.text } : {}),
+        ...(btnIndex === 0 && 'url' in patch ? { destinationUrl: patch.url } : {}),
         ctaButtons: updated
       }
     }));
@@ -444,7 +911,16 @@ export default function EmailStudio({
     if (ctaButtons.length <= 1) return;
     const updated = ctaButtons.filter(b => b.id !== id);
     setCtaButtons(updated);
-    updateCreative({ ctaButtons: updated });
+    const first = updated[0];
+    setFormData((prev) => ({
+      ...prev,
+      ...(first ? { ctaText: first.text, destinationUrl: first.url } : {}),
+      customCreative: {
+        ...prev.customCreative,
+        ...(first ? { primaryCtaText: first.text, destinationUrl: first.url } : {}),
+        ctaButtons: updated
+      }
+    }));
   };
 
   // Move CTA button up or down
@@ -456,7 +932,16 @@ export default function EmailStudio({
     updated[index] = updated[targetIndex];
     updated[targetIndex] = temp;
     setCtaButtons(updated);
-    updateCreative({ ctaButtons: updated });
+    const first = updated[0];
+    setFormData((prev) => ({
+      ...prev,
+      ...(first ? { ctaText: first.text, destinationUrl: first.url } : {}),
+      customCreative: {
+        ...prev.customCreative,
+        ...(first ? { primaryCtaText: first.text, destinationUrl: first.url } : {}),
+        ctaButtons: updated
+      }
+    }));
   };
 
   // Custom Template Save & Delete Handlers (Persisted in MongoDB)
@@ -550,33 +1035,37 @@ export default function EmailStudio({
 
   // Filter products for preview
   const previewProducts = useMemo(() => {
-    const pool = allKitsCatalog.length > 0 ? allKitsCatalog : selectedKitObjects;
+    const pool = effectiveKitsCatalog.length > 0 ? effectiveKitsCatalog : selectedKitObjects;
     if (selectedProductIds.length === 0) return selectedKitObjects.slice(0, 2);
     return pool.filter(k => selectedProductIds.includes(k.id));
-  }, [allKitsCatalog, selectedKitObjects, selectedProductIds]);
+  }, [effectiveKitsCatalog, selectedKitObjects, selectedProductIds]);
 
   // Toolbar elements for Email Studio
   const EMAIL_ELEMENTS = [
     { label: 'Heading', icon: Heading1, action: () => updateCreative({ headline: 'Diwali Mega B2B Solar Dhamaka' }) },
-    { label: 'Text', icon: Type, action: () => {} },
+    { label: 'Text', icon: Type, action: () => { } },
     { label: 'Image', icon: ImageIcon, action: () => updateCreative({ mediaType: 'image' }) },
     { label: 'Video', icon: Video, action: () => updateCreative({ mediaType: 'video' }) },
     { label: 'Product', icon: ShoppingBag, action: () => setShowProductModal(true) },
-    { label: 'Catalog', icon: LayoutGrid, action: () => {
-      const allIds = allKitsCatalog.map(k => k.id);
-      setSelectedProductIds(allIds);
-      updateCreative({ selectedProductIds: allIds });
-    }},
-    { label: 'Coupon', icon: Tag, action: () => {
-      setFormData(prev => ({ ...prev, hasCoupon: !prev.hasCoupon }));
-    }},
+    {
+      label: 'Catalog', icon: LayoutGrid, action: () => {
+        const allIds = effectiveKitsCatalog.map(k => k.id);
+        setSelectedProductIds(allIds);
+        updateCreative({ selectedProductIds: allIds });
+      }
+    },
+    {
+      label: 'Coupon', icon: Tag, action: () => {
+        setFormData(prev => ({ ...prev, hasCoupon: !prev.hasCoupon }));
+      }
+    },
     { label: 'CTA Btn', icon: MousePointer, action: handleAddCtaButton },
     { label: 'Link', icon: Link2, action: () => updateCreative({ customBodyText: (creative.customBodyText || '') + ' {{tracking_url}}' }) },
     { label: 'Emoji', icon: Smile, action: () => setShowEmojiPicker(!showEmojiPicker) },
     { label: 'Variable', icon: Variable, action: () => setShowVarDropdown(!showVarDropdown) },
     { label: 'Divider', icon: Minus, action: () => updateCreative({ customBodyText: (creative.customBodyText || '') + '\n\n— — — — — — — — — —\n\n' }) },
-    { label: 'Social', icon: Share2, action: () => {} },
-    { label: 'Footer', icon: AlignLeft, action: () => {} }
+    { label: 'Social', icon: Share2, action: () => { } },
+    { label: 'Footer', icon: AlignLeft, action: () => { } }
   ];
 
   // Dynamic variable resolver for live preview
@@ -603,112 +1092,214 @@ export default function EmailStudio({
     return result;
   };
 
-  // Dynamic preview section renderer respecting activeSectionsOrder
+  // Dynamic preview section renderer respecting activeSectionsOrder (mirrors clean Boss Reference HTML)
   const renderPreviewSection = (sectionId) => {
+    const primaryCol = creative.themeColor || '#1E3A8A';
+    const accentCol = creative.stripColor || '#EA580C';
+    const liveFallbackTiers =
+      (selectedKitObjects.length > 0 ? selectedKitObjects : effectiveKitsCatalog)
+        .slice(0, 3)
+        .map((kit, idx) => buildTierFromKit(kit, idx));
+    const tiers =
+      Array.isArray(creative.systemTiers) && creative.systemTiers.some((t) => t?.kitId || creative.systemTiersCustomized)
+        ? creative.systemTiers
+        : liveFallbackTiers.length > 0
+          ? liveFallbackTiers
+          : (Array.isArray(creative.systemTiers) && creative.systemTiers.length > 0 ? creative.systemTiers : DEFAULT_SYSTEM_TIERS);
+    const metrics = Array.isArray(creative.trustMetrics) && creative.trustMetrics.length > 0 ? creative.trustMetrics : DEFAULT_TRUST_METRICS;
+
     switch (sectionId) {
-      case 'banner':
-        return creative.mediaType === 'image' && creative.heroImageUrl ? (
-          <img
-            key="banner"
-            src={creative.heroImageUrl}
-            alt="Banner"
-            className="w-full h-auto max-h-48 object-cover block"
-          />
-        ) : creative.mediaType === 'video' ? (
-          <div key="banner" className="relative w-full h-36 bg-slate-900 flex items-center justify-center text-white">
-            <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
-              <Play className="w-5 h-5 text-white ml-0.5 fill-white" />
-            </div>
-            <span className="absolute bottom-2 left-3 text-[10px] font-bold bg-black/70 px-2 py-0.5 rounded-md">
-              {creative.videoUrl ? 'Explainer Video Linked' : 'Add Video URL Above'}
-            </span>
-          </div>
-        ) : (
-          <div
-            key="banner"
-            className="p-5 text-center text-white"
-            style={{
-              background: `linear-gradient(135deg, #1e2d66 0%, ${creative.themeColor || '#263880'} 60%, #3a56c9 100%)`
-            }}
-          >
-            <div className="inline-block bg-white px-3 py-1 rounded-full mb-2.5 shadow-xs border-l-4" style={{ borderColor: creative.accentColor || '#f59e0b' }}>
-              <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: creative.themeColor || '#263880' }}>
-                ⚡ {creative.headerTagline || 'SOLARKITS B2B NETWORK'}
-              </span>
-            </div>
-            <h3 className="text-lg font-black leading-tight tracking-tight text-white mb-1.5">
-              {creative.headline || "DON'T JUST SELL SOLAR. SELL COMPLETE BACKUP."}
+      case 'banner': {
+        const posterImg = creative.videoPosterUrl || '';
+        const heroImg = creative.heroImageUrl || '';
+        return (
+          <div key="banner" className="bg-white text-center px-4 pt-2 pb-1">
+            <h3 className="text-[15px] font-bold leading-snug mb-1" style={{ color: primaryCol }}>
+              {creative.headline || 'Three Systems. One Platform. Built for every solar load.'}
             </h3>
-            <p className="text-[11px] text-slate-200 line-clamp-2 max-w-xs mx-auto mb-3">
-              {creative.subheading || 'Tier-1 ALMM Modules + High-Efficiency Inverters + Pre-Engineered Structure in One Single Dispatch.'}
-            </p>
-            <div className="flex items-center justify-center gap-1.5 flex-wrap">
-              {(creative.valuePills || ['1. Add Backup to Quotes', '2. Higher Ticket Size', '3. Depot Support']).map((pill, i) => (
-                <span key={i} className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-white/15 border border-white/20 text-white">
-                  {pill}
-                </span>
-              ))}
-            </div>
+            {creative.subheading && (
+              <p className="text-[10.5px] text-slate-500 max-w-xs mx-auto mb-2.5 leading-snug">
+                {creative.subheading}
+              </p>
+            )}
+            {creative.mediaType === 'video' ? (
+              <div className="space-y-2 pb-1">
+                {posterImg ? (
+                  <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-white">
+                    <img src={posterImg} alt="Explainer Video Preview" className="w-full h-auto block" />
+                    <span className="absolute bottom-2 right-2 bg-slate-900/80 text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Play className="w-2.5 h-2.5 fill-white" /> Video Link
+                    </span>
+                  </div>
+                ) : (
+                  <div className="py-5 px-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 text-[10px] font-semibold text-slate-500">
+                    Upload Video / Poster GIF in Hero Section to preview
+                  </div>
+                )}
+                {creative.videoUrl && (
+                  <span className="inline-block px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold" style={{ color: primaryCol }}>
+                    ▶ Watch Full Explainer Video
+                  </span>
+                )}
+              </div>
+            ) : heroImg ? (
+              <img
+                src={heroImg}
+                alt={creative.headline || 'SolarKits Hero Visual'}
+                className="w-full h-auto block rounded-md"
+              />
+            ) : (
+              <div className="py-5 px-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 text-[10px] font-semibold text-slate-500">
+                Upload Hero Photo / GIF in Hero Section below
+              </div>
+            )}
           </div>
         );
+      }
 
       case 'pitch':
         return (
-          <div key="pitch" className="p-4 space-y-2 text-center">
-            <span className="text-[10px] font-extrabold tracking-widest uppercase block mb-1" style={{ color: creative.stripColor || '#ea580c' }}>
-              {creative.categoryTag || 'B2B WHOLESALE KITS BY SOLARKITS'}
-            </span>
-            <h4 className="text-base font-black leading-snug" style={{ color: creative.themeColor || '#263880' }}>
-              {creative.h1Title || 'Solar EPCs, this one is for you.'}
-            </h4>
-            <p className="text-xs text-slate-600 mt-2 leading-relaxed text-center whitespace-pre-line">
+          <div key="pitch" className="px-5 py-3 text-center bg-white">
+            {creative.categoryTag && (
+              <span className="text-[9.5px] font-bold tracking-widest uppercase block mb-1" style={{ color: accentCol }}>
+                {creative.categoryTag}
+              </span>
+            )}
+            <p className="text-[11px] text-[#666666] leading-relaxed text-center whitespace-pre-line">
               {getSubstitutedText(creative.customBodyText)}
             </p>
+            {creative.h1Title && (
+              <p className="text-[11.5px] font-semibold mt-2.5" style={{ color: primaryCol }}>
+                {creative.h1Title}
+              </p>
+            )}
           </div>
         );
 
-      case 'primary_cta':
+      case 'primary_cta': {
+        const firstBtn = ctaButtons[0];
         return (
-          <div key="primary_cta" className="p-3 text-center">
+          <div key="primary_cta" className="py-2.5 px-4 text-center bg-white">
             <a
-              href={formData.destinationUrl || '#'}
+              href={firstBtn?.url || formData.destinationUrl || '#'}
               onClick={(e) => e.preventDefault()}
-              className="inline-block py-2.5 px-6 rounded-lg font-extrabold text-xs text-white shadow-md transition-transform hover:scale-[1.02]"
-              style={{ backgroundColor: creative.themeColor || '#263880' }}
+              className="inline-block py-2 px-6 rounded font-bold text-[11.5px] text-white shadow-xs transition-transform hover:scale-[1.02]"
+              style={{ backgroundColor: primaryCol }}
             >
-              {formData.ctaText || 'Get SolarKits Pricing Today →'}
+              {firstBtn?.text || formData.ctaText || creative.primaryCtaText || 'WhatsApp Quote'}
             </a>
+          </div>
+        );
+      }
+
+      case 'system_showcase':
+        return (
+          <div key="system_showcase" className="px-4 py-3 bg-white space-y-2.5">
+            <div className="text-center pb-1">
+              <h4 className="text-[14px] font-bold" style={{ color: primaryCol }}>
+                {creative.showcaseHeading || 'Find your kit.'}
+              </h4>
+              <p className="text-[10.5px] text-slate-500 mt-0.5">
+                {creative.showcaseSubheading || 'From residential rooftops to commercial & industrial plants.'}
+              </p>
+            </div>
+            <div className="divide-y divide-slate-200/80">
+              {tiers.map((tier, idx) => {
+                const isImgRight = idx % 2 === 0;
+                const textEl = (
+                  <div className="space-y-1 text-left">
+                    <span className="text-[8.5px] font-bold uppercase tracking-widest block" style={{ color: primaryCol }}>
+                      {tier.eyebrow}
+                    </span>
+                    <div className="text-[13px] font-bold text-slate-800 leading-tight">{tier.title}</div>
+                    <p className="text-[10px] text-slate-600 leading-snug">{tier.desc}</p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span
+                        className="inline-block px-2.5 py-1 rounded text-[9.5px] font-bold text-white"
+                        style={{ backgroundColor: primaryCol }}
+                      >
+                        {tier.badge}
+                      </span>
+                      {(() => {
+                        const matchedPreviewKit = findKitForTier(tier);
+                        if (!matchedPreviewKit) return null;
+                        return (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setViewingKitDetail(matchedPreviewKit);
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[9px] font-bold border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                            title="View Full Components, BOS Kits & Technical Specs"
+                          >
+                            <Eye className="w-2.5 h-2.5" />
+                            View Components &amp; Specs
+                          </button>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                );
+                const imgEl = tier.imageUrl ? (
+                  <img
+                    src={tier.imageUrl}
+                    alt={tier.title}
+                    className="w-full h-auto object-contain block rounded"
+                  />
+                ) : (
+                  <div className="py-5 px-2 rounded border border-dashed border-slate-300 bg-slate-50 text-center text-[9.5px] font-semibold text-slate-400">
+                    Upload Card #{idx + 1} Image
+                  </div>
+                );
+                return (
+                  <div key={idx} className="grid grid-cols-2 gap-2.5 items-center py-2.5">
+                    {isImgRight ? (
+                      <>
+                        {textEl}
+                        {imgEl}
+                      </>
+                    ) : (
+                      <>
+                        {imgEl}
+                        {textEl}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
 
       case 'products':
         if (previewProducts.length === 0) return null;
         return (
-          <div key="products" className="p-4 space-y-2 text-left pt-2">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+          <div key="products" className="p-4 space-y-2 text-left pt-2 bg-white">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider" style={{ color: primaryCol }}>
               <span>Featured Solar Kits ({previewProducts.length})</span>
-              <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded font-bold">
+              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold">
                 {activeWarehouseName}
               </span>
             </div>
             {previewProducts.map((k) => {
               const livePrice = Number(k.base_price || k.selling_price_cached || k.defaultPrice || k.price || 0);
               return (
-              <div key={k.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between font-bold text-slate-900">
-                  <span>{k.name}</span>
-                  <span className="text-blue-600 font-extrabold">
-                    {livePrice > 0 ? `₹${livePrice.toLocaleString('en-IN')} / kit` : 'Quote on Request'}
-                  </span>
+                <div key={k.id} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1 text-xs">
+                  <div className="flex items-center justify-between font-bold text-slate-900">
+                    <span className="text-[11px]">{k.name}</span>
+                    <span className="font-extrabold text-[11px]" style={{ color: primaryCol }}>
+                      {livePrice > 0 ? `₹${livePrice.toLocaleString('en-IN')}` : 'Quote on Request'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 line-clamp-2">
+                    {k.components_summary || k.sub_title}
+                  </p>
+                  <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1 border-t border-slate-200/60">
+                    <span>MOQ: {formData.kitMoqs?.[k.id] ?? k.moq ?? formData.minOrderQty ?? 25} Kits</span>
+                    <span className="text-emerald-600 font-bold">24-Hr Dispatch</span>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-500 line-clamp-2">
-                  {k.components_summary || k.sub_title}
-                </p>
-                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-200/60">
-                  <span>• 12-Yr Warranty • MOQ: {formData.kitMoqs?.[k.id] ?? k.moq ?? formData.minOrderQty ?? 25} Kits</span>
-                  <span className="text-emerald-600 font-bold">Fast Dispatch</span>
-                </div>
-              </div>
               );
             })}
           </div>
@@ -717,79 +1308,117 @@ export default function EmailStudio({
       case 'coupon':
         if (!formData.hasCoupon) return null;
         return (
-          <div key="coupon" className="p-4 pt-1">
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between text-left">
-              <div>
-                <span className="text-[9px] uppercase font-bold text-amber-700">Promo Voucher</span>
-                <p className="text-sm font-black font-mono text-amber-900">
-                  {formData.couponCode || 'COUPON_CODE'}
-                </p>
-                <span className="text-[10px] text-amber-800 block">
-                  Valid on Orders ≥ {formData.minOrderQty || 1} Kits in Solar Shop
-                </span>
-              </div>
-              <span className="text-xs font-bold text-amber-800 bg-amber-200/80 px-2.5 py-1 rounded-lg">
-                {dynamicDiscountStr}
+          <div key="coupon" className="px-4 py-2 bg-white">
+            <div className="p-2.5 rounded-lg bg-amber-50/70 border border-dashed text-center" style={{ borderColor: accentCol }}>
+              <span className="text-[9px] uppercase font-bold block" style={{ color: accentCol }}>Partner Wholesale Voucher</span>
+              <p className="text-sm font-black font-mono text-slate-900 my-0.5">
+                {formData.couponCode || 'COUPON_CODE'}
+              </p>
+              <span className="text-[10px] text-slate-600 font-semibold block">
+                Save {dynamicDiscountStr} • Min {formData.minOrderQty || 1} Kits
               </span>
             </div>
           </div>
         );
 
+      case 'intelligence':
+        return (
+          <div key="intelligence" className="px-4 py-3 text-center bg-white space-y-2">
+            <h4 className="text-[13px] font-bold leading-snug" style={{ color: primaryCol }}>
+              {creative.intelligenceHeading || 'Intelligence That Makes Solar Deployment Faster.'}
+            </h4>
+            <p className="text-[10.5px] text-slate-600 leading-relaxed">
+              {creative.intelligenceText || DEFAULT_EXECUTIVE_CREATIVE.intelligenceText}
+            </p>
+            {creative.intelligenceImageUrl ? (
+              <img
+                src={creative.intelligenceImageUrl}
+                alt="SolarKits Portal & Mobile App"
+                className="w-full h-auto block rounded"
+              />
+            ) : (
+              <div className="py-4 px-3 rounded border border-dashed border-slate-300 bg-slate-50 text-[10px] font-semibold text-slate-400">
+                Upload Portal / Phone GIF in Intelligence section below
+              </div>
+            )}
+          </div>
+        );
+
       case 'benefit_cards':
         return (
-          <div key="benefit_cards" className="p-4 space-y-2.5 text-left pt-2">
-            {(creative.bulletPoints || []).map((pt, i) => {
-              const str = String(pt);
-              const hasColon = str.includes(':');
-              const title = hasColon ? str.split(':')[0].trim() : `Feature Point ${i + 1}`;
-              const desc = hasColon ? str.split(':').slice(1).join(':').trim() : str;
-              const borderCol = i % 2 === 0 ? (creative.themeColor || '#263880') : (creative.accentColor || '#f59e0b');
-
-              return (
-                <div
-                  key={i}
-                  className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200/80 dark:border-slate-700 shadow-2xs"
-                  style={{ borderLeft: `4px solid ${borderCol}` }}
-                >
-                  <div className="text-xs font-extrabold" style={{ color: creative.themeColor || '#263880' }}>
-                    {title}
+          <div key="benefit_cards" className="px-3 py-2.5 bg-white space-y-2">
+            {metrics.length > 0 && (
+              <div className="grid grid-cols-3 gap-1.5">
+                {metrics.slice(0, 3).map((m, idx) => (
+                  <div key={idx} className="p-2.5 rounded-lg text-white text-left" style={{ backgroundColor: primaryCol }}>
+                    <div className="text-[12px] font-extrabold leading-tight">{m.value}</div>
+                    <div className="text-[8.5px] text-slate-200 mt-1 leading-tight">{m.label}</div>
                   </div>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-snug">
-                    {desc}
-                  </p>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            )}
+            {(creative.bulletPoints || []).length > 0 && (
+              <div className="space-y-1.5 pt-1 text-left">
+                {(creative.bulletPoints || []).map((pt, i) => {
+                  const str = String(pt);
+                  const hasColon = str.includes(':');
+                  const title = hasColon ? str.split(':')[0].trim() : `Highlight ${i + 1}`;
+                  const desc = hasColon ? str.split(':').slice(1).join(':').trim() : str;
+                  return (
+                    <div
+                      key={i}
+                      className="p-2.5 bg-slate-50 rounded-md border border-slate-200"
+                      style={{ borderLeft: `3px solid ${i % 2 === 0 ? primaryCol : accentCol}` }}
+                    >
+                      <div className="text-[11px] font-bold" style={{ color: primaryCol }}>{title}</div>
+                      <p className="text-[10px] text-slate-600 mt-0.5 leading-snug">{desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
 
       case 'closing_pitch':
         return (
-          <div key="closing_pitch" className="p-4 pt-2 text-center space-y-2">
-            <p className="text-xs font-extrabold" style={{ color: creative.themeColor || '#263880' }}>
-              {creative.closingPitch || 'Sell complete solar power, not just panels. Choose SolarKits.'}
-            </p>
-            <a
-              href={formData.destinationUrl || '#'}
-              onClick={(e) => e.preventDefault()}
-              className="inline-block py-2 px-5 rounded-lg font-bold text-xs text-white shadow-xs"
-              style={{ backgroundColor: creative.stripColor || '#ea580c' }}
-            >
-              {creative.secondaryCtaText || 'Explore Wholesale Solar Kits →'}
-            </a>
+          <div key="closing_pitch" className="px-4 py-3 text-center bg-white space-y-2">
+            {creative.closingPitch && (
+              <p className="text-[11.5px] font-bold" style={{ color: primaryCol }}>
+                {creative.closingPitch}
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-2.5 max-w-[300px] mx-auto">
+              <a
+                href={creative.primaryDualCtaUrl || formData.destinationUrl || '#'}
+                onClick={(e) => e.preventDefault()}
+                className="py-2 px-2 rounded text-[10.5px] font-bold text-white text-center truncate"
+                style={{ backgroundColor: primaryCol }}
+              >
+                {creative.primaryDualCtaText || 'Download Datasheet'}
+              </a>
+              <a
+                href={creative.secondaryCtaUrl || creative.contactWebsite || formData.destinationUrl || '#'}
+                onClick={(e) => e.preventDefault()}
+                className="py-2 px-2 rounded text-[10.5px] font-bold text-white text-center truncate"
+                style={{ backgroundColor: accentCol }}
+              >
+                {creative.secondaryCtaText || 'Visit our Website'}
+              </a>
+            </div>
           </div>
         );
 
       case 'custom_ctas':
         if (ctaButtons.length <= 1) return null;
         return (
-          <div key="custom_ctas" className="p-4 pt-1 space-y-1.5">
+          <div key="custom_ctas" className="px-4 py-2 space-y-1.5 bg-white">
             {ctaButtons.slice(1).map((btn) => (
               <a
                 key={btn.id}
                 href={btn.url || '#'}
                 onClick={(e) => e.preventDefault()}
-                className="w-full py-2 px-3 rounded-lg text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center gap-1.5"
+                className="w-full py-1.5 px-3 rounded text-[11px] font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center gap-1.5"
               >
                 <span>{btn.text}</span>
                 <ExternalLink className="w-3 h-3" />
@@ -811,22 +1440,20 @@ export default function EmailStudio({
           <button
             type="button"
             onClick={() => setActiveTab('custom')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'custom'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'custom'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
           >
             ✏️ Design Custom Email
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('template')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'template'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'template'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
           >
             📋 Use Saved Template
             {savedCustomTemplates.length > 0 && (
@@ -849,22 +1476,24 @@ export default function EmailStudio({
           <button
             type="button"
             onClick={() => {
+              const flagship = PURPOSE_BASED_PRESETS[0];
               setFormData(prev => ({
                 ...prev,
-                emailSubject: 'Solar EPCs, this one is for you - SolarKits B2B Wholesale Pricing',
-                emailPreviewText: "Quote solar plus battery backup in one system. Don't just sell solar, sell complete backup.",
-                ctaText: 'Get SolarKits Pricing Today →',
-                destinationUrl: 'https://solarkits.in/solar-kits',
+                emailSubject: flagship.emailSubject,
+                emailPreviewText: flagship.emailPreviewText,
+                ctaText: flagship.primaryCtaText,
+                destinationUrl: 'https://wa.me/919913421453',
                 customCreative: {
-                  ...DEFAULT_EXECUTIVE_CREATIVE
+                  ...DEFAULT_EXECUTIVE_CREATIVE,
+                  ...flagship
                 }
               }));
               setActiveTab('custom');
             }}
-            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-700 via-indigo-600 to-amber-600 text-white text-xs font-extrabold shadow-xs hover:shadow-md flex items-center gap-1.5 cursor-pointer transition-all hover:scale-[1.02]"
+            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-teal-700 via-blue-700 to-indigo-700 text-white text-xs font-extrabold shadow-xs hover:shadow-md flex items-center gap-1.5 cursor-pointer transition-all hover:scale-[1.02]"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Load Boss / Qbits Style Preset</span>
+            <span>Load Boss Reference Layout</span>
           </button>
         </div>
 
@@ -873,22 +1502,20 @@ export default function EmailStudio({
           <button
             type="button"
             onClick={() => setPreviewDevice('desktop')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              previewDevice === 'desktop'
-                ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${previewDevice === 'desktop'
+              ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+              }`}
           >
             <Monitor className="w-3.5 h-3.5" /> Desktop
           </button>
           <button
             type="button"
             onClick={() => setPreviewDevice('mobile')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              previewDevice === 'mobile'
-                ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${previewDevice === 'mobile'
+              ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+              }`}
           >
             <Smartphone className="w-3.5 h-3.5" /> Mobile
           </button>
@@ -907,7 +1534,7 @@ export default function EmailStudio({
           <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">5 Commercial Presets</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 pt-1">
           {PURPOSE_BASED_PRESETS.map((pst) => (
             <button
               key={pst.id}
@@ -915,33 +1542,57 @@ export default function EmailStudio({
               onClick={() => {
                 setFormData(prev => ({
                   ...prev,
-                  emailSubject: pst.h1Title ? `${pst.h1Title} - SolarKits B2B Pricing` : prev.emailSubject,
-                  emailPreviewText: pst.subheading || prev.emailPreviewText,
+                  emailSubject: pst.emailSubject || prev.emailSubject,
+                  emailPreviewText: pst.emailPreviewText || pst.subheading || prev.emailPreviewText,
                   ctaText: pst.primaryCtaText || prev.ctaText,
                   customCreative: {
                     ...DEFAULT_EXECUTIVE_CREATIVE,
+                    themeColor: pst.themeColor || DEFAULT_EXECUTIVE_CREATIVE.themeColor,
+                    accentColor: pst.accentColor || DEFAULT_EXECUTIVE_CREATIVE.accentColor,
+                    stripColor: pst.stripColor || DEFAULT_EXECUTIVE_CREATIVE.stripColor,
                     headline: pst.headline,
                     subheading: pst.subheading,
-                    categoryTag: pst.categoryTag,
+                    categoryTag: pst.categoryTag ?? '',
                     h1Title: pst.h1Title,
                     customBodyText: pst.customBodyText,
                     primaryCtaText: pst.primaryCtaText,
-                    valuePills: pst.valuePills || DEFAULT_EXECUTIVE_CREATIVE.valuePills,
-                    bulletPoints: pst.bulletPoints || DEFAULT_EXECUTIVE_CREATIVE.bulletPoints,
-                    closingPitch: pst.closingPitch || DEFAULT_EXECUTIVE_CREATIVE.closingPitch,
-                    secondaryCtaText: pst.secondaryCtaText || DEFAULT_EXECUTIVE_CREATIVE.secondaryCtaText
+                    mediaType: pst.mediaType || 'image',
+                    heroImageUrl: creative.heroImageUrl || pst.heroImageUrl || DEFAULT_HERO_BANNER_URL,
+                    intelligenceImageUrl: creative.intelligenceImageUrl || pst.intelligenceImageUrl || '',
+                    showcaseHeading: pst.showcaseHeading || DEFAULT_EXECUTIVE_CREATIVE.showcaseHeading,
+                    showcaseSubheading: pst.showcaseSubheading || DEFAULT_EXECUTIVE_CREATIVE.showcaseSubheading,
+                    systemTiers: (
+                      Array.isArray(creative.systemTiers) && creative.systemTiers.some((t) => t?.kitId)
+                        ? creative.systemTiers
+                        : (selectedKitObjects.length > 0 || effectiveKitsCatalog.length > 0
+                          ? (selectedKitObjects.length > 0 ? selectedKitObjects : effectiveKitsCatalog).slice(0, 3).map((k, idx) => buildTierFromKit(k, idx))
+                          : (pst.systemTiers || DEFAULT_SYSTEM_TIERS).map((t, i) => ({
+                            ...t,
+                            imageUrl: creative.systemTiers?.[i]?.imageUrl || t.imageUrl || ''
+                          })))
+                    ),
+                    intelligenceHeading: pst.intelligenceHeading || DEFAULT_EXECUTIVE_CREATIVE.intelligenceHeading,
+                    intelligenceText: pst.intelligenceText || DEFAULT_EXECUTIVE_CREATIVE.intelligenceText,
+                    trustMetrics: pst.trustMetrics || DEFAULT_TRUST_METRICS,
+                    primaryDualCtaText: pst.primaryDualCtaText || DEFAULT_EXECUTIVE_CREATIVE.primaryDualCtaText,
+                    secondaryCtaText: pst.secondaryCtaText || DEFAULT_EXECUTIVE_CREATIVE.secondaryCtaText,
+                    bulletPoints: pst.bulletPoints || []
                   }
                 }));
                 setActiveTab('custom');
               }}
               className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-left transition-all hover:scale-[1.02] cursor-pointer group"
             >
-              <div className="text-[11px] font-extrabold text-white truncate group-hover:text-amber-300">
-                {pst.label}
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[11px] font-extrabold text-white truncate group-hover:text-amber-300">
+                  {pst.label}
+                </span>
               </div>
-              <p className="text-[9px] text-slate-300 line-clamp-2 mt-1 leading-snug">
-                {pst.headline}
-              </p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="w-2.5 h-2.5 rounded-full border border-white/40" style={{ backgroundColor: pst.themeColor || '#1E3A8A' }} />
+                <span className="w-2.5 h-2.5 rounded-full border border-white/40" style={{ backgroundColor: pst.stripColor || '#EA580C' }} />
+                <span className="text-[9px] text-slate-300 truncate">{pst.badge || pst.purpose}</span>
+              </div>
             </button>
           ))}
         </div>
@@ -1020,7 +1671,7 @@ export default function EmailStudio({
           {activeTab === 'template' ? (
             /* Saved Templates Selector */
             <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
-              
+
               {/* User Saved Custom Templates Section */}
               {savedCustomTemplates.length > 0 && (
                 <div className="space-y-3 pb-3 border-b border-slate-100 dark:border-slate-700">
@@ -1177,17 +1828,29 @@ export default function EmailStudio({
                   </div>
                 </div>
 
-                {/* Logo Tagline, Helpline & Website */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Logo Tagline, Email, Helpline & Website */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1 uppercase">
-                      Header Brand Tagline
+                      Footer / Contact Email
                     </label>
                     <input
                       type="text"
-                      value={creative.headerTagline || 'B2B SOLAR KITS STORE'}
+                      value={creative.contactEmail ?? 'support@solarkits.in'}
+                      onChange={(e) => updateCreative({ contactEmail: e.target.value })}
+                      placeholder="support@solarkits.in"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1 uppercase">
+                      Header Subtitle (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={creative.headerTagline ?? ''}
                       onChange={(e) => updateCreative({ headerTagline: e.target.value })}
-                      placeholder="B2B SOLAR KITS STORE"
+                      placeholder="Leave blank for clean Unity-style header"
                       className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold"
                     />
                   </div>
@@ -1217,33 +1880,54 @@ export default function EmailStudio({
                   </div>
                 </div>
 
-                {/* Brand Colors */}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700 text-xs">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase">Executive Brand Styling Colors</span>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5" title="Primary Theme (Deep Blue)">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase">Blue:</span>
+                {/* 1-Click Harmonious Color Palettes + Fine-tune Pickers */}
+                <div className="pt-2.5 border-t border-slate-100 dark:border-slate-700 space-y-2.5 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase">Color Combination Themes</span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {COLOR_PALETTES.map((pal) => (
+                        <button
+                          key={pal.id}
+                          type="button"
+                          onClick={() => updateCreative({
+                            themeColor: pal.themeColor,
+                            accentColor: pal.accentColor,
+                            stripColor: pal.stripColor
+                          })}
+                          className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:border-blue-400 text-[10px] font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                          title={pal.name}
+                        >
+                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: pal.themeColor }} />
+                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: pal.stripColor }} />
+                          <span className="text-slate-700 dark:text-slate-200">{pal.name.split(' ')[0]} {pal.name.split(' ')[1]}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-4">
+                    <div className="flex items-center gap-1.5" title="Primary Brand Color">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Primary:</span>
                       <input
                         type="color"
-                        value={creative.themeColor || '#263880'}
+                        value={creative.themeColor || '#1E3A8A'}
                         onChange={(e) => updateCreative({ themeColor: e.target.value })}
                         className="w-6 h-6 p-0.5 rounded-lg border border-slate-200 cursor-pointer"
                       />
                     </div>
-                    <div className="flex items-center gap-1.5" title="Sunburst Accent (Amber)">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase">Amber:</span>
+                    <div className="flex items-center gap-1.5" title="Secondary / Highlight Accent">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Highlight:</span>
                       <input
                         type="color"
-                        value={creative.accentColor || '#f59e0b'}
+                        value={creative.accentColor || '#F59E0B'}
                         onChange={(e) => updateCreative({ accentColor: e.target.value })}
                         className="w-6 h-6 p-0.5 rounded-lg border border-slate-200 cursor-pointer"
                       />
                     </div>
-                    <div className="flex items-center gap-1.5" title="Contact Strip (Orange)">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase">Strip:</span>
+                    <div className="flex items-center gap-1.5" title="Secondary CTA Button Color">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Action:</span>
                       <input
                         type="color"
-                        value={creative.stripColor || '#ea580c'}
+                        value={creative.stripColor || '#EA580C'}
                         onChange={(e) => updateCreative({ stripColor: e.target.value })}
                         className="w-6 h-6 p-0.5 rounded-lg border border-slate-200 cursor-pointer"
                       />
@@ -1341,11 +2025,10 @@ export default function EmailStudio({
                         <button
                           type="button"
                           onClick={() => setOrderViewMode('flow')}
-                          className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                            orderViewMode === 'flow'
-                              ? 'bg-blue-600 text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-300 hover:text-blue-600'
-                          }`}
+                          className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${orderViewMode === 'flow'
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-300 hover:text-blue-600'
+                            }`}
                           title="Vertical Flow List (Matches Email Structure)"
                         >
                           <LayoutList className="w-3 h-3" /> Flow List
@@ -1353,11 +2036,10 @@ export default function EmailStudio({
                         <button
                           type="button"
                           onClick={() => setOrderViewMode('compact')}
-                          className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                            orderViewMode === 'compact'
-                              ? 'bg-blue-600 text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-300 hover:text-blue-600'
-                          }`}
+                          className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${orderViewMode === 'compact'
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-300 hover:text-blue-600'
+                            }`}
                           title="Compact Cards View"
                         >
                           <LayoutGrid className="w-3 h-3" /> Compact Cards
@@ -1479,20 +2161,23 @@ export default function EmailStudio({
                               onDragEnd={handleDragEnd}
                               onMouseEnter={() => setHoveredSectionId(secId)}
                               onMouseLeave={() => setHoveredSectionId(null)}
-                              className={`p-2.5 rounded-xl border transition-all duration-150 flex items-center justify-between gap-2.5 bg-white dark:bg-slate-800 shadow-2xs ${
-                                isDragging
-                                  ? 'opacity-40 border-dashed border-blue-500 scale-[0.98]'
-                                  : isDragOver
+                              onClick={() => scrollToEditorSection(meta.editorAnchor, secId)}
+                              className={`p-2.5 rounded-xl border transition-all duration-150 flex items-center justify-between gap-2.5 bg-white dark:bg-slate-800 shadow-2xs cursor-pointer ${isDragging
+                                ? 'opacity-40 border-dashed border-blue-500 scale-[0.98]'
+                                : isDragOver
                                   ? 'border-2 border-blue-500 bg-blue-50/70 dark:bg-blue-950/50 shadow-md ring-2 ring-blue-400/40'
-                                  : isHovered
-                                  ? 'border-blue-300 dark:border-blue-600 shadow-xs ring-1 ring-blue-300/30'
-                                  : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                              }`}
+                                  : activeEditorSectionId === secId
+                                    ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-50/30 dark:bg-blue-950/30'
+                                    : isHovered
+                                      ? 'border-blue-300 dark:border-blue-600 shadow-xs ring-1 ring-blue-300/30'
+                                      : 'border-slate-200 dark:border-slate-700 hover:border-blue-300'
+                                }`}
                             >
                               {/* Left: Drag Grip Handle & Position Badge & Icon & Title */}
                               <div className="flex items-center gap-2.5 min-w-0">
                                 {/* Drag Handle */}
                                 <div
+                                  onClick={(e) => e.stopPropagation()}
                                   className="cursor-grab active:cursor-grabbing p-1 text-slate-400 hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-400 shrink-0 touch-none"
                                   title="Click & drag to reposition anywhere"
                                 >
@@ -1540,12 +2225,16 @@ export default function EmailStudio({
                               {/* Right: Position Selector Dropdown & Up/Down Arrows & Jump to Edit */}
                               <div className="flex items-center gap-1.5 shrink-0">
                                 {/* Direct Position Selector Dropdown */}
-                                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/60 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-600">
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/60 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-600"
+                                >
                                   <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 hidden sm:inline">
                                     Pos:
                                   </span>
                                   <select
                                     value={idx}
+                                    onClick={(e) => e.stopPropagation()}
                                     onChange={(e) => handleMoveToPosition(secId, Number(e.target.value))}
                                     className="text-[11px] font-black text-slate-800 dark:text-slate-200 bg-transparent border-none cursor-pointer focus:outline-none"
                                     title="Directly select desired position (#1 to #8)"
@@ -1563,7 +2252,10 @@ export default function EmailStudio({
                                   <button
                                     type="button"
                                     disabled={idx === 0}
-                                    onClick={() => handleMoveSection(secId, 'up')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMoveSection(secId, 'up');
+                                    }}
                                     className="p-1 rounded hover:bg-white dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
                                     title="Move 1 step Up"
                                   >
@@ -1572,7 +2264,10 @@ export default function EmailStudio({
                                   <button
                                     type="button"
                                     disabled={idx === activeSectionsOrder.length - 1}
-                                    onClick={() => handleMoveSection(secId, 'down')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMoveSection(secId, 'down');
+                                    }}
                                     className="p-1 rounded hover:bg-white dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
                                     title="Move 1 step Down"
                                   >
@@ -1585,7 +2280,10 @@ export default function EmailStudio({
                                   <button
                                     type="button"
                                     disabled={idx === 0}
-                                    onClick={() => handleMoveToExtreme(secId, 'top')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMoveToExtreme(secId, 'top');
+                                    }}
                                     className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
                                     title="Move directly to very Top"
                                   >
@@ -1594,7 +2292,10 @@ export default function EmailStudio({
                                   <button
                                     type="button"
                                     disabled={idx === activeSectionsOrder.length - 1}
-                                    onClick={() => handleMoveToExtreme(secId, 'bottom')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMoveToExtreme(secId, 'bottom');
+                                    }}
                                     className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
                                     title="Move directly to very Bottom"
                                   >
@@ -1606,7 +2307,10 @@ export default function EmailStudio({
                                 {meta.editorAnchor && (
                                   <button
                                     type="button"
-                                    onClick={() => scrollToEditorSection(meta.editorAnchor)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      scrollToEditorSection(meta.editorAnchor, secId);
+                                    }}
                                     className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-slate-500 hover:text-blue-600 cursor-pointer transition-colors"
                                     title="Jump to edit this section below"
                                   >
@@ -1667,17 +2371,22 @@ export default function EmailStudio({
                             onDragEnd={handleDragEnd}
                             onMouseEnter={() => setHoveredSectionId(secId)}
                             onMouseLeave={() => setHoveredSectionId(null)}
-                            className={`p-2.5 rounded-xl border bg-white dark:bg-slate-800 shadow-2xs space-y-2 transition-all ${
-                              isDragging
-                                ? 'opacity-40 border-dashed border-blue-500'
-                                : isDragOver
+                            onClick={() => scrollToEditorSection(meta.editorAnchor, secId)}
+                            className={`p-2.5 rounded-xl border bg-white dark:bg-slate-800 shadow-2xs space-y-2 transition-all cursor-pointer ${isDragging
+                              ? 'opacity-40 border-dashed border-blue-500'
+                              : isDragOver
                                 ? 'border-2 border-blue-500 bg-blue-50/70 dark:bg-blue-950/50'
-                                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                            }`}
+                                : activeEditorSectionId === secId
+                                  ? 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-50/30 dark:bg-blue-950/30'
+                                  : 'border-slate-200 dark:border-slate-700 hover:border-blue-300'
+                              }`}
                           >
                             <div className="flex items-center justify-between gap-1">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-blue-600">
+                                <span
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-blue-600"
+                                >
                                   <GripVertical className="w-3.5 h-3.5" />
                                 </span>
                                 <span className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
@@ -1690,6 +2399,7 @@ export default function EmailStudio({
                               {/* Position selector */}
                               <select
                                 value={idx}
+                                onClick={(e) => e.stopPropagation()}
                                 onChange={(e) => handleMoveToPosition(secId, Number(e.target.value))}
                                 className="text-[10px] font-bold py-0.5 px-1 rounded bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 cursor-pointer"
                                 title="Change position"
@@ -1717,7 +2427,10 @@ export default function EmailStudio({
                                 <button
                                   type="button"
                                   disabled={idx === 0}
-                                  onClick={() => handleMoveSection(secId, 'up')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMoveSection(secId, 'up');
+                                  }}
                                   className="p-1 rounded bg-slate-100 dark:bg-slate-700 hover:bg-blue-100 dark:hover:bg-blue-900 text-slate-600 dark:text-slate-300 disabled:opacity-20 cursor-pointer"
                                   title="Move Up"
                                 >
@@ -1726,7 +2439,10 @@ export default function EmailStudio({
                                 <button
                                   type="button"
                                   disabled={idx === activeSectionsOrder.length - 1}
-                                  onClick={() => handleMoveSection(secId, 'down')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMoveSection(secId, 'down');
+                                  }}
                                   className="p-1 rounded bg-slate-100 dark:bg-slate-700 hover:bg-blue-100 dark:hover:bg-blue-900 text-slate-600 dark:text-slate-300 disabled:opacity-20 cursor-pointer"
                                   title="Move Down"
                                 >
@@ -1746,54 +2462,63 @@ export default function EmailStudio({
                   <button
                     type="button"
                     onClick={() => updateCreative({ mediaType: 'banner' })}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      creative.mediaType === 'banner' || !creative.mediaType
-                        ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                    }`}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${creative.mediaType === 'banner' || !creative.mediaType
+                      ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                      }`}
                   >
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Executive Banner
                   </button>
                   <button
                     type="button"
                     onClick={() => updateCreative({ mediaType: 'image' })}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      creative.mediaType === 'image'
-                        ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                    }`}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${creative.mediaType === 'image'
+                      ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                      }`}
                   >
                     <ImageIcon className="w-3.5 h-3.5" /> Photo / Image
                   </button>
                   <button
                     type="button"
                     onClick={() => updateCreative({ mediaType: 'video' })}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                      creative.mediaType === 'video'
-                        ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                    }`}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${creative.mediaType === 'video'
+                      ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                      }`}
                   >
                     <Video className="w-3.5 h-3.5 text-red-500" /> Video
                   </button>
                 </div>
 
-                {creative.mediaType === 'image' && (
+                {creative.mediaType !== 'video' && (
                   <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">
-                      Hero Banner Image URL:
-                    </label>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">
+                        Hero Photo / Animated GIF (Generated Banner Ready — Editable):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => updateCreative({ heroImageUrl: DEFAULT_HERO_BANNER_URL, heroImageCleared: false })}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer"
+                        title="Apply custom-generated SolarKits Kit Overview Hero Banner"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        Use Generated Kit Hero Banner
+                      </button>
+                    </div>
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
+                        data-banner-focus="heroUrl"
                         value={creative.heroImageUrl || ''}
-                        onChange={(e) => updateCreative({ heroImageUrl: e.target.value })}
-                        placeholder="https://..."
+                        onChange={(e) => updateCreative({ heroImageUrl: e.target.value, heroImageCleared: !e.target.value })}
+                        placeholder="Upload file or paste image/GIF URL..."
                         className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono"
                       />
                       <label className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 shrink-0">
                         <Upload className="w-3.5 h-3.5" />
-                        <span>{uploadingAssetField === 'heroImageUrl' ? 'Uploading...' : 'Upload Banner'}</span>
+                        <span>{uploadingAssetField === 'heroImageUrl' ? 'Uploading...' : 'Upload'}</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -1801,7 +2526,11 @@ export default function EmailStudio({
                           disabled={uploadingAssetField === 'heroImageUrl'}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (file) handleUploadEmailAsset(file, 'heroImageUrl');
+                            if (file) {
+                              handleUploadEmailAsset(file, 'heroImageUrl', (url) => {
+                                updateCreative({ heroImageUrl: url, heroImageCleared: false });
+                              });
+                            }
                           }}
                         />
                       </label>
@@ -1809,17 +2538,63 @@ export default function EmailStudio({
                   </div>
                 )}
                 {creative.mediaType === 'video' && (
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">
-                      Explainer Video URL (YouTube / MP4):
-                    </label>
-                    <input
-                      type="text"
-                      value={creative.videoUrl || ''}
-                      onChange={(e) => updateCreative({ videoUrl: e.target.value })}
-                      placeholder="https://www.youtube.com/watch?v=..."
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono"
-                    />
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase mb-1">
+                        Explainer Video URL (YouTube / Upload MP4):
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={creative.videoUrl || ''}
+                          onChange={(e) => updateCreative({ videoUrl: e.target.value })}
+                          placeholder="Upload MP4 or paste YouTube URL..."
+                          className="flex-1 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono"
+                        />
+                        <label className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 shrink-0">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{uploadingAssetField === 'videoUrl' ? 'Uploading...' : 'Upload Video'}</span>
+                          <input
+                            type="file"
+                            accept="video/*"
+                            className="hidden"
+                            disabled={uploadingAssetField === 'videoUrl'}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadEmailAsset(file, 'videoUrl');
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                        Email Video Poster / Animated GIF Preview:
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={creative.videoPosterUrl || ''}
+                          onChange={(e) => updateCreative({ videoPosterUrl: e.target.value })}
+                          placeholder="Upload GIF/image poster or paste URL..."
+                          className="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono"
+                        />
+                        <label className="px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 shrink-0">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{uploadingAssetField === 'videoPosterUrl' ? 'Uploading...' : 'Upload Poster'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={uploadingAssetField === 'videoPosterUrl'}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadEmailAsset(file, 'videoPosterUrl');
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1831,6 +2606,7 @@ export default function EmailStudio({
                     </label>
                     <input
                       type="text"
+                      data-banner-focus="primary"
                       value={creative.headline || "DON'T JUST SELL SOLAR. SELL COMPLETE BACKUP."}
                       onChange={(e) => updateCreative({ headline: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold"
@@ -1888,11 +2664,328 @@ export default function EmailStudio({
                   />
                 </div>
 
-                {/* Feature Bullet Highlights (4 Card Boxes) */}
-                <div id="editor-section-benefits" className="space-y-2">
-                  <div className="flex items-center justify-between">
+                {/* Zigzag System Showcase Lineup Editor */}
+                <div id="editor-section-showcase" className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase flex items-center gap-1.5">
+                        <LayoutGrid className="w-3.5 h-3.5 text-teal-600" /> Zigzag System Lineup (Find Your Kit)
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold border ${campaignObjective === 'govt_tender_promotion'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-teal-50 text-teal-700 border-teal-200'
+                        }`}>
+                        {loadingLiveCatalog
+                          ? 'Syncing Kits...'
+                          : campaignObjective === 'govt_tender_promotion'
+                            ? `Govt Tender Kits Active (${effectiveKitsCatalog.length})`
+                            : `Live Kits Config Active (${effectiveKitsCatalog.length})`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleSyncTiersFromLiveKits}
+                        disabled={effectiveKitsCatalog.length === 0 && selectedKitObjects.length === 0}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-50 transition-colors"
+                        title="Sync cards dynamically from selected Step 3 / live kits"
+                      >
+                        <RefreshCw className="w-3 h-3" /> Sync Live Kits
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddTierCard}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold bg-teal-600 hover:bg-teal-700 text-white transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> Add Kit Card
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <input
+                      type="text"
+                      value={creative.showcaseHeading ?? 'Find your kit.'}
+                      onChange={(e) => updateCreative({ showcaseHeading: e.target.value })}
+                      placeholder="Section Heading (e.g. Find your kit.)"
+                      className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-semibold"
+                    />
+                    <input
+                      type="text"
+                      value={creative.showcaseSubheading ?? 'From residential rooftops to commercial & industrial plants.'}
+                      onChange={(e) => updateCreative({ showcaseSubheading: e.target.value })}
+                      placeholder="Section Subheading..."
+                      className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700"
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    {((Array.isArray(creative.systemTiers) && creative.systemTiers.length > 0)
+                      ? creative.systemTiers
+                      : (effectiveKitsCatalog.length > 0
+                        ? effectiveKitsCatalog.slice(0, 3).map((k, kIdx) => buildTierFromKit(k, kIdx))
+                        : DEFAULT_SYSTEM_TIERS)
+                    ).map((tier, idx, tiersArr) => {
+                      const matchedKit = findKitForTier(tier);
+                      const kitPhotos = Array.isArray(matchedKit?.available_photos) ? matchedKit.available_photos : [];
+                      const baseCount = Array.isArray(matchedKit?.base_components_details) ? matchedKit.base_components_details.length : 0;
+                      const bosCount = Array.isArray(matchedKit?.bos_kits_details) ? matchedKit.bos_kits_details.length : 0;
+
+                      return (
+                        <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 space-y-2">
+                          {/* Row 1: Kit Selector Dropdown from Live Kits Config / Purpose-Filtered Catalog + Details + Remove */}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-200 text-[10px] font-black shrink-0">
+                              #{idx + 1}
+                            </span>
+                            <select
+                              data-kit-select={idx}
+                              value={tier.kitId || (matchedKit?.id ? String(matchedKit.id) : '')}
+                              onChange={(e) => handleSelectKitForTier(idx, e.target.value)}
+                              className="flex-1 min-w-[180px] px-2 py-1 text-[11px] font-bold rounded-lg border border-teal-300 dark:border-teal-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 cursor-pointer"
+                            >
+                              <option value="">
+                                {effectiveKitsCatalog.length > 0
+                                  ? '-- Select Live Kit from Kits Configuration --'
+                                  : '-- Custom / Loading Live Kits --'}
+                              </option>
+                              {effectiveKitsCatalog.map((kit) => {
+                                const kName = kit.tender_name || kit.name || kit.combo_kit_name || `Kit #${kit.id}`;
+                                const kMeta = [
+                                  kit.capacity ? `${kit.capacity} kW` : '',
+                                  kit.state_name || kit.brand_name || kit.system_type || ''
+                                ].filter(Boolean).join(' • ');
+                                return (
+                                  <option key={kit.id} value={String(kit.id)}>
+                                    {kName}{kMeta ? ` (${kMeta})` : ''}
+                                  </option>
+                                );
+                              })}
+                            </select>
+
+                            {matchedKit && (
+                              <button
+                                type="button"
+                                onClick={() => setViewingKitDetail(matchedKit)}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold shrink-0 cursor-pointer"
+                                title="Inspect Full Base Components, BOS Kits & Technical Specs"
+                              >
+                                <Eye className="w-3 h-3" />
+                                View Details ({baseCount} Base / {bosCount} BOS)
+                              </button>
+                            )}
+
+                            {tiersArr.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveTierCard(idx)}
+                                className="p-1 rounded-lg bg-slate-200/70 hover:bg-red-100 text-slate-500 hover:text-red-600 cursor-pointer shrink-0"
+                                title="Remove Kit Card"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Row 2: Main Summary Fields (Clean Card Data - All Editable) */}
+                          <div className="grid grid-cols-3 gap-2">
+                            <input
+                              type="text"
+                              value={tier.eyebrow || ''}
+                              onChange={(e) => handleUpdateTierField(idx, 'eyebrow', e.target.value)}
+                              placeholder="Eyebrow"
+                              className="px-2 py-1 text-[11px] rounded border border-slate-200 dark:border-slate-700 font-bold uppercase bg-white dark:bg-slate-800"
+                            />
+                            <input
+                              type="text"
+                              value={tier.title || ''}
+                              onChange={(e) => handleUpdateTierField(idx, 'title', e.target.value)}
+                              placeholder="Kit Title"
+                              className="px-2 py-1 text-[11px] rounded border border-slate-200 dark:border-slate-700 font-bold bg-white dark:bg-slate-800"
+                            />
+                            <input
+                              type="text"
+                              value={tier.badge || ''}
+                              onChange={(e) => handleUpdateTierField(idx, 'badge', e.target.value)}
+                              placeholder="kW Badge"
+                              className="px-2 py-1 text-[11px] rounded border border-slate-200 dark:border-slate-700 font-bold bg-white dark:bg-slate-800"
+                            />
+                          </div>
+
+                          {/* Row 3: Concise Card Description */}
+                          <input
+                            type="text"
+                            value={tier.desc || ''}
+                            onChange={(e) => handleUpdateTierField(idx, 'desc', e.target.value)}
+                            placeholder="Concise kit summary shown on card (click card / View Details for full component list)..."
+                            className="w-full px-2 py-1 text-[11px] rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                          />
+
+                          {/* Row 4: Image URL + Cloudinary Upload + Live Preview Thumbnail */}
+                          <div className="flex items-center gap-2 pt-0.5">
+                            {tier.imageUrl ? (
+                              <img
+                                src={tier.imageUrl}
+                                alt={tier.title || `Kit ${idx + 1}`}
+                                className="w-9 h-9 rounded-lg object-cover border border-slate-200 dark:border-slate-700 shrink-0 bg-white"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : null}
+                            <input
+                              type="text"
+                              value={tier.imageUrl || ''}
+                              onChange={(e) => handleUpdateTierField(idx, 'imageUrl', e.target.value)}
+                              placeholder={`System card #${idx + 1} image/GIF URL or upload...`}
+                              className="flex-1 px-2 py-1 text-[11px] rounded border border-slate-200 dark:border-slate-700 font-mono bg-white dark:bg-slate-800"
+                            />
+                            <label className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-[10.5px] font-bold cursor-pointer inline-flex items-center gap-1 shrink-0">
+                              <Upload className="w-3 h-3" />
+                              <span>{uploadingAssetField === `tier_${idx}` ? 'Uploading...' : 'Upload'}</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                disabled={uploadingAssetField === `tier_${idx}`}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    handleUploadEmailAsset(file, `tier_${idx}`, (uploadedUrl) => {
+                                      handleUpdateTierField(idx, 'imageUrl', uploadedUrl);
+                                    });
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+
+                          {/* Row 5: Quick-Pick System Photos (Cover + BOS Photos from Kits Configuration) */}
+                          {kitPhotos.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-200/70 dark:border-slate-700/70">
+                              <span className="text-[9.5px] font-bold text-slate-500 uppercase">System Photos:</span>
+                              {kitPhotos.map((photo, pIdx) => (
+                                <button
+                                  key={`${photo.url}_${pIdx}`}
+                                  type="button"
+                                  onClick={() => handleUpdateTierField(idx, 'imageUrl', photo.url)}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9.5px] font-semibold cursor-pointer transition-colors ${tier.imageUrl === photo.url
+                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                                    }`}
+                                  title={`Use ${photo.label}`}
+                                >
+                                  <img src={photo.url} alt="" className="w-4 h-4 rounded object-cover" />
+                                  <span className="truncate max-w-[90px]">{photo.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Row 6: Kit Card Button Destination Link / Datasheet PDF */}
+                          <div className="pt-1.5 border-t border-slate-200/70 dark:border-slate-700/70 space-y-1">
+                            <span className="text-[9.5px] font-bold text-slate-500 uppercase block">
+                              Card Button Destination Link ("{tier.badge || 'Explore'}" &amp; "View Specs"):
+                            </span>
+                            <DestinationLinkPicker
+                              compact
+                              value={tier.ctaUrl || 'https://store.solarkits.in/preconfigured-combo-kit'}
+                              isPdf={Boolean(tier.isPdf)}
+                              uploadFieldKey={`tier_pdf_${idx}`}
+                              uploadingAssetField={uploadingAssetField}
+                              onChange={(url, isPdfFlag) =>
+                                handleUpdateTierField(idx, { ctaUrl: url, isPdf: Boolean(isPdfFlag) })
+                              }
+                              onUploadPdf={(file) =>
+                                handleUploadEmailAsset(file, `tier_pdf_${idx}`, (uploadedUrl) => {
+                                  handleUpdateTierField(idx, { ctaUrl: uploadedUrl, isPdf: true });
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Portal & Phone Animation Section Editor */}
+                <div id="editor-section-intelligence" className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2">
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase flex items-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5 text-sky-600" /> Portal &amp; Phone Animation Section
+                  </span>
+                  <input
+                    type="text"
+                    value={creative.intelligenceHeading ?? DEFAULT_EXECUTIVE_CREATIVE.intelligenceHeading}
+                    onChange={(e) => updateCreative({ intelligenceHeading: e.target.value })}
+                    placeholder="Intelligence Section Title..."
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-semibold"
+                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={creative.intelligenceImageUrl || ''}
+                      onChange={(e) => updateCreative({ intelligenceImageUrl: e.target.value })}
+                      placeholder="Upload portal/phone GIF or paste URL..."
+                      className="flex-1 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-mono"
+                    />
+                    <label className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 shrink-0">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingAssetField === 'intelligenceImageUrl' ? 'Uploading...' : 'Upload GIF'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingAssetField === 'intelligenceImageUrl'}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadEmailAsset(file, 'intelligenceImageUrl');
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={creative.intelligenceText ?? DEFAULT_EXECUTIVE_CREATIVE.intelligenceText}
+                    onChange={(e) => updateCreative({ intelligenceText: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700"
+                  />
+                </div>
+
+                {/* Feature Bullet Highlights & 3-Card Trust Metrics */}
+                <div id="editor-section-benefits" className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2.5">
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase block">
+                    3-Column Trust Metrics Strip (Rounded Highlight Cards)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {(Array.isArray(creative.trustMetrics) && creative.trustMetrics.length > 0 ? creative.trustMetrics : DEFAULT_TRUST_METRICS).slice(0, 3).map((m, idx) => (
+                      <div key={idx} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 space-y-1">
+                        <input
+                          type="text"
+                          value={m.value}
+                          onChange={(e) => {
+                            const base = Array.isArray(creative.trustMetrics) && creative.trustMetrics.length > 0 ? [...creative.trustMetrics] : [...DEFAULT_TRUST_METRICS];
+                            base[idx] = { ...base[idx], value: e.target.value };
+                            updateCreative({ trustMetrics: base });
+                          }}
+                          className="w-full px-2 py-1 text-xs font-extrabold rounded border border-slate-200 dark:border-slate-700"
+                          placeholder="e.g. 500+ MW"
+                        />
+                        <input
+                          type="text"
+                          value={m.label}
+                          onChange={(e) => {
+                            const base = Array.isArray(creative.trustMetrics) && creative.trustMetrics.length > 0 ? [...creative.trustMetrics] : [...DEFAULT_TRUST_METRICS];
+                            base[idx] = { ...base[idx], label: e.target.value };
+                            updateCreative({ trustMetrics: base });
+                          }}
+                          className="w-full px-2 py-1 text-[10px] rounded border border-slate-200 dark:border-slate-700"
+                          placeholder="Description..."
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
                     <label className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase">
-                      Feature Benefit Cards (Executive Boxes)
+                      Optional Extra Highlight Cards
                     </label>
                     <button
                       type="button"
@@ -1902,13 +2995,13 @@ export default function EmailStudio({
                       }}
                       className="text-[10px] font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
                     >
-                      + Add Card Point
+                      + Add Extra Highlight
                     </button>
                   </div>
                   <div className="space-y-2">
                     {(creative.bulletPoints || []).map((bp, idx) => (
                       <div key={idx} className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/40 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: idx % 2 === 0 ? (creative.themeColor || '#263880') : (creative.accentColor || '#f59e0b') }} />
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: idx % 2 === 0 ? (creative.themeColor || '#1E3A8A') : (creative.accentColor || '#F59E0B') }} />
                         <input
                           type="text"
                           value={bp}
@@ -1992,21 +3085,37 @@ export default function EmailStudio({
                             )}
                           </div>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <input
-                            type="text"
-                            value={btn.text}
-                            onChange={(e) => handleUpdateCta(btn.id, 'text', e.target.value)}
-                            placeholder="CTA Button Label..."
-                            className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-semibold"
-                          />
-                          <input
-                            type="text"
-                            value={btn.url}
-                            onChange={(e) => handleUpdateCta(btn.id, 'url', e.target.value)}
-                            placeholder="Destination URL (https://... or tel:...)"
-                            className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-mono"
-                          />
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-start">
+                          <div className="md:col-span-4 space-y-1">
+                            <label className="text-[9.5px] font-bold text-slate-500 uppercase block">Button Label</label>
+                            <input
+                              type="text"
+                              data-cta-input={idx}
+                              value={btn.text}
+                              onChange={(e) => handleUpdateCta(btn.id, 'text', e.target.value)}
+                              placeholder="CTA Button Label..."
+                              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-semibold bg-white dark:bg-slate-800"
+                            />
+                          </div>
+                          <div className="md:col-span-8 space-y-1">
+                            <label className="text-[9.5px] font-bold text-slate-500 uppercase block">
+                              Opens Platform Page / PDF Download (Tracked per User &amp; Button)
+                            </label>
+                            <DestinationLinkPicker
+                              value={btn.url}
+                              isPdf={Boolean(btn.isPdf)}
+                              uploadFieldKey={`cta_pdf_${btn.id}`}
+                              uploadingAssetField={uploadingAssetField}
+                              onChange={(url, isPdfFlag) =>
+                                handleUpdateCta(btn.id, { url, isPdf: Boolean(isPdfFlag) })
+                              }
+                              onUploadPdf={(file) =>
+                                handleUploadEmailAsset(file, `cta_pdf_${btn.id}`, (uploadedUrl) => {
+                                  handleUpdateCta(btn.id, { url: uploadedUrl, isPdf: true });
+                                })
+                              }
+                            />
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -2076,36 +3185,77 @@ export default function EmailStudio({
                   )}
                 </div>
 
-                {/* Closing Pitch & Secondary CTA Editor */}
-                <div id="editor-section-closing" className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2.5">
+                {/* Dual Bottom Action Buttons Editor */}
+                <div id="editor-section-closing" className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-3">
                   <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase flex items-center gap-1.5">
-                    <AlignLeft className="w-3.5 h-3.5 text-rose-600" /> Closing Conversion Pitch & Secondary Action CTA
+                    <AlignLeft className="w-3.5 h-3.5 text-rose-600" /> Dual Bottom Action Buttons &amp; Optional Pitch
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Bottom Conversion Punchline:
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2">
+                      <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase">
+                        Left Button (Primary — e.g. Download Datasheet):
                       </label>
                       <input
                         type="text"
-                        value={creative.closingPitch || 'Sell complete solar power, not just panels. Choose SolarKits.'}
-                        onChange={(e) => updateCreative({ closingPitch: e.target.value })}
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-semibold"
-                        placeholder="Compelling conversion pitch..."
+                        value={creative.primaryDualCtaText ?? 'Download Datasheet'}
+                        onChange={(e) => updateCreative({ primaryDualCtaText: e.target.value })}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-semibold bg-white dark:bg-slate-800"
+                        placeholder="Download Datasheet"
+                      />
+                      <DestinationLinkPicker
+                        value={creative.primaryDualCtaUrl ?? 'https://store.solarkits.in/preconfigured-combo-kit'}
+                        isPdf={Boolean(creative.primaryDualCtaIsPdf)}
+                        uploadFieldKey="dual_left_pdf"
+                        uploadingAssetField={uploadingAssetField}
+                        onChange={(url, isPdfFlag) =>
+                          updateCreative({ primaryDualCtaUrl: url, primaryDualCtaIsPdf: Boolean(isPdfFlag) })
+                        }
+                        onUploadPdf={(file) =>
+                          handleUploadEmailAsset(file, 'dual_left_pdf', (uploadedUrl) => {
+                            updateCreative({ primaryDualCtaUrl: uploadedUrl, primaryDualCtaIsPdf: true });
+                          })
+                        }
                       />
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Secondary CTA Button Text:
+
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2">
+                      <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase">
+                        Right Button (Accent — e.g. Visit our Website):
                       </label>
                       <input
                         type="text"
-                        value={creative.secondaryCtaText || 'Explore Wholesale Solar Kits →'}
+                        value={creative.secondaryCtaText ?? 'Visit our Website'}
                         onChange={(e) => updateCreative({ secondaryCtaText: e.target.value })}
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-semibold"
-                        placeholder="Secondary button label..."
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-semibold bg-white dark:bg-slate-800"
+                        placeholder="Visit our Website"
+                      />
+                      <DestinationLinkPicker
+                        value={creative.secondaryCtaUrl ?? 'https://solarkits.in/'}
+                        isPdf={Boolean(creative.secondaryCtaIsPdf)}
+                        uploadFieldKey="dual_right_pdf"
+                        uploadingAssetField={uploadingAssetField}
+                        onChange={(url, isPdfFlag) =>
+                          updateCreative({ secondaryCtaUrl: url, secondaryCtaIsPdf: Boolean(isPdfFlag) })
+                        }
+                        onUploadPdf={(file) =>
+                          handleUploadEmailAsset(file, 'dual_right_pdf', (uploadedUrl) => {
+                            updateCreative({ secondaryCtaUrl: uploadedUrl, secondaryCtaIsPdf: true });
+                          })
+                        }
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                      Closing Line (Optional):
+                    </label>
+                    <input
+                      type="text"
+                      value={creative.closingPitch ?? ''}
+                      onChange={(e) => updateCreative({ closingPitch: e.target.value })}
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 font-semibold"
+                      placeholder="Optional closing punchline..."
+                    />
                   </div>
                 </div>
               </div>
@@ -2210,13 +3360,12 @@ export default function EmailStudio({
         <div className="lg:col-span-5">
           <div className="sticky top-6">
             <div className={`mx-auto transition-all ${previewDevice === 'mobile' ? 'max-w-[340px]' : 'w-full'}`}>
-              
+
               {/* Outer Device Frame */}
-              <div className={`bg-slate-900 text-white shadow-2xl overflow-hidden ${
-                previewDevice === 'mobile'
-                  ? 'rounded-[2.5rem] p-3 border-4 border-slate-700'
-                  : 'rounded-2xl p-2 border border-slate-700'
-              }`}>
+              <div className={`bg-slate-900 text-white shadow-2xl overflow-hidden ${previewDevice === 'mobile'
+                ? 'rounded-[2.5rem] p-3 border-4 border-slate-700'
+                : 'rounded-2xl p-2 border border-slate-700'
+                }`}>
                 {/* Inbox Toolbar Mockup */}
                 <div className="bg-slate-800 px-3 py-2 rounded-t-xl border-b border-slate-700 text-[11px] text-slate-300 space-y-1">
                   <div className="flex items-center justify-between text-[10px] text-slate-400">
@@ -2231,138 +3380,113 @@ export default function EmailStudio({
                   </div>
                 </div>
 
-                {/* Email Canvas with PINNED Top Header and PINNED Bottom Footer */}
-                <div className="bg-white text-slate-800 flex flex-col rounded-xl overflow-hidden shadow-xs border border-slate-200">
-                  
-                  {/* 1. PINNED FIXED HEADER (Permanently at Top) */}
-                  <div className="bg-white border-b border-slate-200 shrink-0 text-center z-10 shadow-2xs">
-                    <div className="bg-blue-900 text-white text-[8px] font-black uppercase tracking-widest py-0.5 flex items-center justify-center gap-1">
-                      <ShieldCheck className="w-2.5 h-2.5 text-amber-300" />
-                      <span>Pinned Header • Fixed at Top</span>
-                    </div>
-                    <div className="py-2.5 px-4 bg-white">
-                      {creative.logoUrl ? (
-                        <img
-                          src={creative.logoUrl}
-                          alt="SolarKits Official Logo"
-                          className="h-9 mx-auto object-contain block"
-                          style={{ maxHeight: '38px' }}
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = 'https://res.cloudinary.com/dggmbagax/image/upload/v1795252066/solarkits/branding/solarkits_official_logo.png';
-                          }}
-                        />
-                      ) : (
-                        <div>
-                          <div className="text-lg font-black tracking-widest leading-none" style={{ color: creative.themeColor || '#263880' }}>
-                            SOLAR<span style={{ color: creative.accentColor || '#f59e0b' }}>KITS</span>
-                            <span className="text-[10px] align-super text-slate-400 font-bold ml-0.5">™</span>
-                          </div>
+                {/* Email Canvas with Clean Boss-Reference Header & 2-Column Footer */}
+                <div className="bg-[#f9fafc] p-2">
+                  <div className="bg-white text-slate-800 flex flex-col rounded-lg overflow-hidden shadow-xs border border-slate-200">
+
+                    {/* 1. CLEAN CENTERED HEADER (PINNED TOP) */}
+                    <div className="bg-white shrink-0 text-center z-10 pt-4 pb-2 px-4">
+                      <img
+                        src={creative.logoUrl || DEFAULT_EXECUTIVE_CREATIVE.logoUrl}
+                        alt="SolarKits Official Logo"
+                        className="h-8 mx-auto object-contain block"
+                        style={{ maxHeight: '34px' }}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = DEFAULT_EXECUTIVE_CREATIVE.logoUrl;
+                        }}
+                      />
+                      {creative.headerTagline && (
+                        <div className="text-[8.5px] font-bold tracking-widest uppercase mt-1 text-slate-500">
+                          {creative.headerTagline}
                         </div>
                       )}
-                      <div className="text-[8px] font-extrabold tracking-widest uppercase mt-0.5" style={{ color: creative.stripColor || '#ea580c' }}>
-                        {creative.headerTagline || 'B2B SOLAR KITS STORE'}
-                      </div>
                     </div>
 
-                    {/* Orange Contact Helpline Strip Bar */}
-                    <div className="py-1 px-3 text-center text-white font-extrabold text-[10px] tracking-wide" style={{ backgroundColor: creative.stripColor || '#ea580c' }}>
-                      📞 {creative.contactPhone || '+91 99134 21453'} &nbsp;|&nbsp; 🌐 {creative.contactWebsite || 'solarkits.in'}
-                    </div>
-                  </div>
-
-                  {/* 2. SCROLLABLE MIDDLE EMAIL CONTENT (ORDER CONTROLLED BY activeSectionsOrder) */}
-                  <div className="bg-white text-slate-800 max-h-[420px] overflow-y-auto divide-y divide-slate-100">
-                    {activeSectionsOrder.map((secId, sIdx) => {
-                      const meta = SECTION_METADATA_MAP[secId] || { label: secId, shortLabel: secId };
-                      const isHovered = hoveredSectionId === secId;
-                      return (
-                        <div
-                          key={secId}
-                          id={`preview-section-${secId}`}
-                          onMouseEnter={() => setHoveredSectionId(secId)}
-                          onMouseLeave={() => setHoveredSectionId(null)}
-                          className={`relative transition-all duration-150 group ${
-                            isHovered
+                    {/* 2. SCROLLABLE MIDDLE EMAIL CONTENT (ORDER CONTROLLED BY activeSectionsOrder) */}
+                    <div className="bg-white text-slate-800 max-h-[460px] overflow-y-auto">
+                      {activeSectionsOrder.map((secId, sIdx) => {
+                        const meta = SECTION_METADATA_MAP[secId] || { label: secId, shortLabel: secId };
+                        const isHovered = hoveredSectionId === secId;
+                        return (
+                          <div
+                            key={secId}
+                            id={`preview-section-${secId}`}
+                            onMouseEnter={() => setHoveredSectionId(secId)}
+                            onMouseLeave={() => setHoveredSectionId(null)}
+                            onClick={() => scrollToEditorSection(meta.editorAnchor, secId)}
+                            className={`relative transition-all duration-150 group cursor-pointer ${isHovered || activeEditorSectionId === secId
                               ? 'ring-2 ring-blue-500 ring-inset bg-blue-50/10'
                               : ''
-                          }`}
-                        >
-                          {/* Live Section Marker Badge & Reorder Arrows in Preview */}
-                          <div
-                            className={`absolute top-1.5 right-1.5 z-30 flex items-center gap-1 transition-opacity duration-150 ${
-                              isHovered ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                            }`}
+                              }`}
+                            title="Click to jump to this section's editor & focus cursor"
                           >
-                            <span className="text-[8px] font-mono font-black px-1.5 py-0.5 rounded bg-blue-900/90 text-white shadow-sm flex items-center gap-1">
-                              <span>#{sIdx + 1}</span>
-                              <span className="font-medium opacity-90">{meta.shortLabel || meta.label}</span>
-                            </span>
-                            <div className="flex items-center bg-white/95 dark:bg-slate-900/95 rounded shadow-sm border border-slate-200 dark:border-slate-700 p-0.5">
-                              <button
-                                type="button"
-                                disabled={sIdx === 0}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleMoveSection(secId, 'up');
-                                }}
-                                className="p-0.5 text-slate-600 hover:text-blue-600 disabled:opacity-20 cursor-pointer"
-                                title="Move this section Up in email"
-                              >
-                                <ArrowUp className="w-2.5 h-2.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={sIdx === activeSectionsOrder.length - 1}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleMoveSection(secId, 'down');
-                                }}
-                                className="p-0.5 text-slate-600 hover:text-blue-600 disabled:opacity-20 cursor-pointer"
-                                title="Move this section Down in email"
-                              >
-                                <ArrowDown className="w-2.5 h-2.5" />
-                              </button>
+                            {/* Live Section Marker Badge & Reorder Arrows in Preview */}
+                            <div
+                              className={`absolute top-1.5 right-1.5 z-30 flex items-center gap-1 transition-opacity duration-150 ${isHovered ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                }`}
+                            >
+                              <span className="text-[8px] font-mono font-black px-1.5 py-0.5 rounded bg-blue-900/90 text-white shadow-sm flex items-center gap-1">
+                                <span>#{sIdx + 1}</span>
+                                <span className="font-medium opacity-90">{meta.shortLabel || meta.label}</span>
+                              </span>
+                              <div className="flex items-center bg-white/95 dark:bg-slate-900/95 rounded shadow-sm border border-slate-200 dark:border-slate-700 p-0.5">
+                                <button
+                                  type="button"
+                                  disabled={sIdx === 0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMoveSection(secId, 'up');
+                                  }}
+                                  className="p-0.5 text-slate-600 hover:text-blue-600 disabled:opacity-20 cursor-pointer"
+                                  title="Move this section Up in email"
+                                >
+                                  <ArrowUp className="w-2.5 h-2.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={sIdx === activeSectionsOrder.length - 1}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMoveSection(secId, 'down');
+                                  }}
+                                  className="p-0.5 text-slate-600 hover:text-blue-600 disabled:opacity-20 cursor-pointer"
+                                  title="Move this section Down in email"
+                                >
+                                  <ArrowDown className="w-2.5 h-2.5" />
+                                </button>
+                              </div>
                             </div>
+
+                            {renderPreviewSection(secId)}
                           </div>
+                        );
+                      })}
+                    </div>
 
-                          {renderPreviewSection(secId)}
+                    {/* 3. CLEAN 2-COLUMN FOOTER (PINNED BOTTOM) */}
+                    <div className="bg-white px-4 pt-2 pb-4 border-t border-slate-300 mx-3">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2">
+                        <div className="text-[10px] font-bold text-slate-600 text-left space-y-0.5">
+                          <div>Email: <span style={{ color: creative.themeColor || '#1E3A8A' }}>{creative.contactEmail || 'support@solarkits.in'}</span></div>
+                          <div>Telephone: {creative.contactPhone || '+91 99134 21453'}</div>
+                          <div>{creative.footerAddress || '© 2026 SolarKits (India) Pvt. Ltd.'}</div>
                         </div>
-                      );
-                    })}
-                  </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {Object.entries(SOLARKITS_MEDIA_ASSETS.socialIcons).map(([k, src]) => (
+                            <img key={k} src={src} alt={k} className="w-5 h-5 rounded-full block" />
+                          ))}
+                        </div>
+                      </div>
+                      {creative.footerDisclaimer && (
+                        <p className="text-[8.5px] text-slate-400 mt-1.5 text-left">{creative.footerDisclaimer}</p>
+                      )}
+                    </div>
 
-                  {/* 3. PINNED FIXED FOOTER (Permanently at Bottom) */}
-                  <div
-                    className="shrink-0 p-3.5 text-center text-white z-10 shadow-lg border-t-2"
-                    style={{
-                      backgroundColor: '#1a2552',
-                      borderTopColor: creative.accentColor || '#f59e0b'
-                    }}
-                  >
-                    <div className="bg-blue-950/80 text-amber-300 text-[8px] font-black uppercase tracking-widest py-0.5 rounded mb-1 flex items-center justify-center gap-1">
-                      <AlignLeft className="w-2.5 h-2.5" />
-                      <span>Pinned Footer • Fixed at Bottom</span>
-                    </div>
-                    <div className="text-xs font-black tracking-wider text-white">
-                      {creative.footerTitle || 'SOLARKITS INDIA'}
-                    </div>
-                    <p className="text-[10px] text-slate-300 mt-0.5 leading-tight">
-                      {creative.footerTagline || "Powering India's Leading Solar EPC Network"}
-                    </p>
-                    <p className="text-[9px] text-slate-400 mt-1 leading-snug">
-                      {creative.footerAddress || '© 2026 SolarKits (India) Pvt. Ltd. • Central Depot: Bhiwandi Logistics Hub, Maharashtra.'}
-                    </p>
-                    <p className="text-[9px] text-slate-400 mt-1 italic">
-                      {creative.footerDisclaimer || '*Terms and conditions apply.'}
-                    </p>
-                    <div className="pt-2">
-                      <span className="inline-block px-3 py-1 rounded text-[10px] font-bold border border-amber-400/50 text-amber-300 bg-white/5 shadow-2xs">
-                        {creative.unsubscribeBtnText || '🔕 Unsubscribe from this list'}
-                      </span>
-                    </div>
                   </div>
-
+                  <p className="text-center text-[9px] text-slate-500 pt-2 pb-1">
+                    If you wish to unsubscribe from our updates, <span className="underline">click here</span>.
+                  </p>
                 </div>
               </div>
             </div>
@@ -2391,22 +3515,20 @@ export default function EmailStudio({
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-              {(allKitsCatalog.length > 0 ? allKitsCatalog : selectedKitObjects).map((k) => {
+              {(effectiveKitsCatalog.length > 0 ? effectiveKitsCatalog : selectedKitObjects).map((k) => {
                 const isSelected = selectedProductIds.includes(k.id);
                 return (
                   <div
                     key={k.id}
                     onClick={() => handleToggleProduct(k.id)}
-                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
-                      isSelected
-                        ? 'border-blue-600 bg-blue-50/40 dark:bg-blue-950/30'
-                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-                    }`}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${isSelected
+                      ? 'border-blue-600 bg-blue-50/40 dark:bg-blue-950/30'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                      }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold text-white ${
-                        isSelected ? 'bg-blue-600' : 'border border-slate-300'
-                      }`}>
+                      <div className={`w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold text-white ${isSelected ? 'bg-blue-600' : 'border border-slate-300'
+                        }`}>
                         {isSelected && '✓'}
                       </div>
                       <div>
@@ -2520,6 +3642,193 @@ export default function EmailStudio({
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* KIT DETAILS & FULL COMPONENTS MODAL (NO KHICHDI ON CARDS) */}
+      {viewingKitDetail && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setViewingKitDetail(null)}
+        >
+          <div
+            className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                {(viewingKitDetail.tender_image_url || viewingKitDetail.kit_image || viewingKitDetail.image) ? (
+                  <img
+                    src={viewingKitDetail.tender_image_url || viewingKitDetail.kit_image || viewingKitDetail.image}
+                    alt={viewingKitDetail.tender_name || viewingKitDetail.name}
+                    className="w-16 h-16 rounded-xl object-cover border border-slate-200 dark:border-slate-700 bg-white shrink-0"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-xl bg-teal-50 dark:bg-teal-950 border border-teal-200 dark:border-teal-800 flex items-center justify-center shrink-0">
+                    <Package className="w-7 h-7 text-teal-600" />
+                  </div>
+                )}
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {viewingKitDetail.is_govt_tender && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 uppercase">
+                        Govt Tender Kit{viewingKitDetail.state_name ? ` • ${viewingKitDetail.state_name}` : ''}
+                      </span>
+                    )}
+                    {viewingKitDetail.category_name && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                        {viewingKitDetail.category_name}
+                      </span>
+                    )}
+                    {viewingKitDetail.capacity && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-900 text-white">
+                        {viewingKitDetail.capacity} kW
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white truncate">
+                    {viewingKitDetail.tender_name || viewingKitDetail.name || viewingKitDetail.combo_kit_name}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
+                    {viewingKitDetail.brand_name && <span>Brand: <strong className="text-slate-700 dark:text-slate-200">{viewingKitDetail.brand_name}</strong></span>}
+                    {viewingKitDetail.system_type && <span>System: <strong className="text-slate-700 dark:text-slate-200">{viewingKitDetail.system_type}</strong></span>}
+                    {viewingKitDetail.project_range && <span>Range: <strong className="text-slate-700 dark:text-slate-200">{viewingKitDetail.project_range}</strong></span>}
+                    {viewingKitDetail.price != null && Number(viewingKitDetail.price) > 0 && (
+                      <span>Price: <strong className="text-emerald-600">₹{Number(viewingKitDetail.price).toLocaleString('en-IN')}</strong></span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingKitDetail(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 dark:hover:bg-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-5">
+              {(viewingKitDetail.tender_description || viewingKitDetail.tagline || viewingKitDetail.description) && (
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                  {viewingKitDetail.tender_description || viewingKitDetail.tagline || viewingKitDetail.description}
+                </div>
+              )}
+
+              {/* Base Components Section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase flex items-center gap-1.5">
+                    <Package className="w-4 h-4 text-blue-600" />
+                    Base Kit Components ({Array.isArray(viewingKitDetail.base_components_details) ? viewingKitDetail.base_components_details.length : 0})
+                  </h4>
+                  {viewingKitDetail.datasheet && (
+                    <a
+                      href={viewingKitDetail.datasheet}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-[11px] font-bold"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> Datasheet <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+
+                {Array.isArray(viewingKitDetail.base_components_details) && viewingKitDetail.base_components_details.length > 0 ? (
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="bg-slate-100 dark:bg-slate-900/80 text-[10px] font-black uppercase text-slate-500">
+                        <tr>
+                          <th className="px-3 py-2">#</th>
+                          <th className="px-3 py-2">Component / Product</th>
+                          <th className="px-3 py-2">Template &amp; Subtype</th>
+                          <th className="px-3 py-2">Brand / SKU</th>
+                          <th className="px-3 py-2 text-right">Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                        {viewingKitDetail.base_components_details.map((comp, cIdx) => (
+                          <tr key={cIdx} className="bg-white dark:bg-slate-800/50">
+                            <td className="px-3 py-2 font-mono text-[11px] text-slate-400">{cIdx + 1}</td>
+                            <td className="px-3 py-2 font-bold text-slate-800 dark:text-slate-100">
+                              {comp.product_name || comp.template_name || 'Solar Component'}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                              <div>{comp.template_name || '-'}</div>
+                              {comp.subtype_name && <div className="text-[10px] text-slate-400">{comp.subtype_name}</div>}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                              <div>{comp.brand_name || '-'}</div>
+                              {comp.sku && <div className="text-[10px] font-mono text-slate-400">{comp.sku}</div>}
+                            </td>
+                            <td className="px-3 py-2 text-right font-black text-slate-900 dark:text-white">
+                              {comp.qty ?? 1}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-500">
+                    {viewingKitDetail.components_summary || 'No base component rows linked in Kits Configuration for this kit yet.'}
+                  </div>
+                )}
+              </div>
+
+              {/* BOS Kits Section */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase flex items-center gap-1.5">
+                  <Wrench className="w-4 h-4 text-teal-600" />
+                  BOS Kits &amp; Balance of System ({Array.isArray(viewingKitDetail.bos_kits_details) ? viewingKitDetail.bos_kits_details.length : 0})
+                </h4>
+                {Array.isArray(viewingKitDetail.bos_kits_details) && viewingKitDetail.bos_kits_details.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {viewingKitDetail.bos_kits_details.map((bos, bIdx) => (
+                      <div key={bIdx} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 flex items-start gap-2.5">
+                        {bos.image ? (
+                          <img src={bos.image} alt={bos.name} className="w-11 h-11 rounded-lg object-cover border border-slate-200 bg-white shrink-0" />
+                        ) : (
+                          <div className="w-11 h-11 rounded-lg bg-teal-50 border border-teal-200 flex items-center justify-center shrink-0">
+                            <Wrench className="w-4 h-4 text-teal-600" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1 space-y-0.5 text-[11px]">
+                          <div className="font-bold text-slate-900 dark:text-white truncate">{bos.name || `BOS Kit #${bIdx + 1}`}</div>
+                          <div className="text-slate-500 truncate">
+                            {[bos.brand_name, bos.sku].filter(Boolean).join(' • ') || 'Standard BOS Package'}
+                          </div>
+                          {(bos.templates || bos.subtypes) && (
+                            <div className="text-[10px] text-slate-400 truncate">
+                              {[bos.templates, bos.subtypes].filter(Boolean).join(' — ')}
+                            </div>
+                          )}
+                          <div className="text-[10px] font-black text-teal-700">Qty: {bos.qty ?? 1}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-500">
+                    No separate BOS kits attached to this configuration.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setViewingKitDetail(null)}
+                className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

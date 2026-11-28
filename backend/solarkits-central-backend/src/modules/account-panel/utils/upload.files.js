@@ -49,13 +49,16 @@ function upload_files(upload_dir, max_size_mb, field_name, files_length) {
         for (const file of req.files) {
           const ext = path.extname(file.originalname).slice(1).toLowerCase();
           const unique = Date.now() + "_" + Math.round(Math.random() * 1e9);
-          const public_id_name = `FILE_${unique}`;
+          const isRawDoc =
+            ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv'].includes(ext) ||
+            file.mimetype === 'application/pdf';
+          const public_id_name = isRawDoc && ext ? `FILE_${unique}.${ext}` : `FILE_${unique}`;
 
           const result = await stream_upload(file.buffer, {
             folder,
             public_id: public_id_name,
-            resource_type: "auto",
-            ...(ext ? { format: ext } : {}),
+            resource_type: isRawDoc ? "raw" : "auto",
+            ...(!isRawDoc && ext ? { format: ext } : {}),
           });
 
           // Attach Cloudinary URL & filename

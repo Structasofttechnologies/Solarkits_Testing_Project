@@ -49,7 +49,7 @@ export default function TestimonialsSection({ testimonialsConfig }) {
   return (
     <section
       ref={sectionRef}
-      style={{ background: "#ffffff", padding: "96px 28px", position: "relative", overflow: "hidden" }}
+      style={{ background: "#ffffff", padding: "clamp(48px, 7vw, 96px) clamp(16px, 4vw, 28px)", position: "relative", overflow: "hidden" }}
     >
       {/* Top decorative wave */}
       <div style={{
@@ -84,7 +84,7 @@ export default function TestimonialsSection({ testimonialsConfig }) {
         <div
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
-          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px", marginBottom: "40px" }}
+          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: "24px", marginBottom: "40px" }}
         >
           <AnimatePresence mode="popLayout">
             {visibleItems.map((item, i) => {

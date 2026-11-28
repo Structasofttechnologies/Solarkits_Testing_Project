@@ -283,7 +283,7 @@ export default function Footer({ footerConfig }) {
 
                       {/* GSTIN Field (Encouraged for Tax Invoices & Verification, not strictly mandatory) */}
                       <div>
-                        <div className="flex items-center justify-between mb-1">
+                        <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
                           <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/90">
                             GSTIN (15-Digit GST Number)
                           </label>

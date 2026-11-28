@@ -5,6 +5,16 @@ const schema = new mongoose.Schema(
   {
     campaign_id: { type: mongoose.Schema.Types.ObjectId, ref: 'marketing_campaigns', index: true },
     short_code: { type: String, trim: true, index: true },
+    recipient_id: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
+    recipient_name: { type: String, trim: true, default: null },
+    recipient_email: { type: String, trim: true, lowercase: true, default: null },
+    recipient_phone: { type: String, trim: true, default: null },
+    channel: { type: String, enum: ['email', 'whatsapp', 'web'], default: 'email' },
+    cta_label: { type: String, trim: true, default: null },
+    cta_slot: { type: String, trim: true, default: null },
+    target_url: { type: String, default: null },
+    is_suspected_bot_prefetch: { type: Boolean, default: false },
+    is_test_click: { type: Boolean, default: false },
     website_key: { type: String, trim: true, index: true },
     site_domain: { type: String, trim: true, index: true },
     site_url: { type: String, trim: true },
@@ -54,6 +64,8 @@ const schema = new mongoose.Schema(
 schema.index({ website_key: 1, created_at: -1 });
 schema.index({ website_key: 1, visitor_session_id: 1 }, { sparse: true });
 schema.index({ visitor_id: 1, website_key: 1 });
+schema.index({ campaign_id: 1, created_at: -1 });
+schema.index({ campaign_id: 1, cta_label: 1 });
 
 schema.virtual('id').get(function () {
   return this._id;

@@ -51,19 +51,19 @@ export default function Navbar({ onOpenLeadModal }) {
         : "bg-white/90 backdrop-blur-sm border-b border-slate-100 py-3 sm:py-3.5"
         }`}
     >
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
 
           {/* Logo & Portal Branding */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <Link to="/" className="flex items-center gap-2 sm:gap-3 group shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
+            <Link to="/" className="flex items-center gap-1.5 sm:gap-3 group shrink-0">
               <img
                 src={logoImg}
                 alt="SolarKits Logo"
-                className="h-8 sm:h-9 xl:h-10 w-auto object-contain transition-transform group-hover:scale-105 shrink-0"
+                className="h-7 sm:h-9 xl:h-10 w-auto object-contain transition-transform group-hover:scale-105 shrink-0"
               />
-              <div className="flex flex-col border-l border-slate-200 pl-2 sm:pl-3 shrink-0">
-                <span className="text-[10px] sm:text-xs font-black tracking-wider uppercase text-[#253880] whitespace-nowrap">
+              <div className="flex flex-col border-l border-slate-200 pl-1.5 sm:pl-3 shrink-0">
+                <span className="text-[9px] sm:text-xs font-black tracking-wider uppercase text-[#253880] whitespace-nowrap">
                   Franchisee Network
                 </span>
                 <span className="hidden xs:block text-[8px] sm:text-[9px] text-[#F49222] font-extrabold tracking-wider uppercase whitespace-nowrap">
@@ -113,7 +113,7 @@ export default function Navbar({ onOpenLeadModal }) {
 
             <button
               onClick={() => onOpenLeadModal && onOpenLeadModal({ requiredConfig: "Mobile Fast Application" }, "franchise_apply")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-extrabold text-white bg-[#253880] shadow-xs whitespace-nowrap"
+              className="px-2 sm:px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-extrabold text-white bg-[#253880] shadow-xs whitespace-nowrap"
             >
               Apply Now
             </button>
@@ -136,7 +136,7 @@ export default function Navbar({ onOpenLeadModal }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="xl:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-6 space-y-3 shadow-xl"
+            className="xl:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-6 space-y-3 shadow-xl max-h-[calc(100vh-4rem)] overflow-y-auto"
           >
             <div className="space-y-1">
               {/* Quick links on mobile */}
@@ -159,7 +159,7 @@ export default function Navbar({ onOpenLeadModal }) {
               </a>
 
               <Link
-                href="/eligibility"
+                to="/eligibility"
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-slate-800 hover:bg-sky-50 hover:text-[#253880]"
               >

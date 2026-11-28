@@ -314,7 +314,7 @@ export default function KitProductModal({
               </div>
 
               {/* Inclusions summary strip */}
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
                 <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-border">
                   <FaSolarPanel className="text-primary mx-auto mb-1" size={16} />
                   <p className="font-bold text-text-primary">{kit.panel?.wattPerPanel || 550}W Panels</p>
@@ -392,7 +392,7 @@ export default function KitProductModal({
                     <label className="block text-xs font-bold text-text-secondary uppercase mb-1.5">
                       Choose Package Quality Tier:
                     </label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       {variants.map((v, idx) => (
                         <button
                           key={idx}
@@ -438,7 +438,7 @@ export default function KitProductModal({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-1.5 pt-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1">
                     {[25, 50, 75, 100].map((qtyPreset) => (
                       <button
                         key={qtyPreset}

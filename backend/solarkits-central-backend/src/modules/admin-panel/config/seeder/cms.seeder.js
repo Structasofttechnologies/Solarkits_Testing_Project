@@ -68,9 +68,16 @@ const seedCMS = async () => {
       is_deleted: false,
     },
     {
-      name: 'Marketing Management Panel',
+      name: 'EPC Marketing Panel',
       slug: 'marketing-panel',
       url_prefix: '/marketing-panel',
+      is_active: true,
+      is_deleted: false,
+    },
+    {
+      name: 'Lead Marketing Panel',
+      slug: 'lead-marketing-panel',
+      url_prefix: '/lead-marketing-panel',
       is_active: true,
       is_deleted: false,
     },
@@ -82,8 +89,9 @@ const seedCMS = async () => {
     if (!panel) {
       panel = await CmsPanel.create(p);
       console.log(`  ✓ Panel '${p.name}' seeded.`);
-    } else if (!panel.slug) {
-      panel.slug = p.slug;
+    } else if (!panel.slug || (p.url_prefix === '/marketing-panel' && panel.name !== p.name)) {
+      panel.slug = panel.slug || p.slug;
+      if (p.url_prefix === '/marketing-panel') panel.name = p.name;
       await panel.save();
     }
     seededPanelDocs.push(panel);
