@@ -30,19 +30,20 @@ import {
   FaBuilding,
   FaChartBar,
   FaSlidersH,
-  FaLayerGroup
+  FaFilePdf,
+  FaExternalLinkAlt
 } from 'react-icons/fa';
 import { MdTrendingUp, MdVisibility } from 'react-icons/md';
 import IndiaCampaignMap from './IndiaCampaignMap';
-import SegmentGroupAnalyticsPage from './SegmentGroupAnalyticsPage';
+import CampaignLifecycleButtons from './CampaignLifecycleButtons';
+import CampaignCtaBreakdownView from './components/CampaignCtaBreakdownView';
 import {
   fetchLiveActiveStates,
   fetchLiveClusters,
   fetchLiveQueueStatus,
-  toggleLiveCoupon,
-  fetchMarketingDashboardAnalytics
+  toggleLiveCoupon
 } from './services/marketingDataService';
-import { marketingHttp } from './services/marketingApi';
+import { marketingHttp, extractApiError } from './services/marketingApi';
 
 const EMPTY_DASHBOARD_DATA = {
   summary: {
@@ -88,13 +89,20 @@ const EMPTY_DASHBOARD_DATA = {
   funnel: [],
   campaignsRanking: [],
   couponsList: [],
-  epcTerritoryPerformance: []
+  epcTerritoryPerformance: [],
+  ctaAnalytics: {
+    totalCtaClicks: 0,
+    uniqueClickers: 0,
+    pdfDownloadsCount: 0,
+    topCtasGlobal: [],
+    recentClicks: []
+  }
 };
 
 export default function MarketingDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [dashboardTab, setDashboardTab] = useState('analytics'); // 'analytics' | 'segment-analytics' | 'map'
+  const [dashboardTab, setDashboardTab] = useState('analytics'); // 'analytics' | 'map'
   const [queueStatus, setQueueStatus] = useState(null);
   const [copiedCode, setCopiedCode] = useState(null);
 
@@ -113,11 +121,34 @@ export default function MarketingDashboard() {
     return () => { isMounted = false; };
   }, []);
 
-  // Global Dashboard Filters
+  // Global Dashboard Filters & Campaign Controls
   const [filterState, setFilterState] = useState('ALL');
   const [filterCluster, setFilterCluster] = useState('ALL');
   const [filterEpcType, setFilterEpcType] = useState('ALL');
   const [filterChannel, setFilterChannel] = useState('ALL');
+  const [filterCampStatus, setFilterCampStatus] = useState('ALL');
+  const [campBanner, setCampBanner] = useState(null);
+  const [actingCampId, setActingCampId] = useState('');
+  const [ctaModal, setCtaModal] = useState(null);
+
+  const openCampaignCtaModal = async (campaignId, campaignMeta = null) => {
+    setCtaModal({ loading: true, campaign: campaignMeta, ctaAnalytics: null });
+    try {
+      const res = await marketingHttp.get(`/campaigns/${campaignId}/logs`);
+      if (res.data?.success && res.data?.data) {
+        setCtaModal({
+          loading: false,
+          campaign: res.data.data.campaign || campaignMeta,
+          ctaAnalytics: res.data.data.ctaAnalytics
+        });
+      } else {
+        setCtaModal(null);
+      }
+    } catch (err) {
+      setCampBanner({ type: 'error', text: extractApiError(err, 'Failed to load CTA click analytics') });
+      setCtaModal(null);
+    }
+  };
 
   const [data, setData] = useState(EMPTY_DASHBOARD_DATA);
 
@@ -143,7 +174,32 @@ export default function MarketingDashboard() {
     fetchAnalytics();
   }, []);
 
+  const handleCampaignAction = async (id, action) => {
+    const prefix = window.location.pathname.startsWith('/admin-panel') ? '/admin-panel/marketing' : '/marketing-panel';
+    if (action === 'edit') {
+      navigate(`${prefix}/create-campaign?edit=${id}`);
+      return;
+    }
+    if (action === 'rerun' && !window.confirm('Rerun this campaign to eligible recipients now?')) return;
+    setActingCampId(id);
+    setCampBanner(null);
+    try {
+      const res = await marketingHttp.post(`/campaigns/${id}/${action}`);
+      if (action === 'draft') {
+        navigate(`${prefix}/create-campaign?edit=${id}`);
+        return;
+      }
+      setCampBanner({ type: 'success', text: res?.data?.message || `Campaign ${action} executed.` });
+      await fetchAnalytics();
+    } catch (err) {
+      setCampBanner({ type: 'error', text: extractApiError(err, `Failed to ${action} campaign`) });
+    } finally {
+      setActingCampId('');
+    }
+  };
+
   const s = data.summary || {};
+  const campStatusCounts = s.campaignStatusCounts || {};
 
   // Rank Sorted Campaigns
   const rankedCampaigns = useMemo(() => {
@@ -154,9 +210,10 @@ export default function MarketingDashboard() {
       const matchesState = filterState === 'ALL' || !item.state || (item.state || '').toLowerCase() === filterState.toLowerCase();
       const matchesCluster = filterCluster === 'ALL' || !item.cluster || (item.cluster || '').toLowerCase().includes(filterCluster.toLowerCase());
       const matchesChannel = filterChannel === 'ALL' || item.channel === filterChannel;
-      return matchesState && matchesCluster && matchesChannel;
+      const matchesStatus = filterCampStatus === 'ALL' || item.status === filterCampStatus;
+      return matchesState && matchesCluster && matchesChannel && matchesStatus;
     });
-  }, [data.campaignsRanking, filterState, filterCluster, filterChannel]);
+  }, [data.campaignsRanking, filterState, filterCluster, filterChannel, filterCampStatus]);
 
   // Filtered Territory Performance
   const filteredTerritories = useMemo(() => {
@@ -230,17 +287,6 @@ export default function MarketingDashboard() {
               <span>Performance Analytics</span>
             </button>
             <button
-              onClick={() => setDashboardTab('segment-analytics')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                dashboardTab === 'segment-analytics'
-                  ? 'bg-white dark:bg-slate-700 text-violet-600 dark:text-violet-400 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              <FaLayerGroup />
-              <span>Segment Group Analytics</span>
-            </button>
-            <button
               onClick={() => setDashboardTab('map')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 dashboardTab === 'map'
@@ -273,12 +319,10 @@ export default function MarketingDashboard() {
 
       {dashboardTab === 'map' ? (
         <IndiaCampaignMap />
-      ) : dashboardTab === 'segment-analytics' ? (
-        <SegmentGroupAnalyticsPage embedded />
       ) : (
         <>
           {/* ── Executive Numbers Cards (100% Dynamic Live DB Metrics) ── */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             
             {/* 1. Active Campaigns */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700 shadow-xs hover:border-indigo-500/50 transition-all">
@@ -338,24 +382,7 @@ export default function MarketingDashboard() {
               </div>
             </div>
 
-            {/* 5. Segment Groups Impact */}
-            <div
-              onClick={() => setDashboardTab('segment-analytics')}
-              className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-violet-200/80 dark:border-violet-800 shadow-xs hover:border-violet-500 transition-all cursor-pointer"
-            >
-              <div className="flex items-center justify-between text-slate-400 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-violet-600">Segment Groups</span>
-                <FaLayerGroup className="text-violet-500" />
-              </div>
-              <div className="text-2xl font-black tracking-tight text-violet-700 dark:text-violet-300">
-                {(s.segmentLeadsUploaded || 0).toLocaleString('en-IN')} <span className="text-xs font-normal text-slate-400">Leads</span>
-              </div>
-              <div className="text-[11px] text-violet-600 dark:text-violet-400 font-semibold mt-1">
-                {s.segmentRegistered || 0} Reg • {s.segmentBuyers || 0} Buyers
-              </div>
-            </div>
-
-            {/* 6. Active States & Clusters */}
+            {/* 5. Active States & Clusters */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700 shadow-xs hover:border-violet-500/50 transition-all">
               <div className="flex items-center justify-between text-slate-400 mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider">Active Clusters</span>
@@ -464,6 +491,32 @@ export default function MarketingDashboard() {
             </div>
           </div>
 
+          {/* ===================== LIVE PLATFORM EPC & CLUSTER TERRITORY MAP (LEFT TABLES / RIGHT MAP) ===================== */}
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200/80 dark:border-slate-700 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/60 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-lg">
+                  <FaMapMarkedAlt />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                    Live EPC Platform Map &amp; Cluster Intelligence
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    State → Franchise Cluster Management → District tables (Left) &amp; interactive state-colored India Map (Right) showing live Registered, Verified &amp; Buyer EPC counts.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDashboardTab('map')}
+                className="px-4 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold cursor-pointer"
+              >
+                Full Screen Map View →
+              </button>
+            </div>
+            <IndiaCampaignMap embedded />
+          </div>
+
           {/* ===================== SECTION 1: CAMPAIGNS PERFORMANCE RANKING HUB ===================== */}
           <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200/80 dark:border-slate-700 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700/60 pb-4">
@@ -473,10 +526,10 @@ export default function MarketingDashboard() {
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                    Campaigns Performance Ranking Hub (Highest to Lowest)
+                    Campaigns Performance Hub &amp; Live Controls
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Live descending ranking of all running and completed campaigns based on conversions, revenue generated, and ROI.
+                    Start, pause, resume, stop/cancel, draft, or rerun any campaign directly and inspect all live campaign statuses.
                   </p>
                 </div>
               </div>
@@ -488,6 +541,44 @@ export default function MarketingDashboard() {
                 <span>View All Campaigns</span>
                 <FaArrowRight className="w-3 h-3" />
               </button>
+            </div>
+
+            {campBanner && (
+              <div
+                className={`p-3 rounded-xl text-xs font-bold border ${
+                  campBanner.type === 'error'
+                    ? 'bg-rose-50 border-rose-200 text-rose-700'
+                    : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                }`}
+              >
+                {campBanner.text}
+              </div>
+            )}
+
+            {/* Dynamic All-Status Breakdown Pills */}
+            <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+              {[
+                { id: 'ALL', label: `All (${s.totalCampaigns ?? rankedCampaigns.length})` },
+                { id: 'running', label: `Running (${campStatusCounts.running ?? (data.campaignsRanking || []).filter((c) => c.status === 'running').length})` },
+                { id: 'scheduled', label: `Scheduled (${campStatusCounts.scheduled ?? (data.campaignsRanking || []).filter((c) => c.status === 'scheduled').length})` },
+                { id: 'paused', label: `Paused (${campStatusCounts.paused ?? (data.campaignsRanking || []).filter((c) => c.status === 'paused').length})` },
+                { id: 'draft', label: `Draft (${campStatusCounts.draft ?? (data.campaignsRanking || []).filter((c) => c.status === 'draft').length})` },
+                { id: 'completed', label: `Completed (${campStatusCounts.completed ?? (data.campaignsRanking || []).filter((c) => c.status === 'completed').length})` },
+                { id: 'cancelled', label: `Stopped / Cancelled (${campStatusCounts.cancelled ?? (data.campaignsRanking || []).filter((c) => c.status === 'cancelled').length})` }
+              ].map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => setFilterCampStatus(st.id)}
+                  className={`px-3 py-1.5 rounded-full border cursor-pointer transition ${
+                    filterCampStatus === st.id
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  {st.label}
+                </button>
+              ))}
             </div>
 
             <div className="overflow-x-auto">
@@ -502,8 +593,8 @@ export default function MarketingDashboard() {
                     <th className="py-3 px-3">Qualified Leads</th>
                     <th className="py-3 px-3">Kit Orders Converted</th>
                     <th className="py-3 px-3">Revenue Booked</th>
-                    <th className="py-3 px-3">Conversion Rate</th>
-                    <th className="py-3 px-3 pr-4 text-right">Status</th>
+                    <th className="py-3 px-3">Status</th>
+                    <th className="py-3 px-3 pr-4 text-right">Controls</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-medium">
@@ -562,7 +653,26 @@ export default function MarketingDashboard() {
                         </td>
 
                         <td className="py-3 px-3">
-                          <span className="font-bold text-indigo-600">{(camp.clicks || 0).toLocaleString('en-IN')}</span>
+                          <div className="space-y-0.5">
+                            <div className="font-bold text-indigo-600">
+                              {(camp.clicks || 0).toLocaleString('en-IN')} clicks
+                              {camp.uniqueClickers > 0 && (
+                                <span className="text-[10px] text-slate-500 font-semibold ml-1">
+                                  ({camp.uniqueClickers} users)
+                                </span>
+                              )}
+                            </div>
+                            {camp.topCta && (
+                              <button
+                                type="button"
+                                onClick={() => openCampaignCtaModal(camp._id, { campaign_name: camp.name, campaign_code: camp.code })}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 cursor-pointer max-w-[160px]"
+                                title={`Top clicked CTA: ${camp.topCta}`}
+                              >
+                                <span className="truncate">{camp.topCta}</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
 
                         <td className="py-3 px-3">
@@ -582,21 +692,41 @@ export default function MarketingDashboard() {
                         </td>
 
                         <td className="py-3 px-3">
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 font-bold text-[11px]">
-                            {camp.conversionRate || '0.0%'}
-                          </span>
-                        </td>
-
-                        <td className="py-3 px-3 pr-4 text-right">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
                             camp.status === 'running'
                               ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
                               : camp.status === 'completed'
                                 ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30'
-                                : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                                : camp.status === 'paused'
+                                  ? 'bg-amber-500/15 text-amber-700 border border-amber-500/30'
+                                  : camp.status === 'cancelled'
+                                    ? 'bg-rose-500/15 text-rose-700 border border-rose-500/30'
+                                    : camp.status === 'draft'
+                                      ? 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                                      : 'bg-sky-500/15 text-sky-700 border border-sky-500/30'
                           }`}>
-                            {camp.status === 'running' ? '● Running' : camp.status === 'completed' ? '✓ Completed' : '⏱ Scheduled'}
+                            {camp.status === 'cancelled' ? 'Stopped / Cancelled' : camp.status}
                           </span>
+                        </td>
+
+                        <td className="py-3 px-3 pr-4 text-right">
+                          <div className="flex flex-wrap items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openCampaignCtaModal(camp._id, { campaign_name: camp.name, campaign_code: camp.code })}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800 text-[11px] font-bold cursor-pointer"
+                              title="Inspect Button & User Click Analytics"
+                            >
+                              <FaMousePointer className="w-2.5 h-2.5" />
+                              <span>CTAs</span>
+                            </button>
+                            <CampaignLifecycleButtons
+                              campaignId={camp._id}
+                              status={camp.status}
+                              disabled={actingCampId === camp._id}
+                              onAction={handleCampaignAction}
+                            />
+                          </div>
                         </td>
                       </tr>
                     );
@@ -604,6 +734,139 @@ export default function MarketingDashboard() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* ===================== SECTION 1B: LIVE CTA BUTTON & USER CLICK ANALYTICS ===================== */}
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200/80 dark:border-slate-700 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700/60 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-lg">
+                  <FaMousePointer />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                    CTA Button &amp; User Click Analytics (Live Attribution)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Exact visibility into which CTA buttons EPCs pressed, PDF datasheet downloads, and individual user click history per campaign.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800">
+                  {data.ctaAnalytics?.totalCtaClicks || 0} Tracked Clicks
+                </span>
+                <span className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800">
+                  {data.ctaAnalytics?.uniqueClickers || 0} Unique EPCs Clicked
+                </span>
+                <span className="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-800 flex items-center gap-1">
+                  <FaFilePdf className="w-3 h-3" /> {data.ctaAnalytics?.pdfDownloadsCount || 0} PDF Downloads
+                </span>
+              </div>
+            </div>
+
+            {(data.ctaAnalytics?.topCtasGlobal || []).length === 0 && (data.ctaAnalytics?.recentClicks || []).length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                No per-CTA click events logged yet. Every click on any button, kit card, or PDF download link in sent campaigns will appear here live.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* Left: Clicks by CTA Button */}
+                <div className="lg:col-span-5 space-y-2.5">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                    Top Clicked CTA Buttons
+                  </h4>
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    {(() => {
+                      const list = data.ctaAnalytics?.topCtasGlobal || [];
+                      const maxClicks = Math.max(1, ...list.map((x) => Number(x.clicks || 0)));
+                      return list.map((cta, idx) => (
+                        <div
+                          key={`${cta.cta_label}_${idx}`}
+                          className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 space-y-1.5"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-bold text-xs text-slate-900 dark:text-white truncate">{cta.cta_label}</span>
+                              {cta.is_pdf && (
+                                <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[9.5px] font-bold shrink-0">PDF</span>
+                              )}
+                            </div>
+                            <span className="text-xs font-black text-indigo-600 shrink-0">
+                              {cta.clicks} clicks ({cta.unique_users} users)
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-indigo-600 rounded-full"
+                              style={{ width: `${Math.max(8, Math.round((Number(cta.clicks || 0) / maxClicks) * 100))}%` }}
+                            />
+                          </div>
+                          {cta.target_url && (
+                            <div className="text-[10px] font-mono text-slate-500 truncate" title={cta.target_url}>
+                              {cta.target_url}
+                            </div>
+                          )}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+
+                {/* Right: Recent User CTA Activity */}
+                <div className="lg:col-span-7 space-y-2.5">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                    Recent EPC / User CTA Clicks (Campaign → User → Button)
+                  </h4>
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden max-h-80 overflow-y-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 uppercase text-[10px] font-bold sticky top-0">
+                        <tr>
+                          <th className="py-2.5 px-3">User / EPC</th>
+                          <th className="py-2.5 px-3">Campaign</th>
+                          <th className="py-2.5 px-3">CTA Pressed</th>
+                          <th className="py-2.5 px-3">When</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {(data.ctaAnalytics?.recentClicks || []).map((ev, i) => (
+                          <tr key={ev._id || i} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                            <td className="py-2 px-3">
+                              <div className="font-bold text-slate-900 dark:text-white">{ev.recipient_name}</div>
+                              <div className="text-[10.5px] text-slate-500 font-mono">{ev.recipient_email || ev.recipient_phone || '-'}</div>
+                            </td>
+                            <td className="py-2 px-3">
+                              <button
+                                type="button"
+                                onClick={() => ev.campaign_id && openCampaignCtaModal(ev.campaign_id, { campaign_name: ev.campaign_name, campaign_code: ev.campaign_code })}
+                                className="text-left hover:underline cursor-pointer"
+                              >
+                                <div className="font-semibold text-indigo-700 dark:text-indigo-300 truncate max-w-[150px]">{ev.campaign_name}</div>
+                                <div className="text-[10px] font-mono text-slate-400">{ev.campaign_code}</div>
+                              </button>
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                ev.is_pdf
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : 'bg-blue-50 text-blue-700 border-blue-200'
+                              }`}>
+                                {ev.is_pdf && <FaFilePdf className="w-2.5 h-2.5" />}
+                                <span>{ev.cta_label}</span>
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-[10.5px] text-slate-500 whitespace-nowrap">
+                              {ev.clicked_at ? new Date(ev.clicked_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ===================== SECTION 2: ACTIVE COUPONS & DISCOUNT CODING HUB ===================== */}
@@ -861,6 +1124,38 @@ export default function MarketingDashboard() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Campaign CTA & User Click Analytics Modal */}
+      {ctaModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-700 max-w-4xl w-full max-h-[88vh] flex flex-col p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
+              <div>
+                <h3 className="font-bold text-lg text-slate-900 dark:text-white">
+                  {ctaModal.campaign?.campaign_name || 'Campaign'} — CTA Button &amp; User Click Analytics
+                </h3>
+                <p className="text-xs text-slate-500 font-mono">
+                  {ctaModal.campaign?.campaign_code || ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCtaModal(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center cursor-pointer"
+              >
+                <FaTimes />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {ctaModal.loading ? (
+                <div className="py-12 text-center text-xs text-slate-400">Loading CTA click analytics...</div>
+              ) : (
+                <CampaignCtaBreakdownView ctaAnalytics={ctaModal.ctaAnalytics} />
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

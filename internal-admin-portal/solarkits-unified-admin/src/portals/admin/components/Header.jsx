@@ -53,6 +53,12 @@ const getCategoryBadge = (category) => {
             return { label: 'Payment', color: 'bg-blue-500/10 text-blue-600 border border-blue-500/20' };
         case 'service_tickets':
             return { label: 'Ticket', color: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' };
+        case 'marketing':
+            return { label: 'Marketing', color: 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20' };
+        case 'epc':
+            return { label: 'EPC', color: 'bg-teal-500/10 text-teal-600 border border-teal-500/20' };
+        case 'leads':
+            return { label: 'Leads', color: 'bg-violet-500/10 text-violet-600 border border-violet-500/20' };
         default:
             return { label: 'System', color: 'bg-purple-500/10 text-purple-600 border border-purple-500/20' };
     }
@@ -187,12 +193,15 @@ export default function Header({ isOpen, setIsOpen, isMobile, title = "Dashboard
 
     // Resolve active panel name from allowed panels or fallback based on pathname
     const getActivePanelName = () => {
+        if (window.location.pathname.startsWith('/lead-marketing-panel')) return 'Lead Marketing Panel';
+        if (window.location.pathname.startsWith('/marketing-panel')) return 'EPC Marketing Panel';
         if (user?.allowed_panels && user.allowed_panels.length > 0) {
             const matched = user.allowed_panels.find(p => window.location.pathname.startsWith(p.url_prefix));
             if (matched) return matched.name;
         }
         const path = window.location.pathname;
-        if (path.startsWith('/marketing-panel')) return 'Marketing Management Panel';
+        if (path.startsWith('/lead-marketing-panel')) return 'Lead Marketing Panel';
+        if (path.startsWith('/marketing-panel')) return 'EPC Marketing Panel';
         if (path.startsWith('/admin-panel')) return 'Admin Panel';
         if (path.startsWith('/developer-panel')) return 'Developer Panel';
         if (path.startsWith('/operation-management-panel')) return 'Operation Management Panel';
@@ -256,8 +265,8 @@ export default function Header({ isOpen, setIsOpen, isMobile, title = "Dashboard
                                 {currentPanelName}
                             </h1>
                         )}
-                        
-                     </div>
+
+                    </div>
                 </div>
             </div>
 
@@ -279,14 +288,14 @@ export default function Header({ isOpen, setIsOpen, isMobile, title = "Dashboard
                                         const nextSegment = parts[slugIndex + 1];
                                         const activeCountriesLower = activeCountries.map(ac => ac.name.toLowerCase());
                                         const isCountrySegment = nextSegment && activeCountriesLower.includes(nextSegment.toLowerCase());
-                                        
+
                                         let subPathParts = [];
                                         if (isCountrySegment) {
                                             subPathParts = parts.slice(slugIndex + 2);
                                         } else {
                                             subPathParts = parts.slice(slugIndex + 1);
                                         }
-                                        
+
                                         const subPath = subPathParts.join('/');
                                         navigate(`/admin-panel/${slug}/${matched.name.toLowerCase()}${subPath ? '/' + subPath : ''}`);
                                     } else {
@@ -307,87 +316,86 @@ export default function Header({ isOpen, setIsOpen, isMobile, title = "Dashboard
                     user.allowed_panels.length > 1 ||
                     user.allowed_panels.some(p => p.saas_products && p.saas_products.length > 0)
                 ) && (
-                    <div className="relative" ref={switcherRef}>
-                        <button
-                            onClick={() => setShowSwitcher(!showSwitcher)}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-primary/5 hover:bg-primary/10 border border-primary/20 rounded-xl transition-all duration-200 text-xs sm:text-[13px] font-bold text-primary group"
-                        >
-                            <MdApps className="text-primary text-base sm:text-lg group-hover:rotate-45 transition-transform duration-300" />
-                            <span className="hidden md:inline">Switch Panel / Product</span>
-                            <MdExpandMore size={16} className={`transition-transform duration-200 ${showSwitcher ? 'rotate-180' : ''}`} />
-                        </button>
+                        <div className="relative" ref={switcherRef}>
+                            <button
+                                onClick={() => setShowSwitcher(!showSwitcher)}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-primary/5 hover:bg-primary/10 border border-primary/20 rounded-xl transition-all duration-200 text-xs sm:text-[13px] font-bold text-primary group"
+                            >
+                                <MdApps className="text-primary text-base sm:text-lg group-hover:rotate-45 transition-transform duration-300" />
+                                <span className="hidden md:inline">Switch Panel / Product</span>
+                                <MdExpandMore size={16} className={`transition-transform duration-200 ${showSwitcher ? 'rotate-180' : ''}`} />
+                            </button>
 
-                        {showSwitcher && (
-                            <div className="absolute right-[-110px] sm:right-0 top-full mt-2 w-[calc(100vw-32px)] sm:w-72 bg-surface border border-border rounded-xl shadow-xl z-50 overflow-hidden py-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="px-4 py-1.5 border-b border-border mb-1.5">
-                                    <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Switch System Panel / Product</span>
+                            {showSwitcher && (
+                                <div className="absolute right-[-110px] sm:right-0 top-full mt-2 w-[calc(100vw-32px)] sm:w-72 bg-surface border border-border rounded-xl shadow-xl z-50 overflow-hidden py-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="px-4 py-1.5 border-b border-border mb-1.5">
+                                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Switch System Panel / Product</span>
+                                    </div>
+                                    <div className="max-h-[300px] overflow-y-auto scrollbar-hover">
+                                        {user.allowed_panels.map((p) => {
+                                            const isPanelActive =
+                                                window.location.pathname === p.url_prefix ||
+                                                window.location.pathname === p.url_prefix + '/' ||
+                                                (p.url_prefix === '/marketing-panel' && window.location.pathname.startsWith('/marketing-panel')) ||
+                                                (p.url_prefix === '/lead-marketing-panel' && window.location.pathname.startsWith('/lead-marketing-panel'));
+
+                                            const resolvePanelUrl = (urlPrefix, path = '') => {
+                                                const cleanPath = path ? path : '/';
+                                                return `${urlPrefix}${cleanPath}`;
+                                            };
+
+                                            return (
+                                                <div key={p.id} className="border-b border-border/50 last:border-b-0 py-1">
+                                                    {/* Panel root */}
+                                                    <a
+                                                        href={resolvePanelUrl(p.url_prefix)}
+                                                        onClick={() => {
+                                                            setShowSwitcher(false);
+                                                        }}
+                                                        className={`w-full text-left px-4 py-2 text-xs font-bold flex items-center justify-between transition-colors ${isPanelActive
+                                                                ? 'bg-primary/10 text-primary'
+                                                                : 'text-text-primary hover:text-primary hover:bg-primary/5'
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`w-1.5 h-1.5 rounded-full ${isPanelActive ? 'bg-primary' : 'bg-transparent'}`} />
+                                                            {p.name}
+                                                        </div>
+                                                        <span className="text-[10px] text-text-muted font-normal bg-surface-hover px-1.5 py-0.5 rounded border border-border/50">Root</span>
+                                                    </a>
+
+                                                    {/* SaaS Products */}
+                                                    {p.saas_products && p.saas_products.length > 0 && (
+                                                        <div className="pl-6 pr-2 py-1 space-y-1 bg-surface-hover/10">
+                                                            {p.saas_products.map((prod) => {
+                                                                const isProdActive = window.location.pathname.includes(`${p.url_prefix}/${prod.slug}`);
+                                                                return (
+                                                                    <a
+                                                                        key={prod.id}
+                                                                        href={resolvePanelUrl(p.url_prefix, `/${prod.slug}`)}
+                                                                        onClick={() => {
+                                                                            setShowSwitcher(false);
+                                                                        }}
+                                                                        className={`w-full text-left px-3 py-1.5 text-[11px] font-semibold flex items-center gap-2 rounded-lg transition-all ${isProdActive
+                                                                                ? 'text-primary bg-primary/10 shadow-sm'
+                                                                                : 'text-text-secondary hover:text-primary hover:bg-primary/5'
+                                                                            }`}
+                                                                    >
+                                                                        <span className={`w-1 h-1 rounded-full ${isProdActive ? 'bg-primary' : 'bg-text-muted/40'}`} />
+                                                                        <span className="truncate">{prod.name}</span>
+                                                                    </a>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                                <div className="max-h-[300px] overflow-y-auto scrollbar-hover">
-                                    {user.allowed_panels.map((p) => {
-                                        const isPanelActive =
-                                            window.location.pathname === p.url_prefix ||
-                                            window.location.pathname === p.url_prefix + '/' ||
-                                            (p.url_prefix === '/marketing-panel' && window.location.pathname.startsWith('/marketing-panel'));
-                                        
-                                        const resolvePanelUrl = (urlPrefix, path = '') => {
-                                            const cleanPath = path ? path : '/';
-                                            return `${urlPrefix}${cleanPath}`;
-                                        };
-
-                                        return (
-                                            <div key={p.id} className="border-b border-border/50 last:border-b-0 py-1">
-                                                {/* Panel root */}
-                                                <a
-                                                    href={resolvePanelUrl(p.url_prefix)}
-                                                    onClick={() => {
-                                                        setShowSwitcher(false);
-                                                    }}
-                                                    className={`w-full text-left px-4 py-2 text-xs font-bold flex items-center justify-between transition-colors ${
-                                                        isPanelActive
-                                                            ? 'bg-primary/10 text-primary'
-                                                            : 'text-text-primary hover:text-primary hover:bg-primary/5'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${isPanelActive ? 'bg-primary' : 'bg-transparent'}`} />
-                                                        {p.name}
-                                                    </div>
-                                                    <span className="text-[10px] text-text-muted font-normal bg-surface-hover px-1.5 py-0.5 rounded border border-border/50">Root</span>
-                                                </a>
-
-                                                {/* SaaS Products */}
-                                                {p.saas_products && p.saas_products.length > 0 && (
-                                                    <div className="pl-6 pr-2 py-1 space-y-1 bg-surface-hover/10">
-                                                        {p.saas_products.map((prod) => {
-                                                            const isProdActive = window.location.pathname.includes(`${p.url_prefix}/${prod.slug}`);
-                                                            return (
-                                                                 <a
-                                                                    key={prod.id}
-                                                                    href={resolvePanelUrl(p.url_prefix, `/${prod.slug}`)}
-                                                                    onClick={() => {
-                                                                        setShowSwitcher(false);
-                                                                    }}
-                                                                    className={`w-full text-left px-3 py-1.5 text-[11px] font-semibold flex items-center gap-2 rounded-lg transition-all ${
-                                                                        isProdActive
-                                                                            ? 'text-primary bg-primary/10 shadow-sm'
-                                                                            : 'text-text-secondary hover:text-primary hover:bg-primary/5'
-                                                                    }`}
-                                                                 >
-                                                                    <span className={`w-1 h-1 rounded-full ${isProdActive ? 'bg-primary' : 'bg-text-muted/40'}`} />
-                                                                    <span className="truncate">{prod.name}</span>
-                                                                 </a>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
+                            )}
+                        </div>
+                    )}
 
                 {/* Theme Toggle */}
                 <IconButton
@@ -462,21 +470,19 @@ export default function Header({ isOpen, setIsOpen, isMobile, title = "Dashboard
                                 <div className="flex items-center gap-2 pt-1 border-t border-white/15">
                                     <button
                                         onClick={() => setNotifFilter('all')}
-                                        className={`px-3 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-                                            notifFilter === 'all'
+                                        className={`px-3 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${notifFilter === 'all'
                                                 ? 'bg-white text-primary shadow-sm'
                                                 : 'text-white/80 hover:text-white hover:bg-white/10'
-                                        }`}
+                                            }`}
                                     >
                                         All ({notifications.length})
                                     </button>
                                     <button
                                         onClick={() => setNotifFilter('unread')}
-                                        className={`px-3 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-                                            notifFilter === 'unread'
+                                        className={`px-3 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${notifFilter === 'unread'
                                                 ? 'bg-white text-primary shadow-sm'
                                                 : 'text-white/80 hover:text-white hover:bg-white/10'
-                                        }`}
+                                            }`}
                                     >
                                         Unread ({unreadCount})
                                     </button>
@@ -503,11 +509,10 @@ export default function Header({ isOpen, setIsOpen, isMobile, title = "Dashboard
                                             <div
                                                 key={notifId}
                                                 onClick={() => handleNotificationClick(notification)}
-                                                className={`p-3.5 transition-all duration-200 cursor-pointer flex gap-3 items-start group ${
-                                                    isUnread
+                                                className={`p-3.5 transition-all duration-200 cursor-pointer flex gap-3 items-start group ${isUnread
                                                         ? 'bg-primary/5 hover:bg-primary/10'
                                                         : 'hover:bg-surface-hover/80 bg-surface'
-                                                }`}
+                                                    }`}
                                             >
                                                 {/* Left dot/indicator */}
                                                 <div className="pt-1 shrink-0">

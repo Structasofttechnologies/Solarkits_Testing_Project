@@ -94,9 +94,17 @@ export default function ProtectedRoutes({ basePath } = {}) {
     // Resolve the active portal base path so marketing routes are not forced back to /admin-panel
     const resolvedBasePath =
       basePath ||
-      (location.pathname.startsWith('/marketing-panel') ? '/marketing-panel' : '/admin-panel');
+      (location.pathname.startsWith('/lead-marketing-panel')
+        ? '/lead-marketing-panel'
+        : location.pathname.startsWith('/marketing-panel')
+          ? '/marketing-panel'
+          : '/admin-panel');
     const defaultHomePath =
-      resolvedBasePath === '/marketing-panel' ? '/marketing-panel/dashboard' : `${resolvedBasePath}/home`;
+      resolvedBasePath === '/lead-marketing-panel'
+        ? '/lead-marketing-panel/dashboard'
+        : resolvedBasePath === '/marketing-panel'
+          ? '/marketing-panel/dashboard'
+          : `${resolvedBasePath}/home`;
 
     // Check for a saved intended redirect (e.g. deep-link opened in new tab)
     const intendedRedirect = sessionStorage.getItem('intended_redirect');

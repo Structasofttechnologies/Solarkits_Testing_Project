@@ -238,7 +238,7 @@ export default function Login() {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10"
+        className="w-full max-w-md rounded-3xl p-5 sm:p-8 space-y-6 relative z-10"
         style={{
           background: "#ffffff",
           border: "1px solid #e5e7eb",
@@ -302,7 +302,7 @@ export default function Login() {
               border: "2px solid #bfdbfe",
             }}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span
                 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5"
                 style={{ color: "#1d4ed8" }}
@@ -457,7 +457,7 @@ export default function Login() {
             </div>
 
             {/* Remember Me */}
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <label className="flex items-center gap-2 cursor-pointer select-none text-slate-600">
                 <input
                   type="checkbox"
@@ -538,7 +538,7 @@ export default function Login() {
 
             {/* 4-Digit PIN Boxes */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                 <label
                   className="block text-xs font-bold uppercase tracking-wider"
                   style={{ color: "#334155" }}
@@ -574,14 +574,14 @@ export default function Login() {
                     onChange={(e) => handleDigitChange(e.target.value, idx)}
                     onKeyDown={(e) => handleKeyDown(e, idx)}
                     onPaste={handlePaste}
-                    className="w-14 h-14 text-center text-xl font-black rounded-2xl bg-slate-50 border-2 border-slate-200 text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/15 transition-all shadow-inner"
+                    className="w-12 h-12 sm:w-14 sm:h-14 text-center text-xl font-black rounded-2xl bg-slate-50 border-2 border-slate-200 text-slate-900 outline-none focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/15 transition-all shadow-inner"
                   />
                 ))}
               </div>
             </div>
 
             {/* Remember Me & Switch */}
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <label className="flex items-center gap-2 cursor-pointer select-none text-slate-600">
                 <input
                   type="checkbox"

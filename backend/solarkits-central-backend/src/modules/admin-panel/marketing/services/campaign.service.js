@@ -1,3 +1,5 @@
+const mongoose = require('mongoose');
+const axios = require('axios');
 const {
   MarketingCampaign,
   MarketingUnsubscribe,
@@ -10,6 +12,8 @@ const audienceService = require('./audience.service');
 const emailQueueService = require('./emailQueue.service');
 const { resolveWebsiteInfo } = require('../constants/websiteRegistry');
 const { normalizePagePath } = require('./webTelemetry.service');
+const { sendAdminNotification } = require('../../services/admin.notification.service');
+const { signTrackingPayload, verifyTrackingSignature } = require('../utils/crypto.util');
 
 /**
  * Derive clean public backend origin for tracking & unsubscribe URLs.
@@ -42,6 +46,227 @@ const buildUtmDestinationUrl = (campaign) => {
   if (campaign.utm_term) params.set('utm_term', campaign.utm_term);
   const sep = base.includes('?') ? '&' : '?';
   return params.toString() ? `${base}${sep}${params.toString()}` : base;
+};
+
+const PLATFORM_TRACKABLE_HOSTS = new Set([
+  'solarkits.in',
+  'www.solarkits.in',
+  'store.solarkits.in',
+  'franchise.solarkits.in',
+  'solarkits-solarshop-india.onrender.com',
+  'solar-store-9r0g.onrender.com',
+  'solarkits-reseller-portal.onrender.com'
+]);
+
+const decodeHtmlEntities = (str = '') =>
+  String(str)
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&nbsp;/gi, ' ')
+    .trim();
+
+const extractHtmlAttr = (attrsStr = '', attrName) => {
+  const re = new RegExp(`(?:^|\\s)${attrName}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i');
+  const m = String(attrsStr).match(re);
+  return m ? decodeHtmlEntities(m[1] ?? m[2] ?? m[3] ?? '') : '';
+};
+
+const isSuspectedPrefetchUa = (ua = '') => {
+  const s = String(ua || '').toLowerCase();
+  if (!s) return false;
+  return (
+    s.includes('googleimageproxy') ||
+    s.includes('barracuda') ||
+    s.includes('mimecast') ||
+    s.includes('proofpoint') ||
+    s.includes('messagelabs') ||
+    s.includes('fireeye') ||
+    s.includes('mailscanner') ||
+    s.includes('antispam') ||
+    s.includes('safelinks') ||
+    s.includes('slackbot') ||
+    s.includes('facebookexternalhit') ||
+    s.includes('linkedinbot') ||
+    s.includes('twitterbot')
+  );
+};
+
+const detectDeviceType = (ua = '') => {
+  const s = String(ua || '').toLowerCase();
+  if (!s) return 'unknown';
+  if (isSuspectedPrefetchUa(s) || /bot|crawler|spider|preview/i.test(s)) return 'bot';
+  if (/ipad|tablet|playbook|silk/i.test(s)) return 'tablet';
+  if (/mobile|iphone|ipod|android.*mobile|windows phone/i.test(s)) return 'mobile';
+  return 'desktop';
+};
+
+const appendUtmIfPlatformUrl = (rawUrl, campaign, ctaLabel) => {
+  try {
+    const parsed = new URL(rawUrl);
+    const host = parsed.hostname.toLowerCase();
+    const isLocalHostApp = host === 'localhost' && ['5177', '5178', '5179'].includes(parsed.port);
+    if (!PLATFORM_TRACKABLE_HOSTS.has(host) && !isLocalHostApp) {
+      return parsed.toString();
+    }
+    if (campaign?.utm_source && !parsed.searchParams.has('utm_source')) {
+      parsed.searchParams.set('utm_source', campaign.utm_source);
+    }
+    if (campaign?.utm_medium && !parsed.searchParams.has('utm_medium')) {
+      parsed.searchParams.set('utm_medium', campaign.utm_medium || 'email');
+    }
+    if (campaign?.utm_campaign && !parsed.searchParams.has('utm_campaign')) {
+      parsed.searchParams.set('utm_campaign', campaign.utm_campaign);
+    }
+    if (ctaLabel && !parsed.searchParams.has('utm_content')) {
+      parsed.searchParams.set('utm_content', ctaLabel.slice(0, 80));
+    }
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
+};
+
+const buildTrackedSignaturePayload = ({ cid, rid, slot, cta, dest, dl, t }) =>
+  `${cid || ''}|${rid || ''}|${slot || ''}|${cta || ''}|${dest || ''}|${dl ? '1' : '0'}|${t ? '1' : '0'}`;
+
+const buildTrackedCtaUrl = ({
+  backendBase,
+  destUrl,
+  ctaLabel,
+  ctaSlot,
+  campaignId,
+  recipientId,
+  isPdf = false,
+  isTest = false
+}) => {
+  const cidStr = campaignId ? String(campaignId) : isTest ? 'test' : '';
+  const ridStr = recipientId ? String(recipientId) : '';
+  const slotStr = String(ctaSlot || 'link').slice(0, 60);
+  const labelStr = String(ctaLabel || 'Action Link').slice(0, 120);
+  const safeDest = String(destUrl || 'https://solarkits.in').slice(0, 1800);
+  const sig = signTrackingPayload(
+    buildTrackedSignaturePayload({
+      cid: cidStr,
+      rid: ridStr,
+      slot: slotStr,
+      cta: labelStr,
+      dest: safeDest,
+      dl: isPdf,
+      t: isTest
+    })
+  );
+
+  const params = new URLSearchParams();
+  if (cidStr) params.set('cid', cidStr);
+  if (ridStr) params.set('rid', ridStr);
+  params.set('slot', slotStr);
+  params.set('cta', labelStr);
+  params.set('dest', safeDest);
+  if (isPdf) params.set('dl', '1');
+  if (isTest) params.set('t', '1');
+  params.set('sig', sig);
+
+  return `${backendBase}/api/marketing/c/click?${params.toString()}`;
+};
+
+/**
+ * Interpolate email HTML variables and rewrite trackable links into signed per-CTA analytics URLs.
+ */
+const prepareEmailHtmlWithTracking = (
+  rawHtml,
+  {
+    variables = {},
+    campaign = null,
+    campaignId = null,
+    recipientId = null,
+    backendBase = resolveBackendBaseUrl(),
+    fullDestinationUrl = null,
+    isTest = false
+  } = {}
+) => {
+  const interpolated = emailService.interpolate(rawHtml || '', variables);
+  const shortCode = campaign?.tracking_short_code || '';
+  let linkCounter = 0;
+
+  return interpolated.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (fullMatch, attrsStr, innerHtml) => {
+    const rawHref = extractHtmlAttr(attrsStr, 'href');
+    if (!rawHref) return fullMatch;
+
+    const trimmedHref = rawHref.trim();
+    if (
+      !trimmedHref ||
+      trimmedHref.startsWith('#') ||
+      /^mailto:/i.test(trimmedHref) ||
+      /^tel:/i.test(trimmedHref) ||
+      trimmedHref.includes('/marketing/unsubscribe') ||
+      trimmedHref.includes('/marketing/c/')
+    ) {
+      return fullMatch;
+    }
+
+    if (!/^https?:\/\//i.test(trimmedHref)) {
+      return fullMatch;
+    }
+
+    linkCounter += 1;
+
+    let resolvedDest = trimmedHref;
+    if (shortCode && trimmedHref.includes(`/marketing/t/${shortCode}`)) {
+      resolvedDest = fullDestinationUrl || (campaign ? buildUtmDestinationUrl(campaign) : 'https://solarkits.in');
+    }
+
+    const explicitLabel = extractHtmlAttr(attrsStr, 'data-cta-label');
+    const explicitSlot = extractHtmlAttr(attrsStr, 'data-cta-slot');
+    const explicitDl = extractHtmlAttr(attrsStr, 'data-cta-dl');
+
+    let extractedLabel = explicitLabel;
+    if (!extractedLabel) {
+      const stripped = decodeHtmlEntities(
+        String(innerHtml || '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+      );
+      if (stripped) {
+        extractedLabel = stripped;
+      } else {
+        const imgAlt = extractHtmlAttr(innerHtml || '', 'alt');
+        if (imgAlt) {
+          extractedLabel = imgAlt;
+        } else {
+          try {
+            const u = new URL(resolvedDest);
+            extractedLabel = u.pathname && u.pathname !== '/' ? `${u.hostname}${u.pathname}` : u.hostname;
+          } catch {
+            extractedLabel = `Link #${linkCounter}`;
+          }
+        }
+      }
+    }
+
+    const ctaSlot = explicitSlot || `link_${linkCounter}`;
+    const isPdf = explicitDl === '1' || /\.pdf(\?|$)/i.test(resolvedDest);
+    const enrichedDest = isPdf ? resolvedDest : appendUtmIfPlatformUrl(resolvedDest, campaign, extractedLabel);
+
+    const trackedHref = buildTrackedCtaUrl({
+      backendBase,
+      destUrl: enrichedDest,
+      ctaLabel: extractedLabel,
+      ctaSlot,
+      campaignId: campaignId || campaign?._id || null,
+      recipientId,
+      isPdf,
+      isTest
+    });
+
+    const cleanedAttrs = attrsStr
+      .replace(/\sdata-cta-(?:label|slot|dl)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      .replace(/(\bhref\s*=\s*)(?:"[^"]*"|'[^']*'|[^\s>]+)/i, `$1"${trackedHref}"`);
+
+    return `<a${cleanedAttrs}>${innerHtml}</a>`;
+  });
 };
 
 /**
@@ -133,6 +358,7 @@ const launchCampaign = async (campaignId) => {
       kit_ids: Array.isArray(campaign.audience_kit_ids) ? campaign.audience_kit_ids : [],
       subcategory_ids: campaign.subcategory_ids || [],
       include_imported_leads: campaign.include_imported_leads !== false,
+      lead_sources: Array.isArray(campaign.lead_sources) ? campaign.lead_sources : [],
       require_consent: campaign.require_consent !== false,
       selected_recipient_emails: campaign.selected_recipient_emails || [],
       segment_ids: campaign.segment_ids || [],
@@ -186,6 +412,21 @@ const launchCampaign = async (campaignId) => {
   }
 
   await enqueueCampaignDispatch(campaign, pendingIndices);
+
+  sendAdminNotification({
+    title: `EPC Campaign Started: ${campaign.campaign_name}`,
+    message: `Campaign "${campaign.campaign_name}" (${campaign.campaign_code || ''}) is now running for ${pendingIndices.length} recipients.`,
+    category: 'marketing',
+    priority: 'normal',
+    action_url: '/marketing-panel/campaigns',
+    metadata: {
+      panel: 'epc_marketing',
+      event: 'campaign_started',
+      campaign_id: String(campaign._id),
+      campaign_code: campaign.campaign_code,
+      queued: pendingIndices.length
+    }
+  }).catch(() => { });
 
   return {
     success: true,
@@ -257,6 +498,23 @@ const enqueueCampaignDispatch = async (campaign, pendingIndices) => {
     }
 
     await MarketingCampaign.findByIdAndUpdate(campaign._id, { $set: updateSet });
+    if (latest.status === 'running') {
+      sendAdminNotification({
+        title: `EPC Campaign Completed: ${campaign.campaign_name}`,
+        message: `Campaign "${campaign.campaign_name}" (${campaign.campaign_code || ''}) finished dispatching. Sent: ${totalSent}, Failed: ${totalFailed}, Skipped Opt-Out: ${summary.skipped_unsubscribed}.`,
+        category: 'marketing',
+        priority: totalFailed > 0 ? 'high' : 'normal',
+        action_url: '/marketing-panel/campaigns',
+        metadata: {
+          panel: 'epc_marketing',
+          event: 'campaign_completed',
+          campaign_id: String(campaign._id),
+          campaign_code: campaign.campaign_code,
+          sent: totalSent,
+          failed: totalFailed
+        }
+      }).catch(() => { });
+    }
     console.log(`✅ [CAMPAIGN] "${campaign.campaign_name}" batch finished. Sent: ${totalSent}, Failed: ${totalFailed}, Unsubscribed: ${summary.skipped_unsubscribed}`);
   };
 
@@ -315,17 +573,27 @@ const enqueueCampaignDispatch = async (campaign, pendingIndices) => {
 
         if ((channel === 'email' || channel === 'both') && cleanEmail) {
           const subject = campaign.email_subject_override || emailTemplate?.subject || campaign.campaign_name;
-          const html =
+          const rawHtml =
             campaign.email_html_override ||
             emailTemplate?.html_content ||
-            `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;"><h2>${campaign.campaign_name}</h2><p>Hello {{name}},</p><p>Explore our latest B2B offer on <strong>{{kit_name}}</strong>.</p><p><a href="{{tracking_url}}" style="display:inline-block;padding:12px 20px;background:#263880;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">View Offer Details</a></p><hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"/><p style="font-size:12px;color:#64748b;"><a href="{{unsubscribe_url}}">Unsubscribe from marketing emails</a></p></div>`;
+            `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;"><h2>${campaign.campaign_name}</h2><p>Hello {{name}},</p><p>Explore our latest B2B offer on <strong>{{kit_name}}</strong>.</p><p><a href="{{tracking_url}}" data-cta-label="View Offer Details" data-cta-slot="primary_cta" style="display:inline-block;padding:12px 20px;background:#263880;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">View Offer Details</a></p><hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"/><p style="font-size:12px;color:#64748b;"><a href="{{unsubscribe_url}}">Unsubscribe from marketing emails</a></p></div>`;
+
+          const trackedHtml = prepareEmailHtmlWithTracking(rawHtml, {
+            variables: vars,
+            campaign,
+            campaignId: campaign._id,
+            recipientId: recipient._id,
+            backendBase,
+            fullDestinationUrl,
+            isTest: false
+          });
 
           emailRes = await emailService.sendEmail({
             senderId: campaign.email_sender_id?._id || campaign.email_sender_id,
             purpose: campaign.purpose || 'marketing',
             to: cleanEmail,
             subject,
-            htmlContent: html,
+            htmlContent: trackedHtml,
             variables: vars,
             trackingUrl: shortTrackingUrl,
             unsubscribeUrl: unsubsUrl,
@@ -493,9 +761,143 @@ const handleShortUrlClick = async (shortCode, req) => {
   return { redirectUrl: 'https://solarkits.in' };
 };
 
+/**
+ * Verify signed per-CTA tracking link, record analytics per CTA button & recipient,
+ * and resolve final redirect or forced PDF attachment download.
+ */
+const recordCtaClick = async (query = {}, req = {}) => {
+  const { dest, cta, slot, cid, rid, dl, t, sig } = query;
+  const fallback = 'https://solarkits.in';
+
+  let parsedDest = null;
+  try {
+    parsedDest = new URL(String(dest || ''));
+    if (!['http:', 'https:'].includes(parsedDest.protocol)) {
+      return { redirectUrl: fallback };
+    }
+  } catch {
+    return { redirectUrl: fallback };
+  }
+
+  const sigPayload = buildTrackedSignaturePayload({
+    cid: cid ? String(cid) : '',
+    rid: rid ? String(rid) : '',
+    slot: slot ? String(slot) : '',
+    cta: cta ? String(cta) : '',
+    dest: String(dest || ''),
+    dl: dl === '1',
+    t: t === '1'
+  });
+
+  if (!verifyTrackingSignature(sigPayload, sig)) {
+    return { redirectUrl: fallback };
+  }
+
+  const safeDest = parsedDest.toString();
+  const isPdfDownload =
+    dl === '1' &&
+    parsedDest.hostname.toLowerCase() === 'res.cloudinary.com' &&
+    /\.pdf$/i.test(parsedDest.pathname);
+
+  let downloadFilename = 'SolarKits_Datasheet.pdf';
+  if (isPdfDownload) {
+    const rawName = (parsedDest.pathname.split('/').pop() || 'SolarKits_Datasheet.pdf').replace(/[^A-Za-z0-9._-]/g, '_');
+    downloadFilename = rawName.toLowerCase().endsWith('.pdf') ? rawName : `${rawName}.pdf`;
+  }
+
+  if (String(req.method || '').toUpperCase() === 'HEAD') {
+    return { headOnly: true, redirectUrl: safeDest };
+  }
+
+  const ua = String(req.headers?.['user-agent'] || '');
+  const isBotPrefetch = isSuspectedPrefetchUa(ua);
+  const deviceType = detectDeviceType(ua);
+  const isTest = t === '1' || String(cid || '') === 'test';
+  const ctaLabel = String(cta || slot || 'Action Button').trim().slice(0, 140);
+  const ctaSlot = String(slot || 'link').trim().slice(0, 80);
+
+  if (!isTest && cid && mongoose.Types.ObjectId.isValid(String(cid))) {
+    const campaign = await MarketingCampaign.findById(cid).lean().catch(() => null);
+    if (campaign) {
+      const recipient =
+        rid && mongoose.Types.ObjectId.isValid(String(rid))
+          ? (campaign.recipients || []).find((r) => String(r._id) === String(rid)) || null
+          : null;
+      const siteInfo = resolveWebsiteInfo({ landing_url: safeDest });
+      const now = new Date();
+
+      await UtmVisit.create({
+        campaign_id: campaign._id,
+        recipient_id: recipient?._id || (rid && mongoose.Types.ObjectId.isValid(String(rid)) ? rid : null),
+        recipient_name: recipient?.name || null,
+        recipient_email: recipient?.email || null,
+        recipient_phone: recipient?.phone || null,
+        channel: 'email',
+        cta_label: ctaLabel,
+        cta_slot: ctaSlot,
+        target_url: safeDest,
+        is_suspected_bot_prefetch: isBotPrefetch,
+        is_test_click: false,
+        website_key: siteInfo.website_key,
+        site_domain: siteInfo.site_domain,
+        site_url: siteInfo.site_url,
+        utm_source: parsedDest.searchParams.get('utm_source') || campaign.utm_source || 'solarkits_marketing',
+        utm_medium: parsedDest.searchParams.get('utm_medium') || campaign.utm_medium || 'email',
+        utm_campaign: parsedDest.searchParams.get('utm_campaign') || campaign.utm_campaign || '',
+        utm_content: parsedDest.searchParams.get('utm_content') || ctaLabel,
+        utm_term: parsedDest.searchParams.get('utm_term') || campaign.utm_term || '',
+        landing_url: safeDest,
+        page_path: normalizePagePath(safeDest),
+        referrer: req.headers?.['referer'] || null,
+        ip_address: req.ip || req.connection?.remoteAddress || null,
+        user_agent: ua || null,
+        device_type: deviceType
+      }).catch((e) => console.warn('CTA click log warning:', e.message));
+
+      if (!isBotPrefetch) {
+        await MarketingCampaign.findByIdAndUpdate(campaign._id, {
+          $inc: { 'stats.link_clicks': 1, 'stats.website_visits': 1 }
+        }).catch((e) => console.warn('Campaign stats click inc warning:', e.message));
+
+        if (recipient) {
+          const keepStatus = ['converted', 'submitted_form', 'visited'].includes(recipient.status);
+          await MarketingCampaign.updateOne(
+            { _id: campaign._id, 'recipients._id': recipient._id },
+            {
+              $inc: { 'recipients.$.click_count': 1 },
+              $set: {
+                'recipients.$.last_clicked_at': now,
+                ...(recipient.clicked_at ? {} : { 'recipients.$.clicked_at': now }),
+                ...(keepStatus ? {} : { 'recipients.$.status': 'clicked' })
+              },
+              $push: {
+                'recipients.$.cta_clicks': {
+                  cta_label: ctaLabel,
+                  cta_slot: ctaSlot,
+                  target_url: safeDest,
+                  device_type: deviceType,
+                  clicked_at: now
+                }
+              }
+            }
+          ).catch((e) => console.warn('Recipient CTA click update warning:', e.message));
+        }
+      }
+    }
+  }
+
+  return {
+    redirectUrl: safeDest,
+    streamPdfUrl: isPdfDownload ? safeDest : null,
+    downloadFilename
+  };
+};
+
 module.exports = {
   resolveBackendBaseUrl,
   buildUtmDestinationUrl,
+  prepareEmailHtmlWithTracking,
   launchCampaign,
-  handleShortUrlClick
+  handleShortUrlClick,
+  recordCtaClick
 };

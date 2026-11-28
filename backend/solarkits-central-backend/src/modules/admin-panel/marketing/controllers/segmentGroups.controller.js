@@ -216,6 +216,57 @@ const syncMissingContactClusters = async (resolver, segmentIdFilter = null) => {
 
 const getLeadSources = async (req, res) => {
   try {
+    // Scoped EPC lead sources with live counts for EPC Campaign Audience Inclusion
+    if (req.query?.scope === 'epc_leads') {
+      const leads = WebsiteEpcLead
+        ? await WebsiteEpcLead.find({ deleted_at: null })
+          .select('lead_source source email phone mobile_number')
+          .lean()
+          .catch(() => [])
+        : [];
+
+      const sourceLabelMap = {
+        portal: 'Website Bulk Inquiry (Portal)',
+        'solar-store-bulk-banner': 'Solar Store Bulk Inquiry Banner',
+        audience_dynamic_import: 'Audience Bulk Upload (Excel / CSV)',
+        csv_dynamic_import: 'CSV Dynamic Lead Import',
+        exhibition: 'Exhibition / Trade Expo',
+        referral: 'Partner Referral',
+        website: 'Website Lead Form'
+      };
+
+      const bucketMap = new Map();
+      for (const row of leads) {
+        const rawVal = String(row.lead_source || row.source || 'portal').trim();
+        if (!rawVal) continue;
+        const key = rawVal.toLowerCase();
+        if (!bucketMap.has(key)) {
+          const pretty =
+            sourceLabelMap[key] ||
+            rawVal
+              .replace(/[_-]+/g, ' ')
+              .replace(/\b\w/g, (ch) => ch.toUpperCase());
+          bucketMap.set(key, {
+            value: rawVal,
+            label: pretty,
+            count: 0,
+            email_count: 0,
+            phone_count: 0
+          });
+        }
+        const entry = bucketMap.get(key);
+        entry.count += 1;
+        if (row.email && String(row.email).includes('@')) entry.email_count += 1;
+        if (row.phone || row.mobile_number) entry.phone_count += 1;
+      }
+
+      const sources = Array.from(bucketMap.values()).sort(
+        (a, b) => b.count - a.count || a.label.localeCompare(b.label)
+      );
+      return res.json({ success: true, data: sources });
+    }
+
+    // Preserve exact original behavior for default GET /lead-sources callers
     const [webSources, bdeLeadSources, segSources] = await Promise.all([
       WebsiteEpcLead
         ? WebsiteEpcLead.distinct('lead_source', { deleted_at: null }).catch(() => [])
@@ -240,7 +291,7 @@ const getLeadSources = async (req, res) => {
       }
     }
     sources.sort((a, b) => a.label.localeCompare(b.label));
-    res.json({ success: true, data: sources });
+    return res.json({ success: true, data: sources });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -336,8 +387,8 @@ const getConfiguredKits = async (req, res) => {
         .lean(),
       IndiaComboKit && IndiaComboKit !== CoreComboKit
         ? IndiaComboKit.find({ deleted_at: null, is_active: true, is_custom: false })
-            .select('_id name capacity solar_kit_id selling_price_cached base_price_cached kit_image')
-            .lean()
+          .select('_id name capacity solar_kit_id selling_price_cached base_price_cached kit_image')
+          .lean()
         : Promise.resolve([])
     ]);
 
@@ -444,51 +495,51 @@ const getSegments = async (req, res) => {
 
     const [filteredCounts, geoSplitAgg] = segIds.length > 0
       ? await Promise.all([
-          MarketingSegmentContact.aggregate([
-            { $match: baseContactMatch },
-            {
-              $group: {
-                _id: '$segment_id',
-                contact_count: { $sum: 1 },
-                email_count: {
-                  $sum: {
-                    $cond: [{ $and: [{ $ne: ['$email', ''] }, { $ne: ['$email', null] }] }, 1, 0]
-                  }
-                },
-                phone_count: {
-                  $sum: {
-                    $cond: [{ $and: [{ $ne: ['$phone_normalized', ''] }, { $ne: ['$phone_normalized', null] }] }, 1, 0]
-                  }
+        MarketingSegmentContact.aggregate([
+          { $match: baseContactMatch },
+          {
+            $group: {
+              _id: '$segment_id',
+              contact_count: { $sum: 1 },
+              email_count: {
+                $sum: {
+                  $cond: [{ $and: [{ $ne: ['$email', ''] }, { $ne: ['$email', null] }] }, 1, 0]
+                }
+              },
+              phone_count: {
+                $sum: {
+                  $cond: [{ $and: [{ $ne: ['$phone_normalized', ''] }, { $ne: ['$phone_normalized', null] }] }, 1, 0]
                 }
               }
             }
-          ]),
-          MarketingSegmentContact.aggregate([
-            { $match: baseContactMatch },
-            {
-              $group: {
-                _id: {
-                  segment_id: '$segment_id',
-                  state: '$state',
-                  cluster_name: '$cluster_name',
-                  cluster_code: '$cluster_code',
-                  district: '$district'
-                },
-                count: { $sum: 1 },
-                email_count: {
-                  $sum: {
-                    $cond: [{ $and: [{ $ne: ['$email', ''] }, { $ne: ['$email', null] }] }, 1, 0]
-                  }
-                },
-                phone_count: {
-                  $sum: {
-                    $cond: [{ $and: [{ $ne: ['$phone_normalized', ''] }, { $ne: ['$phone_normalized', null] }] }, 1, 0]
-                  }
+          }
+        ]),
+        MarketingSegmentContact.aggregate([
+          { $match: baseContactMatch },
+          {
+            $group: {
+              _id: {
+                segment_id: '$segment_id',
+                state: '$state',
+                cluster_name: '$cluster_name',
+                cluster_code: '$cluster_code',
+                district: '$district'
+              },
+              count: { $sum: 1 },
+              email_count: {
+                $sum: {
+                  $cond: [{ $and: [{ $ne: ['$email', ''] }, { $ne: ['$email', null] }] }, 1, 0]
+                }
+              },
+              phone_count: {
+                $sum: {
+                  $cond: [{ $and: [{ $ne: ['$phone_normalized', ''] }, { $ne: ['$phone_normalized', null] }] }, 1, 0]
                 }
               }
             }
-          ])
+          }
         ])
+      ])
       : [[], []];
 
     const clusterColorByName = new Map(
@@ -559,38 +610,38 @@ const getSegments = async (req, res) => {
 
       const stateBreakdown = splits
         ? Array.from(splits.states.entries())
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
         : [];
       const clusterBreakdown = splits
         ? Array.from(splits.clusters.entries())
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
         : [];
       const stateClusterBreakdown = splits
         ? Array.from(splits.stateTree.values())
-            .map((st) => ({
-              state_name: st.state_name,
-              count: st.count,
-              email_count: st.email_count,
-              phone_count: st.phone_count,
-              clusters: Array.from(st.clustersMap.values())
-                .map((c) => ({
-                  cluster_name: c.cluster_name,
-                  cluster_code: c.cluster_code,
-                  color_code: c.color_code,
-                  count: c.count,
-                  districts: Array.from(c.districtsMap.entries())
-                    .map(([district_name, count]) => ({ district_name, count }))
-                    .sort((a, b) => b.count - a.count)
-                }))
-                .sort((a, b) => b.count - a.count),
-              unclustered_count: st.unclustered_count,
-              unclustered_districts: Array.from(st.unclusteredDistrictsMap.entries())
-                .map(([district_name, count]) => ({ district_name, count }))
-                .sort((a, b) => b.count - a.count)
-            }))
-            .sort((a, b) => b.count - a.count)
+          .map((st) => ({
+            state_name: st.state_name,
+            count: st.count,
+            email_count: st.email_count,
+            phone_count: st.phone_count,
+            clusters: Array.from(st.clustersMap.values())
+              .map((c) => ({
+                cluster_name: c.cluster_name,
+                cluster_code: c.cluster_code,
+                color_code: c.color_code,
+                count: c.count,
+                districts: Array.from(c.districtsMap.entries())
+                  .map(([district_name, count]) => ({ district_name, count }))
+                  .sort((a, b) => b.count - a.count)
+              }))
+              .sort((a, b) => b.count - a.count),
+            unclustered_count: st.unclustered_count,
+            unclustered_districts: Array.from(st.unclusteredDistrictsMap.entries())
+              .map(([district_name, count]) => ({ district_name, count }))
+              .sort((a, b) => b.count - a.count)
+          }))
+          .sort((a, b) => b.count - a.count)
         : [];
 
       return {
@@ -642,22 +693,22 @@ const getSegmentTerritorySummary = async (req, res) => {
 
     const contactsAgg = segIds.length > 0
       ? await MarketingSegmentContact.aggregate([
-          { $match: { deleted_at: null, segment_id: { $in: segIds } } },
-          {
-            $group: {
-              _id: {
-                state_id: '$state_id',
-                state: '$state',
-                cluster_id: '$cluster_id',
-                cluster_name: '$cluster_name',
-                district_id: '$district_id',
-                district: '$district',
-                promoted: { $eq: ['$promotion_status', 'promoted_to_verified_epc'] }
-              },
-              leads_count: { $sum: 1 }
-            }
+        { $match: { deleted_at: null, segment_id: { $in: segIds } } },
+        {
+          $group: {
+            _id: {
+              state_id: '$state_id',
+              state: '$state',
+              cluster_id: '$cluster_id',
+              cluster_name: '$cluster_name',
+              district_id: '$district_id',
+              district: '$district',
+              promoted: { $eq: ['$promotion_status', 'promoted_to_verified_epc'] }
+            },
+            leads_count: { $sum: 1 }
           }
-        ])
+        }
+      ])
       : [];
 
     // Build State -> Clusters -> Districts tree seeded from live FranchiseeClusters (0 leads = neutral on map)
@@ -744,18 +795,18 @@ const getSegmentTerritorySummary = async (req, res) => {
       const geoResolved =
         rId.state_id && rId.district_id
           ? {
-              state_id: rId.state_id,
-              state: resolver.stateById.get(String(rId.state_id))?.name || rId.state || 'Unspecified',
-              district_id: rId.district_id,
-              district: resolver.districtById.get(String(rId.district_id))?.name || rId.district || 'Unspecified',
-              cluster_id: rId.cluster_id || null,
-              cluster_name: rId.cluster_name || ''
-            }
+            state_id: rId.state_id,
+            state: resolver.stateById.get(String(rId.state_id))?.name || rId.state || 'Unspecified',
+            district_id: rId.district_id,
+            district: resolver.districtById.get(String(rId.district_id))?.name || rId.district || 'Unspecified',
+            cluster_id: rId.cluster_id || null,
+            cluster_name: rId.cluster_name || ''
+          }
           : resolver.resolve({
-              stateName: rId.state || '',
-              districtName: rId.district || '',
-              clusterName: rId.cluster_name || ''
-            });
+            stateName: rId.state || '',
+            districtName: rId.district || '',
+            clusterName: rId.cluster_name || ''
+          });
 
       const stNameRaw = geoResolved.state || rId.state || 'Unspecified';
       if (state && cleanStateToken(state) !== cleanStateToken(stNameRaw)) continue;

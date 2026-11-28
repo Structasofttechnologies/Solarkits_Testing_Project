@@ -171,15 +171,14 @@ export default function Navbar() {
         }}
       >
         <div
+          className="px-4 sm:px-7 h-16 md:h-[74px]"
           style={{
             maxWidth: "1440px",
             margin: "0 auto",
-            padding: "0 28px",
-            height: "74px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            gap: "20px",
+            gap: "12px",
           }}
         >
           {/* Brand Logo */}
@@ -200,11 +199,8 @@ export default function Navbar() {
             <img
               src={logo}
               alt="SolarKits India"
+              className="h-7 sm:h-9 w-auto object-contain block"
               style={{
-                height: "36px",
-                width: "auto",
-                objectFit: "contain",
-                display: "block",
                 transition: "transform 0.2s ease",
               }}
               onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.03)")}

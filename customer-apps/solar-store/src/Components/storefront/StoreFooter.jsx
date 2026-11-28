@@ -180,9 +180,9 @@ export default function StoreFooter() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="mt-10 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+        <div className="mt-8 sm:mt-10 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 text-center sm:text-left">
           <p>© {new Date().getFullYear()} SOLARKITS India. All rights reserved. A Solar Marketplace.</p>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-4">
             <span className="flex items-center gap-1.5 text-slate-600 font-semibold">
               <FiCheckCircle className="text-emerald-600" size={14} />
               <span>Certified Complete Solar Power Kits</span>

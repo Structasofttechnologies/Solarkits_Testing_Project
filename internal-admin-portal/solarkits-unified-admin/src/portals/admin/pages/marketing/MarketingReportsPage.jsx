@@ -59,6 +59,9 @@ export default function MarketingReportsPage() {
       'Delivery Rate',
       'Opened/Read',
       'Clicks',
+      'Unique Clickers',
+      'Top CTA',
+      'CTA Breakdown',
       'Visits',
       'Leads',
       'Conversions',
@@ -78,6 +81,9 @@ export default function MarketingReportsPage() {
       r.delivery_rate || '0.0%',
       Number(r.opened_or_read || 0),
       Number(r.clicks || 0),
+      Number(r.unique_clickers || 0),
+      `"${String(r.top_cta || '').replace(/"/g, '""')}"`,
+      `"${String(r.cta_breakdown_summary || '').replace(/"/g, '""')}"`,
       Number(r.website_visits || 0),
       Number(r.leads_generated || 0),
       Number(r.conversions || 0),
@@ -191,7 +197,7 @@ export default function MarketingReportsPage() {
                   <th className="py-3.5 px-4">Delivered</th>
                   <th className="py-3.5 px-4">Failed</th>
                   <th className="py-3.5 px-4">Delivery Rate</th>
-                  <th className="py-3.5 px-4">Clicks</th>
+                  <th className="py-3.5 px-4">Clicks &amp; Top CTA</th>
                   <th className="py-3.5 px-4">Leads</th>
                   <th className="py-3.5 px-4">Orders</th>
                   <th className="py-3.5 px-4">Revenue</th>
@@ -212,7 +218,14 @@ export default function MarketingReportsPage() {
                     <td className="py-3.5 px-4">{Number(r.delivered || 0).toLocaleString('en-IN')}</td>
                     <td className="py-3.5 px-4 text-rose-600">{Number(r.failed || 0).toLocaleString('en-IN')}</td>
                     <td className="py-3.5 px-4 font-bold text-indigo-600">{r.delivery_rate || '0.0%'}</td>
-                    <td className="py-3.5 px-4">{Number(r.clicks || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold">{Number(r.clicks || 0).toLocaleString('en-IN')}</div>
+                      {r.top_cta && (
+                        <div className="text-[10px] text-indigo-600 font-semibold truncate max-w-[160px]" title={r.cta_breakdown_summary || r.top_cta}>
+                          {r.top_cta}
+                        </div>
+                      )}
+                    </td>
                     <td className="py-3.5 px-4 font-bold">{Number(r.leads_generated || 0).toLocaleString('en-IN')}</td>
                     <td className="py-3.5 px-4 font-bold text-emerald-600">{Number(r.conversions || 0).toLocaleString('en-IN')}</td>
                     <td className="py-3.5 px-4 font-bold">₹{Number(r.revenue || 0).toLocaleString('en-IN')}</td>

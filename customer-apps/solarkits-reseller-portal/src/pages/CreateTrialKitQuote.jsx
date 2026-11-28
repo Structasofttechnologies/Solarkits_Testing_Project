@@ -60,11 +60,10 @@ function TrialKitCard({ kit, isSelected, onSelectKit }) {
   return (
     <div
       onClick={() => onSelectKit(kit, trialQty)}
-      className={`rounded-2xl border-2 transition-all duration-200 flex flex-col justify-between overflow-hidden bg-white dark:bg-slate-800 shadow-sm hover:shadow-md cursor-pointer ${
-        isSelected
+      className={`rounded-2xl border-2 transition-all duration-200 flex flex-col justify-between overflow-hidden bg-white dark:bg-slate-800 shadow-sm hover:shadow-md cursor-pointer ${isSelected
           ? "border-purple-600 ring-2 ring-purple-600/20 shadow-md"
           : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-      }`}
+        }`}
     >
       <div className="p-4 flex-1 flex flex-col">
         {/* Top Header: Badge & Status */}
@@ -186,11 +185,10 @@ function TrialKitCard({ kit, isSelected, onSelectKit }) {
 
       {/* Bottom Selection Bar */}
       <div
-        className={`p-3 text-center text-xs font-bold transition-colors ${
-          isSelected
+        className={`p-3 text-center text-xs font-bold transition-colors ${isSelected
             ? "bg-purple-600 text-white"
             : "bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 hover:bg-slate-100"
-        }`}
+          }`}
       >
         {isSelected ? (
           <span className="flex items-center justify-center gap-1.5">
@@ -260,10 +258,10 @@ export default function CreateTrialKitQuote() {
         const list = Array.isArray(raw)
           ? raw
           : Array.isArray(raw?.epcs)
-          ? raw.epcs
-          : Array.isArray(res.data?.epcs)
-          ? res.data.epcs
-          : [];
+            ? raw.epcs
+            : Array.isArray(res.data?.epcs)
+              ? res.data.epcs
+              : [];
         setEpcList(list);
       } else {
         setEpcList([]);
@@ -286,10 +284,10 @@ export default function CreateTrialKitQuote() {
         const list = Array.isArray(raw)
           ? raw
           : Array.isArray(raw?.kits)
-          ? raw.kits
-          : Array.isArray(res.data?.kits)
-          ? res.data.kits
-          : [];
+            ? raw.kits
+            : Array.isArray(res.data?.kits)
+              ? res.data.kits
+              : [];
         // Double-check allow_trial_kit
         const filtered = list.filter((k) => k.allow_trial_kit !== false);
         setKitList(filtered);
@@ -315,10 +313,10 @@ export default function CreateTrialKitQuote() {
         const list = Array.isArray(raw)
           ? raw
           : Array.isArray(raw?.warranties)
-          ? raw.warranties
-          : Array.isArray(res.data?.warranties)
-          ? res.data.warranties
-          : [];
+            ? raw.warranties
+            : Array.isArray(res.data?.warranties)
+              ? res.data.warranties
+              : [];
         setWarrantyList(list);
       } else {
         setWarrantyList([]);
@@ -338,10 +336,10 @@ export default function CreateTrialKitQuote() {
         const list = Array.isArray(raw)
           ? raw
           : Array.isArray(raw?.warehouses)
-          ? raw.warehouses
-          : Array.isArray(res.data?.warehouses)
-          ? res.data.warehouses
-          : [];
+            ? raw.warehouses
+            : Array.isArray(res.data?.warehouses)
+              ? res.data.warehouses
+              : [];
         setWarehouses(list);
         if (list.length > 0 && !selectedWarehouseId) {
           setSelectedWarehouseId(list[0]._id);
@@ -558,7 +556,7 @@ export default function CreateTrialKitQuote() {
 
       {/* Stepper Progress Bar */}
       <div className="bg-white dark:bg-slate-800 p-3 md:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
-        <div className="grid grid-cols-5 gap-2 md:gap-4">
+        <div className="grid grid-cols-5 gap-1.5 sm:gap-2 md:gap-4">
           {STEPS.map((step) => {
             const Icon = step.icon;
             const isCompleted = currentStep > step.num;
@@ -570,42 +568,38 @@ export default function CreateTrialKitQuote() {
                 type="button"
                 onClick={() => isCompleted && setCurrentStep(step.num)}
                 disabled={!isCompleted && !isCurrent}
-                className={`text-left transition-all ${
-                  !isCompleted && !isCurrent ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
-                }`}
+                className={`text-left transition-all ${!isCompleted && !isCurrent ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
+                  }`}
               >
                 <div className="flex items-center gap-2 mb-1.5">
                   <div
-                    className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black transition ${
-                      isCompleted
+                    className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black transition ${isCompleted
                         ? "bg-emerald-500 text-white"
                         : isCurrent
-                        ? "bg-purple-600 text-white shadow-md shadow-purple-600/20"
-                        : "bg-slate-100 dark:bg-slate-700 text-slate-500"
-                    }`}
+                          ? "bg-purple-600 text-white shadow-md shadow-purple-600/20"
+                          : "bg-slate-100 dark:bg-slate-700 text-slate-500"
+                      }`}
                   >
                     {isCompleted ? <FiCheck size={14} /> : step.num}
                   </div>
                   <span
-                    className={`text-xs font-bold hidden md:inline truncate ${
-                      isCurrent
+                    className={`text-xs font-bold hidden md:inline truncate ${isCurrent
                         ? "text-purple-600 dark:text-purple-400 font-black"
                         : isCompleted
-                        ? "text-slate-900 dark:text-white"
-                        : "text-slate-400"
-                    }`}
+                          ? "text-slate-900 dark:text-white"
+                          : "text-slate-400"
+                      }`}
                   >
                     {step.title}
                   </span>
                 </div>
                 <div
-                  className={`h-1.5 w-full rounded-full transition-all ${
-                    isCompleted
+                  className={`h-1.5 w-full rounded-full transition-all ${isCompleted
                       ? "bg-emerald-500"
                       : isCurrent
-                      ? "bg-purple-600"
-                      : "bg-slate-100 dark:bg-slate-700"
-                  }`}
+                        ? "bg-purple-600"
+                        : "bg-slate-100 dark:bg-slate-700"
+                    }`}
                 ></div>
               </button>
             );
@@ -649,9 +643,8 @@ export default function CreateTrialKitQuote() {
                 <button
                   type="button"
                   onClick={() => setEpcViewMode("table")}
-                  className={`p-1.5 rounded-lg text-xs transition ${
-                    epcViewMode === "table" ? "bg-white dark:bg-slate-800 shadow-xs text-purple-600" : "text-slate-500"
-                  }`}
+                  className={`p-1.5 rounded-lg text-xs transition ${epcViewMode === "table" ? "bg-white dark:bg-slate-800 shadow-xs text-purple-600" : "text-slate-500"
+                    }`}
                   title="Table View"
                 >
                   <FiList size={14} />
@@ -659,9 +652,8 @@ export default function CreateTrialKitQuote() {
                 <button
                   type="button"
                   onClick={() => setEpcViewMode("grid")}
-                  className={`p-1.5 rounded-lg text-xs transition ${
-                    epcViewMode === "grid" ? "bg-white dark:bg-slate-800 shadow-xs text-purple-600" : "text-slate-500"
-                  }`}
+                  className={`p-1.5 rounded-lg text-xs transition ${epcViewMode === "grid" ? "bg-white dark:bg-slate-800 shadow-xs text-purple-600" : "text-slate-500"
+                    }`}
                   title="Card Grid View"
                 >
                   <FiGrid size={14} />
@@ -694,11 +686,10 @@ export default function CreateTrialKitQuote() {
                       <tr
                         key={epc._id}
                         onClick={() => handleSelectEpc(epc)}
-                        className={`cursor-pointer transition-colors ${
-                          isSelected
+                        className={`cursor-pointer transition-colors ${isSelected
                             ? "bg-purple-50/60 dark:bg-purple-950/30"
                             : "hover:bg-slate-50/60 dark:hover:bg-slate-900/30"
-                        }`}
+                          }`}
                       >
                         <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
                           <div className="flex items-center gap-2">
@@ -730,11 +721,10 @@ export default function CreateTrialKitQuote() {
                               e.stopPropagation();
                               handleSelectEpc(epc);
                             }}
-                            className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
-                              isSelected
+                            className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${isSelected
                                 ? "bg-purple-600 text-white shadow-xs"
                                 : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-purple-50"
-                            }`}
+                              }`}
                           >
                             {isSelected ? "Selected" : "Select"}
                           </button>
@@ -753,11 +743,10 @@ export default function CreateTrialKitQuote() {
                   <div
                     key={epc._id}
                     onClick={() => handleSelectEpc(epc)}
-                    className={`p-4 rounded-2xl border-2 cursor-pointer transition ${
-                      isSelected
+                    className={`p-4 rounded-2xl border-2 cursor-pointer transition ${isSelected
                         ? "border-purple-600 bg-purple-50/30 dark:bg-purple-950/20 shadow-xs"
                         : "border-slate-200 dark:border-slate-700 hover:border-slate-300 bg-white dark:bg-slate-800"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-bold text-sm text-slate-900 dark:text-white line-clamp-1">
@@ -810,11 +799,10 @@ export default function CreateTrialKitQuote() {
             <button
               type="button"
               onClick={() => setDeliveryType("epc_location")}
-              className={`p-4 rounded-2xl border-2 text-left transition ${
-                deliveryType === "epc_location"
+              className={`p-4 rounded-2xl border-2 text-left transition ${deliveryType === "epc_location"
                   ? "border-purple-600 bg-purple-50/40 dark:bg-purple-950/20 shadow-xs"
                   : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="font-bold text-sm text-slate-900 dark:text-white">
@@ -830,11 +818,10 @@ export default function CreateTrialKitQuote() {
             <button
               type="button"
               onClick={() => setDeliveryType("franchisee_warehouse")}
-              className={`p-4 rounded-2xl border-2 text-left transition ${
-                deliveryType === "franchisee_warehouse"
+              className={`p-4 rounded-2xl border-2 text-left transition ${deliveryType === "franchisee_warehouse"
                   ? "border-purple-600 bg-purple-50/40 dark:bg-purple-950/20 shadow-xs"
                   : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="font-bold text-sm text-slate-900 dark:text-white">
@@ -977,11 +964,10 @@ export default function CreateTrialKitQuote() {
               <button
                 type="button"
                 onClick={() => setSelectedIndustryFilter("all")}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition shrink-0 ${
-                  selectedIndustryFilter === "all"
+                className={`px-3 py-1 rounded-full text-xs font-bold transition shrink-0 ${selectedIndustryFilter === "all"
                     ? "bg-purple-600 text-white shadow-xs font-black"
                     : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
-                }`}
+                  }`}
               >
                 All Industries ({kitList.length})
               </button>
@@ -990,11 +976,10 @@ export default function CreateTrialKitQuote() {
                   key={ind.id}
                   type="button"
                   onClick={() => setSelectedIndustryFilter(ind.name)}
-                  className={`px-3 py-1 rounded-full text-xs font-bold transition shrink-0 ${
-                    selectedIndustryFilter.toLowerCase() === ind.name.toLowerCase()
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition shrink-0 ${selectedIndustryFilter.toLowerCase() === ind.name.toLowerCase()
                       ? "bg-purple-600 text-white shadow-xs font-black"
                       : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
-                  }`}
+                    }`}
                 >
                   {ind.name}
                 </button>
@@ -1082,11 +1067,10 @@ export default function CreateTrialKitQuote() {
             {/* Standard Manufacturer Warranty (Included) */}
             <div
               onClick={() => setSelectedWarranty(null)}
-              className={`p-4 rounded-2xl border-2 cursor-pointer transition ${
-                selectedWarranty === null
+              className={`p-4 rounded-2xl border-2 cursor-pointer transition ${selectedWarranty === null
                   ? "border-purple-600 bg-purple-50/40 dark:bg-purple-950/20 shadow-xs"
                   : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between mb-1.5">
                 <span className="font-bold text-sm text-slate-900 dark:text-white">
@@ -1109,11 +1093,10 @@ export default function CreateTrialKitQuote() {
                 <div
                   key={w._id}
                   onClick={() => setSelectedWarranty(w)}
-                  className={`p-4 rounded-2xl border-2 cursor-pointer transition ${
-                    isSelected
+                  className={`p-4 rounded-2xl border-2 cursor-pointer transition ${isSelected
                       ? "border-purple-600 bg-purple-50/40 dark:bg-purple-950/20 shadow-xs"
                       : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="font-bold text-sm text-slate-900 dark:text-white">

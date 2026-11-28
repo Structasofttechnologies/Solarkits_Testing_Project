@@ -82,7 +82,7 @@ export default function TestimonialsProof({ testimonialsConfig }) {
             >
               <div className="space-y-3">
                 {/* Rating Stars & Badge */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-1 text-amber-400">
                     {Array.from({ length: t.rating || 5 }).map((_, i) => (
                       <FiStar key={i} size={14} className="fill-current" />
@@ -100,7 +100,7 @@ export default function TestimonialsProof({ testimonialsConfig }) {
               </div>
 
               {/* Author Footer */}
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+              <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h4 className="text-xs font-black text-slate-900">{t.name}</h4>
                   <p className="text-[10px] text-slate-500">{t.company}</p>

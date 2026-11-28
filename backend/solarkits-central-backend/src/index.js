@@ -255,6 +255,11 @@ const marketingRouter = require('./modules/admin-panel/marketing/routes/marketin
 adminRouter.use('/marketing', marketingRouter);
 app.use('/api/admin/marketing', marketingRouter);
 adminRouter.use('/telemetry', require('./modules/admin-panel/marketing/routes/webTelemetry.route'));
+
+// ─── SOLARKITS: Lead Marketing & Multi-Segment Attribution Panel ───
+const leadMarketingRouter = require('./modules/admin-panel/lead-marketing/routes/leadMarketing.route');
+adminRouter.use('/lead-marketing', leadMarketingRouter);
+app.use('/api/admin/lead-marketing', leadMarketingRouter);
 try {
   const { initScheduler } = require('./modules/admin-panel/marketing/services/scheduler.service');
   initScheduler();

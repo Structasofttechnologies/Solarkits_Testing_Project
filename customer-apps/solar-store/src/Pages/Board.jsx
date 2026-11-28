@@ -166,10 +166,10 @@ export default function Board() {
       {/* Sidebar */}
       <Drawer isOpen={isOpen} setIsOpen={setIsOpen} isMobile={isMobile} menuItems={menuItems} />
 
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header isOpen={isOpen} setIsOpen={setIsOpen} isMobile={isMobile} />
 
-        <main className="flex-1 p-4 overflow-y-auto scrollbar-hover">
+        <main className="flex-1 min-w-0 p-3 sm:p-4 overflow-y-auto scrollbar-hover">
           <Routes>
             {/* Default and Dashboard routes directly open Solar Combo Kit */}
             <Route path="/" element={<PreconfiguredComboKit />} />

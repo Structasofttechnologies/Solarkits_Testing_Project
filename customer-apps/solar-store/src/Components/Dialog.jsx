@@ -44,7 +44,7 @@ const Dialog = ({ isOpen, onClose, children, title, footer, size = "md" }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 animate-in fade-in duration-200"
       onMouseDown={handleBackdropMouseDown}
       onMouseUp={handleBackdropMouseUp}
     >
@@ -55,11 +55,11 @@ const Dialog = ({ isOpen, onClose, children, title, footer, size = "md" }) => {
         onMouseUp={(e) => e.stopPropagation()}
       >
         {/* Sticky Header with Gradient */}
-        <div className="sticky top-0 z-10 flex justify-between items-center gradient-primary text-text-inverse px-6 py-4 rounded-t-2xl shrink-0">
-          {title && <h2 className="text-base font-bold tracking-tight">{title}</h2>}
+        <div className="sticky top-0 z-10 flex justify-between items-center gap-2 gradient-primary text-text-inverse px-4 sm:px-6 py-3.5 sm:py-4 rounded-t-2xl shrink-0">
+          {title && <h2 className="text-sm sm:text-base font-bold tracking-tight">{title}</h2>}
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-white/20 transition-colors text-text-inverse ml-auto"
+            className="p-1.5 rounded-full hover:bg-white/20 transition-colors text-text-inverse ml-auto shrink-0"
             aria-label="Close"
           >
             <FaTimes size={16} />
@@ -67,13 +67,13 @@ const Dialog = ({ isOpen, onClose, children, title, footer, size = "md" }) => {
         </div>
 
         {/* Modal Content — scrollable */}
-        <div className="flex-1 overflow-y-auto scrollbar-hover p-6">
+        <div className="flex-1 overflow-y-auto scrollbar-hover p-4 sm:p-6">
           {children}
         </div>
 
         {/* Optional sticky footer */}
         {footer && (
-          <div className="shrink-0 px-6 py-4 border-t border-border bg-surface-hover/20 rounded-b-2xl flex items-center justify-end gap-3">
+          <div className="shrink-0 px-4 sm:px-6 py-3.5 sm:py-4 border-t border-border bg-surface-hover/20 rounded-b-2xl flex flex-wrap items-center justify-end gap-3">
             {footer}
           </div>
         )}

@@ -299,7 +299,7 @@ export default function EpcBuyingAnalytics() {
                 Purchasing interval pattern based on consecutive eligible orders
               </p>
 
-              <div className="mt-4 pt-3 border-t border-border/60 grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="mt-4 pt-3 border-t border-border/60 grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
                 <div className="bg-surface-hover p-2 rounded-xl">
                   <span className="text-[10px] text-text-muted block font-semibold">
                     Last 30D
@@ -424,7 +424,7 @@ export default function EpcBuyingAnalytics() {
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
             <div className="bg-surface-hover p-3 rounded-xl border border-border/70">
               <span className="text-[11px] text-text-muted font-bold block">
                 Loose Orders
@@ -499,7 +499,7 @@ export default function EpcBuyingAnalytics() {
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-400/20 text-blue-700 dark:text-blue-300">
                 <span className="text-[11px] font-bold block">Ongoing PO</span>
                 <span className="text-xl font-black mt-0.5 block">

@@ -1287,20 +1287,20 @@ export default function BulkKits() {
                     </aside>
 
                     {/* Kits Grid/List */}
-                    <main className="flex-1">
+                    <main className="flex-1 min-w-0 w-full">
                         {finalKits.length === 0 ? (
-                            <div className="bg-surface rounded-xl p-12 text-center border border-border shadow-sm">
+                            <div className="bg-surface rounded-xl p-6 sm:p-12 text-center border border-border shadow-sm">
                                 <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <FiSearch size={32} className="text-primary dark:text-info" />
                                 </div>
-                                <h3 className="text-2xl font-semibold text-text-primary dark:text-info mb-2">No bulk kits found</h3>
+                                <h3 className="text-xl sm:text-2xl font-semibold text-text-primary dark:text-info mb-2">No bulk kits found</h3>
                                 <p className="text-text-secondary mb-6 max-w-md mx-auto">
                                     {showInStockOnly
                                         ? "No in-stock bulk kits match your search criteria. Try adjusting your filters or showing all items."
                                         : "Try adjusting your search criteria or filters to find more options."
                                     }
                                 </p>
-                                <div className="flex gap-3 justify-center">
+                                <div className="flex flex-wrap gap-3 justify-center">
                                     <Button onClick={clearAllFilters} variant="primary" size="lg">
                                         Clear All Filters
                                     </Button>
@@ -1312,7 +1312,7 @@ export default function BulkKits() {
                                 </div>
                             </div>
                         ) : viewMode === "grid" ? (
-                            <div className="grid xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                                 {finalKits.map((kit) => (
                                     <BulkKitCard
                                         key={kit.id}

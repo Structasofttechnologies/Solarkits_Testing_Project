@@ -131,6 +131,26 @@ function sanitizeSenderForClient(senderDoc) {
   return obj;
 }
 
+/**
+ * Create and verify short HMAC signatures for tracked email redirect links.
+ */
+function signTrackingPayload(payloadStr) {
+  return crypto
+    .createHmac('sha256', getAesKey())
+    .update(String(payloadStr || ''))
+    .digest('hex')
+    .slice(0, 24);
+}
+
+function verifyTrackingSignature(payloadStr, signature) {
+  if (!signature || typeof signature !== 'string') return false;
+  const expected = signTrackingPayload(payloadStr);
+  const a = Buffer.from(expected, 'utf8');
+  const b = Buffer.from(signature.trim(), 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 module.exports = {
   ENC_PREFIX,
   SENDER_SECRET_FIELDS,
@@ -138,5 +158,7 @@ module.exports = {
   encryptSecret,
   decryptSecret,
   maskSecret,
-  sanitizeSenderForClient
+  sanitizeSenderForClient,
+  signTrackingPayload,
+  verifyTrackingSignature
 };

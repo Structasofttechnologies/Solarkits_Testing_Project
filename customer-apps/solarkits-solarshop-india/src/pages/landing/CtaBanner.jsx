@@ -22,7 +22,7 @@ export default function CtaBanner({ ctaConfig }) {
       style={{
         position: "relative", overflow: "hidden",
         background: "linear-gradient(135deg, #253880 0%, #1d2c66 40%, #1965b0 70%, #253880 100%)",
-        padding: "96px 28px",
+        padding: "clamp(48px, 7vw, 96px) clamp(16px, 4vw, 28px)",
       }}
     >
       {/* Background blobs */}

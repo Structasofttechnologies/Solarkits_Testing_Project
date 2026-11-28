@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const axios = require('axios');
 const {
   MarketingCampaign,
   MarketingSender,
@@ -21,6 +22,16 @@ const {
   WarehouseComboKit,
   EpcType
 } = require('../../models/india_solarshop_db');
+
+const {
+  WarehouseComboKit: CoreWarehouseComboKit,
+  SolarKit,
+  Brand,
+  ProductTemplate,
+  ProductSubtype,
+  ProductSku,
+  ProjectRange
+} = require('../../models/core_db');
 
 const CompanyWarehouse = require('../../models/company_warehouse_db/company_warehouses.schema');
 const GeoLevel1 = require('../../models/geolocation_db/geolocation_level_1.schema');
@@ -47,6 +58,148 @@ const emailQueueService = require('../services/emailQueue.service');
 const { buildGeoAndClusterResolver, cleanStateToken, cleanGeoToken } = require('../services/segmentGeo.service');
 const { computeDynamicSegmentAnalytics } = require('../services/segmentAnalytics.service');
 const segmentGroupsController = require('./segmentGroups.controller');
+const { sendAdminNotification } = require('../../services/admin.notification.service');
+
+const isPdfDestination = (url = '') => /\.pdf(\?|$)/i.test(String(url || ''));
+
+/**
+ * Shared aggregator: computes per-campaign and global CTA button click analytics from UtmVisit logs.
+ */
+const aggregateCtaVisits = (campaigns = [], ctaVisits = []) => {
+  const campaignById = new Map(campaigns.map((c) => [String(c._id), c]));
+  const perCampaignMap = new Map();
+  const globalCtaMap = new Map();
+  const globalUniqueUsers = new Set();
+  let pdfDownloadsCount = 0;
+
+  const recentClicks = ctaVisits.slice(0, 50).map((v) => {
+    const camp = campaignById.get(String(v.campaign_id));
+    return {
+      _id: v._id,
+      campaign_id: v.campaign_id,
+      campaign_name: camp?.campaign_name || 'Campaign',
+      campaign_code: camp?.campaign_code || '',
+      recipient_id: v.recipient_id || null,
+      recipient_name: v.recipient_name || 'Unknown Partner',
+      recipient_email: v.recipient_email || '',
+      recipient_phone: v.recipient_phone || '',
+      cta_label: v.cta_label,
+      cta_slot: v.cta_slot || '',
+      target_url: v.target_url || v.landing_url || '',
+      device_type: v.device_type || 'desktop',
+      is_pdf: isPdfDestination(v.target_url || v.landing_url),
+      clicked_at: v.created_at || v.first_touch_at
+    };
+  });
+
+  for (const v of ctaVisits) {
+    const cid = String(v.campaign_id || '');
+    const label = String(v.cta_label || '').trim();
+    if (!cid || !label) continue;
+
+    const userKey = String(v.recipient_id || v.recipient_email || v.visitor_id || v.ip_address || v._id);
+    const targetUrl = v.target_url || v.landing_url || '';
+    const isPdf = isPdfDestination(targetUrl);
+    const clickedAt = v.created_at || v.first_touch_at || new Date();
+
+    globalUniqueUsers.add(`${cid}::${userKey}`);
+    if (isPdf) pdfDownloadsCount += 1;
+
+    if (!perCampaignMap.has(cid)) {
+      perCampaignMap.set(cid, {
+        totalClicks: 0,
+        uniqueUsers: new Set(),
+        byLabel: new Map()
+      });
+    }
+    const campEntry = perCampaignMap.get(cid);
+    campEntry.totalClicks += 1;
+    campEntry.uniqueUsers.add(userKey);
+
+    if (!campEntry.byLabel.has(label)) {
+      campEntry.byLabel.set(label, {
+        cta_label: label,
+        cta_slot: v.cta_slot || '',
+        target_url: targetUrl,
+        is_pdf: isPdf,
+        clicks: 0,
+        uniqueUserSet: new Set(),
+        last_clicked_at: clickedAt
+      });
+    }
+    const labelEntry = campEntry.byLabel.get(label);
+    labelEntry.clicks += 1;
+    labelEntry.uniqueUserSet.add(userKey);
+    if (new Date(clickedAt) > new Date(labelEntry.last_clicked_at)) {
+      labelEntry.last_clicked_at = clickedAt;
+    }
+
+    if (!globalCtaMap.has(label)) {
+      globalCtaMap.set(label, {
+        cta_label: label,
+        cta_slot: v.cta_slot || '',
+        target_url: targetUrl,
+        is_pdf: isPdf,
+        clicks: 0,
+        uniqueUserSet: new Set(),
+        campaignSet: new Set(),
+        last_clicked_at: clickedAt
+      });
+    }
+    const gEntry = globalCtaMap.get(label);
+    gEntry.clicks += 1;
+    gEntry.uniqueUserSet.add(`${cid}::${userKey}`);
+    gEntry.campaignSet.add(cid);
+    if (new Date(clickedAt) > new Date(gEntry.last_clicked_at)) {
+      gEntry.last_clicked_at = clickedAt;
+    }
+  }
+
+  const campaignBreakdownMap = new Map();
+  for (const [cid, campEntry] of perCampaignMap.entries()) {
+    const ctaBreakdown = Array.from(campEntry.byLabel.values())
+      .map((item) => ({
+        cta_label: item.cta_label,
+        cta_slot: item.cta_slot,
+        target_url: item.target_url,
+        is_pdf: item.is_pdf,
+        clicks: item.clicks,
+        unique_users: item.uniqueUserSet.size,
+        last_clicked_at: item.last_clicked_at
+      }))
+      .sort((a, b) => b.clicks - a.clicks);
+
+    campaignBreakdownMap.set(cid, {
+      totalCtaClicks: campEntry.totalClicks,
+      uniqueClickers: campEntry.uniqueUsers.size,
+      topCta: ctaBreakdown[0]?.cta_label || null,
+      ctaBreakdown
+    });
+  }
+
+  const topCtasGlobal = Array.from(globalCtaMap.values())
+    .map((item) => ({
+      cta_label: item.cta_label,
+      cta_slot: item.cta_slot,
+      target_url: item.target_url,
+      is_pdf: item.is_pdf,
+      clicks: item.clicks,
+      unique_users: item.uniqueUserSet.size,
+      campaigns_count: item.campaignSet.size,
+      last_clicked_at: item.last_clicked_at
+    }))
+    .sort((a, b) => b.clicks - a.clicks)
+    .slice(0, 20);
+
+  return {
+    campaignBreakdownMap,
+    totalCtaClicks: ctaVisits.length,
+    uniqueClickers: globalUniqueUsers.size,
+    pdfDownloadsCount,
+    topCtasGlobal,
+    recentClicks
+  };
+};
 
 /**
  * Unified EPC Classification Engine:
@@ -112,7 +265,19 @@ const getMarketingResources = async (req, res) => {
       kitQuery.state_id = state_id;
     }
 
-    const [states, districts, clusters, warehouses, warehouseMappings, kits, industries, epcTypes, owners, coupons] =
+    const resolveKitAssetUrl = (rawUrl) => {
+      const val = String(rawUrl || '').trim();
+      if (!val) return '';
+      if (val.includes('localhost:3001')) {
+        const origin = `${req.protocol}://${req.get('host')}`;
+        return val.replace(/https?:\/\/localhost:3001/i, origin);
+      }
+      if (/^https?:\/\//i.test(val)) return val;
+      const origin = process.env.BACKEND_PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
+      return `${String(origin).replace(/\/+$/, '')}/${val.replace(/^\/+/, '')}`;
+    };
+
+    const [states, districts, clusters, warehouses, warehouseMappings, kitsIndia, kitsCore, industries, epcTypes, owners, coupons] =
       await Promise.all([
         getIndiaStates(),
         GeoLevel2.find(districtQuery).select('name level_1 cluster').sort({ name: 1 }).lean().catch(() => []),
@@ -124,11 +289,13 @@ const getMarketingResources = async (req, res) => {
           .catch(() => []),
         WarehouseClusterMapping.find({ deleted_at: null }).select('warehouse_id warehouse_code warehouse_name states state_ids franchise_clusters').lean().catch(() => []),
         WarehouseComboKit.find(kitQuery)
-          .select('name description state_id cluster_id warehouse_id capacity base_price_cached selling_price_cached order_quantities loose_order_quantities allow_trial_kit kit_image')
           .sort({ name: 1 })
           .limit(250)
           .lean()
           .catch(() => []),
+        CoreWarehouseComboKit
+          ? CoreWarehouseComboKit.find(kitQuery).sort({ name: 1 }).limit(250).lean().catch(() => [])
+          : Promise.resolve([]),
         IndustryType.find({ deleted_at: null, is_active: true }).select('name code slug icon for_epc').sort({ sort_order: 1, name: 1 }).lean().catch(() => []),
         EpcType.find({ deleted_at: null, is_active: true }).select('name code badge_color').sort({ display_order: 1, name: 1 }).lean().catch(() => []),
         CmsUser.find({ is_deleted: false, deleted_at: null, is_active: true })
@@ -145,6 +312,143 @@ const getMarketingResources = async (req, res) => {
           .lean()
           .catch(() => [])
       ]);
+
+    const kitsMap = new Map();
+    [...(kitsCore || []), ...(kitsIndia || [])].forEach((k) => {
+      if (k?._id) kitsMap.set(String(k._id), k);
+    });
+    const rawKits = Array.from(kitsMap.values()).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+
+    const toValidIds = (arr = []) =>
+      Array.from(new Set(arr.filter(Boolean).map(String))).filter((id) => mongoose.Types.ObjectId.isValid(id));
+
+    const solarKitIds = toValidIds(rawKits.map((k) => k.solar_kit_id));
+    const projectRangeIds = toValidIds(rawKits.map((k) => k.project_range_id));
+    const brandIds = toValidIds([
+      ...rawKits.map((k) => k.brand_id),
+      ...rawKits.flatMap((k) => (k.base_components || []).map((bc) => bc.brand_id)),
+      ...rawKits.flatMap((k) => (k.base_components || []).flatMap((bc) => bc.brand_ids || [])),
+      ...rawKits.flatMap((k) => (k.bos_kits || []).map((bk) => bk.brand_id))
+    ]);
+    const templateIds = toValidIds([
+      ...rawKits.flatMap((k) => (k.base_components || []).map((bc) => bc.template_id)),
+      ...rawKits.flatMap((k) => (k.bos_kits || []).flatMap((bk) => bk.template_ids || []))
+    ]);
+    const subtypeIds = toValidIds([
+      ...rawKits.flatMap((k) => (k.base_components || []).map((bc) => bc.subtype_id)),
+      ...rawKits.flatMap((k) => (k.bos_kits || []).flatMap((bk) => bk.subtype_ids || []))
+    ]);
+    const skuIds = toValidIds([
+      ...rawKits.flatMap((k) => (k.base_components || []).map((bc) => bc.sku_id)),
+      ...rawKits.flatMap((k) => (k.bos_kits || []).map((bk) => bk.sku_id))
+    ]);
+
+    const [solarKitsDocs, brandsDocs, templatesDocs, subtypesDocs, skusDocs, projectRangesDocs] = await Promise.all([
+      solarKitIds.length && SolarKit
+        ? SolarKit.find({ _id: { $in: solarKitIds } })
+          .populate('category_id', 'name')
+          .populate('subcategory_id', 'name')
+          .populate({ path: 'type_id', populate: { path: 'type', model: 'sys_filter_types' } })
+          .lean()
+          .catch(() => [])
+        : [],
+      brandIds.length && Brand ? Brand.find({ _id: { $in: brandIds } }).select('brand_name name logo').lean().catch(() => []) : [],
+      templateIds.length && ProductTemplate ? ProductTemplate.find({ _id: { $in: templateIds } }).populate('qty_unit_id', 'symbol name').lean().catch(() => []) : [],
+      subtypeIds.length && ProductSubtype ? ProductSubtype.find({ _id: { $in: subtypeIds } }).select('name').lean().catch(() => []) : [],
+      skuIds.length && ProductSku ? ProductSku.find({ _id: { $in: skuIds } }).populate('product_id', 'name image').lean().catch(() => []) : [],
+      projectRangeIds.length && ProjectRange ? ProjectRange.find({ _id: { $in: projectRangeIds } }).populate('unit_id', 'symbol').lean().catch(() => []) : []
+    ]);
+
+    const solarKitMap = new Map(solarKitsDocs.map((s) => [String(s._id), s]));
+    const brandMap = new Map(brandsDocs.map((b) => [String(b._id), b]));
+    const templateMap = new Map(templatesDocs.map((t) => [String(t._id), t]));
+    const subtypeMap = new Map(subtypesDocs.map((st) => [String(st._id), st]));
+    const skuMap = new Map(skusDocs.map((sk) => [String(sk._id), sk]));
+    const projectRangeMap = new Map(projectRangesDocs.map((pr) => [String(pr._id), pr]));
+
+    const kits = rawKits.map((k) => {
+      const sk = k.solar_kit_id ? solarKitMap.get(String(k.solar_kit_id)) : null;
+      const pr = k.project_range_id ? projectRangeMap.get(String(k.project_range_id)) : null;
+      const kitBrand = k.brand_id ? brandMap.get(String(k.brand_id)) : null;
+      const coverUrl = resolveKitAssetUrl(k.kit_image);
+
+      const baseComponentsDetails = (k.base_components || []).map((bc) => {
+        const tpl = bc.template_id ? templateMap.get(String(bc.template_id)) : null;
+        const sub = bc.subtype_id ? subtypeMap.get(String(bc.subtype_id)) : null;
+        const br = bc.brand_id ? brandMap.get(String(bc.brand_id)) : null;
+        const sku = bc.sku_id ? skuMap.get(String(bc.sku_id)) : null;
+        const prodImg = resolveKitAssetUrl(sku?.product_id?.image);
+        return {
+          template_name: tpl?.name || 'Component',
+          unit_symbol: tpl?.qty_unit_id?.symbol || 'Nos',
+          subtype_name: sub?.name || '',
+          brand_name: br?.brand_name || br?.name || '',
+          brand_logo: resolveKitAssetUrl(br?.logo),
+          sku_code: sku?.sku_code || '',
+          product_name: sku?.product_id?.name || '',
+          product_image: prodImg,
+          quantity: bc.quantity || 1
+        };
+      });
+
+      const bosKitsDetails = (k.bos_kits || []).map((bk) => {
+        const br = bk.brand_id ? brandMap.get(String(bk.brand_id)) : null;
+        const sku = bk.sku_id ? skuMap.get(String(bk.sku_id)) : null;
+        const bkImg = resolveKitAssetUrl(bk.image);
+        const tplNames = (bk.template_ids || []).map((id) => templateMap.get(String(id))?.name).filter(Boolean);
+        const subNames = (bk.subtype_ids || []).map((id) => subtypeMap.get(String(id))?.name).filter(Boolean);
+        return {
+          name: bk.name || 'BOS Kit Bundle',
+          brand_name: br?.brand_name || br?.name || '',
+          sku_code: sku?.sku_code || '',
+          quantity: bk.quantity || 1,
+          image: bkImg,
+          template_names: tplNames,
+          subtype_names: subNames
+        };
+      });
+
+      const photoMap = new Map();
+      if (coverUrl) photoMap.set(coverUrl, { label: 'Kit Cover Photo', url: coverUrl });
+      bosKitsDetails.forEach((bk) => {
+        if (bk.image && !photoMap.has(bk.image)) {
+          photoMap.set(bk.image, { label: `BOS: ${bk.name}`, url: bk.image });
+        }
+      });
+      baseComponentsDetails.forEach((bc) => {
+        if (bc.product_image && !photoMap.has(bc.product_image)) {
+          photoMap.set(bc.product_image, { label: bc.product_name || bc.template_name, url: bc.product_image });
+        }
+      });
+
+      const categoryName = sk?.category_id?.name || '';
+      const subcategoryName = sk?.subcategory_id?.name || '';
+      const systemType = sk?.type_id?.type?.name || sk?.type_id?.name || '';
+      const rangeLabel = pr ? `${pr.min_value}–${pr.max_value} ${pr.unit_id?.symbol || 'kW'}` : '';
+      const baseSummaryParts = baseComponentsDetails
+        .slice(0, 3)
+        .map((bc) => `${bc.quantity}× ${bc.brand_name ? `${bc.brand_name} ` : ''}${bc.product_name || bc.template_name}`.trim());
+      if (bosKitsDetails.length > 0) {
+        baseSummaryParts.push(`${bosKitsDetails.length} BOS Bundle${bosKitsDetails.length > 1 ? 's' : ''}`);
+      }
+
+      return {
+        ...k,
+        id: String(k._id),
+        kit_image: coverUrl,
+        datasheet: resolveKitAssetUrl(k.datasheet),
+        brand_name: kitBrand?.brand_name || kitBrand?.name || baseComponentsDetails[0]?.brand_name || '',
+        solar_kit_name: sk?.name || '',
+        category_name: categoryName,
+        subcategory_name: subcategoryName,
+        system_type: systemType,
+        project_range: rangeLabel,
+        base_components_details: baseComponentsDetails,
+        bos_kits_details: bosKitsDetails,
+        available_photos: Array.from(photoMap.values()),
+        components_summary: baseSummaryParts.join(' • ') || k.description || `${k.capacity || ''} kW Solar Combo Kit`.trim()
+      };
+    });
 
     const stateNameById = new Map(states.map((s) => [String(s._id), s.name]));
     const mappingByWhId = new Map(warehouseMappings.map((m) => [String(m.warehouse_id), m]));
@@ -187,7 +491,8 @@ const getDashboardAnalytics = async (req, res) => {
       orders,
       offers,
       geoResolver,
-      segmentAnalytics
+      segmentAnalytics,
+      ctaVisits
     ] = await Promise.all([
       MarketingCampaign.find({}).sort({ created_at: -1 }).lean(),
       EpcAccount.find({ deleted_at: null })
@@ -216,12 +521,31 @@ const getDashboardAnalytics = async (req, res) => {
       computeDynamicSegmentAnalytics().catch(() => ({
         summary: { total_segments: 0, total_leads_uploaded: 0, total_registered: 0, total_verified: 0, total_buyers: 0, total_revenue_inr: 0 },
         segments: []
-      }))
+      })),
+      UtmVisit.find({
+        cta_label: { $nin: [null, ''] },
+        is_test_click: { $ne: true },
+        is_suspected_bot_prefetch: { $ne: true }
+      })
+        .sort({ created_at: -1 })
+        .limit(2000)
+        .lean()
+        .catch(() => [])
     ]);
+
+    const ctaAgg = aggregateCtaVisits(campaigns, ctaVisits);
 
     const totalCampaigns = campaigns.length;
     const activeCampaigns = campaigns.filter((c) => ['running', 'scheduled'].includes(c.status)).length;
     const completedCampaigns = campaigns.filter((c) => c.status === 'completed').length;
+    const campaignStatusCounts = {
+      draft: campaigns.filter((c) => c.status === 'draft').length,
+      scheduled: campaigns.filter((c) => c.status === 'scheduled').length,
+      running: campaigns.filter((c) => c.status === 'running').length,
+      paused: campaigns.filter((c) => c.status === 'paused').length,
+      completed: completedCampaigns,
+      cancelled: campaigns.filter((c) => c.status === 'cancelled').length
+    };
 
     let totalSent = 0;
     let totalDelivered = 0;
@@ -313,6 +637,13 @@ const getDashboardAnalytics = async (req, res) => {
         const spend = Number(c.actual_spent || c.budget || 0);
         const roiVal = spend > 0 ? (((rev - spend) / spend) * 100).toFixed(1) : '0.0';
 
+        const ctaInfo = ctaAgg.campaignBreakdownMap.get(String(c._id)) || {
+          totalCtaClicks: 0,
+          uniqueClickers: 0,
+          topCta: null,
+          ctaBreakdown: []
+        };
+
         return {
           _id: c._id,
           name: c.campaign_name,
@@ -324,6 +655,9 @@ const getDashboardAnalytics = async (req, res) => {
           delivered: del,
           failed: Number(s.failed || 0),
           clicks: Number(s.link_clicks || 0),
+          uniqueClickers: ctaInfo.uniqueClickers,
+          topCta: ctaInfo.topCta,
+          ctaBreakdown: ctaInfo.ctaBreakdown,
           leads: Number(s.form_submissions || 0),
           conversions: Number(s.conversions || 0),
           revenue: rev,
@@ -490,6 +824,7 @@ const getDashboardAnalytics = async (req, res) => {
           totalCampaigns,
           activeCampaigns,
           successfulCampaignsCount: completedCampaigns,
+          campaignStatusCounts,
           totalSent,
           totalDelivered,
           totalFailed,
@@ -537,7 +872,14 @@ const getDashboardAnalytics = async (req, res) => {
         campaignsRanking,
         couponsList,
         epcTerritoryPerformance,
-        segmentAnalytics
+        segmentAnalytics,
+        ctaAnalytics: {
+          totalCtaClicks: ctaAgg.totalCtaClicks,
+          uniqueClickers: ctaAgg.uniqueClickers,
+          pdfDownloadsCount: ctaAgg.pdfDownloadsCount,
+          topCtasGlobal: ctaAgg.topCtasGlobal,
+          recentClicks: ctaAgg.recentClicks
+        }
       }
     });
   } catch (error) {
@@ -557,14 +899,25 @@ const getTerritoryMapAnalytics = async (req, res) => {
       campQuery.$or = [{ campaign_objective: objective }, { purpose: objective }];
     }
 
-    const [geoResolver, campaigns, segmentAnalytics, epcs] = await Promise.all([
+    const [geoResolver, campaigns, segmentAnalytics, epcs, websiteLeads, epcOrders] = await Promise.all([
       buildGeoAndClusterResolver(),
       MarketingCampaign.find(campQuery)
         .select('_id campaign_name campaign_code campaign_type campaign_objective purpose status area_type state_ids state_names cluster_ids cluster_names district_ids segment_ids segment_state_filter stats created_at')
         .sort({ created_at: -1 })
         .lean(),
       computeDynamicSegmentAnalytics({ state: filterState || '', segment_id: segment_id || '' }),
-      EpcAccount.find({ deleted_at: null }).select('state_name states').lean().catch(() => [])
+      EpcAccount.find({ deleted_at: null })
+        .select('_id email whatsapp gstin gst_verification_status is_gstin_active state_name district_name states districts')
+        .lean()
+        .catch(() => []),
+      WebsiteEpcLead.find({ deleted_at: null })
+        .select('_id email phone mobile_number gst_number state_name district_name lifetime_orders')
+        .lean()
+        .catch(() => []),
+      EpcOrder.find({ order_status: { $nin: ['cancelled', 'rejected'] } })
+        .select('_id epc_id customer_phone grand_total_paise state_name')
+        .lean()
+        .catch(() => [])
     ]);
 
     const stateCampaignData = {};
@@ -580,6 +933,12 @@ const getTerritoryMapAnalytics = async (req, res) => {
           state_id: stateId || null,
           state_code: STATE_CODE_MAP[existingKey] || existingKey.slice(0, 2).toUpperCase(),
           epc_count: 0,
+          platform_total_epcs: 0,
+          platform_registered_epcs: 0,
+          platform_verified_epcs: 0,
+          platform_buyer_epcs: 0,
+          platform_orders: 0,
+          platform_revenue_inr: 0,
           has_active: false,
           campaign_count: 0,
           campaign_type: 'none',
@@ -613,16 +972,6 @@ const getTerritoryMapAnalytics = async (req, res) => {
       ensureState(s.name, s._id);
     }
 
-    for (const epc of epcs) {
-      let sName = epc.state_name || '';
-      if (!sName && epc.states?.[0]) {
-        sName = geoResolver.stateById.get(String(epc.states[0]))?.name || '';
-      }
-      if (!sName) continue;
-      const stObj = ensureState(sName);
-      if (stObj) stObj.epc_count += 1;
-    }
-
     for (const clu of geoResolver.franchiseeClusters || []) {
       const stObj = ensureState(clu.state_name, clu.state_id);
       if (!stObj) continue;
@@ -640,8 +989,191 @@ const getTerritoryMapAnalytics = async (req, res) => {
         registered_count: 0,
         verified_count: 0,
         buyers_count: 0,
+        platform_total_epcs: 0,
+        platform_registered_epcs: 0,
+        platform_verified_epcs: 0,
+        platform_buyer_epcs: 0,
+        platform_orders: 0,
+        platform_revenue_inr: 0,
         post_campaign_conversions: 0
       });
+    }
+
+    // Aggregate deduplicated live Platform EPCs (Registered / Verified / Buyer) across State -> Cluster -> District
+    const buyerIdSet = new Set();
+    const buyerPhoneSet = new Set();
+    const orderCountMap = new Map();
+    const orderRevenueMap = new Map();
+    for (const o of epcOrders) {
+      const revInr = Number(o.grand_total_paise || 0) / 100;
+      if (o.epc_id) {
+        const sid = String(o.epc_id);
+        buyerIdSet.add(sid);
+        orderCountMap.set(sid, (orderCountMap.get(sid) || 0) + 1);
+        orderRevenueMap.set(sid, (orderRevenueMap.get(sid) || 0) + revInr);
+      }
+      if (o.customer_phone) {
+        const p10 = String(o.customer_phone).replace(/\D/g, '').slice(-10);
+        if (p10) {
+          buyerPhoneSet.add(p10);
+          orderCountMap.set(p10, (orderCountMap.get(p10) || 0) + 1);
+          orderRevenueMap.set(p10, (orderRevenueMap.get(p10) || 0) + revInr);
+        }
+      }
+    }
+
+    const platformPartners = new Map();
+    for (const epc of epcs) {
+      const p10 = String(epc.whatsapp || '').replace(/\D/g, '').slice(-10);
+      const em = String(epc.email || '').toLowerCase().trim();
+      const key = p10 || em || String(epc._id);
+      if (platformPartners.has(key)) continue;
+      const eid = String(epc._id);
+      const ordCount = orderCountMap.get(eid) || orderCountMap.get(p10) || 0;
+      const ordRev = orderRevenueMap.get(eid) || orderRevenueMap.get(p10) || 0;
+      const isBuyer = buyerIdSet.has(eid) || (p10 && buyerPhoneSet.has(p10));
+      const isVerified =
+        ['verified_automatic', 'verified_admin'].includes(epc.gst_verification_status) ||
+        epc.is_gstin_active === true ||
+        Boolean(epc.gstin);
+      let dName = epc.district_name || '';
+      let sName = epc.state_name || '';
+      if (!dName && epc.districts?.[0]) dName = geoResolver.districtById.get(String(epc.districts[0]))?.name || '';
+      if (!sName && epc.states?.[0]) sName = geoResolver.stateById.get(String(epc.states[0]))?.name || '';
+      platformPartners.set(key, {
+        state_name: sName,
+        district_name: dName,
+        orders: ordCount,
+        revenue_inr: ordRev,
+        type: classifyEpcPartner({ gstin: epc.gstin, lifetimeOrders: ordCount, is_buyer: isBuyer, is_verified: isVerified })
+      });
+    }
+    for (const lead of websiteLeads) {
+      const p10 = String(lead.phone || lead.mobile_number || '').replace(/\D/g, '').slice(-10);
+      const em = String(lead.email || '').toLowerCase().trim();
+      const key = p10 || em || String(lead._id);
+      if (platformPartners.has(key)) continue;
+      const ordCount = Number(lead.lifetime_orders || 0) || orderCountMap.get(p10) || 0;
+      const ordRev = orderRevenueMap.get(p10) || 0;
+      platformPartners.set(key, {
+        state_name: lead.state_name || '',
+        district_name: lead.district_name || '',
+        orders: ordCount,
+        revenue_inr: ordRev,
+        type: classifyEpcPartner({ gstin: lead.gst_number, lifetimeOrders: ordCount })
+      });
+    }
+
+    const districtPlatformMap = new Map();
+    const ensureDistrictNode = (stName, distName, extra = {}) => {
+      const dk = `${cleanStateToken(stName)}::${cleanGeoToken(distName)}`;
+      if (!districtPlatformMap.has(dk)) {
+        districtPlatformMap.set(dk, {
+          state_name: stName,
+          district_name: distName,
+          cluster_name: extra.cluster_name || '',
+          cluster_code: extra.cluster_code || '',
+          cluster_status: extra.cluster_status || '',
+          platform_total_epcs: 0,
+          platform_registered_epcs: 0,
+          platform_verified_epcs: 0,
+          platform_buyer_epcs: 0,
+          platform_orders: 0,
+          platform_revenue_inr: 0,
+          leads_uploaded: 0,
+          registered_count: 0,
+          verified_count: 0,
+          buyers_count: 0
+        });
+      }
+      const dNode = districtPlatformMap.get(dk);
+      if (extra.cluster_name && !dNode.cluster_name) {
+        dNode.cluster_name = extra.cluster_name;
+        dNode.cluster_code = extra.cluster_code || '';
+        dNode.cluster_status = extra.cluster_status || '';
+      }
+      return dNode;
+    };
+
+    for (const clu of geoResolver.franchiseeClusters || []) {
+      for (const dn of clu.district_names || []) {
+        ensureDistrictNode(clu.state_name, dn, {
+          cluster_name: clu.cluster_name,
+          cluster_code: clu.cluster_code,
+          cluster_status: clu.status || 'available'
+        });
+      }
+    }
+
+    let platformTotalEpcs = 0;
+    let platformRegisteredEpcs = 0;
+    let platformVerifiedEpcs = 0;
+    let platformBuyerEpcs = 0;
+    let platformTotalOrders = 0;
+    let platformTotalRevenueInr = 0;
+
+    for (const p of platformPartners.values()) {
+      const resolved = geoResolver.resolve({ stateName: p.state_name, districtName: p.district_name });
+      const stName = resolved.state || p.state_name || '';
+      const distName = resolved.district || p.district_name || '';
+      const cluCode = resolved.cluster_code || '';
+      const cluName = resolved.cluster_name || '';
+
+      platformTotalEpcs += 1;
+      if (p.type === 'Buyer EPC') platformBuyerEpcs += 1;
+      else if (p.type === 'Verified EPC') platformVerifiedEpcs += 1;
+      else platformRegisteredEpcs += 1;
+      platformTotalOrders += p.orders || 0;
+      platformTotalRevenueInr += p.revenue_inr || 0;
+
+      if (filterState && filterState !== 'ALL' && cleanStateToken(stName) !== cleanStateToken(filterState)) continue;
+
+      if (stName) {
+        const stObj = ensureState(stName);
+        if (stObj) {
+          stObj.epc_count += 1;
+          stObj.platform_total_epcs += 1;
+          if (p.type === 'Buyer EPC') stObj.platform_buyer_epcs += 1;
+          else if (p.type === 'Verified EPC') stObj.platform_verified_epcs += 1;
+          else stObj.platform_registered_epcs += 1;
+          stObj.platform_orders += p.orders || 0;
+          stObj.platform_revenue_inr = Math.round((stObj.platform_revenue_inr || 0) + (p.revenue_inr || 0));
+          stObj.has_active = true;
+
+          if (cluCode || cluName) {
+            const cluObj = stObj.cluster_details.find((cd) => (cluCode && cd.cluster_code === cluCode) || cd.cluster_name === cluName);
+            if (cluObj) {
+              cluObj.platform_total_epcs += 1;
+              if (p.type === 'Buyer EPC') cluObj.platform_buyer_epcs += 1;
+              else if (p.type === 'Verified EPC') cluObj.platform_verified_epcs += 1;
+              else cluObj.platform_registered_epcs += 1;
+              cluObj.platform_orders += p.orders || 0;
+              cluObj.platform_revenue_inr = Math.round((cluObj.platform_revenue_inr || 0) + (p.revenue_inr || 0));
+            }
+          }
+        }
+      }
+
+      if (stName && distName) {
+        const dn = ensureDistrictNode(stName, distName, { cluster_name: cluName, cluster_code: cluCode });
+        dn.platform_total_epcs += 1;
+        if (p.type === 'Buyer EPC') dn.platform_buyer_epcs += 1;
+        else if (p.type === 'Verified EPC') dn.platform_verified_epcs += 1;
+        else dn.platform_registered_epcs += 1;
+        dn.platform_orders += p.orders || 0;
+        dn.platform_revenue_inr = Math.round((dn.platform_revenue_inr || 0) + (p.revenue_inr || 0));
+      }
+    }
+
+    for (const segDist of segmentAnalytics.map_territory?.districts || []) {
+      const dn = ensureDistrictNode(segDist.state_name, segDist.district_name, {
+        cluster_name: segDist.cluster_name,
+        cluster_code: segDist.cluster_code
+      });
+      dn.leads_uploaded = segDist.leads_uploaded || 0;
+      dn.registered_count = segDist.registered_count || 0;
+      dn.verified_count = segDist.verified_count || 0;
+      dn.buyers_count = segDist.buyers_count || 0;
     }
 
     const segByStateToken = new Map(
@@ -800,10 +1332,21 @@ const getTerritoryMapAnalytics = async (req, res) => {
           total_segment_buyers: segmentAnalytics.summary.total_buyers,
           total_segment_orders: segmentAnalytics.summary.total_orders,
           total_segment_revenue_inr: segmentAnalytics.summary.total_revenue_inr,
-          total_post_campaign_conversions: segmentAnalytics.summary.post_campaign_registered + segmentAnalytics.summary.post_campaign_buyers
+          total_post_campaign_conversions: segmentAnalytics.summary.post_campaign_registered + segmentAnalytics.summary.post_campaign_buyers,
+          platform_totals: {
+            total_epcs: platformTotalEpcs,
+            registered_epcs: platformRegisteredEpcs,
+            verified_epcs: platformVerifiedEpcs,
+            buyer_epcs: platformBuyerEpcs,
+            total_orders: platformTotalOrders,
+            revenue_inr: Math.round(platformTotalRevenueInr),
+            total_clusters: (geoResolver.franchiseeClusters || []).length,
+            total_states: Object.values(stateCampaignData).filter((s) => s.platform_total_epcs > 0 || s.cluster_details.length > 0).length,
+            total_districts: Array.from(districtPlatformMap.values()).filter((d) => d.platform_total_epcs > 0).length
+          }
         },
         states: stateCampaignData,
-        districts_lookup: segmentAnalytics.map_territory?.districts || [],
+        districts_lookup: Array.from(districtPlatformMap.values()),
         segment_analytics_summary: segmentAnalytics.summary
       }
     });
@@ -823,17 +1366,48 @@ const getCampaigns = async (req, res) => {
     if (status) filter.status = status;
     if (manager) filter.assigned_manager = manager;
 
-    const campaigns = await MarketingCampaign.find(filter)
-      .select('-recipients')
-      .populate('assigned_manager', 'name email phone')
-      .populate('email_sender_id', 'name sender_email email_provider status')
-      .populate('whatsapp_sender_id', 'name wa_business_name wa_number status')
-      .populate('email_template_id', 'name subject')
-      .populate('whatsapp_template_id', 'name wa_template_name wa_status')
-      .sort({ created_at: -1 })
-      .lean();
+    const [campaigns, ctaGroups] = await Promise.all([
+      MarketingCampaign.find(filter)
+        .select('-recipients')
+        .populate('assigned_manager', 'name email phone')
+        .populate('email_sender_id', 'name sender_email email_provider status')
+        .populate('whatsapp_sender_id', 'name wa_business_name wa_number status')
+        .populate('email_template_id', 'name subject')
+        .populate('whatsapp_template_id', 'name wa_template_name wa_status')
+        .sort({ created_at: -1 })
+        .lean(),
+      UtmVisit.aggregate([
+        {
+          $match: {
+            campaign_id: { $ne: null },
+            cta_label: { $nin: [null, ''] },
+            is_test_click: { $ne: true },
+            is_suspected_bot_prefetch: { $ne: true }
+          }
+        },
+        {
+          $group: {
+            _id: { campaign_id: '$campaign_id', cta_label: '$cta_label' },
+            clicks: { $sum: 1 }
+          }
+        },
+        { $sort: { clicks: -1 } }
+      ]).catch(() => [])
+    ]);
 
-    res.json({ success: true, count: campaigns.length, data: campaigns });
+    const ctasByCampaign = new Map();
+    for (const row of ctaGroups) {
+      const cid = String(row._id.campaign_id);
+      if (!ctasByCampaign.has(cid)) ctasByCampaign.set(cid, []);
+      ctasByCampaign.get(cid).push({ cta_label: row._id.cta_label, clicks: row.clicks });
+    }
+
+    const enriched = campaigns.map((c) => ({
+      ...c,
+      top_ctas: (ctasByCampaign.get(String(c._id)) || []).slice(0, 5)
+    }));
+
+    res.json({ success: true, count: enriched.length, data: enriched });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -904,6 +1478,7 @@ const createCampaign = async (req, res) => {
       kit_ids: Array.isArray(data.audience_kit_ids) ? data.audience_kit_ids : [],
       subcategory_ids: data.subcategory_ids || [],
       include_imported_leads: data.include_imported_leads !== false,
+      lead_sources: Array.isArray(data.lead_sources) ? data.lead_sources : [],
       import_batch_id: data.import_batch_id || null,
       require_consent: data.require_consent !== false,
       selected_recipient_emails: data.selected_recipient_emails || []
@@ -942,6 +1517,21 @@ const createCampaign = async (req, res) => {
     }
 
     const fresh = await MarketingCampaign.findById(campaign._id).select('-recipients').lean();
+    sendAdminNotification({
+      title: `EPC Campaign Created: ${fresh.campaign_name}`,
+      message: `${req.user?.name || 'Admin'} created "${fresh.campaign_name}" (${fresh.campaign_code || ''}) for ${fresh.total_recipients || 0} EPC/lead recipients [${fresh.status}].`,
+      category: 'marketing',
+      priority: 'normal',
+      action_url: '/marketing-panel/campaigns',
+      metadata: {
+        panel: 'epc_marketing',
+        event: 'campaign_created',
+        campaign_id: String(fresh._id),
+        campaign_code: fresh.campaign_code,
+        status: fresh.status
+      }
+    }).catch(() => { });
+
     res.status(201).json({
       success: true,
       data: fresh,
@@ -967,10 +1557,14 @@ const updateCampaign = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Cannot edit a running campaign. Pause it first.' });
     }
 
-    Object.assign(campaign, req.body);
+    const { launch_immediately, refresh_audience, ...updateFields } = req.body || {};
+    if (updateFields.campaign_type) {
+      updateFields.campaign_type = String(updateFields.campaign_type).toLowerCase();
+    }
+    Object.assign(campaign, updateFields);
 
-    // Recompute audience if targeting criteria updated and campaign has not finished sending
-    if (['draft', 'scheduled'].includes(campaign.status) && req.body.refresh_audience !== false) {
+    // Recompute audience if targeting criteria updated and campaign is still editable (draft/scheduled)
+    if (['draft', 'scheduled'].includes(campaign.status) && refresh_audience !== false) {
       const audience = await audienceService.resolveAudience({
         segment_id: campaign.segment_id || null,
         epc_groups: campaign.epc_groups,
@@ -998,6 +1592,7 @@ const updateCampaign = async (req, res) => {
         kit_ids: Array.isArray(campaign.audience_kit_ids) ? campaign.audience_kit_ids : [],
         subcategory_ids: campaign.subcategory_ids || [],
         include_imported_leads: campaign.include_imported_leads !== false,
+        lead_sources: Array.isArray(campaign.lead_sources) ? campaign.lead_sources : [],
         import_batch_id: campaign.import_batch_id || null,
         require_consent: campaign.require_consent !== false,
         selected_recipient_emails: campaign.selected_recipient_emails || []
@@ -1007,6 +1602,9 @@ const updateCampaign = async (req, res) => {
       campaign.recipients = audience.recipients.map((r) => ({
         epc_id: r.epc_id || null,
         lead_id: r.lead_id || null,
+        segment_id: r.segment_id || null,
+        segment_contact_id: r.segment_contact_id || null,
+        custom_fields: r.custom_fields || {},
         source_type: r.source_type || 'epc_account',
         name: r.name,
         phone: r.phone,
@@ -1017,7 +1615,14 @@ const updateCampaign = async (req, res) => {
     }
 
     await campaign.save();
-    res.json({ success: true, data: campaign });
+
+    let launchResult = null;
+    if (launch_immediately === true) {
+      launchResult = await campaignService.launchCampaign(campaign._id);
+    }
+
+    const fresh = await MarketingCampaign.findById(campaign._id).select('-recipients').lean();
+    res.json({ success: true, data: fresh, launchResult, message: launch_immediately ? 'Campaign updated and launched' : 'Campaign updated' });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
@@ -1035,6 +1640,14 @@ const deleteCampaign = async (req, res) => {
 
     emailQueueService.clearCampaignJobs(campaign._id);
     await MarketingCampaign.deleteOne({ _id: campaign._id });
+    sendAdminNotification({
+      title: `EPC Campaign Deleted: ${campaign.campaign_name}`,
+      message: `${req.user?.name || 'Admin'} deleted EPC campaign "${campaign.campaign_name}" (${campaign.campaign_code || ''}).`,
+      category: 'marketing',
+      priority: 'normal',
+      action_url: '/marketing-panel/campaigns',
+      metadata: { panel: 'epc_marketing', event: 'campaign_deleted', campaign_id: String(campaign._id) }
+    }).catch(() => { });
     res.json({ success: true, message: 'Campaign deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -1061,6 +1674,14 @@ const pauseCampaign = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Only running or scheduled campaigns can be paused.' });
     }
     emailQueueService.clearCampaignJobs(campaign._id);
+    sendAdminNotification({
+      title: `EPC Campaign Paused: ${campaign.campaign_name}`,
+      message: `${req.user?.name || 'Admin'} paused EPC campaign "${campaign.campaign_name}" (${campaign.campaign_code || ''}).`,
+      category: 'marketing',
+      priority: 'normal',
+      action_url: '/marketing-panel/campaigns',
+      metadata: { panel: 'epc_marketing', event: 'campaign_paused', campaign_id: String(campaign._id) }
+    }).catch(() => { });
     res.json({ success: true, message: 'Campaign paused', data: campaign });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
@@ -1078,7 +1699,75 @@ const cancelCampaign = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Campaign cannot be cancelled (already completed or cancelled).' });
     }
     emailQueueService.clearCampaignJobs(campaign._id);
-    res.json({ success: true, message: 'Campaign cancelled', data: campaign });
+    sendAdminNotification({
+      title: `EPC Campaign Stopped/Cancelled: ${campaign.campaign_name}`,
+      message: `${req.user?.name || 'Admin'} stopped/cancelled EPC campaign "${campaign.campaign_name}" (${campaign.campaign_code || ''}).`,
+      category: 'marketing',
+      priority: 'high',
+      action_url: '/marketing-panel/campaigns',
+      metadata: { panel: 'epc_marketing', event: 'campaign_cancelled', campaign_id: String(campaign._id) }
+    }).catch(() => { });
+    res.json({ success: true, message: 'Campaign stopped/cancelled', data: campaign });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const draftCampaign = async (req, res) => {
+  try {
+    const existing = await MarketingCampaign.findById(req.params.id).select('_id campaign_name campaign_code status').lean();
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Campaign not found' });
+    }
+    emailQueueService.clearCampaignJobs(existing._id);
+    const campaign = await MarketingCampaign.findByIdAndUpdate(
+      existing._id,
+      { $set: { status: 'draft', paused_at: null, cancelled_at: null } },
+      { new: true }
+    ).select('-recipients');
+    sendAdminNotification({
+      title: `EPC Campaign Moved to Draft: ${campaign.campaign_name}`,
+      message: `${req.user?.name || 'Admin'} moved EPC campaign "${campaign.campaign_name}" (${campaign.campaign_code || ''}) to Draft.`,
+      category: 'marketing',
+      priority: 'normal',
+      action_url: '/marketing-panel/campaigns',
+      metadata: { panel: 'epc_marketing', event: 'campaign_drafted', campaign_id: String(campaign._id) }
+    }).catch(() => { });
+    res.json({ success: true, message: 'Campaign saved as Draft', data: campaign });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const rerunCampaign = async (req, res) => {
+  try {
+    const campaign = await MarketingCampaign.findById(req.params.id);
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campaign not found' });
+    }
+    emailQueueService.clearCampaignJobs(campaign._id);
+    const updatedRecipients = (campaign.recipients || []).map((r) => ({
+      ...r.toObject(),
+      status: 'queued',
+      sent_at: null,
+      delivered_at: null,
+      error_code: null,
+      error_message: null
+    }));
+    await MarketingCampaign.findByIdAndUpdate(campaign._id, {
+      $set: {
+        status: 'draft',
+        paused_at: null,
+        cancelled_at: null,
+        end_date: null,
+        last_error: null,
+        recipients: updatedRecipients,
+        'stats.messages_sent': 0,
+        'stats.failed': 0
+      }
+    });
+    const result = await campaignService.launchCampaign(campaign._id);
+    res.json({ ...result, message: `Campaign "${campaign.campaign_name}" rerun started.` });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
@@ -1109,16 +1798,23 @@ const testCampaignSend = async (req, res) => {
       }
       const backendBase = campaignService.resolveBackendBaseUrl();
       const unsubUrl = `${backendBase}/api/marketing/unsubscribe?email=${encodeURIComponent(test_email)}`;
+      const testVars = {
+        ...variables,
+        unsubscribe_url: unsubUrl
+      };
+      const rawHtml = html_content || tmpl?.html_content || '<p>Test campaign preview email from SolarKits Marketing.</p>';
+      const trackedTestHtml = campaignService.prepareEmailHtmlWithTracking(rawHtml, {
+        variables: testVars,
+        backendBase,
+        isTest: true
+      });
       results.email = await emailService.sendEmail({
         senderId: email_sender_id || null,
         purpose: 'marketing',
         to: test_email,
         subject: subject || tmpl?.subject || 'SolarKits Campaign Preview Test',
-        htmlContent: html_content || tmpl?.html_content || '<p>Test campaign preview email from SolarKits Marketing.</p>',
-        variables: {
-          ...variables,
-          unsubscribe_url: unsubUrl
-        },
+        htmlContent: trackedTestHtml,
+        variables: testVars,
         unsubscribeUrl: unsubUrl,
         allowInactiveSender: true,
         sourceType: 'campaign_test',
@@ -1174,19 +1870,106 @@ const testCampaignSend = async (req, res) => {
 
 const getCampaignLogs = async (req, res) => {
   try {
-    const [campaign, logs] = await Promise.all([
+    const [campaign, logs, ctaVisits] = await Promise.all([
       MarketingCampaign.findById(req.params.id)
         .select('campaign_name campaign_code campaign_type status stats delivery_summary last_error total_recipients recipients')
         .lean(),
       MarketingDeliveryLog.find({ campaign_id: req.params.id })
         .sort({ dispatched_at: -1 })
         .limit(200)
+        .lean(),
+      UtmVisit.find({
+        campaign_id: req.params.id,
+        cta_label: { $nin: [null, ''] },
+        is_test_click: { $ne: true },
+        is_suspected_bot_prefetch: { $ne: true }
+      })
+        .sort({ created_at: -1 })
+        .limit(1000)
         .lean()
+        .catch(() => [])
     ]);
 
     if (!campaign) {
       return res.status(404).json({ success: false, message: 'Campaign not found' });
     }
+
+    const ctaAgg = aggregateCtaVisits([campaign], ctaVisits);
+    const campBreakdown = ctaAgg.campaignBreakdownMap.get(String(campaign._id))?.ctaBreakdown || [];
+
+    const userClicksMap = new Map();
+    for (const r of campaign.recipients || []) {
+      const hasClicks = (r.click_count || 0) > 0 || (Array.isArray(r.cta_clicks) && r.cta_clicks.length > 0);
+      if (!hasClicks) continue;
+      const summaryByLabel = new Map();
+      for (const clk of r.cta_clicks || []) {
+        const lbl = clk.cta_label || 'Action Button';
+        if (!summaryByLabel.has(lbl)) {
+          summaryByLabel.set(lbl, {
+            cta_label: lbl,
+            cta_slot: clk.cta_slot || '',
+            target_url: clk.target_url || '',
+            is_pdf: isPdfDestination(clk.target_url),
+            count: 0,
+            last_clicked_at: clk.clicked_at
+          });
+        }
+        const entry = summaryByLabel.get(lbl);
+        entry.count += 1;
+        if (new Date(clk.clicked_at) > new Date(entry.last_clicked_at)) {
+          entry.last_clicked_at = clk.clicked_at;
+        }
+      }
+
+      userClicksMap.set(String(r._id), {
+        recipient_id: r._id,
+        name: r.name || 'Solar Partner',
+        email: r.email || '',
+        phone: r.phone || '',
+        status: r.status,
+        click_count: r.click_count || (r.cta_clicks || []).length,
+        first_clicked_at: r.clicked_at,
+        last_clicked_at: r.last_clicked_at || r.clicked_at,
+        cta_clicks: [...(r.cta_clicks || [])].sort((a, b) => new Date(b.clicked_at) - new Date(a.clicked_at)),
+        clicked_ctas_summary: Array.from(summaryByLabel.values()).sort((a, b) => b.count - a.count)
+      });
+    }
+
+    // Merge any UtmVisit clicks without an inline recipient subdoc record
+    for (const v of ctaVisits) {
+      const ridKey = v.recipient_id ? String(v.recipient_id) : (v.recipient_email || String(v._id));
+      if (userClicksMap.has(ridKey)) continue;
+      const visitedAt = v.created_at || v.first_touch_at || new Date();
+      userClicksMap.set(ridKey, {
+        recipient_id: v.recipient_id || null,
+        name: v.recipient_name || 'External / Tracked Visitor',
+        email: v.recipient_email || '',
+        phone: v.recipient_phone || '',
+        status: 'clicked',
+        click_count: 1,
+        first_clicked_at: visitedAt,
+        last_clicked_at: visitedAt,
+        cta_clicks: [{
+          cta_label: v.cta_label,
+          cta_slot: v.cta_slot || '',
+          target_url: v.target_url || v.landing_url || '',
+          device_type: v.device_type || 'desktop',
+          clicked_at: visitedAt
+        }],
+        clicked_ctas_summary: [{
+          cta_label: v.cta_label,
+          cta_slot: v.cta_slot || '',
+          target_url: v.target_url || v.landing_url || '',
+          is_pdf: isPdfDestination(v.target_url || v.landing_url),
+          count: 1,
+          last_clicked_at: visitedAt
+        }]
+      });
+    }
+
+    const userClicks = Array.from(userClicksMap.values()).sort(
+      (a, b) => new Date(b.last_clicked_at || 0) - new Date(a.last_clicked_at || 0)
+    );
 
     res.json({
       success: true,
@@ -1202,7 +1985,14 @@ const getCampaignLogs = async (req, res) => {
           total_recipients: campaign.total_recipients
         },
         recipients: (campaign.recipients || []).slice(0, 200),
-        deliveryLogs: logs
+        deliveryLogs: logs,
+        ctaAnalytics: {
+          total_clicks: ctaVisits.length || campaign.stats?.link_clicks || 0,
+          unique_clickers: userClicks.length,
+          by_cta: campBreakdown,
+          user_clicks: userClicks,
+          recent_events: ctaAgg.recentClicks
+        }
       }
     });
   } catch (error) {
@@ -1583,6 +2373,36 @@ const handleShortUrl = async (req, res) => {
   }
 };
 
+// Public signed per-CTA click redirect & PDF attachment download handler
+const handleCtaClick = async (req, res) => {
+  try {
+    const result = await campaignService.recordCtaClick(req.query, req);
+    if (result.headOnly) {
+      return res.status(200).end();
+    }
+    if (result.streamPdfUrl) {
+      try {
+        const upstream = await axios.get(result.streamPdfUrl, {
+          responseType: 'stream',
+          timeout: 20000
+        });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${result.downloadFilename || 'SolarKits_Datasheet.pdf'}"`);
+        if (upstream.headers['content-length']) {
+          res.setHeader('Content-Length', upstream.headers['content-length']);
+        }
+        return upstream.data.pipe(res);
+      } catch (streamErr) {
+        console.warn('PDF stream fallback to redirect:', streamErr.message);
+        return res.redirect(result.redirectUrl);
+      }
+    }
+    return res.redirect(result.redirectUrl || 'https://solarkits.in');
+  } catch (error) {
+    return res.redirect('https://solarkits.in');
+  }
+};
+
 const getTrackingLinks = async (req, res) => {
   try {
     const [standaloneLinks, campaignLinks] = await Promise.all([
@@ -1698,6 +2518,20 @@ const getReports = async (req, res) => {
       .sort({ created_at: -1 })
       .lean();
 
+    const campaignIds = campaigns.map((c) => c._id);
+    const ctaVisits = campaignIds.length > 0
+      ? await UtmVisit.find({
+        campaign_id: { $in: campaignIds },
+        cta_label: { $nin: [null, ''] },
+        is_test_click: { $ne: true },
+        is_suspected_bot_prefetch: { $ne: true }
+      })
+        .select('campaign_id recipient_id recipient_email visitor_id ip_address cta_label cta_slot target_url landing_url created_at')
+        .lean()
+        .catch(() => [])
+      : [];
+    const ctaAgg = aggregateCtaVisits(campaigns, ctaVisits);
+
     const reportRows = campaigns.map((c) => {
       const s = c.stats || {};
       const sent = s.messages_sent || 0;
@@ -1706,6 +2540,10 @@ const getReports = async (req, res) => {
       const clickRate = sent > 0 ? ((s.link_clicks / sent) * 100).toFixed(1) : '0.0';
       const convRate = s.website_visits > 0 ? ((s.conversions / s.website_visits) * 100).toFixed(1) : '0.0';
       const roi = c.budget > 0 ? (((s.revenue_generated - c.budget) / c.budget) * 100).toFixed(1) : '0.0';
+      const ctaInfo = ctaAgg.campaignBreakdownMap.get(String(c._id));
+      const ctaSummaryStr = ctaInfo?.ctaBreakdown?.length
+        ? ctaInfo.ctaBreakdown.slice(0, 4).map((b) => `${b.cta_label} (${b.clicks})`).join(', ')
+        : '';
 
       return {
         campaign_name: c.campaign_name,
@@ -1721,6 +2559,9 @@ const getReports = async (req, res) => {
         delivery_rate: `${delRate}%`,
         opened_or_read: s.opened_or_read || 0,
         clicks: s.link_clicks || 0,
+        unique_clickers: ctaInfo?.uniqueClickers || 0,
+        top_cta: ctaInfo?.topCta || '',
+        cta_breakdown_summary: ctaSummaryStr,
         click_rate: `${clickRate}%`,
         website_visits: s.website_visits || 0,
         leads_generated: s.form_submissions || 0,
@@ -2633,6 +3474,8 @@ module.exports = {
   triggerLaunchCampaign,
   pauseCampaign,
   cancelCampaign,
+  draftCampaign,
+  rerunCampaign,
   testCampaignSend,
   getCampaignLogs,
   getDeliveryLogs,
@@ -2652,6 +3495,7 @@ module.exports = {
   updateFormMapping,
   bulkUpdateFormMappings,
   handleShortUrl,
+  handleCtaClick,
   getTrackingLinks,
   createTrackingLink,
   deleteTrackingLink,

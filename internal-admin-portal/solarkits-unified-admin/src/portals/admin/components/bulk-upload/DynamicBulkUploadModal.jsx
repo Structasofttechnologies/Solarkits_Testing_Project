@@ -73,6 +73,9 @@ export default function DynamicBulkUploadModal({
   sampleFileName = 'dynamic_upload_template.csv',
   sampleRows = [],
   submitLabel = 'Import Leads',
+  initialBatchDefaults = {},
+  leadSourcesOptions = null,
+  renderExtraBatchDefaults = null,
   onSubmitImport,
 }) {
   const fileInputRef = useRef(null);
@@ -147,13 +150,17 @@ export default function DynamicBulkUploadModal({
       default_epc_type: '',
       default_lead_source: '',
       default_remarks: '',
+      ...(initialBatchDefaults || {}),
     });
 
+    const hasLeadSourceOverride = Array.isArray(leadSourcesOptions);
     setLoadingMeta(true);
     Promise.all([
       enableDefaultFields?.state ? fetchBulkUploadStates() : Promise.resolve([]),
       enableDefaultFields?.epcType ? fetchBulkUploadEpcTypes() : Promise.resolve([]),
-      enableDefaultFields?.leadSource ? fetchBulkUploadLeadSources() : Promise.resolve([]),
+      enableDefaultFields?.leadSource
+        ? (hasLeadSourceOverride ? Promise.resolve(leadSourcesOptions) : fetchBulkUploadLeadSources())
+        : Promise.resolve([]),
       fetchBulkUploadAllClusters(),
     ])
       .then(([states, epcTypes, sources, allClus]) => {
@@ -164,6 +171,12 @@ export default function DynamicBulkUploadModal({
       })
       .finally(() => setLoadingMeta(false));
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && Array.isArray(leadSourcesOptions) && leadSourcesOptions.length > 0) {
+      setLeadSourcesList(leadSourcesOptions);
+    }
+  }, [isOpen, leadSourcesOptions]);
 
   const clusterResolver = useMemo(
     () => buildClientClusterResolver(allIndiaClusters),
@@ -402,7 +415,7 @@ export default function DynamicBulkUploadModal({
     setBatchDefaults((prev) => {
       const next = { ...prev, ...patch };
       if (rawRecords.length > 0) {
-        recomputeRows(rawRecords, headerMappings, selectedKeys, next, captureCustomColumns);
+        recomputeRows(rawRecords, headerMappings, selectedKeys, next, captureCustomColumns, managedFieldOptions);
       }
       return next;
     });
@@ -870,7 +883,14 @@ export default function DynamicBulkUploadModal({
             </div>
 
             {showDefaultsPanel && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+              <div className="space-y-3 pt-1">
+                {typeof renderExtraBatchDefaults === 'function' &&
+                  renderExtraBatchDefaults({
+                    batchDefaults,
+                    handleBatchDefaultChange,
+                    setBatchDefaults,
+                  })}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {enableDefaultFields?.state && (
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1">
@@ -1000,6 +1020,7 @@ export default function DynamicBulkUploadModal({
                     />
                   </div>
                 )}
+                </div>
               </div>
             )}
           </div>

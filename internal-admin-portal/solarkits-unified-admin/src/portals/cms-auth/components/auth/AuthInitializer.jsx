@@ -14,6 +14,7 @@ export default function AuthInitializer() {
             if (currentPath === '/choose-panel' || 
                 currentPath.startsWith('/admin-panel') || 
                 currentPath.startsWith('/marketing-panel') || 
+                currentPath.startsWith('/lead-marketing-panel') || 
                 currentPath.startsWith('/account-panel') || 
                 currentPath.startsWith('/operation-management-panel') || 
                 currentPath.startsWith('/warehouse') || 

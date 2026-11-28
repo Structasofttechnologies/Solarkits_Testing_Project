@@ -280,7 +280,7 @@ export default function ProductStoreShowcase() {
   return (
     <section id="products" className="py-14 sm:py-24 bg-slate-50 text-slate-900 relative overflow-hidden border-t border-slate-200/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        
+
         {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6 border-b border-slate-200 pb-6 sm:pb-8">
           <div className="space-y-2 sm:space-y-3 max-w-2xl">
@@ -332,11 +332,10 @@ export default function ProductStoreShowcase() {
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer ${
-                selectedCategory === cat
+              className={`px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer ${selectedCategory === cat
                   ? "bg-[#253880] text-white shadow-md shadow-blue-500/20"
                   : "bg-white text-slate-700 hover:text-[#253880] hover:bg-sky-50 border border-slate-200 shadow-xs"
-              }`}
+                }`}
             >
               {cat}
             </button>
@@ -558,8 +557,8 @@ export default function ProductStoreShowcase() {
                 <h4 className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-slate-700">
                   Technical Specifications
                 </h4>
-                <div className="rounded-xl border border-slate-200 overflow-hidden">
-                  <table className="w-full text-xs">
+                <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                  <table className="w-full min-w-[420px] text-xs">
                     <tbody className="divide-y divide-slate-100">
                       {Object.entries(selectedProduct.specifications || {}).map(([key, val]) => (
                         <tr key={key} className="hover:bg-slate-50">
@@ -588,7 +587,7 @@ export default function ProductStoreShowcase() {
               </div>
 
               {/* Action Buttons in Modal */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2 sm:gap-3">
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                 <button
                   onClick={() => setModalOpen(false)}
                   className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200"

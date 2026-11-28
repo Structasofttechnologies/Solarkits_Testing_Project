@@ -466,3 +466,207 @@ export const SEGMENT_LEAD_PRESETS = [
     keys: SEGMENT_LEAD_FIELD_OPTIONS.map((f) => f.key),
   },
 ];
+
+export const LEAD_MARKETING_FIELD_OPTIONS = [
+  {
+    key: 'company_name',
+    label: 'Company / Firm Name',
+    description: 'Company, EPC, or Franchise prospect name',
+    required: true,
+    category: 'Required',
+    sample: 'SunTech Solar Energy',
+    aliases: ['company', 'name', 'firm_name', 'epc_name', 'business_name', 'organization', 'enterprise', 'party_name'],
+  },
+  {
+    key: 'contact_person',
+    label: 'Contact Person',
+    description: 'Proprietor, director, or primary contact name',
+    required: false,
+    category: 'Contact',
+    sample: 'Karan Patel',
+    aliases: ['full_name', 'contact_name', 'owner_name', 'owner', 'proprietor', 'person', 'director'],
+  },
+  {
+    key: 'mobile_number',
+    label: 'Mobile Number',
+    description: 'Contact mobile / WhatsApp number (or provide Email)',
+    required: false,
+    alwaysValidate: true,
+    category: 'Contact',
+    sample: '9825012345',
+    aliases: ['phone', 'phone_number', 'mobile', 'mob', 'whatsapp', 'whatsapp_number', 'contact_no', 'tel'],
+    validate: (val, row, defaults, fieldMeta) => {
+      const cleanVal = String(val || '').trim();
+      const hasEmail = Boolean(String(row?.email || '').trim());
+      if (!cleanVal) {
+        if (fieldMeta?.required) return 'Mobile Number is required';
+        if (!hasEmail) return 'Provide Mobile Number or Email Address';
+        return '';
+      }
+      const digits = cleanVal.replace(/\D/g, '');
+      const country = String(row?.country_name || defaults?.default_country || 'India').trim().toLowerCase();
+      if (country === 'india' && digits.length !== 10) {
+        return 'Must be a 10-digit Indian mobile number';
+      }
+      if (digits.length < 7 || digits.length > 15) {
+        return 'Mobile number must be 7-15 digits';
+      }
+      return '';
+    },
+  },
+  {
+    key: 'email',
+    label: 'Email Address',
+    description: 'Lead email address (required if Mobile is empty)',
+    required: false,
+    alwaysValidate: true,
+    category: 'Contact',
+    sample: 'info@suntechsolar.in',
+    aliases: ['email_id', 'email_address', 'mail', 'e_mail'],
+    validate: (val, _row, _defaults, fieldMeta) => {
+      const cleanVal = String(val || '').trim();
+      if (!cleanVal) return fieldMeta?.required ? 'Email Address is required' : '';
+      return EMAIL_RX.test(cleanVal) ? '' : 'Invalid email format';
+    },
+  },
+  {
+    key: 'country_code',
+    label: 'Country Code',
+    description: 'Dial code (default: +91)',
+    required: false,
+    category: 'Contact',
+    sample: '+91',
+    aliases: ['dial_code', 'isd', 'phone_code', 'code'],
+  },
+  {
+    key: 'gst_number',
+    label: 'GSTIN / GST Number',
+    description: '15-char Tax ID (Extract & Validate)',
+    required: false,
+    category: 'Tax / GST',
+    highlight: true,
+    sample: '24AAECS1234B1Z5',
+    aliases: ['gstin', 'gst', 'gst_no', 'tax_id'],
+  },
+  {
+    key: 'country_name',
+    label: 'Country',
+    description: 'Lead country (fallback: Step 2 Default Country)',
+    required: false,
+    category: 'Territory',
+    defaultKey: 'default_country',
+    sample: 'India',
+    aliases: ['country', 'nation'],
+  },
+  {
+    key: 'state_name',
+    label: 'State',
+    description: 'State (auto-inferred from District or Step 2 default)',
+    required: false,
+    category: 'Territory',
+    defaultKey: 'default_state',
+    sample: 'Gujarat',
+    aliases: ['state', 'province', 'pradesh', 'region'],
+  },
+  {
+    key: 'district_name',
+    label: 'District / City',
+    description: 'District, city, or taluka (auto-resolves Cluster & State)',
+    required: false,
+    category: 'Territory',
+    defaultKey: 'default_district',
+    sample: 'Surat',
+    aliases: ['district', 'city', 'dist', 'taluka', 'town', 'tehsil', 'location'],
+  },
+  {
+    key: 'cluster_name',
+    label: 'Solarkits Cluster',
+    description: 'Auto-assigned from District & State (or Step 2 default)',
+    required: false,
+    category: 'Territory',
+    defaultKey: 'default_cluster',
+    sample: 'Surat Region',
+    aliases: ['cluster', 'cluster_code', 'territory_cluster', 'zone'],
+  },
+  {
+    key: 'pincode',
+    label: 'Pincode / Postal',
+    description: '6-digit postal code',
+    required: false,
+    category: 'Location',
+    sample: '395001',
+    aliases: ['pin', 'postal_code', 'zip', 'zipcode'],
+  },
+  {
+    key: 'address_line',
+    label: 'Office / Shop Address',
+    description: 'Premises street or landmark',
+    required: false,
+    category: 'Location',
+    sample: 'Ring Road, Surat',
+    aliases: ['address', 'street', 'shop_address', 'office_address'],
+  },
+  {
+    key: 'assigned_bde',
+    label: 'Assigned BDE',
+    description: 'BDE name, email, or code (or Step 2 default)',
+    required: false,
+    category: 'Ownership',
+    defaultKey: 'default_bde_name',
+    sample: 'Rahul Sharma',
+    aliases: ['bde', 'assigned_bde_name', 'assigned_bde_id', 'bde_name', 'sales', 'executive', 'representative'],
+  },
+  {
+    key: 'lead_source',
+    label: 'Lead Source',
+    description: 'e.g. upload, website, exhibition (or default)',
+    required: false,
+    category: 'Source',
+    defaultKey: 'default_lead_source',
+    sample: 'upload',
+    aliases: ['source', 'platform', 'channel', 'campaign_name', 'origin'],
+  },
+  {
+    key: 'lead_status',
+    label: 'Lead Status',
+    description: 'Pipeline stage (e.g. New, Contacted, Interested)',
+    required: false,
+    category: 'Pipeline',
+    defaultKey: 'default_lead_status',
+    sample: 'New',
+    aliases: ['status', 'stage', 'disposition'],
+  },
+  {
+    key: 'remarks',
+    label: 'Remarks / Notes',
+    description: 'Campaign note or inquiry summary',
+    required: false,
+    category: 'Notes',
+    defaultKey: 'default_remarks',
+    sample: 'Interested in Franchise / Bulk Solar Kits',
+    aliases: ['notes', 'comment', 'query_message', 'description'],
+  },
+];
+
+export const LEAD_MARKETING_PRESETS = [
+  {
+    id: 'core',
+    label: 'Core CRM + Geo',
+    keys: ['company_name', 'contact_person', 'mobile_number', 'email', 'state_name', 'district_name', 'cluster_name'],
+  },
+  {
+    id: 'with_gst_bde',
+    label: 'With GST & BDE',
+    keys: ['company_name', 'contact_person', 'mobile_number', 'email', 'gst_number', 'state_name', 'district_name', 'cluster_name', 'assigned_bde', 'lead_source'],
+  },
+  {
+    id: 'minimal',
+    label: 'Minimal (Company + Contact)',
+    keys: ['company_name', 'mobile_number', 'email'],
+  },
+  {
+    id: 'all',
+    label: 'All Fields',
+    keys: LEAD_MARKETING_FIELD_OPTIONS.map((f) => f.key),
+  },
+];

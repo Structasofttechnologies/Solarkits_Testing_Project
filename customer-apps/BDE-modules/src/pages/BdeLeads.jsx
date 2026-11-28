@@ -696,7 +696,7 @@ export default function BdeLeads() {
                   <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
                   Verified Storefront & Premises Photos ({selectedLead.lead.shop_photos.length})
                 </span>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {selectedLead.lead.shop_photos.map((photo, pIdx) => (
                     <a
                       key={pIdx}

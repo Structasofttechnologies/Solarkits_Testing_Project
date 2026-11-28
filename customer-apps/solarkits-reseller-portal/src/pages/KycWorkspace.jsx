@@ -182,7 +182,7 @@ export default function KycWorkspace() {
       </div>
 
       {/* 4-Step Interactive Stepper Bar */}
-      <div className="grid grid-cols-4 gap-2 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-xs">
         {[
           { step: 1, title: "1. Business Identity", mandatory: true },
           { step: 2, title: "2. GST & Aadhaar", mandatory: false },

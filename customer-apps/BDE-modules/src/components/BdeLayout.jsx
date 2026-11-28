@@ -104,19 +104,19 @@ export default function BdeLayout() {
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 antialiased">
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm">
-        <div className="flex items-center justify-between px-4 md:px-6 h-16">
+        <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 h-16">
           {/* Brand & Mobile Toggle */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 text-slate-600 hover:text-slate-900 md:hidden rounded-lg hover:bg-slate-100 transition"
+              className="p-2 text-slate-600 hover:text-slate-900 md:hidden rounded-lg hover:bg-slate-100 transition shrink-0"
             >
               {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
 
-            <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-              <img src={logoImg} alt="SolarKits" className="h-9 w-auto object-contain" />
-              <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-wider border border-amber-200 shadow-xs">
+            <div className="flex items-center gap-2 sm:gap-3 cursor-pointer min-w-0" onClick={() => navigate('/')}>
+              <img src={logoImg} alt="SolarKits" className="h-7 sm:h-9 w-auto object-contain shrink-0" />
+              <span className="px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border border-amber-200 shadow-xs whitespace-nowrap">
                 BDE PORTAL
               </span>
             </div>
@@ -193,7 +193,7 @@ export default function BdeLayout() {
               </button>
 
               {userMenuOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl py-2 z-50 animate-fadeIn">
+                <div className="absolute right-0 mt-2 w-[min(14rem,calc(100vw-1.5rem))] bg-white border border-slate-200 rounded-2xl shadow-xl py-2 z-50 animate-fadeIn">
                   <div className="px-4 py-2 border-b border-slate-100">
                     <p className="text-xs font-bold text-slate-900">{user?.full_name}</p>
                     <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
@@ -225,7 +225,7 @@ export default function BdeLayout() {
       <div className="flex-1 flex">
         {/* Sidebar */}
         <aside
-          className={`fixed md:sticky top-16 z-30 h-[calc(100vh-4rem)] w-64 bg-white border-r border-slate-200 flex flex-col justify-between transition-transform duration-300 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          className={`fixed md:sticky top-16 z-30 h-[calc(100vh-4rem)] w-64 bg-white border-r border-slate-200 flex flex-col justify-between overflow-y-auto transition-transform duration-300 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
         >
           <div className="p-4 space-y-1">
@@ -299,7 +299,7 @@ export default function BdeLayout() {
         )}
 
         {/* Main Content Area */}
-        <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
           <Outlet />
         </main>
       </div>

@@ -791,7 +791,7 @@ function CreateTicketWizard({ onBack, onSuccess, onError }) {
 
                     <div>
                       <label className="block text-xs font-bold mb-1.5" style={{ color: "var(--color-text-secondary)" }}>Warranty Status</label>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         {WARRANTY_OPTIONS.map((opt) => (
                           <button
                             key={opt.value}

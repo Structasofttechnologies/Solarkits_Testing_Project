@@ -64,9 +64,9 @@ export default function FaqContactSection({ onOpenLeadModal, faqConfig }) {
   // Normalize categories if array or object
   const categoriesMap = (faqConfig?.categories && Array.isArray(faqConfig.categories))
     ? faqConfig.categories.reduce((acc, c) => {
-        if (c.name) acc[c.name] = c.items || [];
-        return acc;
-      }, {})
+      if (c.name) acc[c.name] = c.items || [];
+      return acc;
+    }, {})
     : (faqConfig?.categories || FAQ_CATEGORIES);
 
   const categoryNames = Object.keys(categoriesMap).length > 0 ? Object.keys(categoriesMap) : Object.keys(FAQ_CATEGORIES);
@@ -175,9 +175,9 @@ export default function FaqContactSection({ onOpenLeadModal, faqConfig }) {
   return (
     <section id="faq-section" className="py-16 sm:py-24 bg-white text-slate-900 relative border-t border-slate-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
-          
+
           {/* Left Column: Categorized FAQ Accordion */}
           <div className="lg:col-span-7 space-y-6">
             <div className="space-y-3">
@@ -209,11 +209,10 @@ export default function FaqContactSection({ onOpenLeadModal, faqConfig }) {
                     setActiveCategory(cat);
                     setOpenIndex(0);
                   }}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                    activeCategory === cat
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${activeCategory === cat
                       ? "bg-[#253880] text-white shadow-xs"
                       : "bg-slate-100 text-slate-600 hover:text-slate-900"
-                  }`}
+                    }`}
                 >
                   {cat}
                 </button>
@@ -235,9 +234,8 @@ export default function FaqContactSection({ onOpenLeadModal, faqConfig }) {
                     >
                       <span>{faq.q}</span>
                       <FiChevronDown
-                        className={`text-slate-400 transition-transform duration-300 shrink-0 ${
-                          isOpen ? "rotate-180 text-[#253880]" : ""
-                        }`}
+                        className={`text-slate-400 transition-transform duration-300 shrink-0 ${isOpen ? "rotate-180 text-[#253880]" : ""
+                          }`}
                         size={18}
                       />
                     </button>
@@ -305,7 +303,7 @@ export default function FaqContactSection({ onOpenLeadModal, faqConfig }) {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-bold text-slate-700 block mb-1">
                         Mobile Number
@@ -336,7 +334,7 @@ export default function FaqContactSection({ onOpenLeadModal, faqConfig }) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-bold text-slate-700 block mb-1">
                         State

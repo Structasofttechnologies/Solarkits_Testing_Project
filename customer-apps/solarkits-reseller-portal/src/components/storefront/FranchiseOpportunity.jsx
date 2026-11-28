@@ -214,7 +214,7 @@ export default function FranchiseOpportunity({ onOpenLeadModal, onOpenPurchaseMo
                     </div>
 
                     {/* Plan Attributes (Territory, Warehouse, Order Type) */}
-                    <div className="grid grid-cols-3 gap-2 py-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-4">
                       <div className="rounded-2xl border border-slate-100 bg-slate-50 p-2.5">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                           Territory

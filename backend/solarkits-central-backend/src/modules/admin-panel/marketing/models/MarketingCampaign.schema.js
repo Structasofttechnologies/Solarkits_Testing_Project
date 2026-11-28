@@ -30,6 +30,18 @@ const recipientSchema = new mongoose.Schema(
     delivered_at: { type: Date, default: null },
     read_at: { type: Date, default: null },
     clicked_at: { type: Date, default: null },
+    last_clicked_at: { type: Date, default: null },
+    click_count: { type: Number, default: 0 },
+    cta_clicks: [
+      {
+        _id: false,
+        cta_label: { type: String, trim: true },
+        cta_slot: { type: String, trim: true },
+        target_url: { type: String },
+        device_type: { type: String, default: null },
+        clicked_at: { type: Date, default: Date.now }
+      }
+    ],
     visited_at: { type: Date, default: null },
     converted_at: { type: Date, default: null },
     error_code: { type: String, default: null },
@@ -222,6 +234,7 @@ const campaignSchema = new mongoose.Schema(
     coupon_code: { type: String, default: null, trim: true },
     require_consent: { type: Boolean, default: true },
     include_imported_leads: { type: Boolean, default: true },
+    lead_sources: [{ type: String, trim: true }],
     paused_at: { type: Date, default: null },
     cancelled_at: { type: Date, default: null },
     last_error: { type: String, default: null },

@@ -231,70 +231,71 @@ export default function FooterSection({ footerConfig }) {
         </div>
 
         {/* Social Icons Bar */}
-        <div style={{ display: "flex", gap: "14px", marginBottom: "32px" }}>
-          {SOCIAL_ICONS.map(({ icon: Icon, label, color }) => (
-            <button
-              key={label}
-              aria-label={label}
-              style={{
-                width: "44px",
-                height: "44px",
-                borderRadius: "12px",
-                background: "rgba(255, 255, 255, 0.06)",
-                border: "1px solid rgba(255, 255, 255, 0.12)",
-                color: "rgba(255, 255, 255, 0.7)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                fontSize: "1.1rem",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = `${color}30`;
-                e.currentTarget.style.borderColor = color;
-                e.currentTarget.style.color = "#ffffff";
-                e.currentTarget.style.transform = "translateY(-3px)";
-                e.currentTarget.style.boxShadow = `0 8px 20px ${color}50`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)";
-                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.12)";
-                e.currentTarget.style.color = "rgba(255, 255, 255, 0.7)";
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.2)";
-              }}
-            >
-              <Icon />
-            </button>
-          ))}
-        </div>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "14px", marginBottom: "32px" }}>
+            {SOCIAL_ICONS.map(({ icon: Icon, label, color }) => (
+              <button
+                key={label}
+                aria-label={label}
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "12px",
+                  background: "rgba(255, 255, 255, 0.06)",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  color: "rgba(255, 255, 255, 0.7)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  fontSize: "1.1rem",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = `${color}30`;
+                  e.currentTarget.style.borderColor = color;
+                  e.currentTarget.style.color = "#ffffff";
+                  e.currentTarget.style.transform = "translateY(-3px)";
+                  e.currentTarget.style.boxShadow = `0 8px 20px ${color}50`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)";
+                  e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.12)";
+                  e.currentTarget.style.color = "rgba(255, 255, 255, 0.7)";
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.2)";
+                }}
+              >
+                <Icon />
+              </button>
+            ))}
+          </div>
 
-        {/* Bottom Minimal Copyright Bar */}
-        <div
-          style={{
-            width: "100%",
-            borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-            paddingTop: "20px",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <p
+          {/* Bottom Minimal Copyright Bar */}
+          <div
             style={{
-              color: "rgba(255, 255, 255, 0.45)",
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              letterSpacing: "0.02em",
-              margin: 0,
+              width: "100%",
+              borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+              paddingTop: "20px",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
             }}
           >
-            {copyrightText}
-          </p>
+            <p
+              style={{
+                color: "rgba(255, 255, 255, 0.45)",
+                fontSize: "0.85rem",
+                fontWeight: 500,
+                letterSpacing: "0.02em",
+                margin: 0,
+                textAlign: "center",
+              }}
+            >
+              {copyrightText}
+            </p>
+          </div>
         </div>
-      </div>
     </footer>
   );
 }

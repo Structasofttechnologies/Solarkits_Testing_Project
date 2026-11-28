@@ -87,10 +87,10 @@ export default function KitDetailModal({
 
         {/* Modal Body Container */}
         <div className="p-5 sm:p-8 space-y-6">
-          
+
           {/* Main Kit Header Row */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            
+
             {/* Left Image & Core Specs */}
             <div className="lg:col-span-5 space-y-3">
               <div className="relative rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 h-56 sm:h-64 shadow-xs">
@@ -100,7 +100,7 @@ export default function KitDetailModal({
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                
+
                 {kit.badge && (
                   <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-[#F49222] text-white text-[10px] font-black uppercase tracking-wider shadow-md">
                     {kit.badge}
@@ -118,7 +118,7 @@ export default function KitDetailModal({
               </div>
 
               {/* Quick Spec Icons Bar */}
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
                 <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
                   <span className="text-[9px] font-bold text-slate-400 block uppercase">Panels</span>
                   <span className="font-extrabold text-slate-800 text-[11px]">
@@ -156,7 +156,7 @@ export default function KitDetailModal({
 
               {/* Pricing & Margin Box */}
               <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-sky-50 to-slate-50 border border-sky-200/70 space-y-3">
-                <div className="flex items-baseline justify-between">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <div>
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                       Franchisee / Dealer Wholesale Rate
@@ -252,11 +252,10 @@ export default function KitDetailModal({
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-3 text-xs font-black uppercase tracking-wider border-b-2 whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-                  activeTab === tab.key
+                className={`px-4 py-3 text-xs font-black uppercase tracking-wider border-b-2 whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${activeTab === tab.key
                     ? "border-[#253880] text-[#253880] bg-sky-50/50 rounded-t-xl"
                     : "border-transparent text-slate-500 hover:text-slate-900"
-                }`}
+                  }`}
               >
                 <tab.icon size={13} />
                 <span>{tab.label}</span>
@@ -267,8 +266,8 @@ export default function KitDetailModal({
           {/* Tab 1: Specifications */}
           {activeTab === "overview" && (
             <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                <table className="w-full text-xs">
+              <div className="rounded-2xl border border-slate-200 overflow-x-auto">
+                <table className="w-full min-w-[420px] text-xs">
                   <tbody className="divide-y divide-slate-100">
                     {Object.entries(kit.specifications || {}).map(([k, v]) => (
                       <tr key={k} className="hover:bg-slate-50">

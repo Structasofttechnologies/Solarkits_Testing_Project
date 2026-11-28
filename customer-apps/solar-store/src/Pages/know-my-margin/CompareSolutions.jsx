@@ -111,7 +111,7 @@ export default function CompareSolutions({ onSelectSolution }) {
 
       {/* Comparison Grid */}
       <div className="overflow-x-auto pb-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-w-[700px]">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-w-[600px] sm:min-w-[700px]">
           {comparisonResults.map((item, index) => {
             const sol = item.calculation;
             const costPerWatt =

@@ -634,7 +634,7 @@ export default function Login() {
             </div>
 
             {/* Remember Me & Switch */}
-            <div className="flex items-center justify-between text-xs pt-0.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
               <label className="flex items-center gap-1.5 cursor-pointer select-none text-slate-600 text-[11px]">
                 <input
                   type="checkbox"
@@ -715,7 +715,7 @@ export default function Login() {
             </div>
 
             {/* Single Clean Link (No multiple confusing links!) */}
-            <div className="flex items-center justify-between text-xs pt-0.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
               <label className="flex items-center gap-1.5 cursor-pointer select-none text-slate-600 text-[11px]">
                 <input
                   type="checkbox"

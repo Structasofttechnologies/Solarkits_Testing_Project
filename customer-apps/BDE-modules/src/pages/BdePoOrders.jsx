@@ -3044,7 +3044,7 @@ export default function BdePoOrders() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-4 gap-2 pt-2 border-t border-indigo-200/60 text-center">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-indigo-200/60 text-center">
                       <div className="bg-white p-2 rounded-lg border border-indigo-100">
                         <span className="text-[9px] text-slate-400 uppercase font-bold block">Total Quota</span>
                         <span className="font-extrabold text-slate-900 text-xs">{totalCommitted} Kits</span>
@@ -3221,7 +3221,7 @@ export default function BdePoOrders() {
               <div>
                 <h4 className="font-bold text-slate-900 text-sm mb-2">ComboKit Blueprint Specifications</h4>
                 <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-200 space-y-2">
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-wrap justify-between items-center gap-2">
                     <span className="font-bold text-slate-900 text-sm">
                       {selectedOrder.items?.[0]?.item_name || 'Solar Kit Blueprint'}
                     </span>
@@ -3229,7 +3229,7 @@ export default function BdePoOrders() {
                       {selectedOrder.target_committed_quantity || selectedOrder.total_booked_quantity || 100} Kits Quota
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-slate-600 pt-2 border-t border-blue-200/60">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-600 pt-2 border-t border-blue-200/60">
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">Unit Price</span>
                       <span className="font-bold text-slate-900">
@@ -3256,8 +3256,8 @@ export default function BdePoOrders() {
               <div>
                 <h4 className="font-bold text-slate-900 text-sm mb-2">Allocated EPC Network</h4>
                 {selectedOrder.items?.[0]?.epc_allocations?.length > 0 ? (
-                  <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <table className="w-full text-left">
+                  <div className="border border-slate-200 rounded-xl overflow-x-auto">
+                    <table className="w-full min-w-[480px] text-left">
                       <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-200">
                         <tr>
                           <th className="px-3 py-2">EPC Partner Name</th>

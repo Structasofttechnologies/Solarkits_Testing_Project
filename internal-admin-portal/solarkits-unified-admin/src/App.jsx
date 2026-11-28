@@ -33,6 +33,7 @@ const WarehousePortalApp = lazy(() => import("./portals/warehouse/App.jsx"));
 const DeveloperPortalApp = lazy(() => import("./portals/developer/App.jsx"));
 const BoskitAdminPortalApp = lazy(() => import("./portals/boskit/App.jsx"));
 const MarketingPortalApp = lazy(() => import("./portals/marketing/App.jsx"));
+const LeadMarketingPortalApp = lazy(() => import("./portals/lead-marketing/App.jsx"));
 
 
 function NavigateToStore() {
@@ -60,9 +61,13 @@ export default function App() {
           {/* Admin Panel */}
           <Route path="/admin-panel/*" element={<AdminPortalApp />} />
 
-          {/* Dedicated Marketing Panel Portal */}
+          {/* Dedicated EPC Marketing Panel Portal */}
           <Route path="/marketing-panel/*" element={<MarketingPortalApp />} />
           <Route path="/marketing-panel" element={<Navigate to="/marketing-panel/dashboard" replace />} />
+
+          {/* Dedicated Lead Marketing Panel Portal */}
+          <Route path="/lead-marketing-panel/*" element={<LeadMarketingPortalApp />} />
+          <Route path="/lead-marketing-panel" element={<Navigate to="/lead-marketing-panel/dashboard" replace />} />
 
           {/* Accounts Panel */}
           <Route path="/account-panel/*" element={<AccountsPortalApp />} />

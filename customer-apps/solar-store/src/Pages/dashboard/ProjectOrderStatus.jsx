@@ -2986,8 +2986,8 @@ export default function ProjectOrderStatus() {
                 </div>
 
                 {/* Items Table */}
-                <div className="border border-border rounded-xl overflow-hidden">
-                  <table className="w-full text-left">
+                <div className="border border-border rounded-xl overflow-x-auto">
+                  <table className="w-full min-w-[500px] text-left">
                     <thead className="bg-surface-hover border-b border-border text-[11px] font-bold text-text-secondary">
                       <tr>
                         <th className="p-2.5">Item Description</th>
@@ -3012,7 +3012,7 @@ export default function ProjectOrderStatus() {
                 </div>
 
                 {/* Total */}
-                <div className="flex justify-between items-center p-3 bg-surface-hover rounded-xl font-bold text-sm">
+                <div className="flex flex-wrap justify-between items-center gap-2 p-3 bg-surface-hover rounded-xl font-bold text-sm">
                   <span>Grand Total (Incl. GST):</span>
                   <span className="text-lg font-black text-primary">
                     ₹{(viewingInvoice.financials?.grand_total || 0).toLocaleString("en-IN")}

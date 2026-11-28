@@ -75,7 +75,7 @@ export default function OurBestSellerSection() {
       </div>
 
       {/* SECTION CONTAINER */}
-      <div className="bg-gradient-to-b from-surface via-surface/90 to-surface border-2 border-amber-500/30 dark:border-amber-500/20 rounded-3xl p-6 sm:p-8 lg:p-10 shadow-xl shadow-amber-500/5">
+      <div className="bg-gradient-to-b from-surface via-surface/90 to-surface border-2 border-amber-500/30 dark:border-amber-500/20 rounded-2xl sm:rounded-3xl p-4 sm:p-8 lg:p-10 shadow-xl shadow-amber-500/5">
         
         {/* HEADER */}
         <div className="pb-8 border-b border-border/70">
@@ -111,7 +111,7 @@ export default function OurBestSellerSection() {
               </p>
             </div>
           ) : bestSellers.length > 0 ? (
-            <div className="grid xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
               {bestSellers.map((kit) => (
                 <KitCard
                   key={kit.id}
@@ -126,7 +126,7 @@ export default function OurBestSellerSection() {
               ))}
             </div>
           ) : (
-            <div className="p-12 text-center bg-surface-hover/40 rounded-2xl border border-dashed border-border">
+            <div className="p-6 sm:p-12 text-center bg-surface-hover/40 rounded-2xl border border-dashed border-border">
               <FaAward size={36} className="mx-auto text-amber-500/50 mb-3" />
               <h4 className="text-base font-bold text-text-primary">
                 No Best Sellers Tagged Yet for {currentRegionText}

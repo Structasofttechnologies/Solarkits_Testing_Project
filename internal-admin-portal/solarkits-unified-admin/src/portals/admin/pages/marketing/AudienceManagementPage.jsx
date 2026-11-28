@@ -17,7 +17,6 @@ import {
   FaTimes,
   FaEye,
   FaSyncAlt,
-  FaLayerGroup,
   FaCheck,
   FaTrashAlt,
   FaArrowRight,
@@ -26,7 +25,6 @@ import {
   FaInfoCircle
 } from 'react-icons/fa';
 import { FiZoomIn, FiZoomOut, FiRefreshCw, FiMapPin, FiCheck, FiSliders } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom';
 import { marketingHttp, extractApiError } from './services/marketingApi';
 import {
   fetchLiveActiveStates,
@@ -77,11 +75,10 @@ const classifyEpc = (item) => {
 };
 
 export default function AudienceManagementPage() {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const [actionBanner, setActionBanner] = useState(null);
-  const [activeTab, setActiveTab] = useState('contacts'); // 'contacts' | 'segments' | 'unsubscribed'
+  const [activeTab, setActiveTab] = useState('contacts'); // 'contacts' | 'unsubscribed'
   const [search, setSearch] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('ALL'); // ALL | Buyer EPC | Verified EPC | Registered EPC
   const [selectedState, setSelectedState] = useState('ALL');
@@ -90,11 +87,9 @@ export default function AudienceManagementPage() {
 
   // Modals
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showSegmentModal, setShowSegmentModal] = useState(false);
 
   // Audience Data (Strictly live from MongoDB)
   const [audiences, setAudiences] = useState([]);
-  const [segments, setSegments] = useState([]);
   const [unsubscribedList, setUnsubscribedList] = useState([]);
   const [liveStates, setLiveStates] = useState([]);
   const [liveClusters, setLiveClusters] = useState([]);
@@ -109,18 +104,6 @@ export default function AudienceManagementPage() {
     active_clusters_count: 0,
     active_states_count: 0
   });
-
-  // Segment Builder Form State
-  const [segmentForm, setSegmentForm] = useState({
-    name: '',
-    description: '',
-    epcGroup: 'ALL',
-    stateName: '',
-    clusterName: '',
-    minOrders: 0,
-    requireConsent: false
-  });
-  const [savingSegment, setSavingSegment] = useState(false);
 
   // Manual Suppression Form State
   const [suppressForm, setSuppressForm] = useState({
@@ -196,18 +179,12 @@ export default function AudienceManagementPage() {
 
   const fetchSegmentsAndSuppression = useCallback(async () => {
     try {
-      const [segRes, unsubRes] = await Promise.all([
-        marketingHttp.get('/audience/segments').catch(() => null),
-        marketingHttp.get('/audience/unsubscribed').catch(() => null)
-      ]);
-      if (segRes?.data?.success && Array.isArray(segRes.data.data)) {
-        setSegments(segRes.data.data);
-      }
+      const unsubRes = await marketingHttp.get('/audience/unsubscribed').catch(() => null);
       if (unsubRes?.data?.success && Array.isArray(unsubRes.data.unsubscribes)) {
         setUnsubscribedList(unsubRes.data.unsubscribes);
       }
     } catch (err) {
-      console.warn('Segments/suppression fetch error:', err.message);
+      console.warn('Suppression fetch error:', err.message);
     }
   }, []);
 
@@ -218,51 +195,6 @@ export default function AudienceManagementPage() {
   useEffect(() => {
     fetchSegmentsAndSuppression();
   }, [fetchSegmentsAndSuppression]);
-
-  const handleSaveSegment = async (e) => {
-    e?.preventDefault();
-    if (!segmentForm.name.trim()) {
-      setErrorMessage('Segment name is required.');
-      return;
-    }
-    setSavingSegment(true);
-    setErrorMessage(null);
-    try {
-      const filters = {
-        epc_groups: segmentForm.epcGroup === 'ALL' ? ['all'] : [segmentForm.epcGroup],
-        state_names: segmentForm.stateName ? [segmentForm.stateName] : [],
-        cluster_names: segmentForm.clusterName ? [segmentForm.clusterName] : [],
-        min_orders: Number(segmentForm.minOrders || 0),
-        require_consent: Boolean(segmentForm.requireConsent),
-        include_imported_leads: true
-      };
-      const res = await marketingHttp.post('/audience/segments', {
-        name: segmentForm.name.trim(),
-        description: segmentForm.description.trim(),
-        filters
-      });
-      if (res.data?.success) {
-        setShowSegmentModal(false);
-        setSegmentForm({ name: '', description: '', epcGroup: 'ALL', stateName: '', clusterName: '', minOrders: 0, requireConsent: false });
-        setActionBanner(`Dynamic segment "${res.data.data?.name}" saved to MongoDB (${res.data.data?.cached_count ?? 0} matching contacts).`);
-        fetchSegmentsAndSuppression();
-      }
-    } catch (err) {
-      setErrorMessage(extractApiError(err, 'Failed to create segment'));
-    } finally {
-      setSavingSegment(false);
-    }
-  };
-
-  const handleDeleteSegment = async (segId) => {
-    try {
-      await marketingHttp.delete(`/audience/segments/${segId}`);
-      setActionBanner('Segment removed.');
-      fetchSegmentsAndSuppression();
-    } catch (err) {
-      setErrorMessage(extractApiError(err, 'Failed to delete segment'));
-    }
-  };
 
   const handleSuppressContact = async ({ email, phone, channel = 'all', reason = 'Admin suppression' }) => {
     if (!email && !phone) {
@@ -633,13 +565,6 @@ export default function AudienceManagementPage() {
           >
             <FaFileImport />
             <span>Bulk Upload (Excel / CSV)</span>
-          </button>
-          <button
-            onClick={() => navigate('/marketing-panel/segments')}
-            className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md shadow-blue-500/20 transition-all"
-          >
-            <FaLayerGroup />
-            <span>Manage Segment Groups</span>
           </button>
         </div>
       </div>
@@ -1145,7 +1070,7 @@ export default function AudienceManagementPage() {
             </div>
           )}
 
-          {/* CRM View Tabs: Contacts | Saved Segments | Suppression List */}
+          {/* CRM View Tabs: Contacts | Suppression List */}
           <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs text-xs font-bold">
             <button
               type="button"
@@ -1158,18 +1083,6 @@ export default function AudienceManagementPage() {
             >
               <FaUsers />
               <span>Active Contacts ({filteredAudiences.length})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('segments')}
-              className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'segments'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-              }`}
-            >
-              <FaLayerGroup />
-              <span>Saved Segments ({segments.length})</span>
             </button>
             <button
               type="button"
@@ -1329,71 +1242,6 @@ export default function AudienceManagementPage() {
           </div>
           )}
 
-          {activeTab === 'segments' && (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs overflow-hidden p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-extrabold">Saved Dynamic Segments</h3>
-                  <p className="text-[11px] text-slate-500">Reusable MongoDB audience segments selectable directly inside the Campaign Wizard.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowSegmentModal(true)}
-                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                >
-                  <FaPlus /> New Segment
-                </button>
-              </div>
-              {segments.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
-                  No custom segments saved yet. Click "Create Custom Segment" to build one.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {segments.map((seg) => (
-                    <div key={seg._id} className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 flex flex-col justify-between gap-2">
-                      <div>
-                        <div className="flex items-center justify-between gap-2">
-                          <h4 className="font-bold text-sm text-slate-800 dark:text-white">{seg.name}</h4>
-                          <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold">
-                            {seg.cached_count ?? 0} EPCs
-                          </span>
-                        </div>
-                        {seg.description && <p className="text-[11px] text-slate-500 mt-1">{seg.description}</p>}
-                        <div className="flex flex-wrap gap-1.5 mt-2 text-[10px] text-slate-600 dark:text-slate-300">
-                          {seg.filters?.epc_groups?.length > 0 && (
-                            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                              Groups: {seg.filters.epc_groups.join(', ')}
-                            </span>
-                          )}
-                          {seg.filters?.state_names?.length > 0 && (
-                            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                              States: {seg.filters.state_names.join(', ')}
-                            </span>
-                          )}
-                          {seg.filters?.cluster_names?.length > 0 && (
-                            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                              Clusters: {seg.filters.cluster_names.join(', ')}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/70 dark:border-slate-700/70">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteSegment(seg._id)}
-                          className="text-rose-600 hover:underline text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-                        >
-                          <FaTrashAlt /> Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           {activeTab === 'unsubscribed' && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-xs overflow-hidden p-4 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-5 gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 text-xs">
@@ -1490,116 +1338,6 @@ export default function AudienceManagementPage() {
         </div>
 
       </div>
-
-      {/* ===================== CREATE DYNAMIC SEGMENT MODAL ===================== */}
-      {showSegmentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <form onSubmit={handleSaveSegment} className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
-              <h3 className="text-base font-bold">Create Dynamic Segment</h3>
-              <button type="button" onClick={() => setShowSegmentModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
-                <FaTimes />
-              </button>
-            </div>
-            <div className="py-4 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Segment Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={segmentForm.name}
-                  onChange={(e) => setSegmentForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="e.g., High-Value Maharashtra EPCs (5+ Orders)"
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Description</label>
-                <input
-                  type="text"
-                  value={segmentForm.description}
-                  onChange={(e) => setSegmentForm((p) => ({ ...p, description: e.target.value }))}
-                  placeholder="Optional segment notes..."
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Target EPC Type</label>
-                  <select
-                    value={segmentForm.epcGroup}
-                    onChange={(e) => setSegmentForm((p) => ({ ...p, epcGroup: e.target.value }))}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
-                  >
-                    <option value="ALL">All Types</option>
-                    <option value="buyer">Buyer EPCs Only</option>
-                    <option value="verified">Verified EPCs Only</option>
-                    <option value="registered">Registered EPCs Only</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Minimum Order Count</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={segmentForm.minOrders}
-                    onChange={(e) => setSegmentForm((p) => ({ ...p, minOrders: e.target.value }))}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">State Filter (Optional)</label>
-                  <select
-                    value={segmentForm.stateName}
-                    onChange={(e) => setSegmentForm((p) => ({ ...p, stateName: e.target.value }))}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
-                  >
-                    <option value="">All States</option>
-                    {availableStates.map((st) => <option key={st} value={st}>{st}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-600 dark:text-slate-300 mb-1">Cluster Filter (Optional)</label>
-                  <select
-                    value={segmentForm.clusterName}
-                    onChange={(e) => setSegmentForm((p) => ({ ...p, clusterName: e.target.value }))}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
-                  >
-                    <option value="">All Clusters</option>
-                    {availableClusters.map((cl) => <option key={cl} value={cl}>{cl}</option>)}
-                  </select>
-                </div>
-              </div>
-              <label className="flex items-center gap-2 font-semibold text-slate-600 dark:text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={segmentForm.requireConsent}
-                  onChange={(e) => setSegmentForm((p) => ({ ...p, requireConsent: e.target.checked }))}
-                />
-                <span>Only include marketing opt-in consented EPCs</span>
-              </label>
-            </div>
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
-              <button
-                type="button"
-                onClick={() => setShowSegmentModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={savingSegment}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 cursor-pointer disabled:opacity-50"
-              >
-                {savingSegment ? 'Saving...' : 'Save Segment'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       <DynamicBulkUploadModal
         isOpen={showImportModal}

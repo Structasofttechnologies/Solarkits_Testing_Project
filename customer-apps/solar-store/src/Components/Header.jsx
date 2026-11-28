@@ -196,7 +196,7 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
 
   return (
     <>
-      <header className="flex items-center justify-between px-6 py-3 bg-surface border-b border-border shadow-sm relative z-30 transition-colors duration-200">
+      <header className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3 bg-surface border-b border-border shadow-sm relative z-30 transition-colors duration-200">
         {/* Left side - Mobile Menu Toggle */}
         {isMobile ? (
           <IconButton
@@ -212,64 +212,69 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
         )}
 
         {/* Middle - Geolocation Selector */}
-        <div className="flex items-center space-x-2.5 bg-surface-hover px-4 py-1.5 rounded-full border border-border shadow-inner">
+        <div className="flex items-center gap-1.5 md:space-x-2.5 bg-surface-hover px-2.5 md:px-4 py-1 md:py-1.5 rounded-full border border-border shadow-inner min-w-0">
           <div
             onClick={() => !isEpcUser && setPincodeModalOpen(true)}
-            className="flex items-center space-x-1.5 text-text-secondary cursor-pointer hover:opacity-80"
+            className="flex items-center space-x-1 md:space-x-1.5 text-text-secondary cursor-pointer hover:opacity-80 min-w-0"
             title="Click to enter Pincode"
           >
-            <FiMapPin size={13} className="text-primary dark:text-info" />
-            <span className="text-xs font-semibold uppercase tracking-wider opacity-90">
+            <FiMapPin size={13} className="text-primary dark:text-info shrink-0" />
+            <span className="hidden md:inline text-xs font-semibold uppercase tracking-wider opacity-90 shrink-0">
               {selectedPincode ? `PIN ${selectedPincode}:` : "Location:"}
+            </span>
+            <span className="md:hidden text-[11px] font-semibold truncate max-w-[95px]">
+              {selectedPincode ? `PIN ${selectedPincode}` : (selectedDistrict?.name || selectedState?.name || "Enter PIN")}
             </span>
           </div>
 
-          {/* State Dropdown */}
-          <DropdownWithSearchInput
-            value={selectedState?.id || selectedState?._id || ""}
-            onChange={(val) => {
-              if (isEpcUser) return;
-              const found = statesList.find(s => (s.id || s._id) === val);
-              if (found) {
-                handleLocationChange(found, null);
-              } else {
-                handleLocationChange(null, null);
-              }
-            }}
-            options={stateOptions}
-            disabled={isEpcUser && stateOptions.length <= 1}
-            placeholder="Select State"
-            searchPlaceholder="Search State..."
-            className="w-40 text-xs text-text-primary dark:text-info !"
-            forceDown={true}
-          />
+          <div className="hidden md:flex items-center space-x-2.5">
+            {/* State Dropdown */}
+            <DropdownWithSearchInput
+              value={selectedState?.id || selectedState?._id || ""}
+              onChange={(val) => {
+                if (isEpcUser) return;
+                const found = statesList.find(s => (s.id || s._id) === val);
+                if (found) {
+                  handleLocationChange(found, null);
+                } else {
+                  handleLocationChange(null, null);
+                }
+              }}
+              options={stateOptions}
+              disabled={isEpcUser && stateOptions.length <= 1}
+              placeholder="Select State"
+              searchPlaceholder="Search State..."
+              className="w-40 text-xs text-text-primary dark:text-info !"
+              forceDown={true}
+            />
 
-          <span className="text-text-muted/30 text-xs">|</span>
+            <span className="text-text-muted/30 text-xs">|</span>
 
-          {/* District Dropdown */}
-          <DropdownWithSearchInput
-            value={selectedDistrict?.id || selectedDistrict?._id || ""}
-            onChange={(val) => {
-              if (isEpcUser) return;
-              const found = districtsList.find(d => (d.id || d._id) === val);
-              if (found) {
-                handleLocationChange(selectedState, found);
-              } else {
-                handleLocationChange(selectedState, null);
-              }
-            }}
-            options={districtOptions}
-            disabled={(isEpcUser && districtOptions.length <= 1) || !selectedState}
-            placeholder="Select District"
-            searchPlaceholder="Search District..."
-            className="w-40 text-xs text-text-primary dark:text-info !"
-            forceDown={true}
-          />
+            {/* District Dropdown */}
+            <DropdownWithSearchInput
+              value={selectedDistrict?.id || selectedDistrict?._id || ""}
+              onChange={(val) => {
+                if (isEpcUser) return;
+                const found = districtsList.find(d => (d.id || d._id) === val);
+                if (found) {
+                  handleLocationChange(selectedState, found);
+                } else {
+                  handleLocationChange(selectedState, null);
+                }
+              }}
+              options={districtOptions}
+              disabled={(isEpcUser && districtOptions.length <= 1) || !selectedState}
+              placeholder="Select District"
+              searchPlaceholder="Search District..."
+              className="w-40 text-xs text-text-primary dark:text-info !"
+              forceDown={true}
+            />
+          </div>
           {!isEpcUser && (
             <button
               type="button"
               onClick={() => setPincodeModalOpen(true)}
-              className="text-[10px] font-bold px-2 py-1 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25 border border-amber-500/30 cursor-pointer shrink-0 transition-colors"
+              className="hidden md:inline-block text-[10px] font-bold px-2 py-1 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25 border border-amber-500/30 cursor-pointer shrink-0 transition-colors"
               title="Enter 6-digit Pincode"
             >
               {selectedPincode ? `PIN: ${selectedPincode}` : "Enter PIN"}
@@ -348,7 +353,7 @@ export default function Header({ isOpen, setIsOpen, isMobile }) {
 
             {/* Cart Dropdown Panel */}
             {showCartDropdown && isAuthenticated && (
-              <div className="absolute right-0 top-[calc(100%+10px)] w-80 bg-surface border border-border rounded-2xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
+              <div className="fixed sm:absolute right-3 sm:right-0 top-14 sm:top-[calc(100%+10px)] w-[min(20rem,calc(100vw-1.5rem))] bg-surface border border-border rounded-2xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
                 {/* Dropdown Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-gradient-to-r from-primary/5 to-primary/10 dark:from-info/5 dark:to-info/10">
                   <div className="flex items-center gap-2">

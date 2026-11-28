@@ -31,6 +31,8 @@ const marketing_auth = async (req, res, next) => {
 
 // ── Public Routes (Tracking Redirect & One-Click Unsubscribe) ──
 router.get('/t/:code', controller.handleShortUrl);
+router.get('/c/:payload', controller.handleCtaClick);
+router.head('/c/:payload', controller.handleCtaClick);
 router.get('/unsubscribe', controller.handleUnsubscribe);
 router.post('/unsubscribe', controller.handleUnsubscribe);
 
@@ -65,6 +67,8 @@ router.post('/campaigns/:id/launch', controller.triggerLaunchCampaign);
 router.post('/campaigns/:id/resume', controller.triggerLaunchCampaign);
 router.post('/campaigns/:id/pause', controller.pauseCampaign);
 router.post('/campaigns/:id/cancel', controller.cancelCampaign);
+router.post('/campaigns/:id/draft', controller.draftCampaign);
+router.post('/campaigns/:id/rerun', controller.rerunCampaign);
 
 // Audience Hub, CSV Import, Segments & Suppression
 router.get('/audience/list', controller.getAudienceList);

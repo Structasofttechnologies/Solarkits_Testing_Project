@@ -11,15 +11,15 @@ import {
 
 // ── GST State Code → State Name Map (India) ──────────────────────────────────
 const GST_STATE_MAP = {
-  "01":"Jammu & Kashmir","02":"Himachal Pradesh","03":"Punjab","04":"Chandigarh",
-  "05":"Uttarakhand","06":"Haryana","07":"Delhi","08":"Rajasthan","09":"Uttar Pradesh",
-  "10":"Bihar","11":"Sikkim","12":"Arunachal Pradesh","13":"Nagaland","14":"Manipur",
-  "15":"Mizoram","16":"Tripura","17":"Meghalaya","18":"Assam","19":"West Bengal",
-  "20":"Jharkhand","21":"Odisha","22":"Chhattisgarh","23":"Madhya Pradesh",
-  "24":"Gujarat","25":"Daman & Diu","26":"Dadra & Nagar Haveli","27":"Maharashtra",
-  "28":"Andhra Pradesh","29":"Karnataka","30":"Goa","31":"Lakshadweep","32":"Kerala",
-  "33":"Tamil Nadu","34":"Puducherry","35":"Andaman & Nicobar Islands","36":"Telangana",
-  "37":"Andhra Pradesh (New)","38":"Ladakh","97":"Other Territory","99":"Centre Jurisdiction",
+  "01": "Jammu & Kashmir", "02": "Himachal Pradesh", "03": "Punjab", "04": "Chandigarh",
+  "05": "Uttarakhand", "06": "Haryana", "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh",
+  "10": "Bihar", "11": "Sikkim", "12": "Arunachal Pradesh", "13": "Nagaland", "14": "Manipur",
+  "15": "Mizoram", "16": "Tripura", "17": "Meghalaya", "18": "Assam", "19": "West Bengal",
+  "20": "Jharkhand", "21": "Odisha", "22": "Chhattisgarh", "23": "Madhya Pradesh",
+  "24": "Gujarat", "25": "Daman & Diu", "26": "Dadra & Nagar Haveli", "27": "Maharashtra",
+  "28": "Andhra Pradesh", "29": "Karnataka", "30": "Goa", "31": "Lakshadweep", "32": "Kerala",
+  "33": "Tamil Nadu", "34": "Puducherry", "35": "Andaman & Nicobar Islands", "36": "Telangana",
+  "37": "Andhra Pradesh (New)", "38": "Ladakh", "97": "Other Territory", "99": "Centre Jurisdiction",
 };
 
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
@@ -27,7 +27,7 @@ const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 const stepVariants = {
   initial: { opacity: 0, x: 30 },
   animate: { opacity: 1, x: 0, transition: { duration: 0.3, ease: "easeOut" } },
-  exit:    { opacity: 0, x: -30, transition: { duration: 0.2, ease: "easeIn" } },
+  exit: { opacity: 0, x: -30, transition: { duration: 0.2, ease: "easeIn" } },
 };
 
 export default function Register() {
@@ -45,19 +45,19 @@ export default function Register() {
 
   // Step 2 — Form state
   const [form, setForm] = useState({
-    business_name:    "",
-    contact_person:   "",
-    email:            "",
-    mobile:           "",
-    password:         "",
+    business_name: "",
+    contact_person: "",
+    email: "",
+    mobile: "",
+    password: "",
     confirm_password: "",
     reseller_type_id: "",
-    commercial_mode:  "commission",
+    commercial_mode: "commission",
   });
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
-  const [success, setSuccess]   = useState(false);
+  const [success, setSuccess] = useState(false);
 
   // Derived State Name
   const gstStateName = gstInput.length >= 2
@@ -67,7 +67,7 @@ export default function Register() {
   useEffect(() => {
     api.get("/india/v1/reseller/types")
       .then((res) => { if (res.data?.status === "success") setTypes(res.data.data); })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Sync commercial_mode when type selection changes
@@ -76,7 +76,7 @@ export default function Register() {
     setForm((f) => ({
       ...f,
       reseller_type_id: typeId,
-      commercial_mode:  matched?.commercial_mode || f.commercial_mode,
+      commercial_mode: matched?.commercial_mode || f.commercial_mode,
     }));
   };
 
@@ -146,17 +146,17 @@ export default function Register() {
     setSubmitting(true);
     try {
       const payload = {
-        business_name:    form.business_name.trim(),
-        contact_person:   form.contact_person.trim(),
-        email:            form.email.trim().toLowerCase(),
-        mobile:           form.mobile.trim(),
-        password:         form.password,
+        business_name: form.business_name.trim(),
+        contact_person: form.contact_person.trim(),
+        email: form.email.trim().toLowerCase(),
+        mobile: form.mobile.trim(),
+        password: form.password,
         reseller_type_id: form.reseller_type_id,
-        commercial_mode:  form.commercial_mode,
-        gst_number:       gstInput.trim().toUpperCase(),
-        gst_verified:     !!gstResult,
-        gst_legal_name:   gstResult?.legal_name || null,
-        gst_trade_name:   gstResult?.trade_name || null,
+        commercial_mode: form.commercial_mode,
+        gst_number: gstInput.trim().toUpperCase(),
+        gst_verified: !!gstResult,
+        gst_legal_name: gstResult?.legal_name || null,
+        gst_trade_name: gstResult?.trade_name || null,
       };
 
       const res = await api.post("/india/v1/reseller/auth/register", payload);
@@ -222,11 +222,10 @@ export default function Register() {
         <div className="flex items-center justify-center gap-3 mb-6">
           <div className="flex items-center gap-2">
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-extrabold transition-all duration-300 ${
-                step >= 1
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-extrabold transition-all duration-300 ${step >= 1
                   ? "bg-blue-600 text-white shadow-md shadow-blue-500/30"
                   : "bg-slate-200 text-slate-500"
-              }`}
+                }`}
             >
               {step > 1 ? <FiCheckCircle size={15} /> : 1}
             </div>
@@ -239,11 +238,10 @@ export default function Register() {
 
           <div className="flex items-center gap-2">
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-extrabold transition-all duration-300 ${
-                step >= 2
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-extrabold transition-all duration-300 ${step >= 2
                   ? "bg-blue-600 text-white shadow-md shadow-blue-500/30"
                   : "bg-slate-200 text-slate-500"
-              }`}
+                }`}
             >
               2
             </div>
@@ -257,7 +255,7 @@ export default function Register() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white border border-slate-300 rounded-3xl p-6 sm:p-8 shadow-2xl"
+          className="bg-white border border-slate-300 rounded-3xl p-4 sm:p-8 shadow-2xl"
         >
           <AnimatePresence mode="wait">
             {/* ════════════════════════════════════════════
@@ -342,7 +340,7 @@ export default function Register() {
                     animate={{ opacity: 1, scale: 1 }}
                     className="p-4 rounded-2xl bg-emerald-50/80 border-2 border-emerald-200 space-y-3 shadow-sm"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2.5">
                         <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
                           <FiCheckCircle size={20} />
@@ -365,7 +363,7 @@ export default function Register() {
 
                     <div className="bg-white p-3 rounded-xl border border-emerald-200 space-y-2 text-xs">
                       {gstResult.legal_name && (
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-slate-500 font-semibold flex items-center gap-1">
                             <FiBriefcase size={12} className="text-slate-400" /> Legal Name:
                           </span>
@@ -373,7 +371,7 @@ export default function Register() {
                         </div>
                       )}
                       {gstResult.trade_name && gstResult.trade_name !== gstResult.legal_name && (
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-slate-500 font-semibold flex items-center gap-1">
                             <FiBriefcase size={12} className="text-slate-400" /> Trade Name:
                           </span>
@@ -381,7 +379,7 @@ export default function Register() {
                         </div>
                       )}
                       {gstStateName && (
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-slate-500 font-semibold flex items-center gap-1">
                             <FiMapPin size={12} className="text-slate-400" /> Assigned State:
                           </span>
@@ -416,7 +414,7 @@ export default function Register() {
               <motion.div key="step2" {...stepVariants}>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {/* Verified Header Banner */}
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-between text-xs">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2">
                       <FiCheckCircle className="text-blue-600 flex-shrink-0" size={16} />
                       <div>
@@ -555,16 +553,15 @@ export default function Register() {
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                       Preferred Operating Mode *
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button
                         id="mode-commission"
                         type="button"
                         onClick={() => setForm({ ...form, commercial_mode: "commission" })}
-                        className={`p-3 rounded-xl border-2 text-left transition-all ${
-                          form.commercial_mode === "commission"
+                        className={`p-3 rounded-xl border-2 text-left transition-all ${form.commercial_mode === "commission"
                             ? "border-blue-600 bg-blue-50 text-blue-900 shadow-sm"
                             : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <FiTrendingUp className={form.commercial_mode === "commission" ? "text-blue-600" : "text-slate-400"} size={16} />
@@ -577,11 +574,10 @@ export default function Register() {
                         id="mode-dealer"
                         type="button"
                         onClick={() => setForm({ ...form, commercial_mode: "dealer" })}
-                        className={`p-3 rounded-xl border-2 text-left transition-all ${
-                          form.commercial_mode === "dealer"
+                        className={`p-3 rounded-xl border-2 text-left transition-all ${form.commercial_mode === "dealer"
                             ? "border-blue-600 bg-blue-50 text-blue-900 shadow-sm"
                             : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <FiPackage className={form.commercial_mode === "dealer" ? "text-blue-600" : "text-slate-400"} size={16} />
